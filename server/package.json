@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@game/shared": "workspace:*",
@@ -15,6 +17,7 @@
     "@types/node": "^22.0.0",
     "@types/ws": "~8.18.0",
     "tsx": "~4.19.0",
-    "typescript": "~5.8.0"
+    "typescript": "~5.8.0",
+    "vitest": "~4.1.0"
   }
 }
