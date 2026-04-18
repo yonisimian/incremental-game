@@ -1,0 +1,578 @@
+# Competitive Multiplayer Incremental Game
+
+> Codename: incremenTal
+
+## Overview
+
+A real-time head-to-head incremental game playable on any device via the browser. Two players compete simultaneously, making strategic decisions about resource accumulation and upgrades within a shared time-limited round.
+
+---
+
+## Core Concept
+
+- **Genre**: Competitive multiplayer incremental (real-time head-to-head)
+- **Platform**: Web (mobile + desktop)
+- **Tech**: TypeScript, WebSocket server, browser client
+- **Session model**: Short time-limited rounds (e.g., 1–5 minutes)
+
+---
+
+## Architecture
+
+### High-Level Components
+
+```
+┌─────────────┐         WebSocket          ┌─────────────────┐
+│   Client A  │ ◄──────────────────────►   │                 │
+│  (Browser)  │                            │   Game Server   │
+└─────────────┘                            │   (Node.js)     │
+                                           │                 │
+┌─────────────┐         WebSocket          │  - Matchmaking  │
+│   Client B  │ ◄──────────────────────►   │  - Validation   │
+│  (Browser)  │                            │  - Game State   │
+└─────────────┘                            │  - Timer        │
+                                           └─────────────────┘
+```
+
+### Networking Model: Client-Predicted, Server-Authoritative
+
+1. **Client responsibilities**:
+   - Render UI, handle input
+   - Track local state optimistically (instant feedback on clicks/purchases)
+   - Batch and send timestamped action events to server every ~500ms
+   - Reconcile with server state on each server update
+
+2. **Server responsibilities**:
+   - Maintain the authoritative game state for both players
+   - Validate all incoming actions:
+     - Click rate within human limits (cap ~15–20 CPS)
+     - Timestamps within the round window
+     - Purchases are affordable and available
+     - Statistical plausibility (no perfectly uniform intervals)
+   - Broadcast game state snapshots to both clients at regular intervals
+   - Own the round timer (clients sync to server time)
+   - Determine the winner
+
+3. **Score vs Currency**:
+   - **Currency**: the spendable resource. Earned by clicking and passive income. Spent on upgrades. Goes down when you buy something.
+   - **Score**: total currency ever earned (lifetime production). Never decreases. **The player with the highest score at round end wins.** This means buying upgrades never hurts your score — it only costs currency.
+   - **Tiebreaker**: if both players end with the same score, the round is a **draw**. (Ties are extremely unlikely in practice — manual click timestamps and batch processing order create natural variance between players — but the UI and ROUND_END message must handle this case.)
+
+4. **Message types**:
+
+   ```
+   Client → Server:
+     ACTION_BATCH  { actions: [{ type, timestamp, payload }], seq }
+
+   Server → Client:
+     STATE_UPDATE  { tick, ackSeq, player: { score, currency, upgrades }, opponent: { score, currency, upgrades }, timeLeft }
+     ROUND_START   { matchId, config, serverTime }
+     ROUND_END     { winner, finalScores, stats }  // winner: 'player' | 'opponent' | 'draw'
+
+   ackSeq: the highest client ACTION_BATCH seq the server has processed.
+   The client re-applies any local actions with seq > ackSeq on top of the
+   server state, preventing optimistic clicks from flickering on reconciliation.
+   ```
+
+### Why This Works for Incrementals
+
+- Most actions are **discrete decisions** (click, buy upgrade), not physics
+- No spatial state → no interpolation/extrapolation needed
+- Low tick rate is fine (~2–4 Hz server updates)
+- Opponent state visibility is configurable (starting with full visibility; can be reduced later for strategic depth)
+
+---
+
+## Game Flow
+
+```
+1. LOBBY
+   └─► Player opens the app, enters matchmaking queue
+
+2. MATCHMAKING
+   └─► Server pairs two players, creates a match
+
+3. COUNTDOWN
+   └─► 3-2-1 countdown synced to server clock
+
+4. ROUND (the core loop)
+   ├─► Players click to generate currency
+   ├─► Players spend currency on upgrades that improve generation rate
+   ├─► Timer counts down (server-authoritative)
+   ├─► Each player sees: their own full state + opponent's full state (full visibility)
+   └─► Server validates all actions in real time
+
+5. ROUND END
+   ├─► Server declares winner based on final scores
+   ├─► Stats screen (clicks, CPS peak, upgrades purchased, etc.)
+   └─► Option to rematch or return to lobby
+```
+
+---
+
+## Minimal Prototype Scope (v0.0.1)
+
+The simplest version that proves the concept:
+
+### What's IN:
+- [ ] One screen: a click button + currency display + upgrades + timer + opponent state
+- [ ] Matchmaking: queue of 2 → start match
+- [ ] Round timer: 60 seconds, server-controlled
+- [ ] Click action: tap/click → +1 currency
+- [ ] 3 basic upgrades (each can be purchased once, fixed cost):
+  - **Auto-Clicker** (costs 10): +1 currency per second passively (this is raw income, not a simulated click — Double Click does not affect it)
+  - **Double Click** (costs 25): each manual click gives +2 instead of +1
+  - **Multiplier** (costs 100): 2x all income (applies to both manual clicks and Auto-Clicker)
+- [ ] Score = total currency ever earned; highest score wins
+- [ ] Server validation of click rate + purchase validity
+- [ ] End screen: winner (or draw) + final scores
+
+### What's OUT (future):
+- [ ] Accounts / persistence
+- [ ] ELO / ranking
+- [ ] More upgrades / prestige
+- [ ] Group matches
+- [ ] Spectating
+- [ ] Chat
+- [ ] Visual polish / animations
+
+---
+
+## Upgrade Design Philosophy
+
+The interesting competitive dimension comes from **strategic choices under time pressure**:
+
+- Do I click manually early to afford upgrades faster?
+- Do I rush Auto-Clicker for passive income?
+- Do I save for the Multiplier and gamble on a late-game spike?
+- Can I read my opponent's score trajectory and adapt?
+
+Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivial decision tree. In future versions, making upgrades repeatable with scaling costs (à la Cookie Clicker) would deepen the strategy further.
+
+---
+
+## Tech Stack (Deep Dive)
+
+### Summary
+
+| Layer       | Technology              | Version      | Rationale                                         |
+|-------------|-------------------------|--------------|----------------------------------------------------|
+| Language    | TypeScript              | ~5.x         | Type safety shared across client & server          |
+| Client      | Vanilla TS + HTML + CSS | —            | Maximum portability, no framework overhead         |
+| Client Build| Vite                    | ~6.x         | Fast dev server, native TS support, HMR            |
+| Server      | Node.js                 | ≥20.19       | Same language as client, Render native runtime      |
+| WebSocket   | `ws`                    | ~8.x         | Blazing fast, 22.7k★, thoroughly tested WS library |
+| Pkg Manager | pnpm                    | ~10.x        | Workspace support for monorepo shared types         |
+| VCS         | Git + GitHub            | —            | Render auto-deploys from GitHub on push            |
+| Deploy      | Render                  | Free tier    | $0 hosting — static site + WS web service          |
+| Server Dev  | `tsx`                   | latest       | TypeScript execution for Node.js (dev-only)         |
+
+### TypeScript (~5.x)
+
+- Both client and server are written in TypeScript
+- Shared types (message schemas, game config) live in a `shared/` package
+  - Both client and server import from it — single source of truth
+- `strict: true` in all tsconfig files
+- Compiled to ES2022 (all target environments support it)
+
+### Vite (~6.x) — Client Build Tool
+
+- **What it does**: Bundles the client-side TypeScript + HTML into static files for production
+- **Dev server**: `vite dev` serves files at `http://localhost:5173` with hot module replacement (HMR) — changes appear instantly in the browser without refresh
+- **Production build**: `vite build` produces an optimized `dist/` folder with minified JS + CSS + `index.html`, ready for static hosting
+- **Why Vite over alternatives**:
+  - Native TypeScript support — no separate `tsc` step during dev
+  - Instant startup (uses native ES modules in dev)
+  - `pnpm create vite@latest` scaffolds a vanilla-ts project in seconds
+  - Already familiar from other projects (slidev, tindira, yonisimian.com)
+- **Scaffold command**: `pnpm create vite@latest client -- --template vanilla-ts`
+- **Requires**: Node.js ≥20.19
+
+### `ws` (~8.x) — Server WebSocket Library
+
+- **What it is**: The standard Node.js WebSocket implementation (22.7k GitHub stars, 188 contributors)
+- **Key facts**:
+  - Server-only — browser clients use the native `WebSocket` API (no extra dependency)
+  - Supports ping/pong heartbeat for detecting stale connections
+  - Can share an HTTP server (our server serves both the health check endpoint and WebSocket upgrades on the same port)
+  - No compression needed for our use case (messages are tiny JSON objects)
+- **Basic server pattern**:
+  ```ts
+  import { createServer } from 'http';
+  import { WebSocketServer } from 'ws';
+
+  const server = createServer(); // also handles HTTP health checks
+  const wss = new WebSocketServer({ server, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    ws.on('message', (data) => { /* handle */ });
+  });
+
+  server.listen(process.env.PORT || 10000);
+  ```
+- **Heartbeat**: Server pings all clients every 30 seconds; if no pong response, the connection is terminated. This is recommended by Render to keep connections alive and detect stale ones.
+
+### pnpm Workspaces — Monorepo Shared Types
+
+- The project is a **monorepo** with three packages: `client/`, `server/`, `shared/`
+- pnpm workspaces let both `client` and `server` import from `shared` as a local dependency
+- **Root `pnpm-workspace.yaml`**:
+  ```yaml
+  packages:
+    - client
+    - server
+    - shared
+  ```
+- **Root `package.json`** must include a `"packageManager"` field (e.g., `"packageManager": "pnpm@10.x.x"` — exact version pinned at setup time). This is required by `corepack enable` to know which pnpm version to activate in Render's build environment.
+- **How shared imports work**:
+  - `shared/package.json` has `"name": "@game/shared"`
+  - `client/package.json` and `server/package.json` each list `"@game/shared": "workspace:*"` as a dependency
+  - Import in code: `import type { GameMessage } from '@game/shared'`
+  - Vite resolves workspace packages natively (no extra config)
+  - For the server, `tsx` or `tsc` + `node` handles it
+
+### `tsx` — Server Dev Runner
+
+- **What it is**: A fast TypeScript executor for Node.js — runs `.ts` files directly without a separate compile step
+- **Used for**: `pnpm dev` in the server package (`tsx watch src/main.ts`) — auto-restarts on file changes
+- **Dev-only**: Not needed in production (server is compiled to JS via `tsc` before deploy)
+- **Install**: Listed as a `devDependency` in `server/package.json`
+
+### Git + GitHub
+
+- Code lives in a single GitHub repository
+- Render connects to the GitHub repo directly
+- **Auto-deploy**: Every push to `main` triggers a build + deploy on Render
+- **Branch workflow**: Develop on feature branches, merge to `main` to deploy
+- `.gitignore` excludes: `node_modules/`, `dist/`, `.env`, `*.local`
+
+---
+
+## Deployment (Deep Dive)
+
+### Hosting: Render (100% free tier)
+
+Both services deploy from the **same GitHub repo** (monorepo). Render's `buildFilter` controls when each service rebuilds. We do **not** set `rootDir` because both services need access to `shared/` at build time (Render excludes files outside the root directory).
+
+```
+┌──────────────────────────┐     ┌──────────────────────────┐
+│   Render Static Site     │     │   Render Web Service     │
+│   (client)               │     │   (server)               │
+│                          │     │                          │
+│  - Serves client/dist/   │ WS  │  - Node.js + ws          │
+│  - Free, CDN + SSL       │◄───►│  - Free (750 hrs/mo)     │
+│  - Auto-deploy from Git  │     │  - WebSocket on /ws      │
+│  - Build filter: client/ │     │  - Build filter: server/ │
+└──────────────────────────┘     └──────────────────────────┘
+```
+
+#### Static Site (Client)
+
+| Setting         | Value                              |
+|-----------------|------------------------------------|
+| Type            | Static Site                        |
+| Root Directory  | *(not set — repo root)*            |
+| Build Command   | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build` |
+| Publish Dir     | `client/dist`                      |
+| Cost            | $0 (static sites are always free)  |
+
+- Produces a static `dist/` folder — just HTML, JS, CSS
+- Served from Render's CDN with automatic SSL (`https://your-game.onrender.com`)
+- Brotli compression included
+- Custom domains supported (free)
+
+#### Web Service (Server)
+
+| Setting         | Value                              |
+|-----------------|------------------------------------|
+| Type            | Web Service                        |
+| Runtime         | Node                               |
+| Instance Type   | Free                               |
+| Root Directory  | *(not set — repo root)*            |
+| Build Command   | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter server build` |
+| Start Command   | `node server/dist/main.js`        |
+| Cost            | $0 (750 free instance hours/month) |
+
+- Binds to `process.env.PORT` (default: 10000) — required by Render
+- Serves both HTTP (health check at `/`) and WebSocket (upgrade at `/ws`) on the same port
+- **Idle spin-down**: Sleeps after 15 minutes without traffic; wakes in ~60 seconds on next request
+- **Heartbeat**: Server pings all clients every 30 seconds; Render does not impose a max WebSocket duration, but connections close when the instance restarts (deploys, maintenance)
+- **Reconnection**: Client must implement reconnect with exponential backoff (1s, 2s, 4s, 8s… up to 60s)
+- **Cold-start UX**: When the server is asleep (idle >15 min), the first WebSocket connection will fail while the instance wakes (~60s). The client should detect this and show a "Waking up server…" message instead of the generic "Looking for opponent…" screen. Approach: send an HTTP `GET /` (health check) before attempting the WebSocket connection — if it fails or takes >2s, display the cold-start message. Only open the WebSocket after the health check succeeds.
+
+#### Infrastructure-as-Code: `render.yaml`
+
+Both services can be defined in a single Blueprint file at the repo root, so deployment is fully reproducible:
+
+```yaml
+services:
+  # --- Client (static site) ---
+  - type: web
+    name: incremental-client
+    runtime: static
+    buildCommand: corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build
+    staticPublishPath: client/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    buildFilter:
+      paths:
+        - client/**
+        - shared/**
+
+  # --- Server (WebSocket game server) ---
+  - type: web
+    name: incremental-server
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter server build
+    startCommand: node server/dist/main.js
+    buildFilter:
+      paths:
+        - server/**
+        - shared/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+```
+
+Pushing this file to GitHub and clicking "New Blueprint" in Render creates both services at once.
+
+### Render Free Tier Limits
+
+| Resource               | Limit                              | Impact                                    |
+|------------------------|------------------------------------|-------------------------------------------|
+| Instance hours         | 750/month                          | ~24h/day if always on; sleeps when idle   |
+| Idle spin-down         | After 15 min no traffic            | ~60s cold start on next visit              |
+| Bandwidth              | 100 GB/month included              | More than enough for 2 players             |
+| Build pipeline minutes | 500/month                          | Each build takes ~1-2 minutes              |
+| Ephemeral filesystem   | Lost on every restart/deploy       | No issue — game state is in-memory only    |
+| SSL                    | Automatic, free                    | `wss://` for WebSocket, `https://` for client |
+
+### Client → Server Connection
+
+- Client connects to `wss://incremental-server.onrender.com/ws`
+- Must use `wss://` (not `ws://`) — Render terminates SSL at the load balancer and forwards as `ws://` internally
+- The server URL is injected into the client via Vite's env variables:
+  - `client/.env.production`: `VITE_WS_URL=wss://incremental-server.onrender.com/ws`
+  - `client/.env.development`: `VITE_WS_URL=ws://localhost:10000/ws`
+  - Accessed in code as `import.meta.env.VITE_WS_URL`
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- **Node.js** ≥ 20.19 (required by Vite 6)
+- **pnpm** ≥ 10.x (`npm install -g pnpm`)
+- **Git**
+
+### Setup (first time)
+
+```bash
+git clone https://github.com/<user>/incremental-game.git
+cd incremental-game
+pnpm install          # installs all workspace dependencies
+```
+
+### Running locally
+
+```bash
+# Terminal 1: start the game server
+cd server
+pnpm dev              # runs tsx watch src/main.ts on port 10000
+
+# Terminal 2: start the client dev server
+cd client
+pnpm dev              # runs vite on port 5173 (connects to WS via .env.development)
+```
+
+- Open `http://localhost:5173` in two browser tabs/windows to simulate two players
+- Vite HMR: client code changes appear instantly
+- Server: `tsx watch` restarts on file changes
+
+### Testing a production build locally
+
+Vite's `pnpm build` uses `.env.production` by default, which has the Render WS URL baked in. To test a real production build against the local server, create a `.env.production.local` override (already gitignored by `*.local`):
+
+```bash
+# Terminal 1: build and preview the client with local WS override
+echo "VITE_WS_URL=ws://localhost:10000/ws" > client/.env.production.local
+cd client && pnpm build && pnpm preview   # serves optimized dist/ at localhost:4173
+# remove the override when done: rm client/.env.production.local
+
+# Terminal 2: build and run the server
+cd server && pnpm build && node dist/main.js
+```
+
+---
+
+## Project Structure
+
+```
+incremental-game/
+├── DESIGN.md                    ← this file
+├── render.yaml                  ← Render Blueprint (infra-as-code)
+├── pnpm-workspace.yaml          ← declares workspace packages
+├── package.json                 ← root scripts (dev, build, etc.)
+├── .gitignore
+│
+├── shared/                      ← @game/shared — types & constants
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── src/
+│       ├── index.ts             ← barrel export
+│       ├── messages.ts          ← WebSocket message type definitions
+│       ├── game-config.ts       ← round length, upgrade costs, rate limits
+│       └── types.ts             ← PlayerState, UpgradeId, etc.
+│
+├── client/                      ← Vite vanilla-ts project
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── index.html               ← entry point (script type="module")
+│   ├── .env.development          ← VITE_WS_URL=ws://localhost:10000/ws
+│   ├── .env.production           ← VITE_WS_URL=wss://incremental-server.onrender.com/ws
+│   └── src/
+│       ├── main.ts              ← entry: init UI, connect to server
+│       ├── game.ts              ← local game state + client prediction
+│       ├── network.ts           ← WebSocket client, batching, reconciliation
+│       ├── ui.ts                ← DOM rendering (no framework)
+│       └── style.css            ← minimal responsive CSS
+│
+└── server/                      ← Node.js WebSocket server
+    ├── package.json
+    ├── tsconfig.json
+    └── src/
+        ├── main.ts              ← HTTP server + WebSocket server setup
+        ├── match.ts             ← match lifecycle: countdown, tick, scoring
+        ├── matchmaking.ts       ← queue + pairing logic
+        └── validation.ts        ← anti-cheat: rate limiting, purchase checks
+```
+
+---
+
+## Step-by-Step: From Zero to Deployed
+
+### Phase 0: Repository Setup
+
+1. Create GitHub repo (`incremental-game`)
+2. Clone locally, initialize pnpm workspace:
+   ```bash
+   pnpm init
+   # create pnpm-workspace.yaml listing client, server, shared
+   ```
+3. Create `shared/`, `client/`, `server/` packages:
+   ```bash
+   mkdir shared && cd shared && pnpm init
+   cd .. && pnpm create vite@latest client -- --template vanilla-ts
+   mkdir -p server/src && cd server && pnpm init
+   ```
+4. Set up TypeScript configs (`tsconfig.json`) in each package
+5. Wire up `@game/shared` as a workspace dependency in client and server
+6. Add root-level convenience scripts:
+   ```json
+   {
+     "packageManager": "pnpm@10.x.x",
+     "scripts": {
+       "dev:client": "pnpm --filter client dev",
+       "dev:server": "pnpm --filter server dev",
+       "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build"
+     }
+   }
+   ```
+7. Create `.gitignore`, commit, push
+
+### Phase 1: Shared Types
+
+1. Define message types in `shared/src/messages.ts`:
+   - `ActionBatch` (client → server)
+   - `StateUpdate`, `RoundStart`, `RoundEnd` (server → client)
+2. Define `GameConfig` in `shared/src/game-config.ts`:
+   - Round duration, upgrade definitions, rate limits
+3. Export everything from `shared/src/index.ts`
+
+### Phase 2: Server — "Hello WebSocket"
+
+1. Set up HTTP + WebSocket server in `server/src/main.ts`:
+   - HTTP `GET /` returns health check (required by Render)
+   - WebSocket upgrade on path `/ws`
+   - Bind to `process.env.PORT || 10000`
+2. Implement heartbeat (ping every 30s, terminate on no pong)
+3. Implement basic matchmaking in `server/src/matchmaking.ts`:
+   - When a player connects, add to queue
+   - When 2 players are queued, create a match
+4. Implement match lifecycle in `server/src/match.ts`:
+   - Countdown (3-2-1)
+   - Game tick loop (setInterval every 250ms for passive income)
+   - Receive + validate action batches
+   - Broadcast state updates every 500ms
+   - End round when timer hits 0, declare winner
+5. Implement validation in `server/src/validation.ts`:
+   - Click rate check
+   - Purchase affordability check
+
+### Phase 3: Client — "Hello Game"
+
+1. Scaffold with Vite vanilla-ts template
+2. Set up WebSocket connection in `client/src/network.ts`:
+   - Connect to `import.meta.env.VITE_WS_URL`
+   - Send action batches, receive state updates
+   - Reconnect with exponential backoff
+3. Implement local game state in `client/src/game.ts`:
+   - Optimistic click counting
+   - Reconcile with server state on each StateUpdate
+4. Implement UI in `client/src/ui.ts`:
+   - Waiting screen ("Looking for opponent…")
+   - Countdown overlay ("3… 2… 1… GO!")
+   - Game screen: click button, currency, upgrades, opponent state (score, currency, upgrades), timer
+   - End screen: winner, stats, rematch button
+5. Style with `client/src/style.css`:
+   - Mobile-first, large tap target for the click button
+   - Minimal and responsive
+
+### Phase 4: Deploy to Render
+
+1. Create `render.yaml` at repo root (see above)
+2. Push to GitHub
+3. In Render Dashboard: **New → Blueprint → Connect repo → Deploy**
+   - Render reads `render.yaml` and creates both services automatically
+4. Note the server URL (e.g., `incremental-server.onrender.com`)
+5. Update `client/.env.production` with the actual server URL
+6. Push again — client redeploys with correct WS endpoint
+   - **Note**: The first client deploy won't connect to the server (placeholder URL). This is expected — it becomes functional after this step.
+7. Open `https://incremental-client.onrender.com` on two phones → play!
+
+### Phase 5: Iterate
+
+- Play with friend → note what's fun, what's broken, what's missing
+- Push changes to `main` → auto-redeploy
+- Repeat
+
+---
+
+## Open Questions
+
+- [ ] **Game name?** incremenTal (capital T only, still a code name and not final).
+- [ ] **Round length**: we'll start with 60s and make it configurable per match later on.
+- [ ] **Visibility**: we'll start with full visibility.
+- [ ] **Upgrade balance**: we'll think about that as we implement and test the core loop.
+- [ ] **Mobile UX**: we'll start with a simple responsive design and iterate based on testing.
+- [ ] **Reconnection mid-round**: if a player disconnects during a round, what happens? Options: forfeit after a grace period (e.g., 10s), pause the round (bad UX for opponent), or let the opponent keep playing (disconnected player falls behind). We'll start with a 10-second grace period — if the player doesn't reconnect, they forfeit.
+
+---
+
+## Future Directions (post-prototype)
+
+1. **More upgrades** → deeper strategy tree
+2. **Prestige system** → meta-progression across rounds
+3. **Team matches** (2v2, 3v3) → shared economy, role specialization
+4. **Async competition** → submit your best run, compare on leaderboard
+5. **Spectator mode** → watch live matches
+6. **Seasonal events** → limited-time upgrade sets or rules
+7. **Indirect competition** → shared world where players' economies interact
+8. **Accounts + persistence** → Firebase Auth + Firestore (already familiar)
+9. **ELO / ranking** → competitive ladder

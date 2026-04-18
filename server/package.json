@@ -1,0 +1,20 @@
+{
+  "name": "server",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@game/shared": "workspace:*",
+    "ws": "~8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "~8.18.0",
+    "tsx": "~4.19.0",
+    "typescript": "~5.8.0"
+  }
+}
