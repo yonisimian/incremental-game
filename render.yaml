@@ -1,0 +1,31 @@
+services:
+  # --- Client (static site) ---
+  - type: web
+    name: incremental-client
+    runtime: static
+    buildCommand: corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build
+    staticPublishPath: client/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    buildFilter:
+      paths:
+        - client/**
+        - shared/**
+
+  # --- Server (WebSocket game server) ---
+  - type: web
+    name: incremental-server
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter server build
+    startCommand: node server/dist/main.js
+    buildFilter:
+      paths:
+        - server/**
+        - shared/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
