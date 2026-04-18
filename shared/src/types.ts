@@ -1,5 +1,10 @@
+/** Available game modes. */
+export type GameMode = 'clicker' | 'idler';
+
 /** Identifiers for all upgrades in the game. */
-export type UpgradeId = 'auto-clicker' | 'double-click' | 'multiplier';
+export type UpgradeId =
+  | 'auto-clicker' | 'double-click' | 'multiplier'
+  | 'accelerator' | 'double-income';
 
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {

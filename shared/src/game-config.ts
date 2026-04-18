@@ -1,4 +1,4 @@
-import type { PlayerState, UpgradeDefinition } from './types.js';
+import type { GameMode, PlayerState, UpgradeDefinition } from './types.js';
 
 // ─── Round ───────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export const RECONNECT_GRACE_MS = 10_000;
 
 // ─── Upgrades ────────────────────────────────────────────────────────
 
-export const UPGRADES: readonly UpgradeDefinition[] = [
+export const CLICKER_UPGRADES: readonly UpgradeDefinition[] = [
   {
     id: 'auto-clicker',
     name: 'Auto-Clicker',
@@ -57,12 +57,54 @@ export const UPGRADES: readonly UpgradeDefinition[] = [
   },
 ] as const;
 
-// ─── Derived Helpers ─────────────────────────────────────────────────
+export const IDLER_UPGRADES: readonly UpgradeDefinition[] = [
+  {
+    id: 'accelerator',
+    name: 'Accelerator',
+    cost: 10,
+    description: '+1 currency/sec additional passive',
+  },
+  {
+    id: 'double-income',
+    name: 'Double Income',
+    cost: 25,
+    description: '2x all passive income',
+  },
+  {
+    id: 'multiplier',
+    name: 'Multiplier',
+    cost: 100,
+    description: '2x all income (stacks)',
+  },
+] as const;
 
-/** Map from UpgradeId to its definition for O(1) lookup. */
-export const UPGRADE_MAP = new Map(
-  UPGRADES.map((u) => [u.id, u]),
-);
+/** @deprecated Use CLICKER_UPGRADES instead. Kept for backward compat. */
+export const UPGRADES = CLICKER_UPGRADES;
+
+// ─── Per-Mode Config ─────────────────────────────────────────────────
+
+export interface ModeConfig {
+  upgrades: readonly UpgradeDefinition[];
+  /** Base passive income per second (before upgrades). 0 for clicker. */
+  basePassivePerSec: number;
+  /** Whether manual clicks are allowed. */
+  clicksEnabled: boolean;
+}
+
+export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
+  clicker: {
+    upgrades: CLICKER_UPGRADES,
+    basePassivePerSec: 0,
+    clicksEnabled: true,
+  },
+  idler: {
+    upgrades: IDLER_UPGRADES,
+    basePassivePerSec: 1,
+    clicksEnabled: false,
+  },
+};
+
+// ─── Derived Helpers ─────────────────────────────────────────────────
 
 /** Initial player state at the start of each round. */
 export const INITIAL_PLAYER_STATE = {
@@ -72,5 +114,7 @@ export const INITIAL_PLAYER_STATE = {
     'auto-clicker': false,
     'double-click': false,
     'multiplier': false,
+    'accelerator': false,
+    'double-income': false,
   },
 } as const satisfies PlayerState;

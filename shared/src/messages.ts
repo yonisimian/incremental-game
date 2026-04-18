@@ -1,4 +1,5 @@
 import type {
+  GameMode,
   MatchWinner,
   PlayerAction,
   PlayerState,
@@ -16,7 +17,13 @@ export interface ActionBatchMessage {
   actions: PlayerAction[];
 }
 
-export type ClientMessage = ActionBatchMessage;
+/** Sent by client to select a game mode (enters matchmaking). */
+export interface ModeSelectMessage {
+  type: 'MODE_SELECT';
+  mode: GameMode;
+}
+
+export type ClientMessage = ActionBatchMessage | ModeSelectMessage;
 
 // ─── Server → Client ────────────────────────────────────────────────
 
@@ -41,6 +48,7 @@ export interface RoundStartMessage {
   matchId: string;
   /** Game configuration for this round. */
   config: {
+    mode: GameMode;
     roundDurationSec: number;
     upgrades: readonly UpgradeDefinition[];
   };

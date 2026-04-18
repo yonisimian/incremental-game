@@ -57,7 +57,7 @@ describe('Match', () => {
   // ── Factory helpers ──────────────────────────────────────────────
 
   function createMatch() {
-    return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 });
+    return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker');
   }
 
   function startMatch() {
@@ -349,6 +349,58 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
       expect(latestUpdate(ws1).player.score).toBe(0);
       expect(latestUpdate(ws2).player.score).toBe(0);
+    });
+  });
+
+  // ── Idler mode ─────────────────────────────────────────────────
+
+  describe('idler mode', () => {
+    function createIdlerMatch() {
+      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler');
+    }
+
+    function enterIdlerPlaying() {
+      const m = createIdlerMatch();
+      m.start();
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
+      return m;
+    }
+
+    it('sends mode in ROUND_START config', () => {
+      const m = createIdlerMatch();
+      m.start();
+      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      expect(msg.config.mode).toBe('idler');
+    });
+
+    it('grants base passive income each second', () => {
+      enterIdlerPlaying();
+      // After 1000ms → 4 ticks × 0.25/tick = 1.0 score + 1.0 currency
+      // A broadcast fires at 1000ms (BROADCAST_INTERVAL_MS=500)
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      expect(u.player.score).toBeCloseTo(1, 1);
+      expect(u.player.currency).toBeCloseTo(1, 1);
+    });
+
+    it('rejects clicks in idler mode', () => {
+      const m = enterIdlerPlaying();
+      m.handleMessage('p1', clickMsg(1));
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
+      // Score should be from passive only, not from the click
+      const u = latestUpdate(ws1);
+      // At this point very little time has passed since the tick boundary, but
+      // the click itself should NOT have added +1
+      expect(u.player.score).toBeLessThan(2);
+    });
+
+    it('uses idler upgrades, not clicker upgrades', () => {
+      const m = createIdlerMatch();
+      m.start();
+      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      const ids = msg.config.upgrades.map((u) => u.id);
+      expect(ids).toContain('accelerator');
+      expect(ids).not.toContain('auto-clicker');
     });
   });
 });

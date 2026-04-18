@@ -1,5 +1,5 @@
-import { MAX_CPS, UPGRADE_MAP } from '@game/shared';
-import type { PlayerState, UpgradeId } from '@game/shared';
+import { MAX_CPS } from '@game/shared';
+import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared';
 
 /**
  * Validate a click action against the rate limit.
@@ -30,8 +30,9 @@ export function isValidClick(
 export function isValidPurchase(
   state: PlayerState,
   upgradeId: UpgradeId,
+  upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>,
 ): boolean {
-  const def = UPGRADE_MAP.get(upgradeId);
+  const def = upgradeMap.get(upgradeId);
   if (!def) return false;
   if (state.upgrades[upgradeId]) return false;
   if (state.currency < def.cost) return false;

@@ -53,10 +53,11 @@ body {
   color: var(--accent);
 }
 
-/* ─── Waking / Waiting ─────────────────────────────────────────────── */
+/* ─── Waking / Waiting / Lobby ─────────────────────────────────────── */
 
 .waking-screen h1,
-.waiting-screen h1 {
+.waiting-screen h1,
+.lobby-screen h1 {
   font-size: 2rem;
 }
 
@@ -76,6 +77,53 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ─── Lobby ────────────────────────────────────────────────────────── */
+
+.mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.mode-btn:not(:disabled):hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.mode-btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.mode-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.mode-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.mode-desc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
 }
 
 /* ─── Countdown ────────────────────────────────────────────────────── */
@@ -105,6 +153,21 @@ body {
 
 .game-header {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mode-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
 }
 
 .timer {

@@ -4,16 +4,18 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   INITIAL_PLAYER_STATE,
+  MODE_CONFIGS,
   ROUND_DURATION_SEC,
   TICK_INTERVAL_MS,
-  UPGRADE_MAP,
-  UPGRADES,
 } from '@game/shared';
 import type {
   ClientMessage,
+  GameMode,
   MatchWinner,
+  ModeConfig,
   PlayerAction,
   ServerMessage,
+  UpgradeDefinition,
   UpgradeId,
 } from '@game/shared';
 import { isValidClick, isValidPurchase } from './validation.js';
@@ -43,6 +45,9 @@ type MatchPhase = 'countdown' | 'playing' | 'ended';
 
 export class Match {
   readonly id: string;
+  readonly mode: GameMode;
+  private readonly modeConfig: ModeConfig;
+  private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>;
   private readonly players: [MatchPlayer, MatchPlayer];
   private phase: MatchPhase = 'countdown';
   private tick = 0;
@@ -56,8 +61,12 @@ export class Match {
   constructor(
     p1: { id: string; ws: WebSocket },
     p2: { id: string; ws: WebSocket },
+    mode: GameMode,
   ) {
     this.id = randomUUID();
+    this.mode = mode;
+    this.modeConfig = MODE_CONFIGS[mode];
+    this.upgradeMap = new Map(this.modeConfig.upgrades.map((u) => [u.id, u]));
     this.players = [this.initPlayer(p1), this.initPlayer(p2)];
   }
 
@@ -74,8 +83,9 @@ export class Match {
   /** Send ROUND_START to both, then begin the game loop after countdown. */
   start(): void {
     const config = {
+      mode: this.mode,
       roundDurationSec: ROUND_DURATION_SEC,
-      upgrades: [...UPGRADES],
+      upgrades: [...this.modeConfig.upgrades],
     };
 
     for (const player of this.players) {
@@ -178,12 +188,13 @@ export class Match {
   ): void {
     for (const action of actions) {
       if (action.type === 'click') {
+        if (!this.modeConfig.clicksEnabled) continue;
         if (!isValidClick(player.recentClickTimestamps)) {
           continue;
         }
         this.applyClick(player);
       } else if (action.type === 'buy' && action.upgradeId) {
-        if (!isValidPurchase(player.state, action.upgradeId)) continue;
+        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue;
         this.applyPurchase(player, action.upgradeId);
       }
     }
@@ -191,11 +202,26 @@ export class Match {
   }
 
   private applyPassiveIncome(player: MatchPlayer): void {
-    if (!player.state.upgrades['auto-clicker']) return;
+    // Base passive income (0 for clicker, 1/sec for idler)
+    let income = this.modeConfig.basePassivePerSec * (TICK_INTERVAL_MS / 1000);
 
-    // +1 currency/sec → TICK_INTERVAL_MS / 1000 per tick
-    let income = TICK_INTERVAL_MS / 1000;
+    // Clicker: auto-clicker adds +1/sec
+    if (player.state.upgrades['auto-clicker']) {
+      income += TICK_INTERVAL_MS / 1000;
+    }
+
+    // Idler: accelerator adds +1/sec
+    if (player.state.upgrades['accelerator']) {
+      income += TICK_INTERVAL_MS / 1000;
+    }
+
+    // Idler: double-income doubles all passive
+    if (player.state.upgrades['double-income']) income *= 2;
+
+    // Multiplier doubles everything (both modes)
     if (player.state.upgrades['multiplier']) income *= 2;
+
+    if (income <= 0) return;
 
     player.state.currency += income;
     player.state.score += income;
@@ -217,7 +243,7 @@ export class Match {
   }
 
   private applyPurchase(player: MatchPlayer, upgradeId: UpgradeId): void {
-    const def = UPGRADE_MAP.get(upgradeId)!; // already validated
+    const def = this.upgradeMap.get(upgradeId)!; // already validated
     player.state.currency -= def.cost;
     player.state.upgrades[upgradeId] = true;
     player.stats.upgradesPurchased.push(upgradeId);

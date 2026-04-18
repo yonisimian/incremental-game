@@ -4,17 +4,18 @@ import type {
   RoundStartMessage,
   StateUpdateMessage,
 } from '@game/shared';
-import { COUNTDOWN_SEC, INITIAL_PLAYER_STATE, UPGRADES } from '@game/shared';
+import { COUNTDOWN_SEC, INITIAL_PLAYER_STATE, CLICKER_UPGRADES } from '@game/shared';
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
-// Mock network.ts — game.ts imports getSeq, queueAction, resetSeq from it.
+// Mock network.ts — game.ts imports getSeq, queueAction, resetSeq, sendModeSelect from it.
 vi.mock('../src/network.js', () => {
   let seq = 0;
   return {
     getSeq: vi.fn(() => seq),
     queueAction: vi.fn(),
     resetSeq: vi.fn(() => { seq = 0; }),
+    sendModeSelect: vi.fn(() => true),
   };
 });
 
@@ -31,19 +32,27 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
-    config: { roundDurationSec: 60, upgrades: [...UPGRADES] },
+    config: { mode: 'clicker', roundDurationSec: 60, upgrades: [...CLICKER_UPGRADES] },
     serverTime: Date.now(),
     ...overrides,
   };
 }
+
+const defaultUpgrades = {
+  'auto-clicker': false,
+  'double-click': false,
+  'multiplier': false,
+  'accelerator': false,
+  'double-income': false,
+} as const;
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
   return {
     type: 'STATE_UPDATE',
     tick: 1,
     ackSeq: 0,
-    player: { score: 0, currency: 0, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
-    opponent: { score: 0, currency: 0, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
+    player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
+    opponent: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
     timeLeft: 55,
     ...overrides,
   };
@@ -82,14 +91,30 @@ describe('game.ts', () => {
   // ── Initial state ────────────────────────────────────────────────
 
   describe('initial state', () => {
-    it('starts on the waiting screen', () => {
-      expect(game.getState().screen).toBe('waiting');
+    it('starts on the lobby screen', () => {
+      expect(game.getState().screen).toBe('lobby');
     });
 
     it('has zeroed player state', () => {
       const s = game.getState();
       expect(s.player.score).toBe(0);
       expect(s.player.currency).toBe(0);
+    });
+  });
+
+  // ── selectMode → waiting ─────────────────────────────────────────
+
+  describe('selectMode', () => {
+    it('transitions from lobby to waiting', () => {
+      game.selectMode('clicker');
+      expect(game.getState().screen).toBe('waiting');
+      expect(game.getState().mode).toBe('clicker');
+    });
+
+    it('is a no-op outside lobby', () => {
+      game.selectMode('clicker');
+      game.selectMode('idler'); // already on waiting screen
+      expect(game.getState().mode).toBe('clicker');
     });
   });
 
@@ -105,7 +130,7 @@ describe('game.ts', () => {
       game.handleServerMessage(makeRoundStart({ matchId: 'm-123' }));
       const s = game.getState();
       expect(s.matchId).toBe('m-123');
-      expect(s.upgrades.length).toBe(UPGRADES.length);
+      expect(s.upgrades.length).toBe(CLICKER_UPGRADES.length);
     });
 
     it('counts down from COUNTDOWN_SEC to playing', () => {
@@ -145,7 +170,18 @@ describe('game.ts', () => {
     });
 
     it('is a no-op outside playing screen', () => {
-      // Still on 'waiting'
+      // Still on 'lobby'
+      game.doClick();
+      expect(game.getState().player.score).toBe(0);
+    });
+
+    it('is a no-op in idler mode', () => {
+      game.handleServerMessage(makeRoundStart({
+        config: { mode: 'idler', roundDurationSec: 60, upgrades: [] },
+      }));
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
+      expect(game.getState().screen).toBe('playing');
+
       game.doClick();
       expect(game.getState().player.score).toBe(0);
     });
@@ -243,8 +279,8 @@ describe('game.ts', () => {
       enterPlaying(game);
       game.handleServerMessage(makeStateUpdate({
         ackSeq: 0,
-        player: { score: 5, currency: 5, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
-        opponent: { score: 3, currency: 3, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
+        player: { score: 5, currency: 5, upgrades: { ...defaultUpgrades } },
+        opponent: { score: 3, currency: 3, upgrades: { ...defaultUpgrades } },
         timeLeft: 50,
       }));
 
@@ -264,7 +300,7 @@ describe('game.ts', () => {
       // Server acks 0 of them (ackSeq=0), server sees score=0
       game.handleServerMessage(makeStateUpdate({
         ackSeq: 0,
-        player: { score: 0, currency: 0, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
+        player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
       }));
 
       // Reconciled: server(0) + 3 pending clicks = 3
@@ -279,7 +315,7 @@ describe('game.ts', () => {
       // Server acks all pending batches and reports score=2
       game.handleServerMessage(makeStateUpdate({
         ackSeq: 999, // acks everything
-        player: { score: 2, currency: 2, upgrades: { 'auto-clicker': false, 'double-click': false, 'multiplier': false } },
+        player: { score: 2, currency: 2, upgrades: { ...defaultUpgrades } },
       }));
 
       // No pending → adopts server state exactly
@@ -315,13 +351,14 @@ describe('game.ts', () => {
   // ── resetForMatch ────────────────────────────────────────────────
 
   describe('resetForMatch', () => {
-    it('resets to waiting screen with clean state', () => {
+    it('resets to lobby screen with clean state', () => {
       enterPlaying(game);
       game.doClick();
       game.resetForMatch();
 
       const s = game.getState();
-      expect(s.screen).toBe('waiting');
+      expect(s.screen).toBe('lobby');
+      expect(s.mode).toBeNull();
       expect(s.player.score).toBe(0);
       expect(s.player.currency).toBe(0);
       expect(s.matchId).toBeNull();

@@ -1,8 +1,7 @@
 import type { UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
-import { doClick, doBuy, resetForMatch, getState } from './game.js';
-import { connect } from './network.js';
+import { doClick, doBuy, resetForMatch, selectMode, getState } from './game.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -27,6 +26,9 @@ export function render(state: Readonly<GameState>): void {
   if (state.screen !== currentScreen) {
     currentScreen = state.screen;
     switch (state.screen) {
+      case 'lobby':
+        renderLobbyScreen();
+        break;
       case 'waiting':
         renderWaitingScreen();
         break;
@@ -67,9 +69,9 @@ export function handleConnectionChange(state: ConnectionState): void {
     currentScreen = null; // force re-render
     render(getState());
   } else if (state === 'disconnected') {
-    // Only show disconnected if we were in a game
+    // Show disconnected overlay when in an active session
     const gs = getState();
-    if (gs.screen === 'playing' || gs.screen === 'countdown') {
+    if (gs.screen === 'playing' || gs.screen === 'countdown' || gs.screen === 'waiting') {
       app.innerHTML = `
         <div class="screen disconnected-screen">
           <h1>Disconnected</h1>
@@ -93,6 +95,36 @@ function renderWakingScreen(): void {
   `;
 }
 
+function renderLobbyScreen(): void {
+  app.innerHTML = `
+    <div class="screen lobby-screen">
+      <h1>incremen<span class="brand-t">T</span>al</h1>
+      <p class="status-text">Choose a game mode</p>
+      <div class="mode-buttons">
+        <button class="mode-btn" data-mode="clicker">
+          <span class="mode-name">Clicker</span>
+          <span class="mode-desc">Click fast, buy upgrades, outscore your opponent</span>
+        </button>
+        <button class="mode-btn" data-mode="idler">
+          <span class="mode-name">Idler</span>
+          <span class="mode-desc">Passive income only — pure upgrade strategy</span>
+        </button>
+        <button class="mode-btn tbd" disabled>
+          <span class="mode-name">TBD</span>
+          <span class="mode-desc">Coming soon…</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.querySelectorAll<HTMLButtonElement>('.mode-btn:not(:disabled)').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (mode === 'clicker' || mode === 'idler') selectMode(mode);
+    });
+  });
+}
+
 function renderWaitingScreen(): void {
   app.innerHTML = `
     <div class="screen waiting-screen">
@@ -112,9 +144,12 @@ function renderCountdownScreen(state: Readonly<GameState>): void {
 }
 
 function renderPlayingScreen(state: Readonly<GameState>): void {
+  const isClicker = state.mode === 'clicker';
+
   app.innerHTML = `
     <div class="screen playing-screen">
       <header class="game-header">
+        <div class="mode-label">${isClicker ? 'Clicker' : 'Idler'}</div>
         <div class="timer" id="timer">${formatTime(state.timeLeft)}</div>
       </header>
 
@@ -135,7 +170,7 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
         <span id="currency">${Math.floor(state.player.currency)}</span>
       </div>
 
-      <button class="click-button" id="click-btn">CLICK</button>
+      ${isClicker ? '<button class="click-button" id="click-btn">CLICK</button>' : ''}
 
       <div class="upgrades" id="upgrades">
         ${renderUpgrades(state)}
@@ -143,7 +178,7 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
     </div>
   `;
 
-  bindPlayingEvents();
+  bindPlayingEvents(isClicker);
 }
 
 function renderEndScreen(state: Readonly<GameState>): void {
@@ -173,7 +208,6 @@ function renderEndScreen(state: Readonly<GameState>): void {
 
   document.getElementById('rematch-btn')!.addEventListener('click', () => {
     resetForMatch();
-    connect();
   });
 }
 
@@ -221,8 +255,10 @@ function renderUpgrades(state: Readonly<GameState>): string {
     .join('');
 }
 
-function bindPlayingEvents(): void {
-  document.getElementById('click-btn')!.addEventListener('click', doClick);
+function bindPlayingEvents(clickEnabled: boolean): void {
+  if (clickEnabled) {
+    document.getElementById('click-btn')!.addEventListener('click', doClick);
+  }
   bindUpgradeEvents();
 }
 

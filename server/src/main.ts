@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import WebSocket = require('ws');
 import { HEARTBEAT_INTERVAL_MS } from '@game/shared';
+import type { ClientMessage } from '@game/shared';
 import { addToQueue, removeFromQueue } from './matchmaking.js';
 import type { Match } from './match.js';
 
@@ -29,6 +30,7 @@ interface PlayerData {
 
 const wsData = new Map<WebSocket, PlayerData>();
 const playerMatches = new Map<string, Match>();
+const queuedPlayers = new Set<string>();
 
 wss.on('connection', (ws: WebSocket) => {
   const playerId = randomUUID();
@@ -37,30 +39,46 @@ wss.on('connection', (ws: WebSocket) => {
 
   console.log(`[connect] ${playerId}`);
 
-  // Try matchmaking
-  const match = addToQueue({ id: playerId, ws });
-  if (match) {
-    for (const pid of match.getPlayerIds()) {
-      playerMatches.set(pid, match);
-    }
-    match.onEnd(() => {
-      for (const pid of match.getPlayerIds()) {
-        playerMatches.delete(pid);
-      }
-    });
-    match.start();
-  }
-
   // Heartbeat pong
   ws.on('pong', () => {
     data.isAlive = true;
   });
 
-  // Route messages to match
+  // Route messages
   ws.on('message', (raw) => {
     const m = playerMatches.get(data.id);
     if (m) {
+      // Already in a match — forward to match handler
       m.handleMessage(data.id, String(raw));
+      return;
+    }
+
+    // Not in a match — check for MODE_SELECT
+    let msg: ClientMessage;
+    try {
+      msg = JSON.parse(String(raw)) as ClientMessage;
+    } catch {
+      return;
+    }
+
+    if (msg.type === 'MODE_SELECT') {
+      if (msg.mode !== 'clicker' && msg.mode !== 'idler') return;
+      if (queuedPlayers.has(data.id)) return;
+
+      queuedPlayers.add(data.id);
+      const match = addToQueue({ id: data.id, ws }, msg.mode);
+      if (match) {
+        for (const pid of match.getPlayerIds()) {
+          queuedPlayers.delete(pid);
+          playerMatches.set(pid, match);
+        }
+        match.onEnd(() => {
+          for (const pid of match.getPlayerIds()) {
+            playerMatches.delete(pid);
+          }
+        });
+        match.start();
+      }
     }
   });
 
@@ -73,6 +91,7 @@ wss.on('connection', (ws: WebSocket) => {
     } else {
       removeFromQueue(data.id);
     }
+    queuedPlayers.delete(data.id);
     wsData.delete(ws);
   });
 });

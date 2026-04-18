@@ -1,5 +1,7 @@
 import type {
   ActionBatchMessage,
+  GameMode,
+  ModeSelectMessage,
   PlayerAction,
   ServerMessage,
 } from '@game/shared';
@@ -88,6 +90,14 @@ export function disconnect(): void {
 /** Queue a player action to be sent in the next batch. */
 export function queueAction(action: PlayerAction): void {
   pendingActions.push(action);
+}
+
+/** Send a mode selection message to the server (enters matchmaking). Returns false if not connected. */
+export function sendModeSelect(mode: GameMode): boolean {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode };
+  ws.send(JSON.stringify(msg));
+  return true;
 }
 
 /** Get the current sequence number (for optimistic reconciliation). */

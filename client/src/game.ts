@@ -1,4 +1,5 @@
 import type {
+  GameMode,
   PlayerState,
   RoundEndMessage,
   RoundStartMessage,
@@ -8,11 +9,12 @@ import type {
   UpgradeId,
 } from '@game/shared';
 import { INITIAL_PLAYER_STATE, COUNTDOWN_SEC } from '@game/shared';
-import { getSeq, queueAction, resetSeq } from './network.js';
+import { getSeq, queueAction, resetSeq, sendModeSelect } from './network.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 export type Screen =
+  | 'lobby'      // connected, choosing game mode
   | 'waiting'    // in queue, looking for opponent
   | 'countdown'  // matched, counting down 3-2-1
   | 'playing'    // active round
@@ -20,6 +22,8 @@ export type Screen =
 
 export interface GameState {
   screen: Screen;
+  /** Selected game mode. */
+  mode: GameMode | null;
   /** Local player state (optimistic). */
   player: PlayerState;
   /** Opponent state (from server). */
@@ -48,7 +52,8 @@ export type StateChangeHandler = (state: Readonly<GameState>) => void;
 // ─── State ───────────────────────────────────────────────────────────
 
 const state: GameState = {
-  screen: 'waiting',
+  screen: 'lobby',
+  mode: null,
   player: clonePlayerState(INITIAL_PLAYER_STATE),
   opponent: clonePlayerState(INITIAL_PLAYER_STATE),
   timeLeft: 0,
@@ -89,9 +94,19 @@ export function handleServerMessage(msg: ServerMessage): void {
   }
 }
 
-/** Record a click action (optimistic). */
+/** Select a game mode and enter matchmaking. */
+export function selectMode(mode: GameMode): void {
+  if (state.screen !== 'lobby') return;
+  if (!sendModeSelect(mode)) return; // not connected — stay on lobby
+  state.mode = mode;
+  state.screen = 'waiting';
+  notify();
+}
+
+/** Record a click action (optimistic). Clicker mode only. */
 export function doClick(): void {
   if (state.screen !== 'playing') return;
+  if (state.mode !== 'clicker') return;
 
   // Optimistic local update
   const income = computeClickIncome(state.player);
@@ -125,7 +140,8 @@ export function doBuy(upgradeId: UpgradeId): void {
 
 /** Reset for a fresh match (e.g., rematch). */
 export function resetForMatch(): void {
-  state.screen = 'waiting';
+  state.screen = 'lobby';
+  state.mode = null;
   state.player = clonePlayerState(INITIAL_PLAYER_STATE);
   state.opponent = clonePlayerState(INITIAL_PLAYER_STATE);
   state.timeLeft = 0;
@@ -144,6 +160,7 @@ export function resetForMatch(): void {
 function handleRoundStart(msg: RoundStartMessage): void {
   state.screen = 'countdown';
   state.matchId = msg.matchId;
+  state.mode = msg.config.mode;
   state.upgrades = msg.config.upgrades;
   state.player = clonePlayerState(INITIAL_PLAYER_STATE);
   state.opponent = clonePlayerState(INITIAL_PLAYER_STATE);
