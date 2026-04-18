@@ -23,7 +23,12 @@ export interface ModeSelectMessage {
   mode: GameMode;
 }
 
-export type ClientMessage = ActionBatchMessage | ModeSelectMessage;
+/** Sent by client to voluntarily quit the current match. */
+export interface QuitMessage {
+  type: 'QUIT';
+}
+
+export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage;
 
 // ─── Server → Client ────────────────────────────────────────────────
 
@@ -56,10 +61,14 @@ export interface RoundStartMessage {
   serverTime: number;
 }
 
-/** Sent when the round timer expires. */
+/** Why the round ended. */
+export type RoundEndReason = 'complete' | 'quit' | 'forfeit';
+
+/** Sent when the round ends (timer expired, quit, or forfeit). */
 export interface RoundEndMessage {
   type: 'ROUND_END';
   winner: MatchWinner;
+  reason: RoundEndReason;
   finalScores: { player: number; opponent: number };
   stats: {
     totalClicks: number;

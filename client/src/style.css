@@ -131,6 +131,13 @@ body {
 .countdown-screen {
   justify-content: center;
   min-height: 60dvh;
+  position: relative;
+}
+
+.countdown-screen .quit-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .countdown-number {
@@ -175,6 +182,25 @@ body {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
+}
+
+/* Quit button */
+
+.quit-btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.quit-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 /* Scoreboard */

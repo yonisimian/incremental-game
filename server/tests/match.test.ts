@@ -282,7 +282,9 @@ describe('Match', () => {
       const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
       const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
       expect(p1End.winner).toBe('player');
+      expect(p1End.reason).toBe('complete');
       expect(p2End.winner).toBe('opponent');
+      expect(p2End.reason).toBe('complete');
     });
 
     it('declares a draw when scores are equal', () => {
@@ -312,6 +314,7 @@ describe('Match', () => {
 
       const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
       expect(p2End.winner).toBe('player');
+      expect(p2End.reason).toBe('forfeit');
     });
 
     it('fires the onEnd callback on forfeit', () => {
@@ -352,8 +355,68 @@ describe('Match', () => {
     });
   });
 
-  // ── Idler mode ─────────────────────────────────────────────────
+  // ── Quit ────────────────────────────────────────────────────────
 
+  describe('quit', () => {
+    function quitMsg() {
+      return JSON.stringify({ type: 'QUIT' });
+    }
+
+    it('awards victory to the opponent when a player quits', () => {
+      const m = enterPlaying();
+      m.handleMessage('p1', quitMsg());
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      expect(p1End.winner).toBe('opponent');
+      expect(p1End.reason).toBe('quit');
+      expect(p2End.winner).toBe('player');
+      expect(p2End.reason).toBe('quit');
+    });
+
+    it('includes correct final scores for both players', () => {
+      const m = enterPlaying();
+      m.handleMessage('p1', clickMsg(1)); // p1 earns 1
+      m.handleMessage('p1', quitMsg());
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      expect(p1End.finalScores.player).toBe(1);
+      expect(p1End.finalScores.opponent).toBe(0);
+      expect(p2End.finalScores.player).toBe(0);
+      expect(p2End.finalScores.opponent).toBe(1);
+    });
+
+    it('allows quitting during countdown', () => {
+      const m = startMatch();
+      // Still in countdown — quit should work
+      m.handleMessage('p1', quitMsg());
+
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      expect(p2End.winner).toBe('player');
+      expect(p2End.reason).toBe('quit');
+    });
+
+    it('fires the onEnd callback on quit', () => {
+      const m = enterPlaying();
+      const cb = vi.fn();
+      m.onEnd(cb);
+      m.handleMessage('p1', quitMsg());
+
+      expect(cb).toHaveBeenCalledOnce();
+    });
+
+    it('does nothing if already ended', () => {
+      const m = enterPlaying();
+      vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000); // round ends
+      m.handleMessage('p1', quitMsg()); // should not send extra messages
+
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1);
+      expect(sentOfType(ws2, 'ROUND_END')).toHaveLength(1);
+    });
+  });
+
+  // ── Idler mode ─────────────────────────────────────────────────
   describe('idler mode', () => {
     function createIdlerMatch() {
       return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler');

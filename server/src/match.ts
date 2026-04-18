@@ -106,8 +106,6 @@ export class Match {
 
   /** Route an incoming WebSocket message to the correct handler. */
   handleMessage(playerId: string, raw: string): void {
-    if (this.phase !== 'playing') return;
-
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return;
 
@@ -118,9 +116,45 @@ export class Match {
       return; // malformed JSON
     }
 
+    if (msg.type === 'QUIT') {
+      this.handleQuit(playerId);
+      return;
+    }
+
+    if (this.phase !== 'playing') return;
+
     if (msg.type === 'ACTION_BATCH') {
       this.processActions(player, msg.actions, msg.seq);
     }
+  }
+
+  /** Handle a player voluntarily quitting the match. */
+  private handleQuit(playerId: string): void {
+    if (this.phase === 'ended') return;
+    this.phase = 'ended';
+    this.clearTimers();
+
+    const quitterIdx = this.players[0].id === playerId ? 0 : 1;
+    const quitter = this.players[quitterIdx]!;
+    const opponent = this.players[1 - quitterIdx]!;
+
+    this.send(quitter, {
+      type: 'ROUND_END',
+      winner: 'opponent',
+      reason: 'quit',
+      finalScores: { player: quitter.state.score, opponent: opponent.state.score },
+      stats: quitter.stats,
+    });
+
+    this.send(opponent, {
+      type: 'ROUND_END',
+      winner: 'player',
+      reason: 'quit',
+      finalScores: { player: opponent.state.score, opponent: quitter.state.score },
+      stats: opponent.stats,
+    });
+
+    this.onEndCallback?.();
   }
 
   /** Handle player disconnect.
@@ -289,6 +323,7 @@ export class Match {
     this.send(p1, {
       type: 'ROUND_END',
       winner: winnerForP1,
+      reason: 'complete',
       finalScores: { player: p1.state.score, opponent: p2.state.score },
       stats: p1.stats,
     });
@@ -296,6 +331,7 @@ export class Match {
     this.send(p2, {
       type: 'ROUND_END',
       winner: winnerForP2,
+      reason: 'complete',
       finalScores: { player: p2.state.score, opponent: p1.state.score },
       stats: p2.stats,
     });
@@ -315,6 +351,7 @@ export class Match {
     this.send(winner, {
       type: 'ROUND_END',
       winner: 'player',
+      reason: 'forfeit',
       finalScores: { player: winner.state.score, opponent: loser.state.score },
       stats: winner.stats,
     });

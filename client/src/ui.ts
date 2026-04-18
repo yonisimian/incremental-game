@@ -1,7 +1,7 @@
 import type { UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
-import { doClick, doBuy, resetForMatch, selectMode, getState } from './game.js';
+import { doClick, doBuy, resetForMatch, selectMode, quitMatch, getState } from './game.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -138,9 +138,12 @@ function renderWaitingScreen(): void {
 function renderCountdownScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen countdown-screen">
+      <button class="quit-btn" id="quit-btn">← Quit</button>
       <div class="countdown-number" id="countdown">${state.countdown}</div>
     </div>
   `;
+
+  document.getElementById('quit-btn')!.addEventListener('click', quitMatch);
 }
 
 function renderPlayingScreen(state: Readonly<GameState>): void {
@@ -151,6 +154,7 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
       <header class="game-header">
         <div class="mode-label">${isClicker ? 'Clicker' : 'Idler'}</div>
         <div class="timer" id="timer">${formatTime(state.timeLeft)}</div>
+        <button class="quit-btn" id="quit-btn">← Quit</button>
       </header>
 
       <div class="scoreboard">
@@ -183,16 +187,27 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
 
 function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!;
-  const winnerText =
-    end.winner === 'player'
+
+  let winnerText: string;
+  if (end.reason === 'quit') {
+    winnerText = 'Opponent Quit';
+  } else if (end.reason === 'forfeit') {
+    winnerText = 'Opponent Disconnected — You Win!';
+  } else {
+    winnerText = end.winner === 'player'
       ? '🎉 You Win!'
       : end.winner === 'opponent'
         ? 'You Lose'
         : "It's a Draw";
+  }
+
+  const resultClass = end.reason === 'quit' || end.reason === 'forfeit'
+    ? 'player'
+    : end.winner;
 
   app.innerHTML = `
     <div class="screen end-screen">
-      <h1 class="result ${end.winner}">${winnerText}</h1>
+      <h1 class="result ${resultClass}">${winnerText}</h1>
       <div class="final-scores">
         <div>Your Score: <strong>${Math.floor(end.finalScores.player)}</strong></div>
         <div>Opponent: <strong>${Math.floor(end.finalScores.opponent)}</strong></div>
@@ -202,7 +217,7 @@ function renderEndScreen(state: Readonly<GameState>): void {
         <div>Peak CPS: ${end.stats.peakCps}</div>
         <div>Upgrades: ${end.stats.upgradesPurchased.length > 0 ? end.stats.upgradesPurchased.join(', ') : 'none'}</div>
       </div>
-      <button class="rematch-button" id="rematch-btn">Play Again</button>
+      <button class="rematch-button" id="rematch-btn">Back to Lobby</button>
     </div>
   `;
 
@@ -259,6 +274,7 @@ function bindPlayingEvents(clickEnabled: boolean): void {
   if (clickEnabled) {
     document.getElementById('click-btn')!.addEventListener('click', doClick);
   }
+  document.getElementById('quit-btn')!.addEventListener('click', quitMatch);
   bindUpgradeEvents();
 }
 

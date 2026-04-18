@@ -100,6 +100,12 @@ export function sendModeSelect(mode: GameMode): boolean {
   return true;
 }
 
+/** Send a quit message to voluntarily leave the current match. */
+export function sendQuit(): void {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'QUIT' }));
+}
+
 /** Get the current sequence number (for optimistic reconciliation). */
 export function getSeq(): number {
   return seq;

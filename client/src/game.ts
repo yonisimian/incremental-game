@@ -9,7 +9,7 @@ import type {
   UpgradeId,
 } from '@game/shared';
 import { INITIAL_PLAYER_STATE, COUNTDOWN_SEC } from '@game/shared';
-import { getSeq, queueAction, resetSeq, sendModeSelect } from './network.js';
+import { getSeq, queueAction, resetSeq, sendModeSelect, sendQuit } from './network.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -138,6 +138,13 @@ export function doBuy(upgradeId: UpgradeId): void {
   notify();
 }
 
+/** Voluntarily quit the current match and return to lobby. */
+export function quitMatch(): void {
+  if (state.screen !== 'playing' && state.screen !== 'countdown') return;
+  sendQuit();
+  resetForMatch();
+}
+
 /** Reset for a fresh match (e.g., rematch). */
 export function resetForMatch(): void {
   state.screen = 'lobby';
@@ -206,6 +213,10 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
+  // If WE are the quitter (reason=quit, winner=opponent), we already
+  // transitioned to lobby in quitMatch(). Just ignore this message.
+  if (msg.reason === 'quit' && msg.winner === 'opponent') return;
+
   state.screen = 'ended';
   state.endData = msg;
   state.player.score = msg.finalScores.player;

@@ -16,6 +16,7 @@ vi.mock('../src/network.js', () => {
     queueAction: vi.fn(),
     resetSeq: vi.fn(() => { seq = 0; }),
     sendModeSelect: vi.fn(() => true),
+    sendQuit: vi.fn(),
   };
 });
 
@@ -62,6 +63,7 @@ function makeRoundEnd(overrides: Partial<RoundEndMessage> = {}): RoundEndMessage
   return {
     type: 'ROUND_END',
     winner: 'player',
+    reason: 'complete',
     finalScores: { player: 42, opponent: 10 },
     stats: { totalClicks: 30, peakCps: 8, upgradesPurchased: [] },
     ...overrides,
@@ -364,6 +366,57 @@ describe('game.ts', () => {
       expect(s.matchId).toBeNull();
       expect(s.endData).toBeNull();
       expect(s.countdown).toBe(COUNTDOWN_SEC);
+    });
+  });
+  // ── quitMatch ──────────────────────────────────────────────────────
+
+  describe('quitMatch', () => {
+    it('transitions to lobby from playing', async () => {
+      enterPlaying(game);
+      game.quitMatch();
+      expect(game.getState().screen).toBe('lobby');
+      const { sendQuit } = await import('../src/network.js');
+      expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce();
+    });
+
+    it('transitions to lobby from countdown', () => {
+      game.handleServerMessage(makeRoundStart());
+      expect(game.getState().screen).toBe('countdown');
+      game.quitMatch();
+      expect(game.getState().screen).toBe('lobby');
+    });
+
+    it('is a no-op on lobby screen', () => {
+      game.quitMatch();
+      expect(game.getState().screen).toBe('lobby');
+    });
+  });
+
+  // ── ROUND_END reason handling ──────────────────────────────────────
+
+  describe('ROUND_END reason', () => {
+    it('ignores quit message when user is the quitter', () => {
+      enterPlaying(game);
+      // Simulate: we quit, server tells us we lost
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }));
+      // Should be ignored since quitMatch() already moved us to lobby
+      // Here we test that handleRoundEnd doesn't move to ended screen
+      // (in real flow, quitMatch resets to lobby before this arrives)
+      expect(game.getState().screen).toBe('playing'); // not ended
+    });
+
+    it('shows ended screen when opponent quits', () => {
+      enterPlaying(game);
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'player' }));
+      expect(game.getState().screen).toBe('ended');
+      expect(game.getState().endData!.reason).toBe('quit');
+    });
+
+    it('shows ended screen on forfeit', () => {
+      enterPlaying(game);
+      game.handleServerMessage(makeRoundEnd({ reason: 'forfeit', winner: 'player' }));
+      expect(game.getState().screen).toBe('ended');
+      expect(game.getState().endData!.reason).toBe('forfeit');
     });
   });
 });
