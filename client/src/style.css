@@ -1,21 +1,326 @@
+/* ─── Reset & Base ─────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --accent: #38bdf8;
+  --success: #4ade80;
+  --danger: #f87171;
+  --gold: #fbbf24;
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
   line-height: 1.5;
-  color: #213547;
-  background-color: #ffffff;
+  color: var(--text);
+  background-color: var(--bg);
 }
 
 body {
-  margin: 0;
+  min-height: 100dvh;
   display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  max-width: 420px;
+  padding: 1rem;
+}
+
+/* ─── Screens (shared) ─────────────────────────────────────────────── */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
   text-align: center;
+}
+
+.brand-t {
+  color: var(--accent);
+}
+
+/* ─── Waking / Waiting ─────────────────────────────────────────────── */
+
+.waking-screen h1,
+.waiting-screen h1 {
+  font-size: 2rem;
+}
+
+.status-text {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Countdown ────────────────────────────────────────────────────── */
+
+.countdown-screen {
+  justify-content: center;
+  min-height: 60dvh;
+}
+
+.countdown-number {
+  font-size: 6rem;
+  font-weight: 800;
+  color: var(--accent);
+  animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ─── Playing ──────────────────────────────────────────────────────── */
+
+.playing-screen {
+  gap: 1rem;
+}
+
+.game-header {
+  width: 100%;
+}
+
+.timer {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* Scoreboard */
+
+.scoreboard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.player-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+}
+
+.player-col .label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.player-col .score {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-col.you .score {
+  color: var(--accent);
+}
+
+.player-col.opponent .score {
+  color: var(--danger);
+}
+
+.vs {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* Currency */
+
+.currency-bar {
+  font-size: 1.1rem;
+  color: var(--gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Click button */
+
+.click-button {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.08s, background 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.click-button:active {
+  transform: scale(0.92);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Upgrades */
+
+.upgrades {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.upgrade-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+
+.upgrade-btn:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.upgrade-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.upgrade-btn.owned {
+  border-color: var(--success);
+  opacity: 0.7;
+}
+
+.upgrade-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.upgrade-cost {
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.upgrade-btn.owned .upgrade-cost {
+  color: var(--success);
+}
+
+.upgrade-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  display: none;
+}
+
+/* Show desc on wider screens */
+@media (min-width: 400px) {
+  .upgrade-btn {
+    flex-wrap: wrap;
+  }
+  .upgrade-desc {
+    display: block;
+    width: 100%;
+  }
+}
+
+/* ─── End Screen ───────────────────────────────────────────────────── */
+
+.end-screen {
+  gap: 1.25rem;
+}
+
+.result {
+  font-size: 2rem;
+}
+
+.result.player {
+  color: var(--success);
+}
+
+.result.opponent {
+  color: var(--danger);
+}
+
+.result.draw {
+  color: var(--gold);
+}
+
+.final-scores {
+  font-size: 1.1rem;
+  display: flex;
+  gap: 2rem;
+}
+
+.stats {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rematch-button {
+  padding: 0.75rem 2rem;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.rematch-button:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ─── Disconnected ─────────────────────────────────────────────────── */
+
+.disconnected-screen h1 {
+  color: var(--danger);
+}
+
+.disconnected-screen p {
+  color: var(--text-dim);
 }

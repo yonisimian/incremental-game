@@ -1,6 +1,12 @@
 import './style.css';
+import { setMessageHandler, setConnectionStateHandler, connect } from './network.js';
+import { handleServerMessage, setStateChangeHandler } from './game.js';
+import { render, handleConnectionChange } from './ui.js';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <h1>incremenTal</h1>
-  <p>Competitive multiplayer incremental game</p>
-`;
+// Wire modules together
+setMessageHandler(handleServerMessage);
+setStateChangeHandler(render);
+setConnectionStateHandler(handleConnectionChange);
+
+// Go!
+connect();
