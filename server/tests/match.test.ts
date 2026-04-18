@@ -429,6 +429,22 @@ describe('Match', () => {
       return m;
     }
 
+    function highlightMsg(highlight: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'set_highlight', timestamp: Date.now(), highlight }],
+      });
+    }
+
+    function buyMsg(upgradeId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'buy', timestamp: Date.now(), upgradeId }],
+      });
+    }
+
     it('sends mode in ROUND_START config', () => {
       const m = createIdlerMatch();
       m.start();
@@ -436,34 +452,133 @@ describe('Match', () => {
       expect(msg.config.mode).toBe('idler');
     });
 
-    it('grants base passive income each second', () => {
+    it('uses idler upgrades, not clicker upgrades', () => {
+      const m = createIdlerMatch();
+      m.start();
+      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      const ids = msg.config.upgrades.map((u) => u.id);
+      expect(ids).toContain('sharpened-axes');
+      expect(ids).toContain('tavern-recruits');
+      expect(ids).not.toContain('auto-clicker');
+    });
+
+    it('produces wood and ale at 1/sec base rate', () => {
       enterIdlerPlaying();
-      // After 1000ms → 4 ticks × 0.25/tick = 1.0 score + 1.0 currency
-      // A broadcast fires at 1000ms (BROADCAST_INTERVAL_MS=500)
       vi.advanceTimersByTime(1000);
       const u = latestUpdate(ws1);
-      expect(u.player.score).toBeCloseTo(1, 1);
-      expect(u.player.currency).toBeCloseTo(1, 1);
+      // Default highlight=wood → wood at 2/sec, ale at 1/sec
+      expect(u.player.wood).toBeCloseTo(2, 1);
+      expect(u.player.ale).toBeCloseTo(1, 1);
+    });
+
+    it('score = total wood produced (highlight = wood gives 2x)', () => {
+      enterIdlerPlaying();
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      // Highlighted wood → 2/sec → score = wood produced
+      expect(u.player.score).toBeCloseTo(2, 1);
+    });
+
+    it('highlight toggle changes production rates', () => {
+      const m = enterIdlerPlaying();
+      // Switch to ale highlight
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      // Wood at 1/sec (not highlighted), ale at 2/sec (highlighted)
+      expect(u.player.wood).toBeCloseTo(1, 1);
+      expect(u.player.ale).toBeCloseTo(2, 1);
+      expect(u.player.score).toBeCloseTo(1, 1); // score = wood
+    });
+
+    it('Sharpened Axes makes highlight 4x', () => {
+      const m = enterIdlerPlaying();
+      // Give player enough wood to buy (40)
+      vi.advanceTimersByTime(20_000); // ~40 wood at 2/sec
+      m.handleMessage('p1', buyMsg('sharpened-axes', 1));
+      // Clear updates to measure from here
+      (ws1.send as ReturnType<typeof vi.fn>).mockClear();
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      // Highlighted wood → 4/sec now (1 base × 4)
+      expect(u.player.wood).toBeGreaterThan(3.5);
+    });
+
+    it('Tavern Recruits adds +1 base wood/sec', () => {
+      const m = enterIdlerPlaying();
+      // Switch to ale highlight to build up ale
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(5000); // ale ~= 10
+      m.handleMessage('p1', buyMsg('tavern-recruits', 2));
+      // Now switch back to wood highlight
+      m.handleMessage('p1', highlightMsg('wood', 3));
+      (ws1.send as ReturnType<typeof vi.fn>).mockClear();
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      // Base wood = 1 + 1 (tavern) = 2, highlighted x2 = 4/sec
+      expect(u.player.wood).toBeGreaterThan(3.5);
+    });
+
+    it('Lumber Mill adds +2 base wood/sec', () => {
+      const m = enterIdlerPlaying();
+      // Need 120 wood; at 2/sec takes 60s but we have exactly 60s round
+      // Fast-forward enough to afford it
+      vi.advanceTimersByTime(59_000);
+      m.handleMessage('p1', buyMsg('lumber-mill', 1));
+      (ws1.send as ReturnType<typeof vi.fn>).mockClear();
+      vi.advanceTimersByTime(500);
+      const u = latestUpdate(ws1);
+      // Base = 1 + 2 = 3, highlighted = 3 × 2 = 6/sec → 0.5s = 3
+      expect(u.player.wood).toBeGreaterThan(2.5);
+    });
+
+    it('Liquid Courage converts ale to wood + score', () => {
+      const m = enterIdlerPlaying();
+      // Build up ale: highlight ale
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(20_000); // ale ~= 40, wood ~= 20
+      const beforeBuy = latestUpdate(ws1);
+      const aleBefore = beforeBuy.player.ale!;
+      const woodBefore = beforeBuy.player.wood!;
+      const scoreBefore = beforeBuy.player.score;
+
+      m.handleMessage('p1', buyMsg('liquid-courage', 2));
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
+      const afterBuy = latestUpdate(ws1);
+
+      // Ale should be near 0 (converted). A tick or two of production may re-add small amount.
+      expect(afterBuy.player.ale!).toBeLessThan(2);
+      // The remaining ale after paying 35 was converted
+      const convertedAle = aleBefore - 35;
+      expect(afterBuy.player.wood!).toBeGreaterThan(woodBefore + convertedAle - 1);
+      expect(afterBuy.player.score).toBeGreaterThan(scoreBefore + convertedAle - 1);
+    });
+
+    it('cannot buy wood upgrade with ale', () => {
+      const m = enterIdlerPlaying();
+      // Switch to ale to build up only ale
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(10_000); // ale ~= 20, wood ~= 10
+      // Try to buy Sharpened Axes (costs 40 wood) — should fail
+      m.handleMessage('p1', buyMsg('sharpened-axes', 2));
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
+      const u = latestUpdate(ws1);
+      expect(u.player.upgrades['sharpened-axes']).toBe(false);
     });
 
     it('rejects clicks in idler mode', () => {
       const m = enterIdlerPlaying();
       m.handleMessage('p1', clickMsg(1));
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
-      // Score should be from passive only, not from the click
       const u = latestUpdate(ws1);
-      // At this point very little time has passed since the tick boundary, but
-      // the click itself should NOT have added +1
       expect(u.player.score).toBeLessThan(2);
     });
 
-    it('uses idler upgrades, not clicker upgrades', () => {
-      const m = createIdlerMatch();
-      m.start();
-      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
-      const ids = msg.config.upgrades.map((u) => u.id);
-      expect(ids).toContain('accelerator');
-      expect(ids).not.toContain('auto-clicker');
+    it('currency field stays 0 in idler mode', () => {
+      enterIdlerPlaying();
+      vi.advanceTimersByTime(5000);
+      const u = latestUpdate(ws1);
+      expect(u.player.currency).toBe(0);
     });
   });
 });

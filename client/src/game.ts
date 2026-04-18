@@ -1,4 +1,5 @@
 import type {
+  CurrencyHighlight,
   GameMode,
   PlayerState,
   RoundEndMessage,
@@ -45,6 +46,7 @@ interface PendingBatch {
   seq: number;
   clicks: number;
   purchases: UpgradeId[];
+  highlight?: CurrencyHighlight;
 }
 
 export type StateChangeHandler = (state: Readonly<GameState>) => void;
@@ -119,6 +121,18 @@ export function doClick(): void {
   notify();
 }
 
+/** Set the highlighted currency (idler mode, optimistic). */
+export function setHighlight(target: CurrencyHighlight): void {
+  if (state.screen !== 'playing') return;
+  if (state.mode !== 'idler') return;
+  if (state.player.highlight === target) return;
+
+  state.player.highlight = target;
+  queueAction({ type: 'set_highlight', timestamp: Date.now(), highlight: target });
+  trackPendingHighlight(target);
+  notify();
+}
+
 /** Attempt to purchase an upgrade (optimistic). */
 export function doBuy(upgradeId: UpgradeId): void {
   if (state.screen !== 'playing') return;
@@ -126,11 +140,28 @@ export function doBuy(upgradeId: UpgradeId): void {
   const def = state.upgrades.find((u) => u.id === upgradeId);
   if (!def) return;
   if (state.player.upgrades[upgradeId]) return;
-  if (state.player.currency < def.cost) return;
 
-  // Optimistic local update
-  state.player.currency -= def.cost;
+  // Check correct currency
+  if (def.costCurrency === 'wood') {
+    if ((state.player.wood ?? 0) < def.cost) return;
+    state.player.wood = (state.player.wood ?? 0) - def.cost;
+  } else if (def.costCurrency === 'ale') {
+    if ((state.player.ale ?? 0) < def.cost) return;
+    state.player.ale = (state.player.ale ?? 0) - def.cost;
+  } else {
+    if (state.player.currency < def.cost) return;
+    state.player.currency -= def.cost;
+  }
+
   state.player.upgrades[upgradeId] = true;
+
+  // Liquid Courage special: convert remaining ale → wood + score
+  if (upgradeId === 'liquid-courage') {
+    const remainingAle = state.player.ale ?? 0;
+    state.player.wood = (state.player.wood ?? 0) + remainingAle;
+    state.player.score += remainingAle;
+    state.player.ale = 0;
+  }
 
   // Queue for server
   queueAction({ type: 'buy', timestamp: Date.now(), upgradeId });
@@ -208,10 +239,33 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
     }
     for (const uid of batch.purchases) {
       const def = state.upgrades.find((u) => u.id === uid);
-      if (def && !reconciled.upgrades[uid] && reconciled.currency >= def.cost) {
-        reconciled.currency -= def.cost;
-        reconciled.upgrades[uid] = true;
+      if (def && !reconciled.upgrades[uid]) {
+        // Check correct currency
+        if (def.costCurrency === 'wood') {
+          if ((reconciled.wood ?? 0) >= def.cost) {
+            reconciled.wood = (reconciled.wood ?? 0) - def.cost;
+            reconciled.upgrades[uid] = true;
+          }
+        } else if (def.costCurrency === 'ale') {
+          if ((reconciled.ale ?? 0) >= def.cost) {
+            reconciled.ale = (reconciled.ale ?? 0) - def.cost;
+            reconciled.upgrades[uid] = true;
+            if (uid === 'liquid-courage') {
+              const ale = reconciled.ale ?? 0;
+              reconciled.wood = (reconciled.wood ?? 0) + ale;
+              reconciled.score += ale;
+              reconciled.ale = 0;
+            }
+          }
+        } else if (reconciled.currency >= def.cost) {
+          reconciled.currency -= def.cost;
+          reconciled.upgrades[uid] = true;
+        }
       }
+    }
+    // Re-apply pending highlight
+    if (batch.highlight) {
+      reconciled.highlight = batch.highlight;
     }
   }
 
@@ -255,6 +309,16 @@ function trackPendingPurchase(upgradeId: UpgradeId): void {
   batch.purchases.push(upgradeId);
 }
 
+function trackPendingHighlight(target: CurrencyHighlight): void {
+  const currentSeq = getSeq() + 1;
+  let batch = pendingBatches.find((b) => b.seq === currentSeq);
+  if (!batch) {
+    batch = { seq: currentSeq, clicks: 0, purchases: [] };
+    pendingBatches.push(batch);
+  }
+  batch.highlight = target;
+}
+
 // ─── Private: countdown ──────────────────────────────────────────────
 
 function startCountdown(): void {
@@ -289,6 +353,9 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     score: s.score,
     currency: s.currency,
     upgrades: { ...s.upgrades },
+    wood: s.wood,
+    ale: s.ale,
+    highlight: s.highlight,
   };
 }
 

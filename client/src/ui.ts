@@ -1,7 +1,7 @@
-import type { UpgradeId } from '@game/shared';
+import type { CurrencyHighlight, UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
-import { doClick, doBuy, resetForMatch, selectMode, cancelQueue, quitMatch, getState } from './game.js';
+import { doClick, doBuy, resetForMatch, selectMode, cancelQueue, quitMatch, setHighlight, getState } from './game.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -152,10 +152,15 @@ function renderCountdownScreen(state: Readonly<GameState>): void {
 function renderPlayingScreen(state: Readonly<GameState>): void {
   const isClicker = state.mode === 'clicker';
 
+  if (!isClicker) {
+    renderIdlerPlayingScreen(state);
+    return;
+  }
+
   app.innerHTML = `
     <div class="screen playing-screen">
       <header class="game-header">
-        <div class="mode-label">${isClicker ? 'Clicker' : 'Idler'}</div>
+        <div class="mode-label">Clicker</div>
         <div class="timer" id="timer">${formatTime(state.timeLeft)}</div>
         <button class="quit-btn" id="quit-btn">← Quit</button>
       </header>
@@ -177,19 +182,68 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
         <span id="currency">${Math.floor(state.player.currency)}</span>
       </div>
 
-      ${isClicker ? '<button class="click-button" id="click-btn">CLICK</button>' : ''}
+      <button class="click-button" id="click-btn">CLICK</button>
 
       <div class="upgrades" id="upgrades">
-        ${renderUpgrades(state)}
+        ${renderClickerUpgrades(state)}
       </div>
     </div>
   `;
 
-  bindPlayingEvents(isClicker);
+  bindPlayingEvents(true);
+}
+
+function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
+  const highlight = state.player.highlight ?? 'wood';
+  const wood = Math.floor(state.player.wood ?? 0);
+  const ale = Math.floor(state.player.ale ?? 0);
+
+  app.innerHTML = `
+    <div class="screen playing-screen idler-playing">
+      <header class="game-header">
+        <div class="mode-label">Idler</div>
+        <div class="timer" id="timer">${formatTime(state.timeLeft)}</div>
+        <button class="quit-btn" id="quit-btn">← Quit</button>
+      </header>
+
+      <div class="scoreboard">
+        <div class="player-col you">
+          <span class="label">You</span>
+          <span class="score" id="player-score">${Math.floor(state.player.score)} 🪵</span>
+        </div>
+        <div class="vs">vs</div>
+        <div class="player-col opponent">
+          <span class="label">Opponent</span>
+          <span class="score" id="opponent-score">${Math.floor(state.opponent.score)} 🪵</span>
+        </div>
+      </div>
+
+      <div class="currency-cards">
+        <button class="currency-card ${highlight === 'wood' ? 'highlighted' : ''}" id="card-wood">
+          <span class="card-emoji">🪵</span>
+          <span class="card-name">Wood</span>
+          <span class="card-balance" id="wood-balance">${wood}</span>
+        </button>
+        <button class="currency-card ${highlight === 'ale' ? 'highlighted' : ''}" id="card-ale">
+          <span class="card-emoji">🍺</span>
+          <span class="card-name">Ale</span>
+          <span class="card-balance" id="ale-balance">${ale}</span>
+        </button>
+      </div>
+
+      <div class="upgrades" id="upgrades">
+        ${renderIdlerUpgrades(state)}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('quit-btn')!.addEventListener('click', quitMatch);
+  bindIdlerEvents();
 }
 
 function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!;
+  const isIdler = state.mode === 'idler';
 
   let winnerText: string;
   if (end.reason === 'quit') {
@@ -208,16 +262,18 @@ function renderEndScreen(state: Readonly<GameState>): void {
     ? 'player'
     : end.winner;
 
+  const scoreLabel = isIdler ? '🪵 Total' : 'Score';
+
   app.innerHTML = `
     <div class="screen end-screen">
       <h1 class="result ${resultClass}">${winnerText}</h1>
       <div class="final-scores">
-        <div>Your Score: <strong>${Math.floor(end.finalScores.player)}</strong></div>
+        <div>Your ${scoreLabel}: <strong>${Math.floor(end.finalScores.player)}</strong></div>
         <div>Opponent: <strong>${Math.floor(end.finalScores.opponent)}</strong></div>
       </div>
       <div class="stats">
-        <div>Clicks: ${end.stats.totalClicks}</div>
-        <div>Peak CPS: ${end.stats.peakCps}</div>
+        ${isIdler ? '' : `<div>Clicks: ${end.stats.totalClicks}</div>`}
+        ${isIdler ? '' : `<div>Peak CPS: ${end.stats.peakCps}</div>`}
         <div>Upgrades: ${end.stats.upgradesPurchased.length > 0 ? end.stats.upgradesPurchased.join(', ') : 'none'}</div>
       </div>
       <button class="rematch-button" id="rematch-btn">Back to Lobby</button>
@@ -240,19 +296,34 @@ function updateCountdown(state: Readonly<GameState>): void {
 
 function updatePlaying(state: Readonly<GameState>): void {
   setText('timer', formatTime(state.timeLeft));
-  setText('player-score', String(Math.floor(state.player.score)));
-  setText('opponent-score', String(Math.floor(state.opponent.score)));
-  setText('currency', String(Math.floor(state.player.currency)));
+  setText('player-score', String(Math.floor(state.player.score)) + (state.mode === 'idler' ? ' 🪵' : ''));
+  setText('opponent-score', String(Math.floor(state.opponent.score)) + (state.mode === 'idler' ? ' 🪵' : ''));
 
-  // Update upgrade buttons (affordability / owned state)
-  const container = document.getElementById('upgrades');
-  if (container) container.innerHTML = renderUpgrades(state);
-  bindUpgradeEvents();
+  if (state.mode === 'idler') {
+    setText('wood-balance', String(Math.floor(state.player.wood ?? 0)));
+    setText('ale-balance', String(Math.floor(state.player.ale ?? 0)));
+
+    // Update highlight state on currency cards
+    const highlight = state.player.highlight ?? 'wood';
+    const woodCard = document.getElementById('card-wood');
+    const aleCard = document.getElementById('card-ale');
+    if (woodCard) woodCard.classList.toggle('highlighted', highlight === 'wood');
+    if (aleCard) aleCard.classList.toggle('highlighted', highlight === 'ale');
+
+    const container = document.getElementById('upgrades');
+    if (container) container.innerHTML = renderIdlerUpgrades(state);
+    bindUpgradeEvents();
+  } else {
+    setText('currency', String(Math.floor(state.player.currency)));
+    const container = document.getElementById('upgrades');
+    if (container) container.innerHTML = renderClickerUpgrades(state);
+    bindUpgradeEvents();
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function renderUpgrades(state: Readonly<GameState>): string {
+function renderClickerUpgrades(state: Readonly<GameState>): string {
   return state.upgrades
     .map((u) => {
       const owned = state.player.upgrades[u.id];
@@ -273,11 +344,43 @@ function renderUpgrades(state: Readonly<GameState>): string {
     .join('');
 }
 
+function renderIdlerUpgrades(state: Readonly<GameState>): string {
+  const wood = state.player.wood ?? 0;
+  const ale = state.player.ale ?? 0;
+
+  return state.upgrades
+    .map((u) => {
+      const owned = state.player.upgrades[u.id];
+      const balance = u.costCurrency === 'wood' ? wood : ale;
+      const canAfford = balance >= u.cost;
+      const disabled = owned || !canAfford;
+      const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺';
+      return `
+        <button
+          class="upgrade-btn ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'too-expensive' : ''}"
+          data-upgrade="${u.id}"
+          ${disabled ? 'disabled' : ''}
+        >
+          <span class="upgrade-name">${u.name}</span>
+          <span class="upgrade-cost">${owned ? '✓' : `${u.cost} ${emoji}`}</span>
+          <span class="upgrade-desc">${u.description}</span>
+        </button>
+      `;
+    })
+    .join('');
+}
+
 function bindPlayingEvents(clickEnabled: boolean): void {
   if (clickEnabled) {
     document.getElementById('click-btn')!.addEventListener('click', doClick);
   }
   document.getElementById('quit-btn')!.addEventListener('click', quitMatch);
+  bindUpgradeEvents();
+}
+
+function bindIdlerEvents(): void {
+  document.getElementById('card-wood')!.addEventListener('click', () => setHighlight('wood'));
+  document.getElementById('card-ale')!.addEventListener('click', () => setHighlight('ale'));
   bindUpgradeEvents();
 }
 

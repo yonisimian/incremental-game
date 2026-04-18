@@ -4,7 +4,7 @@ import type {
   RoundStartMessage,
   StateUpdateMessage,
 } from '@game/shared';
-import { COUNTDOWN_SEC, INITIAL_PLAYER_STATE, CLICKER_UPGRADES } from '@game/shared';
+import { COUNTDOWN_SEC, INITIAL_PLAYER_STATE, CLICKER_UPGRADES, IDLER_UPGRADES } from '@game/shared';
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
@@ -43,8 +43,10 @@ const defaultUpgrades = {
   'auto-clicker': false,
   'double-click': false,
   'multiplier': false,
-  'accelerator': false,
-  'double-income': false,
+  'sharpened-axes': false,
+  'lumber-mill': false,
+  'tavern-recruits': false,
+  'liquid-courage': false,
 } as const;
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
@@ -443,6 +445,102 @@ describe('game.ts', () => {
       game.handleServerMessage(makeRoundEnd({ reason: 'forfeit', winner: 'player' }));
       expect(game.getState().screen).toBe('ended');
       expect(game.getState().endData!.reason).toBe('forfeit');
+    });
+  });
+
+  // ── Idler: setHighlight ────────────────────────────────────────────
+
+  describe('setHighlight', () => {
+    function enterIdlerPlaying(g: GameModule): void {
+      g.handleServerMessage(makeRoundStart({
+        config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+      }));
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
+    }
+
+    it('optimistically updates highlight', () => {
+      enterIdlerPlaying(game);
+      expect(game.getState().player.highlight).toBe(undefined); // server hasn't sent it
+      game.setHighlight('ale');
+      expect(game.getState().player.highlight).toBe('ale');
+    });
+
+    it('is a no-op in clicker mode', () => {
+      enterPlaying(game);
+      game.setHighlight('ale');
+      expect(game.getState().player.highlight).toBeUndefined();
+    });
+
+    it('is a no-op outside playing screen', () => {
+      game.setHighlight('ale');
+      expect(game.getState().screen).toBe('lobby');
+    });
+
+    it('is a no-op when already set to same value', async () => {
+      enterIdlerPlaying(game);
+      game.setHighlight('ale');
+      const { queueAction } = await import('../src/network.js');
+      vi.mocked(queueAction).mockClear();
+      game.setHighlight('ale'); // same value
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Idler: doBuy ───────────────────────────────────────────────────
+
+  describe('idler doBuy', () => {
+    function enterIdlerPlaying(g: GameModule): void {
+      g.handleServerMessage(makeRoundStart({
+        config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+      }));
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
+    }
+
+    function giveWood(g: GameModule, amount: number): void {
+      g.handleServerMessage(makeStateUpdate({
+        player: { score: amount, currency: 0, upgrades: { ...defaultUpgrades }, wood: amount, ale: 0, highlight: 'wood' },
+      }));
+    }
+
+    function giveAle(g: GameModule, amount: number): void {
+      g.handleServerMessage(makeStateUpdate({
+        player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades }, wood: 0, ale: amount, highlight: 'wood' },
+      }));
+    }
+
+    it('deducts wood for wood-cost upgrades', () => {
+      enterIdlerPlaying(game);
+      giveWood(game, 50);
+      game.doBuy('sharpened-axes'); // costs 40 wood
+      expect(game.getState().player.upgrades['sharpened-axes']).toBe(true);
+      expect(game.getState().player.wood).toBe(10);
+    });
+
+    it('deducts ale for ale-cost upgrades', () => {
+      enterIdlerPlaying(game);
+      giveAle(game, 15);
+      game.doBuy('tavern-recruits'); // costs 10 ale
+      expect(game.getState().player.upgrades['tavern-recruits']).toBe(true);
+      expect(game.getState().player.ale).toBe(5);
+    });
+
+    it('rejects if wrong currency balance is too low', () => {
+      enterIdlerPlaying(game);
+      giveAle(game, 100); // plenty of ale, no wood
+      game.doBuy('sharpened-axes'); // costs 40 wood — should fail
+      expect(game.getState().player.upgrades['sharpened-axes']).toBe(false);
+    });
+
+    it('Liquid Courage converts ale to wood + score', () => {
+      enterIdlerPlaying(game);
+      giveAle(game, 50); // 50 ale
+      game.doBuy('liquid-courage'); // costs 35 ale
+      const s = game.getState();
+      expect(s.player.upgrades['liquid-courage']).toBe(true);
+      // Remaining ale (50-35=15) converted to wood+score, then ale=0
+      expect(s.player.ale).toBe(0);
+      expect(s.player.wood).toBe(15); // 0 + 15 converted
+      expect(s.player.score).toBe(15); // 0 + 15 converted
     });
   });
 });

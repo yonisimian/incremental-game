@@ -205,6 +205,57 @@ body {
   border-color: var(--danger);
 }
 
+/* Currency cards (idler mode) */
+
+.currency-cards {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+.currency-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.currency-card:hover {
+  border-color: var(--text-dim);
+}
+
+.currency-card.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+}
+
+.card-emoji {
+  font-size: 1.8rem;
+}
+
+.card-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.card-balance {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Scoreboard */
 
 .scoreboard {

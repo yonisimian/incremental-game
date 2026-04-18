@@ -26,6 +26,7 @@ export function isValidClick(
 /**
  * Validate a purchase action.
  * Returns true if the player can afford the upgrade and doesn't already own it.
+ * For idler mode, checks the correct currency (wood or ale) based on costCurrency.
  */
 export function isValidPurchase(
   state: PlayerState,
@@ -35,6 +36,14 @@ export function isValidPurchase(
   const def = upgradeMap.get(upgradeId);
   if (!def) return false;
   if (state.upgrades[upgradeId]) return false;
+
+  // Dual-currency: check the correct balance
+  if (def.costCurrency) {
+    const balance = def.costCurrency === 'wood' ? (state.wood ?? 0) : (state.ale ?? 0);
+    return balance >= def.cost;
+  }
+
+  // Clicker: uses generic currency
   if (state.currency < def.cost) return false;
   return true;
 }

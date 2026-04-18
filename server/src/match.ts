@@ -10,10 +10,12 @@ import {
 } from '@game/shared';
 import type {
   ClientMessage,
+  CurrencyHighlight,
   GameMode,
   MatchWinner,
   ModeConfig,
   PlayerAction,
+  PlayerState,
   ServerMessage,
   UpgradeDefinition,
   UpgradeId,
@@ -25,11 +27,7 @@ import { isValidClick, isValidPurchase } from './validation.js';
 interface MatchPlayer {
   readonly id: string;
   ws: WebSocket | null;
-  state: {
-    score: number;
-    currency: number;
-    upgrades: Record<UpgradeId, boolean>;
-  };
+  state: PlayerState;
   ackSeq: number;
   recentClickTimestamps: number[];
   stats: {
@@ -172,7 +170,7 @@ export class Match {
   // ─── Private: setup ────────────────────────────────────────────────
 
   private initPlayer(p: { id: string; ws: WebSocket }): MatchPlayer {
-    return {
+    const base: MatchPlayer = {
       id: p.id,
       ws: p.ws,
       state: {
@@ -184,6 +182,14 @@ export class Match {
       recentClickTimestamps: [],
       stats: { totalClicks: 0, peakCps: 0, upgradesPurchased: [] },
     };
+
+    if (this.mode === 'idler') {
+      base.state.wood = 0;
+      base.state.ale = 0;
+      base.state.highlight = 'wood';
+    }
+
+    return base;
   }
 
   // ─── Private: game loop ────────────────────────────────────────────
@@ -230,29 +236,47 @@ export class Match {
       } else if (action.type === 'buy' && action.upgradeId) {
         if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue;
         this.applyPurchase(player, action.upgradeId);
+      } else if (action.type === 'set_highlight' && action.highlight) {
+        if (this.mode === 'idler' && (action.highlight === 'wood' || action.highlight === 'ale')) {
+          player.state.highlight = action.highlight;
+        }
       }
     }
     player.ackSeq = seq;
   }
 
   private applyPassiveIncome(player: MatchPlayer): void {
-    // Base passive income (0 for clicker, 1/sec for idler)
-    let income = this.modeConfig.basePassivePerSec * (TICK_INTERVAL_MS / 1000);
+    const tickSec = TICK_INTERVAL_MS / 1000;
 
-    // Clicker: auto-clicker adds +1/sec
+    if (this.mode === 'idler') {
+      // ── Idler dual-currency production ───────────────────────────
+      const highlight = player.state.highlight ?? 'wood';
+      const highlightMult = player.state.upgrades['sharpened-axes'] ? 4 : 2;
+
+      // Base wood rate + bonuses
+      let baseWood = 1;
+      if (player.state.upgrades['tavern-recruits']) baseWood += 1;
+      if (player.state.upgrades['lumber-mill']) baseWood += 2;
+
+      const woodRate = baseWood * (highlight === 'wood' ? highlightMult : 1);
+      const aleRate = 1 * (highlight === 'ale' ? highlightMult : 1);
+
+      const woodGain = woodRate * tickSec;
+      const aleGain = aleRate * tickSec;
+
+      player.state.wood = (player.state.wood ?? 0) + woodGain;
+      player.state.ale = (player.state.ale ?? 0) + aleGain;
+      player.state.score += woodGain; // score = total wood ever produced
+      return;
+    }
+
+    // ── Clicker passive income ───────────────────────────────────
+    let income = this.modeConfig.basePassivePerSec * tickSec;
+
     if (player.state.upgrades['auto-clicker']) {
-      income += TICK_INTERVAL_MS / 1000;
+      income += tickSec;
     }
 
-    // Idler: accelerator adds +1/sec
-    if (player.state.upgrades['accelerator']) {
-      income += TICK_INTERVAL_MS / 1000;
-    }
-
-    // Idler: double-income doubles all passive
-    if (player.state.upgrades['double-income']) income *= 2;
-
-    // Multiplier doubles everything (both modes)
     if (player.state.upgrades['multiplier']) income *= 2;
 
     if (income <= 0) return;
@@ -278,9 +302,26 @@ export class Match {
 
   private applyPurchase(player: MatchPlayer, upgradeId: UpgradeId): void {
     const def = this.upgradeMap.get(upgradeId)!; // already validated
-    player.state.currency -= def.cost;
+
+    // Deduct cost from correct currency
+    if (def.costCurrency === 'wood') {
+      player.state.wood = (player.state.wood ?? 0) - def.cost;
+    } else if (def.costCurrency === 'ale') {
+      player.state.ale = (player.state.ale ?? 0) - def.cost;
+    } else {
+      player.state.currency -= def.cost;
+    }
+
     player.state.upgrades[upgradeId] = true;
     player.stats.upgradesPurchased.push(upgradeId);
+
+    // Liquid Courage special: convert remaining ale → wood + score
+    if (upgradeId === 'liquid-courage') {
+      const remainingAle = player.state.ale ?? 0;
+      player.state.wood = (player.state.wood ?? 0) + remainingAle;
+      player.state.score += remainingAle;
+      player.state.ale = 0;
+    }
   }
 
   // ─── Private: broadcasting ─────────────────────────────────────────

@@ -59,22 +59,32 @@ export const CLICKER_UPGRADES: readonly UpgradeDefinition[] = [
 
 export const IDLER_UPGRADES: readonly UpgradeDefinition[] = [
   {
-    id: 'accelerator',
-    name: 'Accelerator',
+    id: 'sharpened-axes',
+    name: '🪓 Sharpened Axes',
+    cost: 40,
+    costCurrency: 'wood',
+    description: 'Highlight boost → 4× (from 2×)',
+  },
+  {
+    id: 'lumber-mill',
+    name: '🏗️ Lumber Mill',
+    cost: 120,
+    costCurrency: 'wood',
+    description: '+2 base 🪵/sec',
+  },
+  {
+    id: 'tavern-recruits',
+    name: '🍻 Tavern Recruits',
     cost: 10,
-    description: '+1 currency/sec additional passive',
+    costCurrency: 'ale',
+    description: '+1 base 🪵/sec',
   },
   {
-    id: 'double-income',
-    name: 'Double Income',
-    cost: 25,
-    description: '2x all passive income',
-  },
-  {
-    id: 'multiplier',
-    name: 'Multiplier',
-    cost: 100,
-    description: '2x all income (stacks)',
+    id: 'liquid-courage',
+    name: '🫗 Liquid Courage',
+    cost: 35,
+    costCurrency: 'ale',
+    description: 'Convert all 🍺 → 🪵 (one-time)',
   },
 ] as const;
 
@@ -114,7 +124,9 @@ export const INITIAL_PLAYER_STATE = {
     'auto-clicker': false,
     'double-click': false,
     'multiplier': false,
-    'accelerator': false,
-    'double-income': false,
+    'sharpened-axes': false,
+    'lumber-mill': false,
+    'tavern-recruits': false,
+    'liquid-courage': false,
   },
 } as const satisfies PlayerState;
