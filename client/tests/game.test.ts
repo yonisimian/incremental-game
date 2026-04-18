@@ -368,14 +368,40 @@ describe('game.ts', () => {
       expect(s.countdown).toBe(COUNTDOWN_SEC);
     });
   });
+
+  // ── cancelQueue ────────────────────────────────────────────────────
+
+  describe('cancelQueue', () => {
+    it('transitions from waiting to lobby', async () => {
+      game.selectMode('clicker');
+      expect(game.getState().screen).toBe('waiting');
+      game.cancelQueue();
+      expect(game.getState().screen).toBe('lobby');
+      const { sendQuit } = await import('../src/network.js');
+      expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce();
+    });
+
+    it('is a no-op on lobby screen', () => {
+      game.cancelQueue();
+      expect(game.getState().screen).toBe('lobby');
+    });
+
+    it('is a no-op on playing screen', () => {
+      enterPlaying(game);
+      game.cancelQueue();
+      expect(game.getState().screen).toBe('playing');
+    });
+  });
+
   // ── quitMatch ──────────────────────────────────────────────────────
 
   describe('quitMatch', () => {
     it('transitions to lobby from playing', async () => {
       enterPlaying(game);
+      const { sendQuit } = await import('../src/network.js');
+      vi.mocked(sendQuit).mockClear();
       game.quitMatch();
       expect(game.getState().screen).toBe('lobby');
-      const { sendQuit } = await import('../src/network.js');
       expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce();
     });
 

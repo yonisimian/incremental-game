@@ -128,12 +128,14 @@ body {
 
 /* ─── Countdown ────────────────────────────────────────────────────── */
 
+.waiting-screen,
 .countdown-screen {
   justify-content: center;
   min-height: 60dvh;
   position: relative;
 }
 
+.waiting-screen .quit-btn,
 .countdown-screen .quit-btn {
   position: absolute;
   top: 0;

@@ -61,6 +61,12 @@ wss.on('connection', (ws: WebSocket) => {
       return;
     }
 
+    if (msg.type === 'QUIT') {
+      removeFromQueue(data.id);
+      queuedPlayers.delete(data.id);
+      return;
+    }
+
     if (msg.type === 'MODE_SELECT') {
       if (msg.mode !== 'clicker' && msg.mode !== 'idler') return;
       if (queuedPlayers.has(data.id)) return;

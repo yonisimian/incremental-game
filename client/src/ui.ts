@@ -1,7 +1,7 @@
 import type { UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
-import { doClick, doBuy, resetForMatch, selectMode, quitMatch, getState } from './game.js';
+import { doClick, doBuy, resetForMatch, selectMode, cancelQueue, quitMatch, getState } from './game.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -128,11 +128,14 @@ function renderLobbyScreen(): void {
 function renderWaitingScreen(): void {
   app.innerHTML = `
     <div class="screen waiting-screen">
+      <button class="quit-btn" id="cancel-queue-btn">← Cancel</button>
       <h1>incremen<span class="brand-t">T</span>al</h1>
       <p class="status-text">Looking for opponent…</p>
       <div class="spinner"></div>
     </div>
   `;
+
+  document.getElementById('cancel-queue-btn')!.addEventListener('click', cancelQueue);
 }
 
 function renderCountdownScreen(state: Readonly<GameState>): void {

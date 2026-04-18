@@ -138,6 +138,13 @@ export function doBuy(upgradeId: UpgradeId): void {
   notify();
 }
 
+/** Cancel matchmaking queue and return to lobby. */
+export function cancelQueue(): void {
+  if (state.screen !== 'waiting') return;
+  sendQuit();
+  resetForMatch();
+}
+
 /** Voluntarily quit the current match and return to lobby. */
 export function quitMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return;
