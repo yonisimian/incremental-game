@@ -353,16 +353,21 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
       const owned = state.player.upgrades[u.id];
       const balance = u.costCurrency === 'wood' ? wood : ale;
       const canAfford = balance >= u.cost;
-      const disabled = owned || !canAfford;
+      // Repeatable upgrades stay enabled as long as affordable
+      const disabled = (!u.repeatable && owned) || !canAfford;
       const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺';
+      const count = u.repeatable ? Number(owned) || 0 : 0;
+      const costLabel = (!u.repeatable && owned)
+        ? '✓'
+        : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`;
       return `
         <button
-          class="upgrade-btn ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'too-expensive' : ''}"
+          class="upgrade-btn ${!u.repeatable && owned ? 'owned' : ''} ${!canAfford && !(owned && !u.repeatable) ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${u.name}</span>
-          <span class="upgrade-cost">${owned ? '✓' : `${u.cost} ${emoji}`}</span>
+          <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${u.description}</span>
         </button>
       `;
