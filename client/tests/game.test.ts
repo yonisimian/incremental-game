@@ -45,8 +45,7 @@ const defaultUpgrades = {
   'multiplier': false,
   'sharpened-axes': false,
   'lumber-mill': false,
-  'tavern-recruits': false,
-  'liquid-courage': false,
+  'tavern-recruits': 0,
 } as const;
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
@@ -516,11 +515,21 @@ describe('game.ts', () => {
       expect(game.getState().player.wood).toBe(20);
     });
 
-    it('deducts ale for ale-cost upgrades', () => {
+    it('deducts ale for ale-cost upgrades (repeatable)', () => {
       enterIdlerPlaying(game);
       giveAle(game, 15);
       game.doBuy('tavern-recruits'); // costs 15 ale
-      expect(game.getState().player.upgrades['tavern-recruits']).toBe(true);
+      expect(game.getState().player.upgrades['tavern-recruits']).toBe(1);
+      expect(game.getState().player.ale).toBe(0);
+    });
+
+    it('allows buying repeatable upgrades multiple times', () => {
+      enterIdlerPlaying(game);
+      giveAle(game, 45);
+      game.doBuy('tavern-recruits'); // 1st: 45-15=30 ale
+      game.doBuy('tavern-recruits'); // 2nd: 30-15=15 ale
+      game.doBuy('tavern-recruits'); // 3rd: 15-15=0 ale
+      expect(game.getState().player.upgrades['tavern-recruits']).toBe(3);
       expect(game.getState().player.ale).toBe(0);
     });
 
@@ -531,16 +540,13 @@ describe('game.ts', () => {
       expect(game.getState().player.upgrades['sharpened-axes']).toBe(false);
     });
 
-    it('Liquid Courage converts ale to wood + score', () => {
+    it('rejects repeatable buy when insufficient funds', () => {
       enterIdlerPlaying(game);
-      giveAle(game, 50); // 50 ale
-      game.doBuy('liquid-courage'); // costs 20 ale
-      const s = game.getState();
-      expect(s.player.upgrades['liquid-courage']).toBe(true);
-      // Remaining ale (50-20=30) converted to wood+score, then ale=0
-      expect(s.player.ale).toBe(0);
-      expect(s.player.wood).toBe(30); // 0 + 30 converted
-      expect(s.player.score).toBe(30); // 0 + 30 converted
+      giveAle(game, 20);
+      game.doBuy('tavern-recruits'); // 1st: 20-15=5 ale
+      game.doBuy('tavern-recruits'); // 2nd: 5 < 15 — should fail
+      expect(game.getState().player.upgrades['tavern-recruits']).toBe(1);
+      expect(game.getState().player.ale).toBe(5);
     });
   });
 });

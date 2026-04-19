@@ -2,7 +2,8 @@
  * Idler Balance Simulation Script
  *
  * Automates upgrade chain traces for every meaningful idler strategy.
- * Outputs a comparison table and timeline compliance report.
+ * Tavern Recruits (TR) is repeatable (+1 base wood/sec each, 15 ale).
+ * Sharpened Axes (SA, 30 wood) and Lumber Mill (LM, 80 wood) are one-shot.
  *
  * Run: pnpm sim:idler
  * Prereq: pnpm --filter @game/shared build
@@ -52,69 +53,95 @@ const highlight = (h: CurrencyHighlight): StrategyAction => ({
 const upgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]));
 
 // ─── Strategies ──────────────────────────────────────────────────────
+// With repeatable TR, key decision is how many TRs to stack before
+// switching to wood upgrades.
 
 const STRATEGIES: Strategy[] = [
   {
-    name: 'All-In (TR→SA→LM)',
-    actions: [
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
-    ],
-  },
-  {
-    name: 'Skip TR (SA→LM)',
-    actions: [
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
-    ],
-  },
-  {
-    name: 'Skip LM (TR→SA)',
-    actions: [
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'),
-    ],
+    name: 'No upgrades',
+    actions: [highlight('wood')],
   },
   {
     name: 'SA only',
     actions: [highlight('wood'), buy('sharpened-axes')],
   },
   {
-    name: 'TR only',
-    actions: [highlight('ale'), buy('tavern-recruits'), highlight('wood')],
+    name: 'SA→LM',
+    actions: [
+      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+    ],
   },
   {
-    name: 'No upgrades',
-    actions: [highlight('wood')],
-  },
-  {
-    name: 'All-In + LC (ale rush)',
+    name: 'TR×1→SA→LM',
     actions: [
       highlight('ale'), buy('tavern-recruits'),
       highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
-      highlight('ale'), buy('liquid-courage'), highlight('wood'),
     ],
   },
   {
-    name: 'All-In + LC (passive ale)',
+    name: 'TR×2→SA→LM',
     actions: [
-      highlight('ale'), buy('tavern-recruits'),
+      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
       highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
-      buy('liquid-courage'),
     ],
   },
   {
-    name: 'TR→SA→LC (skip LM)',
+    name: 'TR×3→SA→LM',
     actions: [
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'),
-      highlight('ale'), buy('liquid-courage'), highlight('wood'),
+      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'), buy('tavern-recruits'),
+      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
     ],
   },
   {
-    name: 'SA-first (SA→TR→LM)',
+    name: 'TR×4→SA→LM',
+    actions: [
+      highlight('ale'),
+      buy('tavern-recruits'), buy('tavern-recruits'),
+      buy('tavern-recruits'), buy('tavern-recruits'),
+      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+    ],
+  },
+  {
+    name: 'TR×1→SA',
+    actions: [
+      highlight('ale'), buy('tavern-recruits'),
+      highlight('wood'), buy('sharpened-axes'),
+    ],
+  },
+  {
+    name: 'TR×2→SA',
+    actions: [
+      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
+      highlight('wood'), buy('sharpened-axes'),
+    ],
+  },
+  {
+    name: 'TR×1 only',
+    actions: [
+      highlight('ale'), buy('tavern-recruits'), highlight('wood'),
+    ],
+  },
+  {
+    name: 'TR×3 only',
+    actions: [
+      highlight('ale'),
+      buy('tavern-recruits'), buy('tavern-recruits'), buy('tavern-recruits'),
+      highlight('wood'),
+    ],
+  },
+  {
+    name: 'SA→TR×1→LM',
     actions: [
       highlight('wood'), buy('sharpened-axes'),
       highlight('ale'), buy('tavern-recruits'),
+      highlight('wood'), buy('lumber-mill'),
+    ],
+  },
+  {
+    name: 'SA→TR×2→LM',
+    actions: [
+      highlight('wood'), buy('sharpened-axes'),
+      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
       highlight('wood'), buy('lumber-mill'),
     ],
   },
@@ -125,8 +152,9 @@ const STRATEGIES: Strategy[] = [
 interface SimResult {
   name: string;
   score: number;
-  purchaseTimes: Record<string, number | null>; // upgradeId → second, or null
-  idleFrom: number; // second of last purchase
+  trCount: number;
+  purchaseLog: { id: string; time: number }[];
+  lastPurchaseSec: number;
 }
 
 function createInitialState(): PlayerState {
@@ -170,12 +198,7 @@ function simulate(strategy: Strategy): SimResult {
   const tickSec = TICK_INTERVAL_MS / 1000;
   const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS;
 
-  const purchaseTimes: Record<string, number | null> = {
-    'tavern-recruits': null,
-    'sharpened-axes': null,
-    'lumber-mill': null,
-    'liquid-courage': null,
-  };
+  const purchaseLog: { id: string; time: number }[] = [];
   let actionIndex = 0;
   let lastPurchaseSec = 0;
 
@@ -204,7 +227,7 @@ function simulate(strategy: Strategy): SimResult {
       executeAction(state, action);
 
       if (action.type === 'buy' && action.upgradeId) {
-        purchaseTimes[action.upgradeId] = currentSec;
+        purchaseLog.push({ id: action.upgradeId, time: currentSec });
         lastPurchaseSec = currentSec;
       }
 
@@ -214,123 +237,48 @@ function simulate(strategy: Strategy): SimResult {
 
   return {
     name: strategy.name,
-    score: Math.round(state.score * 100) / 100, // avoid float noise
-    purchaseTimes,
-    idleFrom: lastPurchaseSec,
+    score: Math.round(state.score * 100) / 100,
+    trCount: Number(state.upgrades['tavern-recruits']) || 0,
+    purchaseLog,
+    lastPurchaseSec,
   };
 }
 
 // ─── Output formatting ──────────────────────────────────────────────
 
-function formatTime(sec: number | null): string {
-  if (sec === null) return '  —  ';
-  return `${sec.toFixed(1)}s`.padStart(5);
-}
+const UPGRADE_ABBR: Record<string, string> = {
+  'tavern-recruits': 'TR',
+  'sharpened-axes': 'SA',
+  'lumber-mill': 'LM',
+};
 
 function printComparisonTable(results: SimResult[]): void {
   const bestScore = Math.max(...results.map((r) => r.score));
 
-  console.log('\n┌─────────────────────────────────────────────────────────────────────────────────────┐');
-  console.log('│                           STRATEGY COMPARISON TABLE                                │');
-  console.log('├─────────────────────────────────────────────────────────────────────────────────────┤');
-  console.log('│ Strategy                    Score  % Best   TR @    SA @    LM @    LC @  Idle from │');
-  console.log('├─────────────────────────────────────────────────────────────────────────────────────┤');
+  console.log('\n┌────────────────────────────────────────────────────────────────────────────────────┐');
+  console.log('│                           STRATEGY COMPARISON TABLE                               │');
+  console.log('├────────────────────────────────────────────────────────────────────────────────────┤');
+  console.log('│ Strategy              Score  % Best  TR#  Purchase timeline                       │');
+  console.log('├────────────────────────────────────────────────────────────────────────────────────┤');
 
   for (const r of results) {
     const pct = ((r.score / bestScore) * 100).toFixed(0).padStart(3);
-    const name = r.name.padEnd(25);
+    const name = r.name.padEnd(20);
     const score = r.score.toFixed(0).padStart(6);
-    const tr = formatTime(r.purchaseTimes['tavern-recruits']);
-    const sa = formatTime(r.purchaseTimes['sharpened-axes']);
-    const lm = formatTime(r.purchaseTimes['lumber-mill']);
-    const lc = formatTime(r.purchaseTimes['liquid-courage']);
-    const idle = r.idleFrom > 0 ? `${r.idleFrom.toFixed(1)}s`.padStart(5) : '  0.0s';
-    console.log(`│ ${name} ${score}   ${pct}%  ${tr}   ${sa}   ${lm}   ${lc}    ${idle} │`);
+    const trCount = String(r.trCount).padStart(2);
+
+    const timeline = r.purchaseLog
+      .map((p) => `${UPGRADE_ABBR[p.id] ?? p.id}@${p.time.toFixed(1)}s`)
+      .join(' → ');
+
+    console.log(`│ ${name} ${score}   ${pct}%   ${trCount}  ${timeline.padEnd(38)}│`);
   }
 
-  console.log('└─────────────────────────────────────────────────────────────────────────────────────┘');
-}
-
-// ─── Timeline compliance ────────────────────────────────────────────
-
-interface PhaseCheck {
-  label: string;
-  start: number;
-  end: number;
-}
-
-const PHASES: PhaseCheck[] = [
-  { label: '0–12s  Accumulation', start: 0, end: 12 },
-  { label: '12–30s Mid-game', start: 12, end: 30 },
-  { label: '30–50s Execution', start: 30, end: 50 },
-  { label: '50–60s Sprint', start: 50, end: 60 },
-];
-
-function printTimelineCompliance(results: SimResult[]): void {
-  console.log('\n┌─────────────────────────────────────────────────────────────────────────────────────┐');
-  console.log('│                           TIMELINE COMPLIANCE                                      │');
-  console.log('└─────────────────────────────────────────────────────────────────────────────────────┘');
-
-  for (const r of results) {
-    console.log(`\n  Strategy: ${r.name}`);
-
-    const allPurchases = Object.entries(r.purchaseTimes)
-      .filter(([, t]) => t !== null)
-      .map(([id, t]) => ({ id, time: t as number }))
-      .sort((a, b) => a.time - b.time);
-
-    for (const phase of PHASES) {
-      const inPhase = allPurchases.filter(
-        (p) => p.time >= phase.start && p.time < phase.end,
-      );
-
-      const upgradeNames: Record<string, string> = {
-        'tavern-recruits': 'TR',
-        'sharpened-axes': 'SA',
-        'lumber-mill': 'LM',
-        'liquid-courage': 'LC',
-      };
-
-      let status: string;
-      let detail: string;
-
-      if (phase.label.includes('Accumulation')) {
-        // Target: first buy between 8–15s
-        const firstBuy = allPurchases[0];
-        if (!firstBuy) {
-          status = '⚠️';
-          detail = 'No purchases in entire round';
-        } else if (firstBuy.time < 8) {
-          status = '⚠️';
-          detail = `First buy at ${firstBuy.time.toFixed(1)}s (target: 8–15s)`;
-        } else if (firstBuy.time <= 15) {
-          status = '✅';
-          detail = `First buy at ${firstBuy.time.toFixed(1)}s`;
-        } else {
-          status = '❌';
-          detail = `First buy at ${firstBuy.time.toFixed(1)}s (too late, target: 8–15s)`;
-        }
-      } else if (inPhase.length > 0) {
-        status = '✅';
-        detail = inPhase
-          .map((p) => `${upgradeNames[p.id] ?? p.id} at ${p.time.toFixed(1)}s`)
-          .join(', ');
-      } else if (r.idleFrom < phase.start) {
-        status = '❌';
-        detail = `No purchases (idle from ${r.idleFrom.toFixed(1)}s)`;
-      } else {
-        status = '⚠️';
-        detail = 'No purchases';
-      }
-
-      console.log(`    ${phase.label}:  ${status} ${detail}`);
-    }
-  }
-  console.log('');
+  console.log('└────────────────────────────────────────────────────────────────────────────────────┘');
 }
 
 // ─── Main ────────────────────────────────────────────────────────────
 
 const results = STRATEGIES.map(simulate);
+results.sort((a, b) => b.score - a.score);
 printComparisonTable(results);
-printTimelineCompliance(results);

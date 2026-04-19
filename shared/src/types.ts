@@ -7,7 +7,7 @@ export type CurrencyHighlight = 'wood' | 'ale';
 /** Identifiers for all upgrades in the game. */
 export type UpgradeId =
   | 'auto-clicker' | 'double-click' | 'multiplier'
-  | 'sharpened-axes' | 'lumber-mill' | 'tavern-recruits' | 'liquid-courage';
+  | 'sharpened-axes' | 'lumber-mill' | 'tavern-recruits';
 
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {
@@ -17,10 +17,16 @@ export interface UpgradeDefinition {
   /** Which currency pays for this upgrade. Absent for clicker upgrades. */
   readonly costCurrency?: CurrencyHighlight;
   readonly description: string;
+  /** If true, the upgrade can be purchased multiple times. */
+  readonly repeatable?: boolean;
 }
 
-/** Set of upgrades a player currently owns. */
-export type OwnedUpgrades = Record<UpgradeId, boolean>;
+/**
+ * Set of upgrades a player currently owns.
+ * One-shot upgrades are `boolean` (true = owned).
+ * Repeatable upgrades are `number` (buy count, 0 = not owned).
+ */
+export type OwnedUpgrades = Record<UpgradeId, boolean | number>;
 
 /** Full state of a single player within a match. */
 export interface PlayerState {

@@ -139,7 +139,9 @@ export function doBuy(upgradeId: UpgradeId): void {
 
   const def = state.upgrades.find((u) => u.id === upgradeId);
   if (!def) return;
-  if (state.player.upgrades[upgradeId]) return;
+
+  // One-shot upgrades can only be purchased once
+  if (!def.repeatable && state.player.upgrades[upgradeId]) return;
 
   // Check correct currency
   if (def.costCurrency === 'wood') {
@@ -153,15 +155,7 @@ export function doBuy(upgradeId: UpgradeId): void {
     state.player.currency -= def.cost;
   }
 
-  state.player.upgrades[upgradeId] = true;
-
-  // Liquid Courage special: convert remaining ale → wood + score
-  if (upgradeId === 'liquid-courage') {
-    const remainingAle = state.player.ale ?? 0;
-    state.player.wood = (state.player.wood ?? 0) + remainingAle;
-    state.player.score += remainingAle;
-    state.player.ale = 0;
-  }
+  grantUpgrade(state.player, upgradeId, def);
 
   // Queue for server
   queueAction({ type: 'buy', timestamp: Date.now(), upgradeId });
@@ -239,28 +233,25 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
     }
     for (const uid of batch.purchases) {
       const def = state.upgrades.find((u) => u.id === uid);
-      if (def && !reconciled.upgrades[uid]) {
-        // Check correct currency
-        if (def.costCurrency === 'wood') {
-          if ((reconciled.wood ?? 0) >= def.cost) {
-            reconciled.wood = (reconciled.wood ?? 0) - def.cost;
-            reconciled.upgrades[uid] = true;
-          }
-        } else if (def.costCurrency === 'ale') {
-          if ((reconciled.ale ?? 0) >= def.cost) {
-            reconciled.ale = (reconciled.ale ?? 0) - def.cost;
-            reconciled.upgrades[uid] = true;
-            if (uid === 'liquid-courage') {
-              const ale = reconciled.ale ?? 0;
-              reconciled.wood = (reconciled.wood ?? 0) + ale;
-              reconciled.score += ale;
-              reconciled.ale = 0;
-            }
-          }
-        } else if (reconciled.currency >= def.cost) {
-          reconciled.currency -= def.cost;
-          reconciled.upgrades[uid] = true;
+      if (!def) continue;
+
+      // One-shot upgrades can only be applied once
+      if (!def.repeatable && reconciled.upgrades[uid]) continue;
+
+      // Check correct currency and apply
+      if (def.costCurrency === 'wood') {
+        if ((reconciled.wood ?? 0) >= def.cost) {
+          reconciled.wood = (reconciled.wood ?? 0) - def.cost;
+          grantUpgrade(reconciled, uid, def);
         }
+      } else if (def.costCurrency === 'ale') {
+        if ((reconciled.ale ?? 0) >= def.cost) {
+          reconciled.ale = (reconciled.ale ?? 0) - def.cost;
+          grantUpgrade(reconciled, uid, def);
+        }
+      } else if (reconciled.currency >= def.cost) {
+        reconciled.currency -= def.cost;
+        grantUpgrade(reconciled, uid, def);
       }
     }
     // Re-apply pending highlight
@@ -341,6 +332,16 @@ function stopCountdown(): void {
 }
 
 // ─── Private: helpers ────────────────────────────────────────────────
+
+/** Mark an upgrade as owned. Repeatable upgrades increment count; one-shot set to true. */
+function grantUpgrade(player: PlayerState, uid: UpgradeId, def: UpgradeDefinition): void {
+  if (def.repeatable) {
+    const prev = Number(player.upgrades[uid]) || 0;
+    player.upgrades[uid] = prev + 1;
+  } else {
+    player.upgrades[uid] = true;
+  }
+}
 
 function computeClickIncome(player: PlayerState): number {
   let income = player.upgrades['double-click'] ? 2 : 1;

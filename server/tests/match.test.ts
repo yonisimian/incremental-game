@@ -519,6 +519,22 @@ describe('Match', () => {
       expect(u.player.wood).toBeGreaterThan(3.5);
     });
 
+    it('Tavern Recruits stacks: buying twice gives +2 base wood/sec', () => {
+      const m = enterIdlerPlaying();
+      // Switch to ale highlight to accumulate ale
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(15_000); // ale ~= 30 (enough for 2 × 15)
+      m.handleMessage('p1', buyMsg('tavern-recruits', 2));
+      m.handleMessage('p1', buyMsg('tavern-recruits', 3));
+      // Switch to wood highlight
+      m.handleMessage('p1', highlightMsg('wood', 4));
+      (ws1.send as ReturnType<typeof vi.fn>).mockClear();
+      vi.advanceTimersByTime(1000);
+      const u = latestUpdate(ws1);
+      // Base wood = 1 + 2 (2×TR) = 3, highlighted x2 = 6/sec
+      expect(u.player.wood).toBeGreaterThan(5.5);
+    });
+
     it('Lumber Mill adds +2 base wood/sec', () => {
       const m = enterIdlerPlaying();
       // Highlight ale to earn TR cost, then buy TR to boost wood base
@@ -534,28 +550,6 @@ describe('Match', () => {
       const u = latestUpdate(ws1);
       // Base = 1 + 1(TR) + 2(LM) = 4, highlighted = 4 × 2 = 8/sec → 0.5s = 4
       expect(u.player.wood).toBeGreaterThan(3.5);
-    });
-
-    it('Liquid Courage converts ale to wood + score', () => {
-      const m = enterIdlerPlaying();
-      // Build up ale: highlight ale
-      m.handleMessage('p1', highlightMsg('ale', 1));
-      vi.advanceTimersByTime(20_000); // ale ~= 40, wood ~= 20
-      const beforeBuy = latestUpdate(ws1);
-      const aleBefore = beforeBuy.player.ale!;
-      const woodBefore = beforeBuy.player.wood!;
-      const scoreBefore = beforeBuy.player.score;
-
-      m.handleMessage('p1', buyMsg('liquid-courage', 2));
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
-      const afterBuy = latestUpdate(ws1);
-
-      // Ale should be near 0 (converted). A tick or two of production may re-add small amount.
-      expect(afterBuy.player.ale!).toBeLessThan(2);
-      // The remaining ale after paying 20 was converted
-      const convertedAle = aleBefore - 20;
-      expect(afterBuy.player.wood!).toBeGreaterThan(woodBefore + convertedAle - 1);
-      expect(afterBuy.player.score).toBeGreaterThan(scoreBefore + convertedAle - 1);
     });
 
     it('cannot buy wood upgrade with ale', () => {

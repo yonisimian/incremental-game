@@ -77,14 +77,8 @@ export const IDLER_UPGRADES: readonly UpgradeDefinition[] = [
     name: '🍻 Tavern Recruits',
     cost: 15,
     costCurrency: 'ale',
-    description: '+1 base 🪵/sec',
-  },
-  {
-    id: 'liquid-courage',
-    name: '🫗 Liquid Courage',
-    cost: 20,
-    costCurrency: 'ale',
-    description: 'Convert all 🍺 → 🪵 (one-time)',
+    description: '+1 base 🪵/sec (stackable)',
+    repeatable: true,
   },
 ] as const;
 
@@ -130,7 +124,6 @@ export const INITIAL_PLAYER_STATE = {
     'multiplier': false,
     'sharpened-axes': false,
     'lumber-mill': false,
-    'tavern-recruits': false,
-    'liquid-courage': false,
+    'tavern-recruits': 0,
   },
 } as const satisfies PlayerState;

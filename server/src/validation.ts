@@ -25,7 +25,8 @@ export function isValidClick(
 
 /**
  * Validate a purchase action.
- * Returns true if the player can afford the upgrade and doesn't already own it.
+ * Returns true if the player can afford the upgrade and doesn't already own it
+ * (or can re-buy it if repeatable).
  * For idler mode, checks the correct currency (wood or ale) based on costCurrency.
  */
 export function isValidPurchase(
@@ -35,7 +36,9 @@ export function isValidPurchase(
 ): boolean {
   const def = upgradeMap.get(upgradeId);
   if (!def) return false;
-  if (state.upgrades[upgradeId]) return false;
+
+  // One-shot upgrades can only be purchased once
+  if (!def.repeatable && state.upgrades[upgradeId]) return false;
 
   // Dual-currency: check the correct balance
   if (def.costCurrency) {

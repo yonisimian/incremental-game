@@ -20,7 +20,8 @@ export function applyIdlerPassiveIncome(
 
   // Base wood rate + bonuses
   let baseWood = 1;
-  if (state.upgrades['tavern-recruits']) baseWood += 1;
+  const trCount = Number(state.upgrades['tavern-recruits']) || 0;
+  baseWood += trCount; // +1 per TR purchase
   if (state.upgrades['lumber-mill']) baseWood += 2;
 
   const woodRate = baseWood * (highlight === 'wood' ? highlightMult : 1);
@@ -38,12 +39,12 @@ export function applyIdlerPassiveIncome(
 
 /**
  * Apply an idler upgrade purchase to the player state.
- * Deducts the cost, marks the upgrade as owned, and handles
- * Liquid Courage's ale → wood conversion.
+ * Deducts the cost and marks the upgrade as owned.
+ * Repeatable upgrades increment their buy count.
  * Mutates `state` in place.
  *
  * Callers are responsible for validating that the purchase is legal
- * (enough currency, upgrade not already owned, etc.).
+ * (enough currency, upgrade not already owned / can re-buy, etc.).
  */
 export function applyIdlerPurchase(
   state: PlayerState,
@@ -59,13 +60,11 @@ export function applyIdlerPurchase(
     state.ale = (state.ale ?? 0) - def.cost;
   }
 
-  state.upgrades[upgradeId] = true;
-
-  // Liquid Courage special: convert remaining ale → wood + score
-  if (upgradeId === 'liquid-courage') {
-    const remainingAle = state.ale ?? 0;
-    state.wood = (state.wood ?? 0) + remainingAle;
-    state.score += remainingAle;
-    state.ale = 0;
+  // Repeatable upgrades store a buy count; one-shot upgrades store true.
+  if (def.repeatable) {
+    const prev = Number(state.upgrades[upgradeId]) || 0;
+    state.upgrades[upgradeId] = prev + 1;
+  } else {
+    state.upgrades[upgradeId] = true;
   }
 }
