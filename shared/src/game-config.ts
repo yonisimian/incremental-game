@@ -95,6 +95,8 @@ export const UPGRADES = CLICKER_UPGRADES;
 
 export interface ModeConfig {
   upgrades: readonly UpgradeDefinition[];
+  /** Round duration in seconds for this game mode. */
+  roundDurationSec: number;
   /** Base passive income per second (before upgrades). 0 for clicker. */
   basePassivePerSec: number;
   /** Whether manual clicks are allowed. */
@@ -104,11 +106,13 @@ export interface ModeConfig {
 export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
   clicker: {
     upgrades: CLICKER_UPGRADES,
+    roundDurationSec: ROUND_DURATION_SEC,
     basePassivePerSec: 0,
     clicksEnabled: true,
   },
   idler: {
     upgrades: IDLER_UPGRADES,
+    roundDurationSec: ROUND_DURATION_SEC,
     basePassivePerSec: 1,
     clicksEnabled: false,
   },

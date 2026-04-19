@@ -11,7 +11,7 @@
 import {
   IDLER_UPGRADES,
   INITIAL_PLAYER_STATE,
-  ROUND_DURATION_SEC,
+  MODE_CONFIGS,
   TICK_INTERVAL_MS,
   applyIdlerPassiveIncome,
   applyIdlerPurchase,
@@ -166,8 +166,9 @@ function executeAction(state: PlayerState, action: StrategyAction): void {
 
 function simulate(strategy: Strategy): SimResult {
   const state = createInitialState();
+  const roundDurationSec = MODE_CONFIGS.idler.roundDurationSec;
   const tickSec = TICK_INTERVAL_MS / 1000;
-  const totalTicks = (ROUND_DURATION_SEC * 1000) / TICK_INTERVAL_MS;
+  const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS;
 
   const purchaseTimes: Record<string, number | null> = {
     'tavern-recruits': null,

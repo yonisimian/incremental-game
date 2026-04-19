@@ -5,7 +5,6 @@ import {
   COUNTDOWN_SEC,
   INITIAL_PLAYER_STATE,
   MODE_CONFIGS,
-  ROUND_DURATION_SEC,
   TICK_INTERVAL_MS,
   applyIdlerPassiveIncome,
   applyIdlerPurchase,
@@ -51,7 +50,7 @@ export class Match {
   private readonly players: [MatchPlayer, MatchPlayer];
   private phase: MatchPhase = 'countdown';
   private tick = 0;
-  private timeLeftSec = ROUND_DURATION_SEC;
+  private timeLeftSec: number;
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private broadcastTimer: ReturnType<typeof setInterval> | null = null;
@@ -66,6 +65,7 @@ export class Match {
     this.id = randomUUID();
     this.mode = mode;
     this.modeConfig = MODE_CONFIGS[mode];
+    this.timeLeftSec = this.modeConfig.roundDurationSec;
     this.upgradeMap = new Map(this.modeConfig.upgrades.map((u) => [u.id, u]));
     this.players = [this.initPlayer(p1), this.initPlayer(p2)];
   }
@@ -84,7 +84,7 @@ export class Match {
   start(): void {
     const config = {
       mode: this.mode,
-      roundDurationSec: ROUND_DURATION_SEC,
+      roundDurationSec: this.modeConfig.roundDurationSec,
       upgrades: [...this.modeConfig.upgrades],
     };
 
@@ -198,12 +198,13 @@ export class Match {
 
   private beginGameLoop(): void {
     const startTime = Date.now();
+    const roundDurationSec = this.modeConfig.roundDurationSec;
 
     // Tick: compute passive income + update timer
     this.tickTimer = setInterval(() => {
       this.tick++;
       const elapsedSec = (Date.now() - startTime) / 1000;
-      this.timeLeftSec = Math.max(0, ROUND_DURATION_SEC - elapsedSec);
+      this.timeLeftSec = Math.max(0, roundDurationSec - elapsedSec);
 
       for (const player of this.players) {
         this.applyPassiveIncome(player);
@@ -218,7 +219,7 @@ export class Match {
     // End the round after the full duration
     this.roundTimer = setTimeout(() => {
       this.endRound();
-    }, ROUND_DURATION_SEC * 1000);
+    }, roundDurationSec * 1000);
   }
 
   // ─── Private: action processing ────────────────────────────────────
