@@ -7,6 +7,8 @@ import {
   MODE_CONFIGS,
   ROUND_DURATION_SEC,
   TICK_INTERVAL_MS,
+  applyIdlerPassiveIncome,
+  applyIdlerPurchase,
 } from '@game/shared';
 import type {
   ClientMessage,
@@ -249,24 +251,7 @@ export class Match {
     const tickSec = TICK_INTERVAL_MS / 1000;
 
     if (this.mode === 'idler') {
-      // ── Idler dual-currency production ───────────────────────────
-      const highlight = player.state.highlight ?? 'wood';
-      const highlightMult = player.state.upgrades['sharpened-axes'] ? 4 : 2;
-
-      // Base wood rate + bonuses
-      let baseWood = 1;
-      if (player.state.upgrades['tavern-recruits']) baseWood += 1;
-      if (player.state.upgrades['lumber-mill']) baseWood += 2;
-
-      const woodRate = baseWood * (highlight === 'wood' ? highlightMult : 1);
-      const aleRate = 1 * (highlight === 'ale' ? highlightMult : 1);
-
-      const woodGain = woodRate * tickSec;
-      const aleGain = aleRate * tickSec;
-
-      player.state.wood = (player.state.wood ?? 0) + woodGain;
-      player.state.ale = (player.state.ale ?? 0) + aleGain;
-      player.state.score += woodGain; // score = total wood ever produced
+      applyIdlerPassiveIncome(player.state, tickSec);
       return;
     }
 
@@ -301,27 +286,16 @@ export class Match {
   }
 
   private applyPurchase(player: MatchPlayer, upgradeId: UpgradeId): void {
-    const def = this.upgradeMap.get(upgradeId)!; // already validated
-
-    // Deduct cost from correct currency
-    if (def.costCurrency === 'wood') {
-      player.state.wood = (player.state.wood ?? 0) - def.cost;
-    } else if (def.costCurrency === 'ale') {
-      player.state.ale = (player.state.ale ?? 0) - def.cost;
+    if (this.mode === 'idler') {
+      applyIdlerPurchase(player.state, upgradeId);
     } else {
+      // Clicker: deduct from generic currency
+      const def = this.upgradeMap.get(upgradeId)!; // already validated
       player.state.currency -= def.cost;
+      player.state.upgrades[upgradeId] = true;
     }
 
-    player.state.upgrades[upgradeId] = true;
     player.stats.upgradesPurchased.push(upgradeId);
-
-    // Liquid Courage special: convert remaining ale → wood + score
-    if (upgradeId === 'liquid-courage') {
-      const remainingAle = player.state.ale ?? 0;
-      player.state.wood = (player.state.wood ?? 0) + remainingAle;
-      player.state.score += remainingAle;
-      player.state.ale = 0;
-    }
   }
 
   // ─── Private: broadcasting ─────────────────────────────────────────

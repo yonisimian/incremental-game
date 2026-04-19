@@ -4,3 +4,4 @@
 export * from './types.js';
 export * from './messages.js';
 export * from './game-config.js';
+export * from './idler-logic.js';
