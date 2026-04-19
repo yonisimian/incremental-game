@@ -493,8 +493,8 @@ describe('Match', () => {
 
     it('Sharpened Axes makes highlight 4x', () => {
       const m = enterIdlerPlaying();
-      // Give player enough wood to buy (40)
-      vi.advanceTimersByTime(20_000); // ~40 wood at 2/sec
+      // Give player enough wood to buy (30)
+      vi.advanceTimersByTime(15_000); // ~30 wood at 2/sec
       m.handleMessage('p1', buyMsg('sharpened-axes', 1));
       // Clear updates to measure from here
       (ws1.send as ReturnType<typeof vi.fn>).mockClear();
@@ -508,7 +508,7 @@ describe('Match', () => {
       const m = enterIdlerPlaying();
       // Switch to ale highlight to build up ale
       m.handleMessage('p1', highlightMsg('ale', 1));
-      vi.advanceTimersByTime(5000); // ale ~= 10
+      vi.advanceTimersByTime(8000); // ale ~= 16 (enough for cost 15)
       m.handleMessage('p1', buyMsg('tavern-recruits', 2));
       // Now switch back to wood highlight
       m.handleMessage('p1', highlightMsg('wood', 3));
@@ -521,9 +521,8 @@ describe('Match', () => {
 
     it('Lumber Mill adds +2 base wood/sec', () => {
       const m = enterIdlerPlaying();
-      // Need 120 wood; at 2/sec takes 60s but we have exactly 60s round
-      // Fast-forward enough to afford it
-      vi.advanceTimersByTime(59_000);
+      // Need 80 wood; at 2/sec takes 40s
+      vi.advanceTimersByTime(40_000);
       m.handleMessage('p1', buyMsg('lumber-mill', 1));
       (ws1.send as ReturnType<typeof vi.fn>).mockClear();
       vi.advanceTimersByTime(500);
@@ -548,8 +547,8 @@ describe('Match', () => {
 
       // Ale should be near 0 (converted). A tick or two of production may re-add small amount.
       expect(afterBuy.player.ale!).toBeLessThan(2);
-      // The remaining ale after paying 35 was converted
-      const convertedAle = aleBefore - 35;
+      // The remaining ale after paying 20 was converted
+      const convertedAle = aleBefore - 20;
       expect(afterBuy.player.wood!).toBeGreaterThan(woodBefore + convertedAle - 1);
       expect(afterBuy.player.score).toBeGreaterThan(scoreBefore + convertedAle - 1);
     });
@@ -559,7 +558,7 @@ describe('Match', () => {
       // Switch to ale to build up only ale
       m.handleMessage('p1', highlightMsg('ale', 1));
       vi.advanceTimersByTime(10_000); // ale ~= 20, wood ~= 10
-      // Try to buy Sharpened Axes (costs 40 wood) — should fail
+      // Try to buy Sharpened Axes (costs 30 wood) — should fail
       m.handleMessage('p1', buyMsg('sharpened-axes', 2));
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS);
       const u = latestUpdate(ws1);

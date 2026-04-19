@@ -511,17 +511,17 @@ describe('game.ts', () => {
     it('deducts wood for wood-cost upgrades', () => {
       enterIdlerPlaying(game);
       giveWood(game, 50);
-      game.doBuy('sharpened-axes'); // costs 40 wood
+      game.doBuy('sharpened-axes'); // costs 30 wood
       expect(game.getState().player.upgrades['sharpened-axes']).toBe(true);
-      expect(game.getState().player.wood).toBe(10);
+      expect(game.getState().player.wood).toBe(20);
     });
 
     it('deducts ale for ale-cost upgrades', () => {
       enterIdlerPlaying(game);
       giveAle(game, 15);
-      game.doBuy('tavern-recruits'); // costs 10 ale
+      game.doBuy('tavern-recruits'); // costs 15 ale
       expect(game.getState().player.upgrades['tavern-recruits']).toBe(true);
-      expect(game.getState().player.ale).toBe(5);
+      expect(game.getState().player.ale).toBe(0);
     });
 
     it('rejects if wrong currency balance is too low', () => {
@@ -534,13 +534,13 @@ describe('game.ts', () => {
     it('Liquid Courage converts ale to wood + score', () => {
       enterIdlerPlaying(game);
       giveAle(game, 50); // 50 ale
-      game.doBuy('liquid-courage'); // costs 35 ale
+      game.doBuy('liquid-courage'); // costs 20 ale
       const s = game.getState();
       expect(s.player.upgrades['liquid-courage']).toBe(true);
-      // Remaining ale (50-35=15) converted to wood+score, then ale=0
+      // Remaining ale (50-20=30) converted to wood+score, then ale=0
       expect(s.player.ale).toBe(0);
-      expect(s.player.wood).toBe(15); // 0 + 15 converted
-      expect(s.player.score).toBe(15); // 0 + 15 converted
+      expect(s.player.wood).toBe(30); // 0 + 30 converted
+      expect(s.player.score).toBe(30); // 0 + 30 converted
     });
   });
 });
