@@ -112,7 +112,7 @@ export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
   },
   idler: {
     upgrades: IDLER_UPGRADES,
-    roundDurationSec: ROUND_DURATION_SEC,
+    roundDurationSec: 35,
     basePassivePerSec: 1,
     clicksEnabled: false,
   },

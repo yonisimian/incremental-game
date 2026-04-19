@@ -521,14 +521,19 @@ describe('Match', () => {
 
     it('Lumber Mill adds +2 base wood/sec', () => {
       const m = enterIdlerPlaying();
-      // Need 80 wood; at 2/sec takes 40s
-      vi.advanceTimersByTime(40_000);
-      m.handleMessage('p1', buyMsg('lumber-mill', 1));
+      // Highlight ale to earn TR cost, then buy TR to boost wood base
+      m.handleMessage('p1', highlightMsg('ale', 1));
+      vi.advanceTimersByTime(8_000); // ale ~16, wood ~8
+      m.handleMessage('p1', buyMsg('tavern-recruits', 2));
+      // TR adds +1 base wood. Switch to wood highlight → 4/sec
+      m.handleMessage('p1', highlightMsg('wood', 3));
+      vi.advanceTimersByTime(18_000); // wood ~8 + 72 = ~80
+      m.handleMessage('p1', buyMsg('lumber-mill', 4));
       (ws1.send as ReturnType<typeof vi.fn>).mockClear();
       vi.advanceTimersByTime(500);
       const u = latestUpdate(ws1);
-      // Base = 1 + 2 = 3, highlighted = 3 × 2 = 6/sec → 0.5s = 3
-      expect(u.player.wood).toBeGreaterThan(2.5);
+      // Base = 1 + 1(TR) + 2(LM) = 4, highlighted = 4 × 2 = 8/sec → 0.5s = 4
+      expect(u.player.wood).toBeGreaterThan(3.5);
     });
 
     it('Liquid Courage converts ale to wood + score', () => {
