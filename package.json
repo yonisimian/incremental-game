@@ -4,6 +4,7 @@
   "private": true,
   "description": "Competitive multiplayer incremental game",
   "scripts": {
+    "dev": "pnpm --filter @game/shared build && pnpm --filter server dev & pnpm --filter client dev",
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
     "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build",
