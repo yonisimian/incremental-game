@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import WebSocket = require('ws');
+import WebSocket from 'ws';
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,

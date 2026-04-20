@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import WebSocket = require('ws');
+import WebSocket, { WebSocketServer } from 'ws';
 import { HEARTBEAT_INTERVAL_MS } from '@game/shared';
 import type { ClientMessage } from '@game/shared';
 import { addToQueue, removeFromQueue } from './matchmaking.js';
@@ -20,7 +20,7 @@ const httpServer = createServer((_req, res) => {
 
 // ─── WebSocket Server ────────────────────────────────────────────────
 
-const wss = new WebSocket.Server({ server: httpServer, path: '/ws' });
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 /** Per-connection metadata. */
 interface PlayerData {
