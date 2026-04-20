@@ -391,18 +391,6 @@ body {
   gap: 0.5rem;
 }
 
-.mode-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.15rem 0.5rem;
-}
-
 .timer {
   font-size: 1.8rem;
   font-weight: 700;

@@ -26,9 +26,8 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen playing-screen">
       <header class="game-header">
-        <div class="mode-label">Clicker</div>
-        ${renderTimer(state)}
         <button class="quit-btn" id="quit-btn">← Quit</button>
+        ${renderTimer(state)}
         ${renderProgressBars(state)}
       </header>
 
@@ -73,9 +72,8 @@ function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen playing-screen idler-playing">
       <header class="game-header">
-        <div class="mode-label">Idler</div>
-        ${renderTimer(state)}
         <button class="quit-btn" id="quit-btn">← Quit</button>
+        ${renderTimer(state)}
         ${renderProgressBars(state)}
       </header>
 
