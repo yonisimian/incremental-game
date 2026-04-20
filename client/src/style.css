@@ -550,7 +550,7 @@ body {
 /* Currency */
 
 .currency-bar {
-  font-size: 1.1rem;
+  font-size: 0.75rem;
   color: var(--gold);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -604,12 +604,16 @@ body {
   width: 100%;
 }
 
+.upgrades-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
 .upgrades-hotkey {
-  display: block;
-  text-align: right;
   font-size: 0.65rem;
   color: var(--text-dim);
-  margin-bottom: 0.3rem;
 }
 
 .upgrades-hotkey .btn-hotkey {

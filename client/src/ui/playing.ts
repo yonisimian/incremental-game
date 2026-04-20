@@ -48,15 +48,13 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
           : ''
       }
 
-      <div class="currency-bar">
-        <span>Currency: </span>
-        <span id="currency">${Math.floor(state.player.currency)}</span>
-      </div>
-
       <button class="click-button" id="click-btn">CLICK<span class="btn-hotkey">Space</span></button>
 
       <div class="upgrades-wrapper">
-        <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        <div class="upgrades-header">
+          <span class="currency-bar" id="currency-bar">💰 <span id="currency">${Math.floor(state.player.currency)}</span></span>
+          <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        </div>
         <div class="upgrades" id="upgrades">
           ${renderClickerUpgrades(state)}
         </div>
@@ -112,7 +110,10 @@ function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
       </div>
 
       <div class="upgrades-wrapper">
-        <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        <div class="upgrades-header">
+          <span></span>
+          <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        </div>
         <div class="upgrades" id="upgrades">
           ${renderIdlerUpgrades(state)}
         </div>
