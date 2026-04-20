@@ -1,4 +1,3 @@
-import type { UpgradeDefinition } from '@game/shared'
 import { doClick, doBuy, setHighlight, getState } from '../game.js'
 import { canAfford } from './helpers.js'
 
@@ -23,12 +22,12 @@ export function initHotkeys(): void {
       return
     }
 
-    // C — buy cheapest affordable upgrade
+    // C — buy all affordable upgrades (cheapest first)
     if (e.key === 'c' || e.key === 'C') {
-      const cheapest = state.upgrades
+      const affordable = state.upgrades
         .filter((u) => canAfford(state, u))
-        .sort((a, b) => a.cost - b.cost)[0] as UpgradeDefinition | undefined
-      if (cheapest) doBuy(cheapest.id)
+        .sort((a, b) => a.cost - b.cost)
+      for (const u of affordable) doBuy(u.id)
       return
     }
 
