@@ -1,5 +1,5 @@
-import { MAX_CPS } from '@game/shared';
-import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared';
+import { MAX_CPS } from '@game/shared'
+import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.
@@ -8,17 +8,17 @@ import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared';
  * Returns true if the click is valid.
  */
 export function isValidClick(recentTimestamps: number[]): boolean {
-  const now = Date.now();
+  const now = Date.now()
 
   // Prune timestamps older than 1 second
-  const cutoff = now - 1000;
+  const cutoff = now - 1000
   while (recentTimestamps.length > 0 && recentTimestamps[0] < cutoff) {
-    recentTimestamps.shift();
+    recentTimestamps.shift()
   }
 
-  if (recentTimestamps.length >= MAX_CPS) return false;
-  recentTimestamps.push(now);
-  return true;
+  if (recentTimestamps.length >= MAX_CPS) return false
+  recentTimestamps.push(now)
+  return true
 }
 
 /**
@@ -32,19 +32,19 @@ export function isValidPurchase(
   upgradeId: UpgradeId,
   upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>,
 ): boolean {
-  const def = upgradeMap.get(upgradeId);
-  if (!def) return false;
+  const def = upgradeMap.get(upgradeId)
+  if (!def) return false
 
   // One-shot upgrades can only be purchased once
-  if (!def.repeatable && state.upgrades[upgradeId]) return false;
+  if (!def.repeatable && state.upgrades[upgradeId]) return false
 
   // Dual-currency: check the correct balance
   if (def.costCurrency) {
-    const balance = def.costCurrency === 'wood' ? (state.wood ?? 0) : (state.ale ?? 0);
-    return balance >= def.cost;
+    const balance = def.costCurrency === 'wood' ? (state.wood ?? 0) : (state.ale ?? 0)
+    return balance >= def.cost
   }
 
   // Clicker: uses generic currency
-  if (state.currency < def.cost) return false;
-  return true;
+  if (state.currency < def.cost) return false
+  return true
 }

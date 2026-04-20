@@ -5,76 +5,76 @@ import type {
   PlayerState,
   UpgradeDefinition,
   UpgradeId,
-} from './types.js';
+} from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
 /** Batched player actions sent from client to server. */
 export interface ActionBatchMessage {
-  type: 'ACTION_BATCH';
+  type: 'ACTION_BATCH'
   /** Monotonically increasing sequence number per client. */
-  seq: number;
-  actions: PlayerAction[];
+  seq: number
+  actions: PlayerAction[]
 }
 
 /** Sent by client to select a game mode (enters matchmaking). */
 export interface ModeSelectMessage {
-  type: 'MODE_SELECT';
-  mode: GameMode;
+  type: 'MODE_SELECT'
+  mode: GameMode
 }
 
 /** Sent by client to voluntarily quit the current match. */
 export interface QuitMessage {
-  type: 'QUIT';
+  type: 'QUIT'
 }
 
-export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage;
+export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage
 
 // ─── Server → Client ────────────────────────────────────────────────
 
 /** Periodic authoritative state snapshot. */
 export interface StateUpdateMessage {
-  type: 'STATE_UPDATE';
+  type: 'STATE_UPDATE'
   /** Server tick counter (monotonically increasing). */
-  tick: number;
+  tick: number
   /** Highest client ACTION_BATCH seq the server has processed. */
-  ackSeq: number;
+  ackSeq: number
   /** The receiving player's own state. */
-  player: PlayerState;
+  player: PlayerState
   /** The opponent's state (full visibility). */
-  opponent: PlayerState;
+  opponent: PlayerState
   /** Seconds remaining in the round. */
-  timeLeft: number;
+  timeLeft: number
 }
 
 /** Sent when a match begins (after matchmaking). */
 export interface RoundStartMessage {
-  type: 'ROUND_START';
-  matchId: string;
+  type: 'ROUND_START'
+  matchId: string
   /** Game configuration for this round. */
   config: {
-    mode: GameMode;
-    roundDurationSec: number;
-    upgrades: readonly UpgradeDefinition[];
-  };
+    mode: GameMode
+    roundDurationSec: number
+    upgrades: readonly UpgradeDefinition[]
+  }
   /** Server timestamp (ms) for clock synchronization. */
-  serverTime: number;
+  serverTime: number
 }
 
 /** Why the round ended. */
-export type RoundEndReason = 'complete' | 'quit' | 'forfeit';
+export type RoundEndReason = 'complete' | 'quit' | 'forfeit'
 
 /** Sent when the round ends (timer expired, quit, or forfeit). */
 export interface RoundEndMessage {
-  type: 'ROUND_END';
-  winner: MatchWinner;
-  reason: RoundEndReason;
-  finalScores: { player: number; opponent: number };
+  type: 'ROUND_END'
+  winner: MatchWinner
+  reason: RoundEndReason
+  finalScores: { player: number; opponent: number }
   stats: {
-    totalClicks: number;
-    peakCps: number;
-    upgradesPurchased: UpgradeId[];
-  };
+    totalClicks: number
+    peakCps: number
+    upgradesPurchased: UpgradeId[]
+  }
 }
 
-export type ServerMessage = StateUpdateMessage | RoundStartMessage | RoundEndMessage;
+export type ServerMessage = StateUpdateMessage | RoundStartMessage | RoundEndMessage

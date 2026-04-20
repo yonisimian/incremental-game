@@ -201,19 +201,19 @@ Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivi
 - **Basic server pattern**:
 
   ```ts
-  import { createServer } from 'http';
-  import { WebSocketServer } from 'ws';
+  import { createServer } from 'http'
+  import { WebSocketServer } from 'ws'
 
-  const server = createServer(); // also handles HTTP health checks
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const server = createServer() // also handles HTTP health checks
+  const wss = new WebSocketServer({ server, path: '/ws' })
 
   wss.on('connection', (ws) => {
     ws.on('message', (data) => {
       /* handle */
-    });
-  });
+    })
+  })
 
-  server.listen(process.env.PORT || 10000);
+  server.listen(process.env.PORT || 10000)
   ```
 
 - **Heartbeat**: Server pings all clients every 30 seconds; if no pong response, the connection is terminated. This is recommended by Render to keep connections alive and detect stale ones.

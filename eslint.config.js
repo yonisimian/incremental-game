@@ -1,6 +1,6 @@
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import prettierConfig from 'eslint-config-prettier';
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import prettierConfig from 'eslint-config-prettier'
 
 export default tseslint.config(
   // ── Global ignores ────────────────────────────────────────────────
@@ -10,7 +10,8 @@ export default tseslint.config(
   js.configs.recommended,
 
   // ── TypeScript type-aware rules ───────────────────────────────────
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
 
   // ── Per-project tsconfig mapping ──────────────────────────────────
   {
@@ -38,10 +39,20 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'off',
       // Allow empty functions (event handler stubs)
       '@typescript-eslint/no-empty-function': 'off',
+      // Allow numbers in template literals (very common in game code)
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       // Warn on floating promises (missing await)
       '@typescript-eslint/no-floating-promises': 'error',
       // Prefer const over let when no reassignment
       'prefer-const': 'error',
+      // Enforce === over ==
+      eqeqeq: ['error', 'always'],
+      // Prefer template literals over string concatenation
+      'prefer-template': 'error',
+      // Prefer shorthand properties in objects
+      'object-shorthand': 'error',
+      // No else after return
+      'no-else-return': 'error',
       // No console.log in production code (warn so it's visible)
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },
@@ -70,4 +81,4 @@ export default tseslint.config(
 
   // ── Disable formatting rules (Prettier handles those) ─────────────
   prettierConfig,
-);
+)

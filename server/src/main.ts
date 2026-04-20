@@ -1,12 +1,12 @@
-import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
-import WebSocket, { WebSocketServer } from 'ws';
-import { HEARTBEAT_INTERVAL_MS } from '@game/shared';
-import type { ClientMessage } from '@game/shared';
-import { addToQueue, removeFromQueue } from './matchmaking.js';
-import type { Match } from './match.js';
+import { createServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
+import WebSocket, { WebSocketServer } from 'ws'
+import { HEARTBEAT_INTERVAL_MS } from '@game/shared'
+import type { ClientMessage } from '@game/shared'
+import { addToQueue, removeFromQueue } from './matchmaking.js'
+import type { Match } from './match.js'
 
-const PORT = Number(process.env.PORT) || 10000;
+const PORT = Number(process.env.PORT) || 10000
 
 // ─── HTTP Server (health check) ─────────────────────────────────────
 
@@ -14,114 +14,116 @@ const httpServer = createServer((_req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/plain',
     'Access-Control-Allow-Origin': '*',
-  });
-  res.end('ok');
-});
+  })
+  res.end('ok')
+})
 
 // ─── WebSocket Server ────────────────────────────────────────────────
 
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' })
 
 /** Per-connection metadata. */
 interface PlayerData {
-  id: string;
-  isAlive: boolean;
+  id: string
+  isAlive: boolean
 }
 
-const wsData = new Map<WebSocket, PlayerData>();
-const playerMatches = new Map<string, Match>();
-const queuedPlayers = new Set<string>();
+const wsData = new Map<WebSocket, PlayerData>()
+const playerMatches = new Map<string, Match>()
+const queuedPlayers = new Set<string>()
 
 wss.on('connection', (ws: WebSocket) => {
-  const playerId = randomUUID();
-  const data: PlayerData = { id: playerId, isAlive: true };
-  wsData.set(ws, data);
+  const playerId = randomUUID()
+  const data: PlayerData = { id: playerId, isAlive: true }
+  wsData.set(ws, data)
 
-  console.info(`[connect] ${playerId}`);
+  console.info(`[connect] ${playerId}`)
 
   // Heartbeat pong
   ws.on('pong', () => {
-    data.isAlive = true;
-  });
+    data.isAlive = true
+  })
 
   // Route messages
   ws.on('message', (raw: Buffer) => {
-    const text = raw.toString('utf8');
-    const m = playerMatches.get(data.id);
+    const text = raw.toString('utf8')
+    const m = playerMatches.get(data.id)
     if (m) {
       // Already in a match — forward to match handler
-      m.handleMessage(data.id, text);
-      return;
+      m.handleMessage(data.id, text)
+      return
     }
 
     // Not in a match — check for MODE_SELECT
-    let msg: ClientMessage;
+    let msg: ClientMessage
     try {
-      msg = JSON.parse(text) as ClientMessage;
+      msg = JSON.parse(text) as ClientMessage
     } catch {
-      return;
+      return
     }
 
     if (msg.type === 'QUIT') {
-      removeFromQueue(data.id);
-      queuedPlayers.delete(data.id);
-      return;
+      removeFromQueue(data.id)
+      queuedPlayers.delete(data.id)
+      return
     }
 
     if (msg.type === 'MODE_SELECT') {
-      if (msg.mode !== 'clicker' && msg.mode !== 'idler') return;
-      if (queuedPlayers.has(data.id)) return;
+      // Runtime validation — mode comes from untrusted client input
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (msg.mode !== 'clicker' && msg.mode !== 'idler') return
+      if (queuedPlayers.has(data.id)) return
 
-      queuedPlayers.add(data.id);
-      const match = addToQueue({ id: data.id, ws }, msg.mode);
+      queuedPlayers.add(data.id)
+      const match = addToQueue({ id: data.id, ws }, msg.mode)
       if (match) {
         for (const pid of match.getPlayerIds()) {
-          queuedPlayers.delete(pid);
-          playerMatches.set(pid, match);
+          queuedPlayers.delete(pid)
+          playerMatches.set(pid, match)
         }
         match.onEnd(() => {
           for (const pid of match.getPlayerIds()) {
-            playerMatches.delete(pid);
+            playerMatches.delete(pid)
           }
-        });
-        match.start();
+        })
+        match.start()
       }
     }
-  });
+  })
 
   // Handle disconnect
   ws.on('close', () => {
-    console.info(`[disconnect] ${data.id}`);
-    const m = playerMatches.get(data.id);
+    console.info(`[disconnect] ${data.id}`)
+    const m = playerMatches.get(data.id)
     if (m) {
-      m.handleDisconnect(data.id);
+      m.handleDisconnect(data.id)
     } else {
-      removeFromQueue(data.id);
+      removeFromQueue(data.id)
     }
-    queuedPlayers.delete(data.id);
-    wsData.delete(ws);
-  });
-});
+    queuedPlayers.delete(data.id)
+    wsData.delete(ws)
+  })
+})
 
 // ─── Heartbeat ───────────────────────────────────────────────────────
 
 const heartbeat = setInterval(() => {
   for (const [ws, data] of [...wsData]) {
     if (!data.isAlive) {
-      ws.terminate();
-      continue;
+      ws.terminate()
+      continue
     }
-    data.isAlive = false;
-    ws.ping();
+    data.isAlive = false
+    ws.ping()
   }
-}, HEARTBEAT_INTERVAL_MS);
+}, HEARTBEAT_INTERVAL_MS)
 
 wss.on('close', () => {
-  clearInterval(heartbeat);
-});
+  clearInterval(heartbeat)
+})
 
 // ─── Start ───────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, () => {
-  console.info(`incremenTal server listening on port ${PORT}`);
-});
+  console.info(`incremenTal server listening on port ${PORT}`)
+})

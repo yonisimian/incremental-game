@@ -16,20 +16,20 @@ import {
   TICK_INTERVAL_MS,
   applyIdlerPassiveIncome,
   applyIdlerPurchase,
-} from '@game/shared';
-import type { CurrencyHighlight, PlayerState, UpgradeId } from '@game/shared';
+} from '@game/shared'
+import type { CurrencyHighlight, PlayerState, UpgradeId } from '@game/shared'
 
 // ─── Strategy types ──────────────────────────────────────────────────
 
 interface StrategyAction {
-  type: 'buy' | 'set_highlight';
-  upgradeId?: UpgradeId;
-  highlight?: CurrencyHighlight;
+  type: 'buy' | 'set_highlight'
+  upgradeId?: UpgradeId
+  highlight?: CurrencyHighlight
 }
 
 interface Strategy {
-  name: string;
-  actions: StrategyAction[];
+  name: string
+  actions: StrategyAction[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -37,16 +37,16 @@ interface Strategy {
 const buy = (upgradeId: UpgradeId): StrategyAction => ({
   type: 'buy',
   upgradeId,
-});
+})
 
 const highlight = (h: CurrencyHighlight): StrategyAction => ({
   type: 'set_highlight',
   highlight: h,
-});
+})
 
 // ─── Upgrade lookup (for affordability checks) ──────────────────────
 
-const upgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]));
+const upgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]))
 
 // ─── Strategies ──────────────────────────────────────────────────────
 // With repeatable TR, key decision is how many TRs to stack before
@@ -162,16 +162,16 @@ const STRATEGIES: Strategy[] = [
       buy('lumber-mill'),
     ],
   },
-];
+]
 
 // ─── Simulation ──────────────────────────────────────────────────────
 
 interface SimResult {
-  name: string;
-  score: number;
-  trCount: number;
-  purchaseLog: { id: string; time: number }[];
-  lastPurchaseSec: number;
+  name: string
+  score: number
+  trCount: number
+  purchaseLog: { id: string; time: number }[]
+  lastPurchaseSec: number
 }
 
 function createInitialState(): PlayerState {
@@ -182,73 +182,73 @@ function createInitialState(): PlayerState {
     wood: 0,
     ale: 0,
     highlight: 'wood',
-  };
+  }
 }
 
 function isActionImmediate(action: StrategyAction): boolean {
-  return action.type === 'set_highlight';
+  return action.type === 'set_highlight'
 }
 
 function canAfford(state: PlayerState, action: StrategyAction): boolean {
-  if (action.type === 'set_highlight') return true;
+  if (action.type === 'set_highlight') return true
   if (action.type === 'buy' && action.upgradeId) {
-    const def = upgradeMap.get(action.upgradeId);
-    if (!def) return false;
-    if (def.costCurrency === 'wood') return (state.wood ?? 0) >= def.cost;
-    if (def.costCurrency === 'ale') return (state.ale ?? 0) >= def.cost;
-    return state.currency >= def.cost;
+    const def = upgradeMap.get(action.upgradeId)
+    if (!def) return false
+    if (def.costCurrency === 'wood') return (state.wood ?? 0) >= def.cost
+    if (def.costCurrency === 'ale') return (state.ale ?? 0) >= def.cost
+    return state.currency >= def.cost
   }
-  return false;
+  return false
 }
 
 function executeAction(state: PlayerState, action: StrategyAction): void {
   if (action.type === 'set_highlight' && action.highlight) {
-    state.highlight = action.highlight;
+    state.highlight = action.highlight
   } else if (action.type === 'buy' && action.upgradeId) {
-    applyIdlerPurchase(state, action.upgradeId);
+    applyIdlerPurchase(state, action.upgradeId)
   }
 }
 
 function simulate(strategy: Strategy): SimResult {
-  const state = createInitialState();
-  const roundDurationSec = MODE_CONFIGS.idler.roundDurationSec;
-  const tickSec = TICK_INTERVAL_MS / 1000;
-  const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS;
+  const state = createInitialState()
+  const roundDurationSec = MODE_CONFIGS.idler.roundDurationSec
+  const tickSec = TICK_INTERVAL_MS / 1000
+  const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS
 
-  const purchaseLog: { id: string; time: number }[] = [];
-  let actionIndex = 0;
-  let lastPurchaseSec = 0;
+  const purchaseLog: { id: string; time: number }[] = []
+  let actionIndex = 0
+  let lastPurchaseSec = 0
 
   // Pre-loop: drain immediate (zero-cost) actions before any income
   while (
     actionIndex < strategy.actions.length &&
     isActionImmediate(strategy.actions[actionIndex])
   ) {
-    executeAction(state, strategy.actions[actionIndex]);
-    actionIndex++;
+    executeAction(state, strategy.actions[actionIndex])
+    actionIndex++
   }
 
   // Main simulation loop
   for (let tick = 0; tick < totalTicks; tick++) {
-    const currentSec = (tick + 1) * tickSec; // time after this tick
+    const currentSec = (tick + 1) * tickSec // time after this tick
 
     // Step 1: passive income
-    applyIdlerPassiveIncome(state, tickSec);
+    applyIdlerPassiveIncome(state, tickSec)
 
     // Step 2: execute ready actions (may be multiple per tick)
     while (
       actionIndex < strategy.actions.length &&
       canAfford(state, strategy.actions[actionIndex])
     ) {
-      const action = strategy.actions[actionIndex];
-      executeAction(state, action);
+      const action = strategy.actions[actionIndex]
+      executeAction(state, action)
 
       if (action.type === 'buy' && action.upgradeId) {
-        purchaseLog.push({ id: action.upgradeId, time: currentSec });
-        lastPurchaseSec = currentSec;
+        purchaseLog.push({ id: action.upgradeId, time: currentSec })
+        lastPurchaseSec = currentSec
       }
 
-      actionIndex++;
+      actionIndex++
     }
   }
 
@@ -258,7 +258,7 @@ function simulate(strategy: Strategy): SimResult {
     trCount: Number(state.upgrades['tavern-recruits']) || 0,
     purchaseLog,
     lastPurchaseSec,
-  };
+  }
 }
 
 // ─── Output formatting ──────────────────────────────────────────────
@@ -267,47 +267,47 @@ const UPGRADE_ABBR: Record<string, string> = {
   'tavern-recruits': 'TR',
   'sharpened-axes': 'SA',
   'lumber-mill': 'LM',
-};
+}
 
 function printComparisonTable(results: SimResult[]): void {
-  const bestScore = Math.max(...results.map((r) => r.score));
+  const bestScore = Math.max(...results.map((r) => r.score))
 
   console.log(
     '\n┌────────────────────────────────────────────────────────────────────────────────────┐',
-  );
+  )
   console.log(
     '│                           STRATEGY COMPARISON TABLE                               │',
-  );
+  )
   console.log(
     '├────────────────────────────────────────────────────────────────────────────────────┤',
-  );
+  )
   console.log(
     '│ Strategy              Score  % Best  TR#  Purchase timeline                       │',
-  );
+  )
   console.log(
     '├────────────────────────────────────────────────────────────────────────────────────┤',
-  );
+  )
 
   for (const r of results) {
-    const pct = ((r.score / bestScore) * 100).toFixed(0).padStart(3);
-    const name = r.name.padEnd(20);
-    const score = r.score.toFixed(0).padStart(6);
-    const trCount = String(r.trCount).padStart(2);
+    const pct = ((r.score / bestScore) * 100).toFixed(0).padStart(3)
+    const name = r.name.padEnd(20)
+    const score = r.score.toFixed(0).padStart(6)
+    const trCount = String(r.trCount).padStart(2)
 
     const timeline = r.purchaseLog
       .map((p) => `${UPGRADE_ABBR[p.id] ?? p.id}@${p.time.toFixed(1)}s`)
-      .join(' → ');
+      .join(' → ')
 
-    console.log(`│ ${name} ${score}   ${pct}%   ${trCount}  ${timeline.padEnd(38)}│`);
+    console.log(`│ ${name} ${score}   ${pct}%   ${trCount}  ${timeline.padEnd(38)}│`)
   }
 
   console.log(
     '└────────────────────────────────────────────────────────────────────────────────────┘',
-  );
+  )
 }
 
 // ─── Main ────────────────────────────────────────────────────────────
 
-const results = STRATEGIES.map(simulate);
-results.sort((a, b) => b.score - a.score);
-printComparisonTable(results);
+const results = STRATEGIES.map(simulate)
+results.sort((a, b) => b.score - a.score)
+printComparisonTable(results)

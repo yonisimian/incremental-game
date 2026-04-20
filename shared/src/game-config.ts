@@ -1,38 +1,38 @@
-import type { GameMode, PlayerState, UpgradeDefinition } from './types.js';
+import type { GameMode, PlayerState, UpgradeDefinition } from './types.js'
 
 // ─── Round ───────────────────────────────────────────────────────────
 
 /** Default round duration in seconds. */
-export const ROUND_DURATION_SEC = 60;
+export const ROUND_DURATION_SEC = 60
 
 /** Countdown before round starts (seconds). */
-export const COUNTDOWN_SEC = 3;
+export const COUNTDOWN_SEC = 3
 
 // ─── Server Tick Rates ───────────────────────────────────────────────
 
 /** How often the server computes passive income (ms). */
-export const TICK_INTERVAL_MS = 250;
+export const TICK_INTERVAL_MS = 250
 
 /** How often the server broadcasts state updates (ms). */
-export const BROADCAST_INTERVAL_MS = 500;
+export const BROADCAST_INTERVAL_MS = 500
 
 // ─── Anti-Cheat ──────────────────────────────────────────────────────
 
 /** Maximum clicks per second allowed before server rejects actions. */
-export const MAX_CPS = 20;
+export const MAX_CPS = 20
 
 // ─── Heartbeat ───────────────────────────────────────────────────────
 
 /** Ping interval for WebSocket keepalive (ms). */
-export const HEARTBEAT_INTERVAL_MS = 30_000;
+export const HEARTBEAT_INTERVAL_MS = 30_000
 
 /** Time to wait for pong before terminating connection (ms). */
-export const HEARTBEAT_TIMEOUT_MS = 10_000;
+export const HEARTBEAT_TIMEOUT_MS = 10_000
 
 // ─── Reconnection ────────────────────────────────────────────────────
 
 /** Grace period for reconnection before forfeit (ms). */
-export const RECONNECT_GRACE_MS = 10_000;
+export const RECONNECT_GRACE_MS = 10_000
 
 // ─── Upgrades ────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export const CLICKER_UPGRADES: readonly UpgradeDefinition[] = [
     cost: 100,
     description: '2x all income',
   },
-] as const;
+] as const
 
 export const IDLER_UPGRADES: readonly UpgradeDefinition[] = [
   {
@@ -80,21 +80,21 @@ export const IDLER_UPGRADES: readonly UpgradeDefinition[] = [
     description: '+1 base 🪵/sec (stackable)',
     repeatable: true,
   },
-] as const;
+] as const
 
 /** @deprecated Use CLICKER_UPGRADES instead. Kept for backward compat. */
-export const UPGRADES = CLICKER_UPGRADES;
+export const UPGRADES = CLICKER_UPGRADES
 
 // ─── Per-Mode Config ─────────────────────────────────────────────────
 
 export interface ModeConfig {
-  upgrades: readonly UpgradeDefinition[];
+  upgrades: readonly UpgradeDefinition[]
   /** Round duration in seconds for this game mode. */
-  roundDurationSec: number;
+  roundDurationSec: number
   /** Base passive income per second (before upgrades). 0 for clicker. */
-  basePassivePerSec: number;
+  basePassivePerSec: number
   /** Whether manual clicks are allowed. */
-  clicksEnabled: boolean;
+  clicksEnabled: boolean
 }
 
 export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
@@ -110,7 +110,7 @@ export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
     basePassivePerSec: 1,
     clicksEnabled: false,
   },
-};
+}
 
 // ─── Derived Helpers ─────────────────────────────────────────────────
 
@@ -126,4 +126,4 @@ export const INITIAL_PLAYER_STATE = {
     'lumber-mill': false,
     'tavern-recruits': 0,
   },
-} as const satisfies PlayerState;
+} as const satisfies PlayerState

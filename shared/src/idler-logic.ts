@@ -1,9 +1,9 @@
-import type { PlayerState, UpgradeId } from './types.js';
-import { IDLER_UPGRADES } from './game-config.js';
+import type { PlayerState, UpgradeId } from './types.js'
+import { IDLER_UPGRADES } from './game-config.js'
 
 // ─── Upgrade lookup ──────────────────────────────────────────────────
 
-const idlerUpgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]));
+const idlerUpgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]))
 
 // ─── Passive income ──────────────────────────────────────────────────
 
@@ -12,24 +12,24 @@ const idlerUpgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]));
  * Mutates `state` in place.
  */
 export function applyIdlerPassiveIncome(state: PlayerState, tickSec: number): void {
-  const highlight = state.highlight ?? 'wood';
-  const highlightMult = state.upgrades['sharpened-axes'] ? 4 : 2;
+  const highlight = state.highlight ?? 'wood'
+  const highlightMult = state.upgrades['sharpened-axes'] ? 4 : 2
 
   // Base wood rate + bonuses
-  let baseWood = 1;
-  const trCount = Number(state.upgrades['tavern-recruits']) || 0;
-  baseWood += trCount; // +1 per TR purchase
-  if (state.upgrades['lumber-mill']) baseWood += 2;
+  let baseWood = 1
+  const trCount = Number(state.upgrades['tavern-recruits']) || 0
+  baseWood += trCount // +1 per TR purchase
+  if (state.upgrades['lumber-mill']) baseWood += 2
 
-  const woodRate = baseWood * (highlight === 'wood' ? highlightMult : 1);
-  const aleRate = 1 * (highlight === 'ale' ? highlightMult : 1);
+  const woodRate = baseWood * (highlight === 'wood' ? highlightMult : 1)
+  const aleRate = 1 * (highlight === 'ale' ? highlightMult : 1)
 
-  const woodGain = woodRate * tickSec;
-  const aleGain = aleRate * tickSec;
+  const woodGain = woodRate * tickSec
+  const aleGain = aleRate * tickSec
 
-  state.wood = (state.wood ?? 0) + woodGain;
-  state.ale = (state.ale ?? 0) + aleGain;
-  state.score += woodGain; // score = total wood ever produced
+  state.wood = (state.wood ?? 0) + woodGain
+  state.ale = (state.ale ?? 0) + aleGain
+  state.score += woodGain // score = total wood ever produced
 }
 
 // ─── Purchase ────────────────────────────────────────────────────────
@@ -44,21 +44,21 @@ export function applyIdlerPassiveIncome(state: PlayerState, tickSec: number): vo
  * (enough currency, upgrade not already owned / can re-buy, etc.).
  */
 export function applyIdlerPurchase(state: PlayerState, upgradeId: UpgradeId): void {
-  const def = idlerUpgradeMap.get(upgradeId);
-  if (!def) return; // not an idler upgrade
+  const def = idlerUpgradeMap.get(upgradeId)
+  if (!def) return // not an idler upgrade
 
   // Deduct cost from correct currency
   if (def.costCurrency === 'wood') {
-    state.wood = (state.wood ?? 0) - def.cost;
+    state.wood = (state.wood ?? 0) - def.cost
   } else if (def.costCurrency === 'ale') {
-    state.ale = (state.ale ?? 0) - def.cost;
+    state.ale = (state.ale ?? 0) - def.cost
   }
 
   // Repeatable upgrades store a buy count; one-shot upgrades store true.
   if (def.repeatable) {
-    const prev = Number(state.upgrades[upgradeId]) || 0;
-    state.upgrades[upgradeId] = prev + 1;
+    const prev = Number(state.upgrades[upgradeId]) || 0
+    state.upgrades[upgradeId] = prev + 1
   } else {
-    state.upgrades[upgradeId] = true;
+    state.upgrades[upgradeId] = true
   }
 }

@@ -1,8 +1,8 @@
 /** Available game modes. */
-export type GameMode = 'clicker' | 'idler';
+export type GameMode = 'clicker' | 'idler'
 
 /** Which currency is currently highlighted (idler mode). */
-export type CurrencyHighlight = 'wood' | 'ale';
+export type CurrencyHighlight = 'wood' | 'ale'
 
 /** Identifiers for all upgrades in the game. */
 export type UpgradeId =
@@ -11,18 +11,18 @@ export type UpgradeId =
   | 'multiplier'
   | 'sharpened-axes'
   | 'lumber-mill'
-  | 'tavern-recruits';
+  | 'tavern-recruits'
 
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {
-  readonly id: UpgradeId;
-  readonly name: string;
-  readonly cost: number;
+  readonly id: UpgradeId
+  readonly name: string
+  readonly cost: number
   /** Which currency pays for this upgrade. Absent for clicker upgrades. */
-  readonly costCurrency?: CurrencyHighlight;
-  readonly description: string;
+  readonly costCurrency?: CurrencyHighlight
+  readonly description: string
   /** If true, the upgrade can be purchased multiple times. */
-  readonly repeatable?: boolean;
+  readonly repeatable?: boolean
 }
 
 /**
@@ -30,37 +30,37 @@ export interface UpgradeDefinition {
  * One-shot upgrades are `boolean` (true = owned).
  * Repeatable upgrades are `number` (buy count, 0 = not owned).
  */
-export type OwnedUpgrades = Record<UpgradeId, boolean | number>;
+export type OwnedUpgrades = Record<UpgradeId, boolean | number>
 
 /** Full state of a single player within a match. */
 export interface PlayerState {
   /** Total score. In clicker = total currency earned. In idler = total wood produced. */
-  score: number;
+  score: number
   /** Spendable resource (clicker mode only). Stays 0 in idler. */
-  currency: number;
+  currency: number
   /** Which upgrades the player owns. */
-  upgrades: OwnedUpgrades;
+  upgrades: OwnedUpgrades
   /** 🪵 Wood balance (idler mode). */
-  wood?: number;
+  wood?: number
   /** 🍺 Ale balance (idler mode). */
-  ale?: number;
+  ale?: number
   /** Currently highlighted currency (idler mode). */
-  highlight?: CurrencyHighlight;
+  highlight?: CurrencyHighlight
 }
 
 /** Possible action types a client can send. */
-export type ActionType = 'click' | 'buy' | 'set_highlight';
+export type ActionType = 'click' | 'buy' | 'set_highlight'
 
 /** A single player action with a timestamp. */
 export interface PlayerAction {
-  type: ActionType;
+  type: ActionType
   /** Unix timestamp (ms) when the action occurred on the client. */
-  timestamp: number;
+  timestamp: number
   /** For 'buy' actions: the upgrade to purchase. Undefined for 'click'. */
-  upgradeId?: UpgradeId;
+  upgradeId?: UpgradeId
   /** For 'set_highlight' actions: which currency to highlight. */
-  highlight?: CurrencyHighlight;
+  highlight?: CurrencyHighlight
 }
 
 /** Match outcome. */
-export type MatchWinner = 'player' | 'opponent' | 'draw';
+export type MatchWinner = 'player' | 'opponent' | 'draw'
