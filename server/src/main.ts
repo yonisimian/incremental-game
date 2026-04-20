@@ -37,7 +37,7 @@ wss.on('connection', (ws: WebSocket) => {
   const data: PlayerData = { id: playerId, isAlive: true };
   wsData.set(ws, data);
 
-  console.log(`[connect] ${playerId}`);
+  console.info(`[connect] ${playerId}`);
 
   // Heartbeat pong
   ws.on('pong', () => {
@@ -45,18 +45,19 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   // Route messages
-  ws.on('message', (raw) => {
+  ws.on('message', (raw: Buffer) => {
+    const text = raw.toString('utf8');
     const m = playerMatches.get(data.id);
     if (m) {
       // Already in a match — forward to match handler
-      m.handleMessage(data.id, String(raw));
+      m.handleMessage(data.id, text);
       return;
     }
 
     // Not in a match — check for MODE_SELECT
     let msg: ClientMessage;
     try {
-      msg = JSON.parse(String(raw)) as ClientMessage;
+      msg = JSON.parse(text) as ClientMessage;
     } catch {
       return;
     }
@@ -90,7 +91,7 @@ wss.on('connection', (ws: WebSocket) => {
 
   // Handle disconnect
   ws.on('close', () => {
-    console.log(`[disconnect] ${data.id}`);
+    console.info(`[disconnect] ${data.id}`);
     const m = playerMatches.get(data.id);
     if (m) {
       m.handleDisconnect(data.id);
@@ -122,5 +123,5 @@ wss.on('close', () => {
 // ─── Start ───────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, () => {
-  console.log(`incremenTal server listening on port ${PORT}`);
+  console.info(`incremenTal server listening on port ${PORT}`);
 });

@@ -19,7 +19,11 @@
   --danger: #f87171;
   --gold: #fbbf24;
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 16px;
   line-height: 1.5;
   color: var(--text);
@@ -76,7 +80,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ─── Lobby ────────────────────────────────────────────────────────── */
@@ -99,7 +105,9 @@ body {
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, transform 0.1s;
+  transition:
+    border-color 0.15s,
+    transform 0.1s;
 }
 
 .mode-btn:not(:disabled):hover {
@@ -150,8 +158,14 @@ body {
 }
 
 @keyframes pulse {
-  0% { transform: scale(1.4); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(1.4);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ─── Playing ──────────────────────────────────────────────────────── */
@@ -197,7 +211,9 @@ body {
   border-radius: 4px;
   padding: 0.2rem 0.6rem;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .quit-btn:hover {
@@ -243,7 +259,9 @@ body {
   border: 2px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   color: var(--text);
   font-family: inherit;
 }
@@ -340,7 +358,9 @@ body {
   font-size: 1.4rem;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.08s, background 0.15s;
+  transition:
+    transform 0.08s,
+    background 0.15s;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -407,7 +427,9 @@ body {
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, opacity 0.15s;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
 }
 
 .upgrade-btn:not(:disabled):hover {
@@ -518,7 +540,9 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .rematch-button:hover {

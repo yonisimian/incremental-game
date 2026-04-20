@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  RoundEndMessage,
-  RoundStartMessage,
-  StateUpdateMessage,
-} from '@game/shared';
-import { COUNTDOWN_SEC, INITIAL_PLAYER_STATE, CLICKER_UPGRADES, IDLER_UPGRADES } from '@game/shared';
+import type { RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared';
+import { COUNTDOWN_SEC, CLICKER_UPGRADES, IDLER_UPGRADES } from '@game/shared';
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
@@ -14,7 +10,9 @@ vi.mock('../src/network.js', () => {
   return {
     getSeq: vi.fn(() => seq),
     queueAction: vi.fn(),
-    resetSeq: vi.fn(() => { seq = 0; }),
+    resetSeq: vi.fn(() => {
+      seq = 0;
+    }),
     sendModeSelect: vi.fn(() => true),
     sendQuit: vi.fn(),
   };
@@ -42,7 +40,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
 const defaultUpgrades = {
   'auto-clicker': false,
   'double-click': false,
-  'multiplier': false,
+  multiplier: false,
   'sharpened-axes': false,
   'lumber-mill': false,
   'tavern-recruits': 0,
@@ -179,9 +177,11 @@ describe('game.ts', () => {
     });
 
     it('is a no-op in idler mode', () => {
-      game.handleServerMessage(makeRoundStart({
-        config: { mode: 'idler', roundDurationSec: 60, upgrades: [] },
-      }));
+      game.handleServerMessage(
+        makeRoundStart({
+          config: { mode: 'idler', roundDurationSec: 60, upgrades: [] },
+        }),
+      );
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
       expect(game.getState().screen).toBe('playing');
 
@@ -280,12 +280,14 @@ describe('game.ts', () => {
   describe('STATE_UPDATE', () => {
     it('adopts server state when no pending actions', () => {
       enterPlaying(game);
-      game.handleServerMessage(makeStateUpdate({
-        ackSeq: 0,
-        player: { score: 5, currency: 5, upgrades: { ...defaultUpgrades } },
-        opponent: { score: 3, currency: 3, upgrades: { ...defaultUpgrades } },
-        timeLeft: 50,
-      }));
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: { score: 5, currency: 5, upgrades: { ...defaultUpgrades } },
+          opponent: { score: 3, currency: 3, upgrades: { ...defaultUpgrades } },
+          timeLeft: 50,
+        }),
+      );
 
       const s = game.getState();
       expect(s.player.score).toBe(5);
@@ -301,10 +303,12 @@ describe('game.ts', () => {
       game.doClick();
 
       // Server acks 0 of them (ackSeq=0), server sees score=0
-      game.handleServerMessage(makeStateUpdate({
-        ackSeq: 0,
-        player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
-      }));
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
+        }),
+      );
 
       // Reconciled: server(0) + 3 pending clicks = 3
       expect(game.getState().player.score).toBe(3);
@@ -316,10 +320,12 @@ describe('game.ts', () => {
       game.doClick();
 
       // Server acks all pending batches and reports score=2
-      game.handleServerMessage(makeStateUpdate({
-        ackSeq: 999, // acks everything
-        player: { score: 2, currency: 2, upgrades: { ...defaultUpgrades } },
-      }));
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 999, // acks everything
+          player: { score: 2, currency: 2, upgrades: { ...defaultUpgrades } },
+        }),
+      );
 
       // No pending → adopts server state exactly
       expect(game.getState().player.score).toBe(2);
@@ -343,9 +349,11 @@ describe('game.ts', () => {
 
     it('sets final scores from server', () => {
       enterPlaying(game);
-      game.handleServerMessage(makeRoundEnd({
-        finalScores: { player: 100, opponent: 50 },
-      }));
+      game.handleServerMessage(
+        makeRoundEnd({
+          finalScores: { player: 100, opponent: 50 },
+        }),
+      );
       expect(game.getState().player.score).toBe(100);
       expect(game.getState().opponent.score).toBe(50);
     });
@@ -451,9 +459,11 @@ describe('game.ts', () => {
 
   describe('setHighlight', () => {
     function enterIdlerPlaying(g: GameModule): void {
-      g.handleServerMessage(makeRoundStart({
-        config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
-      }));
+      g.handleServerMessage(
+        makeRoundStart({
+          config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+        }),
+      );
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
     }
 
@@ -489,22 +499,42 @@ describe('game.ts', () => {
 
   describe('idler doBuy', () => {
     function enterIdlerPlaying(g: GameModule): void {
-      g.handleServerMessage(makeRoundStart({
-        config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
-      }));
+      g.handleServerMessage(
+        makeRoundStart({
+          config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+        }),
+      );
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000);
     }
 
     function giveWood(g: GameModule, amount: number): void {
-      g.handleServerMessage(makeStateUpdate({
-        player: { score: amount, currency: 0, upgrades: { ...defaultUpgrades }, wood: amount, ale: 0, highlight: 'wood' },
-      }));
+      g.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: amount,
+            currency: 0,
+            upgrades: { ...defaultUpgrades },
+            wood: amount,
+            ale: 0,
+            highlight: 'wood',
+          },
+        }),
+      );
     }
 
     function giveAle(g: GameModule, amount: number): void {
-      g.handleServerMessage(makeStateUpdate({
-        player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades }, wood: 0, ale: amount, highlight: 'wood' },
-      }));
+      g.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            currency: 0,
+            upgrades: { ...defaultUpgrades },
+            wood: 0,
+            ale: amount,
+            highlight: 'wood',
+          },
+        }),
+      );
     }
 
     it('deducts wood for wood-cost upgrades', () => {

@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type WebSocket from 'ws';
 import type { ServerMessage, StateUpdateMessage } from '@game/shared';
-import {
-  BROADCAST_INTERVAL_MS,
-  COUNTDOWN_SEC,
-  MAX_CPS,
-  ROUND_DURATION_SEC,
-} from '@game/shared';
+import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, MAX_CPS, ROUND_DURATION_SEC } from '@game/shared';
 import { Match } from '../src/match.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -27,15 +22,13 @@ function sentOfType<T extends ServerMessage['type']>(
   ws: WebSocket,
   type: T,
 ): Extract<ServerMessage, { type: T }>[] {
-  return sent(ws).filter(
-    (m): m is Extract<ServerMessage, { type: T }> => m.type === type,
-  );
+  return sent(ws).filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type);
 }
 
 /** The most recent STATE_UPDATE sent to a mock WebSocket. */
 function latestUpdate(ws: WebSocket): StateUpdateMessage {
   const updates = sentOfType(ws, 'STATE_UPDATE');
-  return updates[updates.length - 1]!;
+  return updates[updates.length - 1];
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -93,12 +86,7 @@ describe('Match', () => {
    * Send `n` clicks for a player, spreading across time to stay
    * within the rate limit. Returns the next available sequence number.
    */
-  function earnCurrency(
-    match: Match,
-    playerId: string,
-    n: number,
-    startSeq = 1,
-  ): number {
+  function earnCurrency(match: Match, playerId: string, n: number, startSeq = 1): number {
     let seq = startSeq;
     let remaining = n;
     while (remaining > 0) {
@@ -137,7 +125,7 @@ describe('Match', () => {
 
     it('includes round config in ROUND_START', () => {
       startMatch();
-      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      const msg = sentOfType(ws1, 'ROUND_START')[0];
       expect(msg.config.roundDurationSec).toBe(ROUND_DURATION_SEC);
       expect(msg.config.upgrades.length).toBeGreaterThan(0);
       expect(msg.matchId).toBeDefined();
@@ -279,8 +267,8 @@ describe('Match', () => {
       m.handleMessage('p1', clickMsg(1)); // p1 = 1, p2 = 0
       vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000);
 
-      const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
-      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      const p1End = sentOfType(ws1, 'ROUND_END')[0];
+      const p2End = sentOfType(ws2, 'ROUND_END')[0];
       expect(p1End.winner).toBe('player');
       expect(p1End.reason).toBe('complete');
       expect(p2End.winner).toBe('opponent');
@@ -291,8 +279,8 @@ describe('Match', () => {
       enterPlaying();
       vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000);
 
-      expect(sentOfType(ws1, 'ROUND_END')[0]!.winner).toBe('draw');
-      expect(sentOfType(ws2, 'ROUND_END')[0]!.winner).toBe('draw');
+      expect(sentOfType(ws1, 'ROUND_END')[0].winner).toBe('draw');
+      expect(sentOfType(ws2, 'ROUND_END')[0].winner).toBe('draw');
     });
 
     it('fires the onEnd callback', () => {
@@ -312,7 +300,7 @@ describe('Match', () => {
       const m = enterPlaying();
       m.handleDisconnect('p1');
 
-      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      const p2End = sentOfType(ws2, 'ROUND_END')[0];
       expect(p2End.winner).toBe('player');
       expect(p2End.reason).toBe('forfeit');
     });
@@ -366,8 +354,8 @@ describe('Match', () => {
       const m = enterPlaying();
       m.handleMessage('p1', quitMsg());
 
-      const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
-      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      const p1End = sentOfType(ws1, 'ROUND_END')[0];
+      const p2End = sentOfType(ws2, 'ROUND_END')[0];
       expect(p1End.winner).toBe('opponent');
       expect(p1End.reason).toBe('quit');
       expect(p2End.winner).toBe('player');
@@ -379,8 +367,8 @@ describe('Match', () => {
       m.handleMessage('p1', clickMsg(1)); // p1 earns 1
       m.handleMessage('p1', quitMsg());
 
-      const p1End = sentOfType(ws1, 'ROUND_END')[0]!;
-      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      const p1End = sentOfType(ws1, 'ROUND_END')[0];
+      const p2End = sentOfType(ws2, 'ROUND_END')[0];
       expect(p1End.finalScores.player).toBe(1);
       expect(p1End.finalScores.opponent).toBe(0);
       expect(p2End.finalScores.player).toBe(0);
@@ -392,7 +380,7 @@ describe('Match', () => {
       // Still in countdown — quit should work
       m.handleMessage('p1', quitMsg());
 
-      const p2End = sentOfType(ws2, 'ROUND_END')[0]!;
+      const p2End = sentOfType(ws2, 'ROUND_END')[0];
       expect(p2End.winner).toBe('player');
       expect(p2End.reason).toBe('quit');
     });
@@ -448,14 +436,14 @@ describe('Match', () => {
     it('sends mode in ROUND_START config', () => {
       const m = createIdlerMatch();
       m.start();
-      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      const msg = sentOfType(ws1, 'ROUND_START')[0];
       expect(msg.config.mode).toBe('idler');
     });
 
     it('uses idler upgrades, not clicker upgrades', () => {
       const m = createIdlerMatch();
       m.start();
-      const msg = sentOfType(ws1, 'ROUND_START')[0]!;
+      const msg = sentOfType(ws1, 'ROUND_START')[0];
       const ids = msg.config.upgrades.map((u) => u.id);
       expect(ids).toContain('sharpened-axes');
       expect(ids).toContain('tavern-recruits');

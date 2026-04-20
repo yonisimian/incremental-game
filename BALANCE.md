@@ -71,11 +71,11 @@ This "hidden cost" (even after adjusting for passive gains) is what makes the ch
 
 When creating a _new_ upgrade, you need to pick a cost. The **k heuristic** is a shorthand for this: it asks _"What fraction of the remaining time should the player spend just breaking even after buying this upgrade?"_
 
-| k value | Break-even window | Game feel |
-|---|---|---|
-| **0.3** | 30% of remaining time | Generous — decisions feel easy and safe |
-| **0.4–0.5** | ~Half the remaining time | **Sweet spot** — rewarding but not free |
-| **0.7** | 70% of remaining time | Risky — late purchases are traps, timing is critical |
+| k value     | Break-even window        | Game feel                                            |
+| ----------- | ------------------------ | ---------------------------------------------------- |
+| **0.3**     | 30% of remaining time    | Generous — decisions feel easy and safe              |
+| **0.4–0.5** | ~Half the remaining time | **Sweet spot** — rewarding but not free              |
+| **0.7**     | 70% of remaining time    | Risky — late purchases are traps, timing is critical |
 
 Pick the time window you want the upgrade purchased in, choose a k, and derive the cost:
 
@@ -91,13 +91,13 @@ This gives a **starting point** for the cost. Fine-tune it by running a chain tr
 
 ## 2. The Five Design Levers
 
-| # | Lever | What it controls | Target |
-|---|---|---|---|
-| 1 | **Time-to-first-decision** | How long before the player can buy _something_. Too fast = no anticipation. Too slow = boredom. | **8–15 seconds** in a 60s round |
-| 2 | **Decision density** | Number of meaningful choices per round. Fewer = scripted experience. More = overwhelming. | **3–5 decisions** in a 60s round |
-| 3 | **Opportunity cost** | Choosing path A should cost you path B. This is the engine of interesting play. | Every purchase should have a visible trade-off |
-| 4 | **Strategy parity** | Multiple viable paths should yield similar total scores (within ~10–15%). If one path dominates, there's no real choice. | ≥ 2 viable strategies within 10–15% score |
-| 5 | **Growth curve shape** | Score-over-time should be convex (accelerating). Early seconds are cheap; final seconds are where investment pays off. | Exponential-ish, not linear |
+| #   | Lever                      | What it controls                                                                                                         | Target                                         |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| 1   | **Time-to-first-decision** | How long before the player can buy _something_. Too fast = no anticipation. Too slow = boredom.                          | **8–15 seconds** in a 60s round                |
+| 2   | **Decision density**       | Number of meaningful choices per round. Fewer = scripted experience. More = overwhelming.                                | **3–5 decisions** in a 60s round               |
+| 3   | **Opportunity cost**       | Choosing path A should cost you path B. This is the engine of interesting play.                                          | Every purchase should have a visible trade-off |
+| 4   | **Strategy parity**        | Multiple viable paths should yield similar total scores (within ~10–15%). If one path dominates, there's no real choice. | ≥ 2 viable strategies within 10–15% score      |
+| 5   | **Growth curve shape**     | Score-over-time should be convex (accelerating). Early seconds are cheap; final seconds are where investment pays off.   | Exponential-ish, not linear                    |
 
 ### Expanded Notes
 
@@ -177,21 +177,21 @@ Numbers can be correct and the game can still feel bad. After the math checks ou
 
 **Upgrades:**
 
-| Upgrade | Cost | Currency |
-|---|---|---|
-| 🪓 Sharpened Axes | 40 🪵 | wood |
-| 🏗️ Lumber Mill | 120 🪵 | wood |
-| 🍻 Tavern Recruits | 10 🍺 | ale |
-| 🫗 Liquid Courage | 35 🍺 | ale |
+| Upgrade            | Cost   | Currency |
+| ------------------ | ------ | -------- |
+| 🪓 Sharpened Axes  | 40 🪵  | wood     |
+| 🏗️ Lumber Mill     | 120 🪵 | wood     |
+| 🍻 Tavern Recruits | 10 🍺  | ale      |
+| 🫗 Liquid Courage  | 35 🍺  | ale      |
 
 **Key metrics (simulation):**
 
-| Strategy | Score | % Best |
-|---|---|---|
-| All-In (TR→SA→LM) | 660 | 100% |
-| SA-first (SA→TR→LM) | 560 | 85% |
-| Skip TR (SA→LM) | 280 | 42% |
-| All others | ≤410 | ≤62% |
+| Strategy            | Score | % Best |
+| ------------------- | ----- | ------ |
+| All-In (TR→SA→LM)   | 660   | 100%   |
+| SA-first (SA→TR→LM) | 560   | 85%    |
+| Skip TR (SA→LM)     | 280   | 42%    |
+| All others          | ≤410  | ≤62%   |
 
 **Problems identified:** (1) Only one viable strategy (All-In dominated everything), (2) TR was mandatory (no-brainer at 5s), (3) LC was worthless (conversion gave ~0 surplus), (4) Spend fractions ≈ 0.99 (no slack), (5) Dead back half (idle from 28.8s — 52% of round with zero agency).
 
@@ -201,10 +201,10 @@ Numbers can be correct and the game can still feel bad. After the math checks ou
 
 **Production rates** (per second, by highlight state and upgrades):
 
-| Highlight | 🪵 Wood (no upgrades) | 🪵 Wood (+TR) | 🪵 Wood (+TR +SA) | 🪵 Wood (+TR +SA +LM) | 🍺 Ale |
-|---|---|---|---|---|---|
-| 🪵 Wood | 2 | 4 | 8 | 16 | 1 |
-| 🍺 Ale | 1 | 2 | 2 | 4 | 2 (no SA), 4 (with SA) |
+| Highlight | 🪵 Wood (no upgrades) | 🪵 Wood (+TR) | 🪵 Wood (+TR +SA) | 🪵 Wood (+TR +SA +LM) | 🍺 Ale                 |
+| --------- | --------------------- | ------------- | ----------------- | --------------------- | ---------------------- |
+| 🪵 Wood   | 2                     | 4             | 8                 | 16                    | 1                      |
+| 🍺 Ale    | 1                     | 2             | 2                 | 4                     | 2 (no SA), 4 (with SA) |
 
 Production rates are unchanged — only upgrade costs were adjusted.
 
@@ -212,48 +212,53 @@ Production rates are unchanged — only upgrade costs were adjusted.
 
 **Upgrades:**
 
-| Upgrade | Old Cost | New Cost | Currency | Rationale |
-|---|---|---|---|---|
-| 🪓 Sharpened Axes | 40 🪵 | **30 🪵** | wood | Lower spend fraction; make SA-first viable |
-| 🏗️ Lumber Mill | 120 🪵 | **80 🪵** | wood | Spend fraction 0.99 → ~0.61; buy earlier, more slack |
-| 🍻 Tavern Recruits | 10 🍺 | **15 🍺** | ale | Make ale detour a real decision (7.5s vs 5s) |
-| 🫗 Liquid Courage | 35 🍺 | **20 🍺** | ale | Reachable via passive ale trickle (~20s at 1/s) |
+| Upgrade            | Old Cost | New Cost  | Currency | Rationale                                            |
+| ------------------ | -------- | --------- | -------- | ---------------------------------------------------- |
+| 🪓 Sharpened Axes  | 40 🪵    | **30 🪵** | wood     | Lower spend fraction; make SA-first viable           |
+| 🏗️ Lumber Mill     | 120 🪵   | **80 🪵** | wood     | Spend fraction 0.99 → ~0.61; buy earlier, more slack |
+| 🍻 Tavern Recruits | 10 🍺    | **15 🍺** | ale      | Make ale detour a real decision (7.5s vs 5s)         |
+| 🫗 Liquid Courage  | 35 🍺    | **20 🍺** | ale      | Reachable via passive ale trickle (~20s at 1/s)      |
 
 ### Simulation Results (post-balance)
 
-| Strategy | Score | % Best | TR @ | SA @ | LM @ | LC @ | Idle from |
-|---|---|---|---|---|---|---|---|
-| All-In (TR→SA→LM) | 699 | 100% | 7.5s | 13.3s | 23.3s | — | 23.3s |
-| All-In + LC (passive ale) | 699 | 100% | 7.5s | 13.3s | 23.3s | 27.5s | 27.5s |
-| All-In + LC (ale rush) | 684 | 98% | 7.5s | 13.3s | 23.3s | 24.5s | 24.5s |
-| **SA-first (SA→TR→LM)** | **670** | **96%** | 15.0s | 15.0s | 25.0s | — | 25.0s |
-| Skip TR (SA→LM) | 410 | 59% | — | 15.0s | 35.0s | — | 35.0s |
-| Skip LM (TR→SA) | 405 | 58% | 7.5s | 13.3s | — | — | 13.3s |
-| TR→SA→LC (skip LM) | 383 | 55% | 7.5s | 13.3s | — | 17.0s | 17.0s |
-| TR only | 218 | 31% | 7.5s | — | — | — | 7.5s |
-| SA only | 210 | 30% | — | 15.0s | — | — | 15.0s |
-| No upgrades | 120 | 17% | — | — | — | — | 0.0s |
+| Strategy                  | Score   | % Best  | TR @  | SA @  | LM @  | LC @  | Idle from |
+| ------------------------- | ------- | ------- | ----- | ----- | ----- | ----- | --------- |
+| All-In (TR→SA→LM)         | 699     | 100%    | 7.5s  | 13.3s | 23.3s | —     | 23.3s     |
+| All-In + LC (passive ale) | 699     | 100%    | 7.5s  | 13.3s | 23.3s | 27.5s | 27.5s     |
+| All-In + LC (ale rush)    | 684     | 98%     | 7.5s  | 13.3s | 23.3s | 24.5s | 24.5s     |
+| **SA-first (SA→TR→LM)**   | **670** | **96%** | 15.0s | 15.0s | 25.0s | —     | 25.0s     |
+| Skip TR (SA→LM)           | 410     | 59%     | —     | 15.0s | 35.0s | —     | 35.0s     |
+| Skip LM (TR→SA)           | 405     | 58%     | 7.5s  | 13.3s | —     | —     | 13.3s     |
+| TR→SA→LC (skip LM)        | 383     | 55%     | 7.5s  | 13.3s | —     | 17.0s | 17.0s     |
+| TR only                   | 218     | 31%     | 7.5s  | —     | —     | —     | 7.5s      |
+| SA only                   | 210     | 30%     | —     | 15.0s | —     | —     | 15.0s     |
+| No upgrades               | 120     | 17%     | —     | —     | —     | —     | 0.0s      |
 
 ### What Changed
 
 **✅ Strategy parity improved dramatically.**
+
 - SA-first jumped from 85% → **96%**. It's now a genuine alternative — you skip the ale detour and buy SA at 15s (right at the accumulation target), then detour for TR after.
 - The gap between All-In and SA-first (4%) is within the "interesting choice" range from Section 3 Step 4.
 
 **✅ Spend fractions are healthy.**
+
 - SA: cost 30 / ~49 accumulated ≈ **0.61** (was 0.98)
 - LM: cost 80 / ~131 accumulated ≈ **0.61** (was 0.99)
 - Both right in the 0.6–0.7 sweet spot. There's slack — a 1s delay no longer cascades into missing LM.
 
 **✅ Accumulation timing improved.**
+
 - TR first buy at 7.5s (was 5.0s) — only 0.5s below the 8–15s target instead of 3s below.
 - SA-first's first buy at 15.0s — hits the target exactly.
 
 **✅ LC moved from worthless to marginal.**
+
 - Passive ale variant ties at 100% (LC at 27.5s, surplus conversion ~7.5🍺 → 7.5🪵 + score).
 - Ale rush variant costs only 2% (was 5%).
 
 **❌ Dead back half is still present (and slightly worse).**
+
 - All-In idles from 23.3s (was 28.8s) — **36.7s of dead time** (was 31.2s).
 - The constants-only pass moved purchases earlier without adding late-game content.
 - This is the correct outcome: Problem #4 requires a **new mechanic or upgrade**, not constant tuning. Earmarked for the next commit.
@@ -275,13 +280,15 @@ Production rates are unchanged — only upgrade costs were adjusted.
 _This section grows as we iterate. Each entry captures a specific insight from balancing work._
 
 ### Lesson 1: Spend Fraction is the Best Single Diagnostic
+
 **Date:** 2026-04-19
 **Context:** First balance pass — the All-In strategy dominated at 100% with all others below 85%.
 **Observation:** The root cause of most problems traced back to spend fractions near 1.0. When SA costs 98% and LM costs 99% of accumulated resources: no timing slack (1s delay cascades), no alternative paths (no leftover resources for detours), and no room for LC (ale can't accumulate if you're always broke on wood). Lowering costs to hit 0.6–0.7 spend fraction fixed strategy parity, timing flexibility, and LC viability simultaneously.
 **Conclusion:** When multiple balance problems seem unrelated, check spend fraction first. It's the tightest binding constraint — loosening it often resolves several issues at once.
 
 ### Lesson 2: Constants Can't Fix Missing Content
+
 **Date:** 2026-04-19
 **Context:** Tried to address the "dead back half" (idle from ~29s) through cost reductions.
-**Observation:** Lower costs moved purchases earlier (LM at 23s instead of 29s), making the dead window *larger* (36.7s instead of 31.2s). No arrangement of four upgrades can fill a 60-second round when the optimal strategy completes all purchases by second 23.
+**Observation:** Lower costs moved purchases earlier (LM at 23s instead of 29s), making the dead window _larger_ (36.7s instead of 31.2s). No arrangement of four upgrades can fill a 60-second round when the optimal strategy completes all purchases by second 23.
 **Conclusion:** If the problem is "nothing to do in phase X", the answer is new content for phase X, not tweaking existing content. Constants-only passes are for parity and timing; they can't conjure decisions that don't exist.

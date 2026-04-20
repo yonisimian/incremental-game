@@ -11,10 +11,7 @@ const idlerUpgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]));
  * Apply one tick of idler passive income to the player state.
  * Mutates `state` in place.
  */
-export function applyIdlerPassiveIncome(
-  state: PlayerState,
-  tickSec: number,
-): void {
+export function applyIdlerPassiveIncome(state: PlayerState, tickSec: number): void {
   const highlight = state.highlight ?? 'wood';
   const highlightMult = state.upgrades['sharpened-axes'] ? 4 : 2;
 
@@ -46,10 +43,7 @@ export function applyIdlerPassiveIncome(
  * Callers are responsible for validating that the purchase is legal
  * (enough currency, upgrade not already owned / can re-buy, etc.).
  */
-export function applyIdlerPurchase(
-  state: PlayerState,
-  upgradeId: UpgradeId,
-): void {
+export function applyIdlerPurchase(state: PlayerState, upgradeId: UpgradeId): void {
   const def = idlerUpgradeMap.get(upgradeId);
   if (!def) return; // not an idler upgrade
 

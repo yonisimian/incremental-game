@@ -1,7 +1,16 @@
-import type { CurrencyHighlight, UpgradeDefinition, UpgradeId } from '@game/shared';
+import type { UpgradeDefinition, UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
-import { doClick, doBuy, resetForMatch, selectMode, cancelQueue, quitMatch, setHighlight, getState } from './game.js';
+import {
+  doClick,
+  doBuy,
+  resetForMatch,
+  selectMode,
+  cancelQueue,
+  quitMatch,
+  setHighlight,
+  getState,
+} from './game.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -258,16 +267,15 @@ function renderEndScreen(state: Readonly<GameState>): void {
   } else if (end.reason === 'forfeit') {
     winnerText = 'Opponent Disconnected — You Win!';
   } else {
-    winnerText = end.winner === 'player'
-      ? '🎉 You Win!'
-      : end.winner === 'opponent'
-        ? 'You Lose'
-        : "It's a Draw";
+    winnerText =
+      end.winner === 'player'
+        ? '🎉 You Win!'
+        : end.winner === 'opponent'
+          ? 'You Lose'
+          : "It's a Draw";
   }
 
-  const resultClass = end.reason === 'quit' || end.reason === 'forfeit'
-    ? 'player'
-    : end.winner;
+  const resultClass = end.reason === 'quit' || end.reason === 'forfeit' ? 'player' : end.winner;
 
   const scoreLabel = isIdler ? '🪵 Total' : 'Score';
 
@@ -303,8 +311,14 @@ function updateCountdown(state: Readonly<GameState>): void {
 
 function updatePlaying(state: Readonly<GameState>): void {
   setText('timer', formatTime(state.timeLeft));
-  setText('player-score', String(Math.floor(state.player.score)) + (state.mode === 'idler' ? ' 🪵' : ''));
-  setText('opponent-score', String(Math.floor(state.opponent.score)) + (state.mode === 'idler' ? ' 🪵' : ''));
+  setText(
+    'player-score',
+    String(Math.floor(state.player.score)) + (state.mode === 'idler' ? ' 🪵' : ''),
+  );
+  setText(
+    'opponent-score',
+    String(Math.floor(state.opponent.score)) + (state.mode === 'idler' ? ' 🪵' : ''),
+  );
 
   if (state.mode === 'idler') {
     setText('wood-balance', String(Math.floor(state.player.wood ?? 0)));
@@ -335,9 +349,7 @@ function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
   const owned = state.player.upgrades[u.id];
   if (!u.repeatable && owned) return false;
   if (u.costCurrency) {
-    const balance = u.costCurrency === 'wood'
-      ? (state.player.wood ?? 0)
-      : (state.player.ale ?? 0);
+    const balance = u.costCurrency === 'wood' ? (state.player.wood ?? 0) : (state.player.ale ?? 0);
     return balance >= u.cost;
   }
   return state.player.currency >= u.cost;
@@ -374,9 +386,8 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
       const disabled = (!u.repeatable && owned) || !affordable;
       const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺';
       const count = u.repeatable ? Number(owned) || 0 : 0;
-      const costLabel = (!u.repeatable && owned)
-        ? '✓'
-        : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`;
+      const costLabel =
+        !u.repeatable && owned ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`;
       const hotkey = i + 1;
       return `
         <button
@@ -450,7 +461,7 @@ document.addEventListener('keydown', (e) => {
   // 1/2/3 — buy upgrade by index
   const index = Number(e.key) - 1;
   if (index >= 0 && index < state.upgrades.length) {
-    doBuy(state.upgrades[index]!.id);
+    doBuy(state.upgrades[index].id);
   }
 });
 

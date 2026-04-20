@@ -77,7 +77,4 @@ export interface RoundEndMessage {
   };
 }
 
-export type ServerMessage =
-  | StateUpdateMessage
-  | RoundStartMessage
-  | RoundEndMessage;
+export type ServerMessage = StateUpdateMessage | RoundStartMessage | RoundEndMessage;

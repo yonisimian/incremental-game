@@ -15,11 +15,11 @@ import { getSeq, queueAction, resetSeq, sendModeSelect, sendQuit } from './netwo
 // ─── Types ───────────────────────────────────────────────────────────
 
 export type Screen =
-  | 'lobby'      // connected, choosing game mode
-  | 'waiting'    // in queue, looking for opponent
-  | 'countdown'  // matched, counting down 3-2-1
-  | 'playing'    // active round
-  | 'ended';     // round finished, showing results
+  | 'lobby' // connected, choosing game mode
+  | 'waiting' // in queue, looking for opponent
+  | 'countdown' // matched, counting down 3-2-1
+  | 'playing' // active round
+  | 'ended'; // round finished, showing results
 
 export interface GameState {
   screen: Screen;
@@ -219,7 +219,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   state.timeLeft = msg.timeLeft;
 
   // Prune acknowledged batches
-  while (pendingBatches.length > 0 && pendingBatches[0]!.seq <= msg.ackSeq) {
+  while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
     pendingBatches.shift();
   }
 

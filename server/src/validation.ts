@@ -7,14 +7,12 @@ import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared';
  * Mutates `recentTimestamps` to maintain the sliding window.
  * Returns true if the click is valid.
  */
-export function isValidClick(
-  recentTimestamps: number[],
-): boolean {
+export function isValidClick(recentTimestamps: number[]): boolean {
   const now = Date.now();
 
   // Prune timestamps older than 1 second
   const cutoff = now - 1000;
-  while (recentTimestamps.length > 0 && recentTimestamps[0]! < cutoff) {
+  while (recentTimestamps.length > 0 && recentTimestamps[0] < cutoff) {
     recentTimestamps.shift();
   }
 

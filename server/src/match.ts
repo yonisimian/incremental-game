@@ -11,7 +11,6 @@ import {
 } from '@game/shared';
 import type {
   ClientMessage,
-  CurrencyHighlight,
   GameMode,
   MatchWinner,
   ModeConfig,
@@ -135,8 +134,8 @@ export class Match {
     this.clearTimers();
 
     const quitterIdx = this.players[0].id === playerId ? 0 : 1;
-    const quitter = this.players[quitterIdx]!;
-    const opponent = this.players[1 - quitterIdx]!;
+    const quitter = this.players[quitterIdx];
+    const opponent = this.players[1 - quitterIdx];
 
     this.send(quitter, {
       type: 'ROUND_END',
@@ -224,11 +223,7 @@ export class Match {
 
   // ─── Private: action processing ────────────────────────────────────
 
-  private processActions(
-    player: MatchPlayer,
-    actions: PlayerAction[],
-    seq: number,
-  ): void {
+  private processActions(player: MatchPlayer, actions: PlayerAction[], seq: number): void {
     for (const action of actions) {
       if (action.type === 'click') {
         if (!this.modeConfig.clicksEnabled) continue;
@@ -280,10 +275,7 @@ export class Match {
     player.stats.totalClicks++;
 
     // Update peak CPS (recentClickTimestamps already pruned by validation)
-    player.stats.peakCps = Math.max(
-      player.stats.peakCps,
-      player.recentClickTimestamps.length,
-    );
+    player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length);
   }
 
   private applyPurchase(player: MatchPlayer, upgradeId: UpgradeId): void {
@@ -361,8 +353,8 @@ export class Match {
     this.clearTimers();
 
     const winnerIdx = this.players[0].id === playerId ? 1 : 0;
-    const winner = this.players[winnerIdx]!;
-    const loser = this.players[1 - winnerIdx]!;
+    const winner = this.players[winnerIdx];
+    const loser = this.players[1 - winnerIdx];
 
     this.send(winner, {
       type: 'ROUND_END',

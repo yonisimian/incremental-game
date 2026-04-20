@@ -115,6 +115,7 @@ A real-time head-to-head incremental game playable on any device via the browser
 The simplest version that proves the concept:
 
 ### What's IN:
+
 - [ ] One screen: a click button + currency display + upgrades + timer + opponent state
 - [ ] Matchmaking: queue of 2 → start match
 - [ ] Round timer: 60 seconds, server-controlled
@@ -128,6 +129,7 @@ The simplest version that proves the concept:
 - [ ] End screen: winner (or draw) + final scores
 
 ### What's OUT (future):
+
 - [ ] Accounts / persistence
 - [ ] ELO / ranking
 - [ ] More upgrades / prestige
@@ -155,17 +157,17 @@ Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivi
 
 ### Summary
 
-| Layer       | Technology              | Version      | Rationale                                         |
-|-------------|-------------------------|--------------|----------------------------------------------------|
-| Language    | TypeScript              | ~5.x         | Type safety shared across client & server          |
-| Client      | Vanilla TS + HTML + CSS | —            | Maximum portability, no framework overhead         |
-| Client Build| Vite                    | ~6.x         | Fast dev server, native TS support, HMR            |
-| Server      | Node.js                 | ≥20.19       | Same language as client, Render native runtime      |
-| WebSocket   | `ws`                    | ~8.x         | Blazing fast, 22.7k★, thoroughly tested WS library |
-| Pkg Manager | pnpm                    | ~10.x        | Workspace support for monorepo shared types         |
-| VCS         | Git + GitHub            | —            | Render auto-deploys from GitHub on push            |
-| Deploy      | Render                  | Free tier    | $0 hosting — static site + WS web service          |
-| Server Dev  | `tsx`                   | latest       | TypeScript execution for Node.js (dev-only)         |
+| Layer        | Technology              | Version   | Rationale                                          |
+| ------------ | ----------------------- | --------- | -------------------------------------------------- |
+| Language     | TypeScript              | ~5.x      | Type safety shared across client & server          |
+| Client       | Vanilla TS + HTML + CSS | —         | Maximum portability, no framework overhead         |
+| Client Build | Vite                    | ~6.x      | Fast dev server, native TS support, HMR            |
+| Server       | Node.js                 | ≥20.19    | Same language as client, Render native runtime     |
+| WebSocket    | `ws`                    | ~8.x      | Blazing fast, 22.7k★, thoroughly tested WS library |
+| Pkg Manager  | pnpm                    | ~10.x     | Workspace support for monorepo shared types        |
+| VCS          | Git + GitHub            | —         | Render auto-deploys from GitHub on push            |
+| Deploy       | Render                  | Free tier | $0 hosting — static site + WS web service          |
+| Server Dev   | `tsx`                   | latest    | TypeScript execution for Node.js (dev-only)        |
 
 ### TypeScript (~5.x)
 
@@ -197,6 +199,7 @@ Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivi
   - Can share an HTTP server (our server serves both the health check endpoint and WebSocket upgrades on the same port)
   - No compression needed for our use case (messages are tiny JSON objects)
 - **Basic server pattern**:
+
   ```ts
   import { createServer } from 'http';
   import { WebSocketServer } from 'ws';
@@ -205,11 +208,14 @@ Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivi
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws) => {
-    ws.on('message', (data) => { /* handle */ });
+    ws.on('message', (data) => {
+      /* handle */
+    });
   });
 
   server.listen(process.env.PORT || 10000);
   ```
+
 - **Heartbeat**: Server pings all clients every 30 seconds; if no pong response, the connection is terminated. This is recommended by Render to keep connections alive and detect stale ones.
 
 ### pnpm Workspaces — Monorepo Shared Types
@@ -268,13 +274,13 @@ Both services deploy from the **same GitHub repo** (monorepo). Render's `buildFi
 
 #### Static Site (Client)
 
-| Setting         | Value                              |
-|-----------------|------------------------------------|
-| Type            | Static Site                        |
-| Root Directory  | *(not set — repo root)*            |
-| Build Command   | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build` |
-| Publish Dir     | `client/dist`                      |
-| Cost            | $0 (static sites are always free)  |
+| Setting        | Value                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------- |
+| Type           | Static Site                                                                                         |
+| Root Directory | _(not set — repo root)_                                                                             |
+| Build Command  | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build` |
+| Publish Dir    | `client/dist`                                                                                       |
+| Cost           | $0 (static sites are always free)                                                                   |
 
 - Produces a static `dist/` folder — just HTML, JS, CSS
 - Served from Render's CDN with automatic SSL (`https://your-game.onrender.com`)
@@ -283,15 +289,15 @@ Both services deploy from the **same GitHub repo** (monorepo). Render's `buildFi
 
 #### Web Service (Server)
 
-| Setting         | Value                              |
-|-----------------|------------------------------------|
-| Type            | Web Service                        |
-| Runtime         | Node                               |
-| Instance Type   | Free                               |
-| Root Directory  | *(not set — repo root)*            |
-| Build Command   | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter server build` |
-| Start Command   | `node server/dist/main.js`        |
-| Cost            | $0 (750 free instance hours/month) |
+| Setting        | Value                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------- |
+| Type           | Web Service                                                                                         |
+| Runtime        | Node                                                                                                |
+| Instance Type  | Free                                                                                                |
+| Root Directory | _(not set — repo root)_                                                                             |
+| Build Command  | `corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter server build` |
+| Start Command  | `node server/dist/main.js`                                                                          |
+| Cost           | $0 (750 free instance hours/month)                                                                  |
 
 - Binds to `process.env.PORT` (default: 10000) — required by Render
 - Serves both HTTP (health check at `/`) and WebSocket (upgrade at `/ws`) on the same port
@@ -314,7 +320,7 @@ services:
     staticPublishPath: client/dist
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
     buildFilter:
       paths:
         - client/**
@@ -335,21 +341,21 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
 ```
 
 Pushing this file to GitHub and clicking "New Blueprint" in Render creates both services at once.
 
 ### Render Free Tier Limits
 
-| Resource               | Limit                              | Impact                                    |
-|------------------------|------------------------------------|-------------------------------------------|
-| Instance hours         | 750/month                          | ~24h/day if always on; sleeps when idle   |
-| Idle spin-down         | After 15 min no traffic            | ~60s cold start on next visit              |
-| Bandwidth              | 100 GB/month included              | More than enough for 2 players             |
-| Build pipeline minutes | 500/month                          | Each build takes ~1-2 minutes              |
-| Ephemeral filesystem   | Lost on every restart/deploy       | No issue — game state is in-memory only    |
-| SSL                    | Automatic, free                    | `wss://` for WebSocket, `https://` for client |
+| Resource               | Limit                        | Impact                                        |
+| ---------------------- | ---------------------------- | --------------------------------------------- |
+| Instance hours         | 750/month                    | ~24h/day if always on; sleeps when idle       |
+| Idle spin-down         | After 15 min no traffic      | ~60s cold start on next visit                 |
+| Bandwidth              | 100 GB/month included        | More than enough for 2 players                |
+| Build pipeline minutes | 500/month                    | Each build takes ~1-2 minutes                 |
+| Ephemeral filesystem   | Lost on every restart/deploy | No issue — game state is in-memory only       |
+| SSL                    | Automatic, free              | `wss://` for WebSocket, `https://` for client |
 
 ### Client → Server Connection
 

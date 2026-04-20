@@ -7,7 +7,7 @@ services:
     staticPublishPath: client/dist
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: '22'
     buildFilter:
       paths:
         - client/**
@@ -28,4 +28,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: "22"
+        value: '22'

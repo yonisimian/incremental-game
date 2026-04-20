@@ -6,8 +6,8 @@ function mockWs(): WebSocket {
 }
 
 describe('matchmaking', () => {
-  let addToQueue: typeof import('../src/matchmaking.js')['addToQueue'];
-  let removeFromQueue: typeof import('../src/matchmaking.js')['removeFromQueue'];
+  let addToQueue: (typeof import('../src/matchmaking.js'))['addToQueue'];
+  let removeFromQueue: (typeof import('../src/matchmaking.js'))['removeFromQueue'];
 
   beforeEach(async () => {
     vi.resetModules();

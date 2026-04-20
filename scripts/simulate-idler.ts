@@ -17,11 +17,7 @@ import {
   applyIdlerPassiveIncome,
   applyIdlerPurchase,
 } from '@game/shared';
-import type {
-  CurrencyHighlight,
-  PlayerState,
-  UpgradeId,
-} from '@game/shared';
+import type { CurrencyHighlight, PlayerState, UpgradeId } from '@game/shared';
 
 // ─── Strategy types ──────────────────────────────────────────────────
 
@@ -67,82 +63,103 @@ const STRATEGIES: Strategy[] = [
   },
   {
     name: 'SA→LM',
-    actions: [
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
-    ],
+    actions: [highlight('wood'), buy('sharpened-axes'), buy('lumber-mill')],
   },
   {
     name: 'TR×1→SA→LM',
     actions: [
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      buy('lumber-mill'),
     ],
   },
   {
     name: 'TR×2→SA→LM',
     actions: [
-      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      buy('lumber-mill'),
     ],
   },
   {
     name: 'TR×3→SA→LM',
     actions: [
-      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      buy('lumber-mill'),
     ],
   },
   {
     name: 'TR×4→SA→LM',
     actions: [
       highlight('ale'),
-      buy('tavern-recruits'), buy('tavern-recruits'),
-      buy('tavern-recruits'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'), buy('lumber-mill'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      buy('lumber-mill'),
     ],
   },
   {
     name: 'TR×1→SA',
-    actions: [
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'),
-    ],
+    actions: [highlight('ale'), buy('tavern-recruits'), highlight('wood'), buy('sharpened-axes')],
   },
   {
     name: 'TR×2→SA',
     actions: [
-      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
-      highlight('wood'), buy('sharpened-axes'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('sharpened-axes'),
     ],
   },
   {
     name: 'TR×1 only',
-    actions: [
-      highlight('ale'), buy('tavern-recruits'), highlight('wood'),
-    ],
+    actions: [highlight('ale'), buy('tavern-recruits'), highlight('wood')],
   },
   {
     name: 'TR×3 only',
     actions: [
       highlight('ale'),
-      buy('tavern-recruits'), buy('tavern-recruits'), buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
       highlight('wood'),
     ],
   },
   {
     name: 'SA→TR×1→LM',
     actions: [
-      highlight('wood'), buy('sharpened-axes'),
-      highlight('ale'), buy('tavern-recruits'),
-      highlight('wood'), buy('lumber-mill'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('lumber-mill'),
     ],
   },
   {
     name: 'SA→TR×2→LM',
     actions: [
-      highlight('wood'), buy('sharpened-axes'),
-      highlight('ale'), buy('tavern-recruits'), buy('tavern-recruits'),
-      highlight('wood'), buy('lumber-mill'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      highlight('ale'),
+      buy('tavern-recruits'),
+      buy('tavern-recruits'),
+      highlight('wood'),
+      buy('lumber-mill'),
     ],
   },
 ];
@@ -255,11 +272,21 @@ const UPGRADE_ABBR: Record<string, string> = {
 function printComparisonTable(results: SimResult[]): void {
   const bestScore = Math.max(...results.map((r) => r.score));
 
-  console.log('\n┌────────────────────────────────────────────────────────────────────────────────────┐');
-  console.log('│                           STRATEGY COMPARISON TABLE                               │');
-  console.log('├────────────────────────────────────────────────────────────────────────────────────┤');
-  console.log('│ Strategy              Score  % Best  TR#  Purchase timeline                       │');
-  console.log('├────────────────────────────────────────────────────────────────────────────────────┤');
+  console.log(
+    '\n┌────────────────────────────────────────────────────────────────────────────────────┐',
+  );
+  console.log(
+    '│                           STRATEGY COMPARISON TABLE                               │',
+  );
+  console.log(
+    '├────────────────────────────────────────────────────────────────────────────────────┤',
+  );
+  console.log(
+    '│ Strategy              Score  % Best  TR#  Purchase timeline                       │',
+  );
+  console.log(
+    '├────────────────────────────────────────────────────────────────────────────────────┤',
+  );
 
   for (const r of results) {
     const pct = ((r.score / bestScore) * 100).toFixed(0).padStart(3);
@@ -274,7 +301,9 @@ function printComparisonTable(results: SimResult[]): void {
     console.log(`│ ${name} ${score}   ${pct}%   ${trCount}  ${timeline.padEnd(38)}│`);
   }
 
-  console.log('└────────────────────────────────────────────────────────────────────────────────────┘');
+  console.log(
+    '└────────────────────────────────────────────────────────────────────────────────────┘',
+  );
 }
 
 // ─── Main ────────────────────────────────────────────────────────────

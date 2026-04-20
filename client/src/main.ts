@@ -9,4 +9,4 @@ setStateChangeHandler(render);
 setConnectionStateHandler(handleConnectionChange);
 
 // Go!
-connect();
+void connect();

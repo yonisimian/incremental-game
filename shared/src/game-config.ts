@@ -121,7 +121,7 @@ export const INITIAL_PLAYER_STATE = {
   upgrades: {
     'auto-clicker': false,
     'double-click': false,
-    'multiplier': false,
+    multiplier: false,
     'sharpened-axes': false,
     'lumber-mill': false,
     'tavern-recruits': 0,

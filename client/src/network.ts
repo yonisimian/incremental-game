@@ -11,9 +11,9 @@ import type {
 export type ServerMessageHandler = (msg: ServerMessage) => void;
 export type ConnectionStateHandler = (state: ConnectionState) => void;
 export type ConnectionState =
-  | 'waking'      // HTTP health check in progress (cold-start)
-  | 'connecting'  // WebSocket handshake in progress
-  | 'connected'   // WebSocket open
+  | 'waking' // HTTP health check in progress (cold-start)
+  | 'connecting' // WebSocket handshake in progress
+  | 'connected' // WebSocket open
   | 'disconnected'; // closed / failed
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -55,10 +55,7 @@ export function setConnectionStateHandler(handler: ConnectionStateHandler): void
 export async function connect(): Promise<void> {
   intentionalClose = false;
   const wsUrl = import.meta.env.VITE_WS_URL as string;
-  const httpUrl = wsUrl
-    .replace(/^ws:/, 'http:')
-    .replace(/^wss:/, 'https:')
-    .replace(/\/ws$/, '/');
+  const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:').replace(/\/ws$/, '/');
 
   // Health check — detect cold start
   onConnectionState('waking');
@@ -154,7 +151,7 @@ function scheduleReconnect(): void {
   const delay = backoff + Math.random() * 500;
   backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   setTimeout(() => {
-    if (!intentionalClose) connect();
+    if (!intentionalClose) void connect();
   }, delay);
 }
 

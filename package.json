@@ -2,19 +2,39 @@
   "name": "incremental-game",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "description": "Competitive multiplayer incremental game",
   "scripts": {
     "dev": "pnpm --filter @game/shared build && pnpm --filter server dev & pnpm --filter client dev",
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
     "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build",
-    "sim:idler": "pnpm --filter @game/shared build && tsx scripts/simulate-idler.ts"
+    "sim:idler": "pnpm --filter @game/shared build && tsx scripts/simulate-idler.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "simple-git-hooks"
   },
   "devDependencies": {
-    "tsx": "^4.19.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "simple-git-hooks": "^2.13.1",
+    "tsx": "^4.19.0",
+    "typescript-eslint": "^8.59.0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.28.1"
+  "packageManager": "pnpm@10.28.1",
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,js,json,md,css,html}": "prettier --write",
+    "*.ts": "eslint --fix"
+  }
 }

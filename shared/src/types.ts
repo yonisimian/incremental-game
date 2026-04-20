@@ -6,8 +6,12 @@ export type CurrencyHighlight = 'wood' | 'ale';
 
 /** Identifiers for all upgrades in the game. */
 export type UpgradeId =
-  | 'auto-clicker' | 'double-click' | 'multiplier'
-  | 'sharpened-axes' | 'lumber-mill' | 'tavern-recruits';
+  | 'auto-clicker'
+  | 'double-click'
+  | 'multiplier'
+  | 'sharpened-axes'
+  | 'lumber-mill'
+  | 'tavern-recruits';
 
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {
