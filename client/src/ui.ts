@@ -182,7 +182,7 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
         <span id="currency">${Math.floor(state.player.currency)}</span>
       </div>
 
-      <button class="click-button" id="click-btn">CLICK</button>
+      <button class="click-button" id="click-btn">CLICK<span class="btn-hotkey">Space</span></button>
 
       <div class="upgrades" id="upgrades">
         ${renderClickerUpgrades(state)}
@@ -219,6 +219,7 @@ function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
       </div>
 
       <div class="currency-cards">
+        <span class="cards-hotkey">Tab</span>
         <button class="currency-card ${highlight === 'wood' ? 'highlighted' : ''}" id="card-wood">
           <span class="card-emoji">🪵</span>
           <span class="card-name">Wood</span>
@@ -408,10 +409,26 @@ document.addEventListener('keydown', (e) => {
   const state = getState();
   if (state.screen !== 'playing') return;
 
-  const index = Number(e.key) - 1; // '1'→0, '2'→1, '3'→2
-  if (index < 0 || index >= state.upgrades.length) return;
+  // Space — click (clicker mode)
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault(); // prevent page scroll
+    doClick();
+    return;
+  }
 
-  doBuy(state.upgrades[index]!.id);
+  // Tab — toggle highlight (idler mode)
+  if (e.key === 'Tab') {
+    e.preventDefault(); // prevent focus shift
+    const current = state.player.highlight ?? 'wood';
+    setHighlight(current === 'wood' ? 'ale' : 'wood');
+    return;
+  }
+
+  // 1/2/3 — buy upgrade by index
+  const index = Number(e.key) - 1;
+  if (index >= 0 && index < state.upgrades.length) {
+    doBuy(state.upgrades[index]!.id);
+  }
 });
 
 function setText(id: string, text: string): void {
