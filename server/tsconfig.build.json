@@ -6,10 +6,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "paths": {
-      "@game/shared": ["./shared/dist/index.d.ts"]
-    }
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": false
   },
-  "include": ["scripts"]
+  "include": ["src"]
 }

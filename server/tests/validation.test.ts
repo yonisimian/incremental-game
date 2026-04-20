@@ -66,8 +66,9 @@ describe('isValidPurchase', () => {
         'auto-clicker': false,
         'double-click': false,
         multiplier: false,
-        accelerator: false,
-        'double-income': false,
+        'sharpened-axes': false,
+        'lumber-mill': false,
+        'tavern-recruits': 0,
       },
       ...overrides,
     }
@@ -88,8 +89,9 @@ describe('isValidPurchase', () => {
         'auto-clicker': true,
         'double-click': false,
         multiplier: false,
-        accelerator: false,
-        'double-income': false,
+        'sharpened-axes': false,
+        'lumber-mill': false,
+        'tavern-recruits': 0,
       },
     })
     expect(isValidPurchase(state, 'auto-clicker', testUpgradeMap)).toBe(false)
@@ -106,7 +108,7 @@ describe('isValidPurchase', () => {
   })
 
   it('rejects a cross-mode upgrade not in the map', () => {
-    expect(isValidPurchase(makeState({ currency: 9999 }), 'accelerator', testUpgradeMap)).toBe(
+    expect(isValidPurchase(makeState({ currency: 9999 }), 'sharpened-axes', testUpgradeMap)).toBe(
       false,
     )
   })
