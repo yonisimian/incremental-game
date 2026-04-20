@@ -1,6 +1,7 @@
 import type {
   CurrencyHighlight,
   GameMode,
+  Goal,
   PlayerState,
   RoundEndMessage,
   RoundStartMessage,
@@ -25,6 +26,8 @@ export interface GameState {
   screen: Screen
   /** Selected game mode. */
   mode: GameMode | null
+  /** Selected win condition for this round. */
+  goal: Goal | null
   /** Local player state (optimistic). */
   player: PlayerState
   /** Opponent state (from server). */
@@ -56,6 +59,7 @@ export type StateChangeHandler = (state: Readonly<GameState>) => void
 const state: GameState = {
   screen: 'lobby',
   mode: null,
+  goal: null,
   player: clonePlayerState(INITIAL_PLAYER_STATE),
   opponent: clonePlayerState(INITIAL_PLAYER_STATE),
   timeLeft: 0,
@@ -96,11 +100,12 @@ export function handleServerMessage(msg: ServerMessage): void {
   }
 }
 
-/** Select a game mode and enter matchmaking. */
-export function selectMode(mode: GameMode): void {
+/** Select a game mode and goal, then enter matchmaking. */
+export function selectMode(mode: GameMode, goal: Goal): void {
   if (state.screen !== 'lobby') return
-  if (!sendModeSelect(mode)) return // not connected — stay on lobby
+  if (!sendModeSelect(mode, goal)) return // not connected — stay on lobby
   state.mode = mode
+  state.goal = goal
   state.screen = 'waiting'
   notify()
 }
@@ -181,6 +186,7 @@ export function quitMatch(): void {
 export function resetForMatch(): void {
   state.screen = 'lobby'
   state.mode = null
+  state.goal = null
   state.player = clonePlayerState(INITIAL_PLAYER_STATE)
   state.opponent = clonePlayerState(INITIAL_PLAYER_STATE)
   state.timeLeft = 0
@@ -200,10 +206,12 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.screen = 'countdown'
   state.matchId = msg.matchId
   state.mode = msg.config.mode
+  state.goal = msg.config.goal
   state.upgrades = msg.config.upgrades
   state.player = clonePlayerState(INITIAL_PLAYER_STATE)
   state.opponent = clonePlayerState(INITIAL_PLAYER_STATE)
-  state.timeLeft = msg.config.roundDurationSec
+  state.timeLeft =
+    msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   pendingBatches.length = 0

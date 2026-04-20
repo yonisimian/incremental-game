@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
-import { COUNTDOWN_SEC, CLICKER_UPGRADES, IDLER_UPGRADES } from '@game/shared'
+import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
+import { COUNTDOWN_SEC, CLICKER_UPGRADES, IDLER_UPGRADES, ROUND_DURATION_SEC } from '@game/shared'
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
@@ -27,11 +27,13 @@ async function loadGame(): Promise<GameModule> {
   return await import('../src/game.js')
 }
 
+const defaultTimedGoal: Goal = { type: 'timed', durationSec: ROUND_DURATION_SEC }
+
 function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartMessage {
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
-    config: { mode: 'clicker', roundDurationSec: 60, upgrades: [...CLICKER_UPGRADES] },
+    config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...CLICKER_UPGRADES] },
     serverTime: Date.now(),
     ...overrides,
   }
@@ -107,14 +109,14 @@ describe('game.ts', () => {
 
   describe('selectMode', () => {
     it('transitions from lobby to waiting', () => {
-      game.selectMode('clicker')
+      game.selectMode('clicker', defaultTimedGoal)
       expect(game.getState().screen).toBe('waiting')
       expect(game.getState().mode).toBe('clicker')
     })
 
     it('is a no-op outside lobby', () => {
-      game.selectMode('clicker')
-      game.selectMode('idler') // already on waiting screen
+      game.selectMode('clicker', defaultTimedGoal)
+      game.selectMode('idler', defaultTimedGoal) // already on waiting screen
       expect(game.getState().mode).toBe('clicker')
     })
   })
@@ -179,7 +181,7 @@ describe('game.ts', () => {
     it('is a no-op in idler mode', () => {
       game.handleServerMessage(
         makeRoundStart({
-          config: { mode: 'idler', roundDurationSec: 60, upgrades: [] },
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [] },
         }),
       )
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
@@ -382,7 +384,7 @@ describe('game.ts', () => {
 
   describe('cancelQueue', () => {
     it('transitions from waiting to lobby', async () => {
-      game.selectMode('clicker')
+      game.selectMode('clicker', defaultTimedGoal)
       expect(game.getState().screen).toBe('waiting')
       game.cancelQueue()
       expect(game.getState().screen).toBe('lobby')
@@ -461,7 +463,7 @@ describe('game.ts', () => {
     function enterIdlerPlaying(g: GameModule): void {
       g.handleServerMessage(
         makeRoundStart({
-          config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...IDLER_UPGRADES] },
         }),
       )
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
@@ -501,7 +503,7 @@ describe('game.ts', () => {
     function enterIdlerPlaying(g: GameModule): void {
       g.handleServerMessage(
         makeRoundStart({
-          config: { mode: 'idler', roundDurationSec: 60, upgrades: [...IDLER_UPGRADES] },
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...IDLER_UPGRADES] },
         }),
       )
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)

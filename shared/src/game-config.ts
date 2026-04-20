@@ -1,9 +1,21 @@
-import type { GameMode, PlayerState, UpgradeDefinition } from './types.js'
+import type { GameMode, Goal, PlayerState, UpgradeDefinition } from './types.js'
 
 // ─── Round ───────────────────────────────────────────────────────────
 
-/** Default round duration in seconds. */
+/** Default round duration in seconds (clicker timed). */
 export const ROUND_DURATION_SEC = 60
+
+/** Default round duration in seconds (idler timed). */
+export const IDLER_ROUND_DURATION_SEC = 35
+
+/** Default target score for clicker target-score mode. */
+export const CLICKER_TARGET_SCORE = 666
+
+/** Default target score for idler target-score mode. */
+export const IDLER_TARGET_SCORE = 364
+
+/** Safety cap for target-score matches (seconds). */
+export const TARGET_SCORE_SAFETY_CAP_SEC = 300
 
 /** Countdown before round starts (seconds). */
 export const COUNTDOWN_SEC = 3
@@ -89,8 +101,8 @@ export const UPGRADES = CLICKER_UPGRADES
 
 export interface ModeConfig {
   upgrades: readonly UpgradeDefinition[]
-  /** Round duration in seconds for this game mode. */
-  roundDurationSec: number
+  /** Available win conditions for this game mode. */
+  goals: readonly Goal[]
   /** Base passive income per second (before upgrades). 0 for clicker. */
   basePassivePerSec: number
   /** Whether manual clicks are allowed. */
@@ -100,16 +112,35 @@ export interface ModeConfig {
 export const MODE_CONFIGS: Record<GameMode, ModeConfig> = {
   clicker: {
     upgrades: CLICKER_UPGRADES,
-    roundDurationSec: ROUND_DURATION_SEC,
+    goals: [
+      { type: 'timed', durationSec: ROUND_DURATION_SEC },
+      {
+        type: 'target-score',
+        target: CLICKER_TARGET_SCORE,
+        safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
+      },
+    ],
     basePassivePerSec: 0,
     clicksEnabled: true,
   },
   idler: {
     upgrades: IDLER_UPGRADES,
-    roundDurationSec: 35,
+    goals: [
+      { type: 'timed', durationSec: IDLER_ROUND_DURATION_SEC },
+      {
+        type: 'target-score',
+        target: IDLER_TARGET_SCORE,
+        safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
+      },
+    ],
     basePassivePerSec: 1,
     clicksEnabled: false,
   },
+}
+
+/** Get the default goal for a mode (first in the goals array). */
+export function getDefaultGoal(mode: GameMode): Goal {
+  return MODE_CONFIGS[mode].goals[0]
 }
 
 // ─── Derived Helpers ─────────────────────────────────────────────────

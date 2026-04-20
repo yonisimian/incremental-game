@@ -1,6 +1,7 @@
 import type {
   ActionBatchMessage,
   GameMode,
+  Goal,
   ModeSelectMessage,
   PlayerAction,
   ServerMessage,
@@ -91,10 +92,10 @@ export function queueAction(action: PlayerAction): void {
   pendingActions.push(action)
 }
 
-/** Send a mode selection message to the server (enters matchmaking). Returns false if not connected. */
-export function sendModeSelect(mode: GameMode): boolean {
+/** Send a mode + goal selection message to the server (enters matchmaking). Returns false if not connected. */
+export function sendModeSelect(mode: GameMode, goal: Goal): boolean {
   if (ws?.readyState !== WebSocket.OPEN) return false
-  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode }
+  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode, goal }
   ws.send(JSON.stringify(msg))
   return true
 }

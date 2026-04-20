@@ -62,5 +62,24 @@ export interface PlayerAction {
   highlight?: CurrencyHighlight
 }
 
+// ─── Goal / Win Condition ────────────────────────────────────────────
+
+/** Timed goal — highest score when the clock runs out wins. */
+export interface TimedGoal {
+  readonly type: 'timed'
+  readonly durationSec: number
+}
+
+/** Target-score goal — first player to reach the target wins. */
+export interface TargetScoreGoal {
+  readonly type: 'target-score'
+  readonly target: number
+  /** Maximum match length to prevent infinite games (seconds). */
+  readonly safetyCapSec: number
+}
+
+/** A win condition for a round. */
+export type Goal = TimedGoal | TargetScoreGoal
+
 /** Match outcome. */
 export type MatchWinner = 'player' | 'opponent' | 'draw'

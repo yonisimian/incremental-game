@@ -8,14 +8,17 @@ import {
   TICK_INTERVAL_MS,
   applyIdlerPassiveIncome,
   applyIdlerPurchase,
+  getDefaultGoal,
 } from '@game/shared'
 import type {
   ClientMessage,
   GameMode,
+  Goal,
   MatchWinner,
   ModeConfig,
   PlayerAction,
   PlayerState,
+  RoundEndReason,
   ServerMessage,
   UpgradeDefinition,
   UpgradeId,
@@ -44,6 +47,7 @@ type MatchPhase = 'countdown' | 'playing' | 'ended'
 export class Match {
   readonly id: string
   readonly mode: GameMode
+  readonly goal: Goal
   private readonly modeConfig: ModeConfig
   private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
@@ -60,11 +64,13 @@ export class Match {
     p1: { id: string; ws: WebSocket },
     p2: { id: string; ws: WebSocket },
     mode: GameMode,
+    goal?: Goal,
   ) {
     this.id = randomUUID()
     this.mode = mode
+    this.goal = goal ?? getDefaultGoal(mode)
     this.modeConfig = MODE_CONFIGS[mode]
-    this.timeLeftSec = this.modeConfig.roundDurationSec
+    this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.upgradeMap = new Map(this.modeConfig.upgrades.map((u) => [u.id, u]))
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
@@ -83,7 +89,7 @@ export class Match {
   start(): void {
     const config = {
       mode: this.mode,
-      roundDurationSec: this.modeConfig.roundDurationSec,
+      goal: this.goal,
       upgrades: [...this.modeConfig.upgrades],
     }
 
@@ -124,6 +130,7 @@ export class Match {
 
     if (msg.type === 'ACTION_BATCH') {
       this.processActions(player, msg.actions, msg.seq)
+      this.checkTargetScoreReached()
     }
   }
 
@@ -197,17 +204,19 @@ export class Match {
 
   private beginGameLoop(): void {
     const startTime = Date.now()
-    const roundDurationSec = this.modeConfig.roundDurationSec
+    const durationSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
 
     // Tick: compute passive income + update timer
     this.tickTimer = setInterval(() => {
       this.tick++
       const elapsedSec = (Date.now() - startTime) / 1000
-      this.timeLeftSec = Math.max(0, roundDurationSec - elapsedSec)
+      this.timeLeftSec = Math.max(0, durationSec - elapsedSec)
 
       for (const player of this.players) {
         this.applyPassiveIncome(player)
       }
+
+      this.checkTargetScoreReached()
     }, TICK_INTERVAL_MS)
 
     // Broadcast authoritative state to both clients
@@ -215,10 +224,29 @@ export class Match {
       this.broadcastState()
     }, BROADCAST_INTERVAL_MS)
 
-    // End the round after the full duration
+    // End the round after the full duration (timed) or safety cap (target-score)
     this.roundTimer = setTimeout(() => {
-      this.endRound()
-    }, roundDurationSec * 1000)
+      if (this.goal.type === 'target-score') {
+        this.endRound('safety-cap')
+      } else {
+        this.endRound('complete')
+      }
+    }, durationSec * 1000)
+  }
+
+  /** Check if any player reached the target score (target-score goal only). */
+  private checkTargetScoreReached(): void {
+    if (this.goal.type !== 'target-score') return
+    if (this.phase !== 'playing') return
+
+    const target = this.goal.target
+    const [p1, p2] = this.players
+    const p1Hit = p1.state.score >= target
+    const p2Hit = p2.state.score >= target
+
+    if (p1Hit || p2Hit) {
+      this.endRound('complete')
+    }
   }
 
   // ─── Private: action processing ────────────────────────────────────
@@ -318,7 +346,7 @@ export class Match {
 
   // ─── Private: ending ───────────────────────────────────────────────
 
-  private endRound(): void {
+  private endRound(reason: RoundEndReason = 'complete'): void {
     if (this.phase === 'ended') return
     this.phase = 'ended'
     this.clearTimers()
@@ -332,7 +360,7 @@ export class Match {
     this.send(p1, {
       type: 'ROUND_END',
       winner: winnerForP1,
-      reason: 'complete',
+      reason,
       finalScores: { player: p1.state.score, opponent: p2.state.score },
       stats: p1.stats,
     })
@@ -340,7 +368,7 @@ export class Match {
     this.send(p2, {
       type: 'ROUND_END',
       winner: winnerForP2,
-      reason: 'complete',
+      reason,
       finalScores: { player: p2.state.score, opponent: p1.state.score },
       stats: p2.stats,
     })

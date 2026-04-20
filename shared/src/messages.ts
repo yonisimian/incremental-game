@@ -1,5 +1,6 @@
 import type {
   GameMode,
+  Goal,
   MatchWinner,
   PlayerAction,
   PlayerState,
@@ -17,10 +18,11 @@ export interface ActionBatchMessage {
   actions: PlayerAction[]
 }
 
-/** Sent by client to select a game mode (enters matchmaking). */
+/** Sent by client to select a game mode and goal (enters matchmaking). */
 export interface ModeSelectMessage {
   type: 'MODE_SELECT'
   mode: GameMode
+  goal: Goal
 }
 
 /** Sent by client to voluntarily quit the current match. */
@@ -54,7 +56,7 @@ export interface RoundStartMessage {
   /** Game configuration for this round. */
   config: {
     mode: GameMode
-    roundDurationSec: number
+    goal: Goal
     upgrades: readonly UpgradeDefinition[]
   }
   /** Server timestamp (ms) for clock synchronization. */
@@ -62,7 +64,7 @@ export interface RoundStartMessage {
 }
 
 /** Why the round ended. */
-export type RoundEndReason = 'complete' | 'quit' | 'forfeit'
+export type RoundEndReason = 'complete' | 'safety-cap' | 'quit' | 'forfeit'
 
 /** Sent when the round ends (timer expired, quit, or forfeit). */
 export interface RoundEndMessage {

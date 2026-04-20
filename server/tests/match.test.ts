@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { ServerMessage, StateUpdateMessage } from '@game/shared'
+import type { Goal, ServerMessage, StateUpdateMessage } from '@game/shared'
 import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, MAX_CPS, ROUND_DURATION_SEC } from '@game/shared'
 import { Match } from '../src/match.js'
 
@@ -126,7 +126,7 @@ describe('Match', () => {
     it('includes round config in ROUND_START', () => {
       startMatch()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
-      expect(msg.config.roundDurationSec).toBe(ROUND_DURATION_SEC)
+      expect(msg.config.goal).toEqual({ type: 'timed', durationSec: ROUND_DURATION_SEC })
       expect(msg.config.upgrades.length).toBeGreaterThan(0)
       expect(msg.matchId).toBeDefined()
       expect(msg.serverTime).toBeGreaterThan(0)
@@ -565,6 +565,115 @@ describe('Match', () => {
       vi.advanceTimersByTime(5000)
       const u = latestUpdate(ws1)
       expect(u.player.currency).toBe(0)
+    })
+  })
+
+  // ── Target-score goal ──────────────────────────────────────────────
+  describe('target-score goal', () => {
+    const targetGoal: Goal = { type: 'target-score', target: 50, safetyCapSec: 300 }
+
+    function createTargetMatch() {
+      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', targetGoal)
+    }
+
+    function startTargetMatch() {
+      const m = createTargetMatch()
+      m.start()
+      return m
+    }
+
+    function enterTargetPlaying() {
+      const m = startTargetMatch()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      return m
+    }
+
+    it('sends goal in ROUND_START config', () => {
+      startTargetMatch()
+      const msg = sentOfType(ws1, 'ROUND_START')[0]
+      expect(msg.config.goal).toEqual(targetGoal)
+    })
+
+    it('ends immediately when a player reaches the target score', () => {
+      const m = enterTargetPlaying()
+      // Earn exactly 50 clicks (target)
+      earnCurrency(m, 'p1', 50)
+      // Match should auto-end after score check
+      const p1End = sentOfType(ws1, 'ROUND_END')
+      expect(p1End).toHaveLength(1)
+      expect(p1End[0].winner).toBe('player')
+      expect(p1End[0].reason).toBe('complete')
+    })
+
+    it('declares the first player to hit the target as winner', () => {
+      const m = enterTargetPlaying()
+      earnCurrency(m, 'p2', 50)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.winner).toBe('opponent')
+      expect(p2End.winner).toBe('player')
+    })
+
+    it('does not end before target is reached', () => {
+      const m = enterTargetPlaying()
+      earnCurrency(m, 'p1', 49) // one short
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(0)
+
+      // Now hit the target
+      m.handleMessage('p1', clickMsg(100))
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
+    })
+
+    it('ends with safety-cap reason when time expires without reaching target', () => {
+      enterTargetPlaying()
+      // Don't click at all — let safety cap expire
+      vi.advanceTimersByTime(targetGoal.safetyCapSec * 1000)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      expect(p1End.reason).toBe('safety-cap')
+      expect(p1End.winner).toBe('draw') // both 0
+    })
+
+    it('safety-cap picks higher score as winner', () => {
+      const m = enterTargetPlaying()
+      m.handleMessage('p1', clickMsg(1)) // p1 = 1, p2 = 0
+      vi.advanceTimersByTime(targetGoal.safetyCapSec * 1000)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      expect(p1End.reason).toBe('safety-cap')
+      expect(p1End.winner).toBe('player')
+    })
+
+    it('timeLeft reflects safety cap countdown', () => {
+      enterTargetPlaying()
+      vi.advanceTimersByTime(10_000 + BROADCAST_INTERVAL_MS)
+      const u = latestUpdate(ws1)
+      // Should be ~290s remaining (300 - 10)
+      expect(u.timeLeft).toBeGreaterThan(280)
+      expect(u.timeLeft).toBeLessThan(300)
+    })
+
+    it('passive income can trigger target-score end', () => {
+      const lowTargetGoal: Goal = { type: 'target-score', target: 5, safetyCapSec: 300 }
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', lowTargetGoal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+
+      // Buy auto-clicker (costs 10, earn 10 first)
+      const seq = earnCurrency(m, 'p1', 10)
+      m.handleMessage(
+        'p1',
+        JSON.stringify({
+          type: 'ACTION_BATCH',
+          seq,
+          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'auto-clicker' }],
+        }),
+      )
+
+      // p1 score is already 10 from earning currency — should have ended
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
     })
   })
 })

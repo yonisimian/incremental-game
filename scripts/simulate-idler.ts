@@ -211,7 +211,8 @@ function executeAction(state: PlayerState, action: StrategyAction): void {
 
 function simulate(strategy: Strategy): SimResult {
   const state = createInitialState()
-  const roundDurationSec = MODE_CONFIGS.idler.roundDurationSec
+  const timedGoal = MODE_CONFIGS.idler.goals.find((g) => g.type === 'timed')
+  const roundDurationSec = timedGoal && timedGoal.type === 'timed' ? timedGoal.durationSec : 35
   const tickSec = TICK_INTERVAL_MS / 1000
   const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS
 

@@ -1,8 +1,8 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import WebSocket, { WebSocketServer } from 'ws'
-import { HEARTBEAT_INTERVAL_MS } from '@game/shared'
-import type { ClientMessage } from '@game/shared'
+import { HEARTBEAT_INTERVAL_MS, MODE_CONFIGS, getDefaultGoal } from '@game/shared'
+import type { ClientMessage, GameMode, Goal } from '@game/shared'
 import { addToQueue, removeFromQueue } from './matchmaking.js'
 import type { Match } from './match.js'
 
@@ -74,8 +74,11 @@ wss.on('connection', (ws: WebSocket) => {
       if (msg.mode !== 'clicker' && msg.mode !== 'idler') return
       if (queuedPlayers.has(data.id)) return
 
+      // Validate and extract goal from the message
+      const goal = parseGoal(msg.goal, msg.mode)
+
       queuedPlayers.add(data.id)
-      const match = addToQueue({ id: data.id, ws }, msg.mode)
+      const match = addToQueue({ id: data.id, ws }, msg.mode, goal)
       if (match) {
         for (const pid of match.getPlayerIds()) {
           queuedPlayers.delete(pid)
@@ -104,6 +107,23 @@ wss.on('connection', (ws: WebSocket) => {
     wsData.delete(ws)
   })
 })
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Validate and normalize the goal from an untrusted client message.
+ * Only accepts goals that exactly match a predefined entry in MODE_CONFIGS.
+ * Falls back to the mode's default goal if the payload is invalid.
+ */
+function parseGoal(raw: unknown, mode: GameMode): Goal {
+  if (raw && typeof raw === 'object' && 'type' in raw) {
+    const obj = raw as Record<string, unknown>
+    const predefined = MODE_CONFIGS[mode].goals.find((g) => g.type === obj.type)
+    if (predefined) return predefined
+  }
+  // Fallback — ignored bad payload, use default goal for the selected mode
+  return getDefaultGoal(mode)
+}
 
 // ─── Heartbeat ───────────────────────────────────────────────────────
 
