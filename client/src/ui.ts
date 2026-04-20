@@ -336,10 +336,10 @@ function renderClickerUpgrades(state: Readonly<GameState>): string {
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
-          <span class="upgrade-hotkey">[${hotkey}]</span>
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${owned ? '✓' : `$${u.cost}`}</span>
           <span class="upgrade-desc">${u.description}</span>
+          <span class="upgrade-hotkey">${hotkey}</span>
         </button>
       `;
     })
@@ -369,10 +369,10 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
-          <span class="upgrade-hotkey">[${hotkey}]</span>
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${u.description}</span>
+          <span class="upgrade-hotkey">${hotkey}</span>
         </button>
       `;
     })
