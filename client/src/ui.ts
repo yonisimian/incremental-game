@@ -1,4 +1,4 @@
-import type { CurrencyHighlight, UpgradeId } from '@game/shared';
+import type { CurrencyHighlight, UpgradeDefinition, UpgradeId } from '@game/shared';
 import type { ConnectionState } from './network.js';
 import type { GameState, Screen } from './game.js';
 import { doClick, doBuy, resetForMatch, selectMode, cancelQueue, quitMatch, setHighlight, getState } from './game.js';
@@ -184,8 +184,11 @@ function renderPlayingScreen(state: Readonly<GameState>): void {
 
       <button class="click-button" id="click-btn">CLICK<span class="btn-hotkey">Space</span></button>
 
-      <div class="upgrades" id="upgrades">
-        ${renderClickerUpgrades(state)}
+      <div class="upgrades-wrapper">
+        <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        <div class="upgrades" id="upgrades">
+          ${renderClickerUpgrades(state)}
+        </div>
       </div>
     </div>
   `;
@@ -232,8 +235,11 @@ function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
         </button>
       </div>
 
-      <div class="upgrades" id="upgrades">
-        ${renderIdlerUpgrades(state)}
+      <div class="upgrades-wrapper">
+        <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
+        <div class="upgrades" id="upgrades">
+          ${renderIdlerUpgrades(state)}
+        </div>
       </div>
     </div>
   `;
@@ -324,16 +330,29 @@ function updatePlaying(state: Readonly<GameState>): void {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
+/** Can the player afford this upgrade (and is it still purchasable)? */
+function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+  const owned = state.player.upgrades[u.id];
+  if (!u.repeatable && owned) return false;
+  if (u.costCurrency) {
+    const balance = u.costCurrency === 'wood'
+      ? (state.player.wood ?? 0)
+      : (state.player.ale ?? 0);
+    return balance >= u.cost;
+  }
+  return state.player.currency >= u.cost;
+}
+
 function renderClickerUpgrades(state: Readonly<GameState>): string {
   return state.upgrades
     .map((u, i) => {
       const owned = state.player.upgrades[u.id];
-      const canAfford = state.player.currency >= u.cost;
-      const disabled = owned || !canAfford;
+      const affordable = canAfford(state, u);
+      const disabled = owned || !affordable;
       const hotkey = i + 1;
       return `
         <button
-          class="upgrade-btn ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'too-expensive' : ''}"
+          class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
@@ -348,16 +367,11 @@ function renderClickerUpgrades(state: Readonly<GameState>): string {
 }
 
 function renderIdlerUpgrades(state: Readonly<GameState>): string {
-  const wood = state.player.wood ?? 0;
-  const ale = state.player.ale ?? 0;
-
   return state.upgrades
     .map((u, i) => {
       const owned = state.player.upgrades[u.id];
-      const balance = u.costCurrency === 'wood' ? wood : ale;
-      const canAfford = balance >= u.cost;
-      // Repeatable upgrades stay enabled as long as affordable
-      const disabled = (!u.repeatable && owned) || !canAfford;
+      const affordable = canAfford(state, u);
+      const disabled = (!u.repeatable && owned) || !affordable;
       const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺';
       const count = u.repeatable ? Number(owned) || 0 : 0;
       const costLabel = (!u.repeatable && owned)
@@ -366,7 +380,7 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
       const hotkey = i + 1;
       return `
         <button
-          class="upgrade-btn ${!u.repeatable && owned ? 'owned' : ''} ${!canAfford && !(owned && !u.repeatable) ? 'too-expensive' : ''}"
+          class="upgrade-btn ${!u.repeatable && owned ? 'owned' : ''} ${!affordable && !(owned && !u.repeatable) ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
@@ -421,6 +435,15 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault(); // prevent focus shift
     const current = state.player.highlight ?? 'wood';
     setHighlight(current === 'wood' ? 'ale' : 'wood');
+    return;
+  }
+
+  // C — buy cheapest affordable upgrade
+  if (e.key === 'c' || e.key === 'C') {
+    const cheapest = state.upgrades
+      .filter((u) => canAfford(state, u))
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (cheapest) doBuy(cheapest.id);
     return;
   }
 

@@ -370,6 +370,23 @@ body {
 
 /* Upgrades */
 
+.upgrades-wrapper {
+  width: 100%;
+}
+
+.upgrades-hotkey {
+  display: block;
+  text-align: right;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+.upgrades-hotkey .btn-hotkey {
+  display: inline;
+  margin: 0;
+}
+
 .upgrades {
   display: flex;
   flex-direction: column;
