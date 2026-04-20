@@ -376,6 +376,14 @@ body {
   flex: 1;
 }
 
+.upgrade-hotkey {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-family: monospace;
+  min-width: 2ch;
+}
+
 .upgrade-cost {
   font-weight: 700;
   color: var(--gold);

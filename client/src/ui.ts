@@ -325,16 +325,18 @@ function updatePlaying(state: Readonly<GameState>): void {
 
 function renderClickerUpgrades(state: Readonly<GameState>): string {
   return state.upgrades
-    .map((u) => {
+    .map((u, i) => {
       const owned = state.player.upgrades[u.id];
       const canAfford = state.player.currency >= u.cost;
       const disabled = owned || !canAfford;
+      const hotkey = i + 1;
       return `
         <button
           class="upgrade-btn ${owned ? 'owned' : ''} ${!canAfford && !owned ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
+          <span class="upgrade-hotkey">[${hotkey}]</span>
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${owned ? '✓' : `$${u.cost}`}</span>
           <span class="upgrade-desc">${u.description}</span>
@@ -349,7 +351,7 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
   const ale = state.player.ale ?? 0;
 
   return state.upgrades
-    .map((u) => {
+    .map((u, i) => {
       const owned = state.player.upgrades[u.id];
       const balance = u.costCurrency === 'wood' ? wood : ale;
       const canAfford = balance >= u.cost;
@@ -360,12 +362,14 @@ function renderIdlerUpgrades(state: Readonly<GameState>): string {
       const costLabel = (!u.repeatable && owned)
         ? '✓'
         : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`;
+      const hotkey = i + 1;
       return `
         <button
           class="upgrade-btn ${!u.repeatable && owned ? 'owned' : ''} ${!canAfford && !(owned && !u.repeatable) ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
+          <span class="upgrade-hotkey">[${hotkey}]</span>
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${u.description}</span>
@@ -397,6 +401,18 @@ function bindUpgradeEvents(): void {
     });
   });
 }
+
+// ─── Hotkeys ─────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', (e) => {
+  const state = getState();
+  if (state.screen !== 'playing') return;
+
+  const index = Number(e.key) - 1; // '1'→0, '2'→1, '3'→2
+  if (index < 0 || index >= state.upgrades.length) return;
+
+  doBuy(state.upgrades[index]!.id);
+});
 
 function setText(id: string, text: string): void {
   const el = document.getElementById(id);
