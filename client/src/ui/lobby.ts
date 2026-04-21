@@ -34,20 +34,18 @@ export function renderLobbyScreen(): void {
   })
 }
 
-/** Slide other buttons out, show goal cards for the chosen mode. */
+/** Replace mode buttons with just the selected one, then show goal cards. */
 function showGoalPicker(mode: GameMode): void {
   const config = MODE_CONFIGS[mode]
   const buttonsContainer = document.getElementById('mode-buttons')!
   const picker = document.getElementById('goal-picker')!
 
-  // Collapse unselected buttons
-  buttonsContainer.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach((btn) => {
-    if (btn.dataset.mode !== mode) {
-      btn.classList.add('slide-out')
-    } else {
-      btn.classList.add('selected')
-    }
-  })
+  // Keep only the selected button (instant swap)
+  const selectedBtn = buttonsContainer.querySelector<HTMLButtonElement>(`[data-mode="${mode}"]`)
+  if (selectedBtn) {
+    selectedBtn.classList.add('selected')
+    buttonsContainer.innerHTML = selectedBtn.outerHTML
+  }
 
   // Build goal cards
   const cards = config.goals
@@ -77,11 +75,9 @@ function showGoalPicker(mode: GameMode): void {
     <button class="back-btn" id="goal-back-btn">← Back</button>
   `
 
-  // Show picker after a brief delay for animation
-  requestAnimationFrame(() => {
-    picker.classList.remove('hidden')
-    picker.classList.add('fade-in')
-  })
+  // Show picker immediately (single DOM reflow, no rAF delay)
+  picker.classList.remove('hidden')
+  picker.classList.add('fade-in')
 
   // Goal card click handlers
   picker.querySelectorAll<HTMLButtonElement>('.goal-card').forEach((card) => {

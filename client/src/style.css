@@ -108,13 +108,7 @@ body {
   text-align: left;
   transition:
     border-color 0.15s,
-    transform 0.15s,
-    opacity 0.3s,
-    max-height 0.3s,
-    padding 0.3s,
-    margin 0.3s;
-  max-height: 120px;
-  overflow: hidden;
+    transform 0.15s;
 }
 
 .mode-btn:not(:disabled):hover {
@@ -129,15 +123,6 @@ body {
 .mode-btn:disabled {
   cursor: default;
   opacity: 0.35;
-}
-
-.mode-btn.slide-out {
-  opacity: 0;
-  max-height: 0;
-  padding: 0 1.25rem;
-  margin: 0;
-  border-width: 0;
-  pointer-events: none;
 }
 
 .mode-btn.selected {
@@ -164,11 +149,6 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity 0.3s,
-    transform 0.3s;
 }
 
 .goal-picker.hidden {
@@ -176,17 +156,15 @@ body {
 }
 
 .goal-picker.fade-in {
-  animation: fadeSlideIn 0.3s ease-out;
+  animation: fadeIn 0.25s ease-out;
 }
 
-@keyframes fadeSlideIn {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
