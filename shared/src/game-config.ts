@@ -3,7 +3,7 @@ import type { GameMode, Goal, PlayerState, UpgradeDefinition } from './types.js'
 // ─── Round ───────────────────────────────────────────────────────────
 
 /** Default round duration in seconds (clicker timed). */
-export const ROUND_DURATION_SEC = 60
+export const ROUND_DURATION_SEC = 30
 
 /** Default round duration in seconds (idler timed). */
 export const IDLER_ROUND_DURATION_SEC = 35
