@@ -19,6 +19,15 @@ import {
   sendQuit,
   sendBotRequest,
 } from './network.js'
+import {
+  spawnClickPopup,
+  spawnClickRipple,
+  pulseClickButton,
+  trackCombo,
+  flashPurchase,
+  shakeScreen,
+  resetCombo,
+} from './ui/vfx.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -127,6 +136,12 @@ export function doClick(): void {
   state.player.score += income
   state.player.currency += income
 
+  // Visual effects
+  spawnClickPopup(income)
+  spawnClickRipple()
+  pulseClickButton()
+  trackCombo()
+
   // Queue for server
   queueAction({ type: 'click', timestamp: Date.now() })
   trackPendingClick()
@@ -169,6 +184,10 @@ export function doBuy(upgradeId: UpgradeId): void {
 
   grantUpgrade(state.player, upgradeId, def)
 
+  // Visual effects
+  flashPurchase(upgradeId)
+  shakeScreen('heavy')
+
   // Queue for server
   queueAction({ type: 'buy', timestamp: Date.now(), upgradeId })
   trackPendingPurchase(upgradeId)
@@ -197,6 +216,7 @@ export function quitMatch(): void {
 
 /** Reset for a fresh match (e.g., rematch). */
 export function resetForMatch(): void {
+  resetCombo()
   state.screen = 'lobby'
   state.mode = null
   state.goal = null

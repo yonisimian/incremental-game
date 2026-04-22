@@ -14,10 +14,12 @@ import {
   updateProgressBar,
   bindUpgradeEvents,
 } from './helpers.js'
+import { bumpScore } from './vfx.js'
 
 // ─── Render ──────────────────────────────────────────────────────────
 
 export function renderPlayingScreen(state: Readonly<GameState>): void {
+  prevPlayerScore = 0
   if (state.mode !== 'clicker') {
     renderIdlerPlayingScreen(state)
     return
@@ -125,9 +127,14 @@ function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
 
 // ─── In-place Update ─────────────────────────────────────────────────
 
+let prevPlayerScore = 0
+
 export function updatePlaying(state: Readonly<GameState>): void {
   // Update timer / safety-cap timer
   setText('timer', formatTime(state.timeLeft))
+
+  const scoreChanged = state.player.score !== prevPlayerScore
+  prevPlayerScore = state.player.score
 
   // Update target-score progress if applicable
   if (state.goal?.type === 'target-score') {
@@ -136,9 +143,11 @@ export function updatePlaying(state: Readonly<GameState>): void {
     updateProgressBar('opponent-progress', state.opponent.score, target)
     setText('player-bar-score', formatScore(state.player.score, state))
     setText('opponent-bar-score', formatScore(state.opponent.score, state))
+    if (scoreChanged) bumpScore('player-bar-score')
   } else {
     setText('player-score', formatScore(state.player.score, state))
     setText('opponent-score', formatScore(state.opponent.score, state))
+    if (scoreChanged) bumpScore('player-score')
   }
 
   if (state.mode === 'idler') {

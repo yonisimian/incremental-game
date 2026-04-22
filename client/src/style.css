@@ -562,7 +562,6 @@ body {
 }
 
 .click-button:active {
-  transform: scale(0.92);
   background: var(--accent);
   color: var(--bg);
 }
@@ -757,4 +756,58 @@ body {
 
 .disconnected-screen p {
   color: var(--text-dim);
+}
+
+/* ─── VFX Layer ────────────────────────────────────────────────────── */
+
+.vfx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+/* Floating "+N" popup */
+.vfx-popup {
+  position: absolute;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow:
+    0 0 8px var(--gold),
+    0 2px 6px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+/* Expanding ring ripple */
+.vfx-ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  will-change: transform, opacity;
+}
+
+/* Combo counter */
+.vfx-combo {
+  position: absolute;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: var(--accent);
+  text-shadow:
+    0 0 10px rgba(56, 189, 248, 0.6),
+    0 0 20px rgba(56, 189, 248, 0.3);
+  white-space: nowrap;
+  display: none;
+  will-change: transform, opacity;
+}
+
+/* Milestone full-screen flash */
+.vfx-milestone-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--accent), transparent 70%);
+  will-change: opacity;
 }
