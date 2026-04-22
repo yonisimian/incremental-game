@@ -30,7 +30,12 @@ export interface QuitMessage {
   type: 'QUIT'
 }
 
-export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage
+/** Sent by client while in queue to request a bot opponent instead. */
+export interface BotRequestMessage {
+  type: 'BOT_REQUEST'
+}
+
+export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage | BotRequestMessage
 
 // ─── Server → Client ────────────────────────────────────────────────
 

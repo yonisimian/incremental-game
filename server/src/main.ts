@@ -4,7 +4,8 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { HEARTBEAT_INTERVAL_MS, MODE_CONFIGS, getDefaultGoal } from '@game/shared'
 import type { ClientMessage, GameMode, Goal } from '@game/shared'
 import { addToQueue, removeFromQueue } from './matchmaking.js'
-import type { Match } from './match.js'
+import { Match } from './match.js'
+import { createBot } from './bot.js'
 
 const PORT = Number(process.env.PORT) || 10000
 
@@ -30,7 +31,7 @@ interface PlayerData {
 
 const wsData = new Map<WebSocket, PlayerData>()
 const playerMatches = new Map<string, Match>()
-const queuedPlayers = new Set<string>()
+const queuedPlayers = new Map<string, { ws: WebSocket; mode: GameMode; goal: Goal }>()
 
 wss.on('connection', (ws: WebSocket) => {
   const playerId = randomUUID()
@@ -77,20 +78,31 @@ wss.on('connection', (ws: WebSocket) => {
       // Validate and extract goal from the message
       const goal = parseGoal(msg.goal, msg.mode)
 
-      queuedPlayers.add(data.id)
+      queuedPlayers.set(data.id, { ws, mode: msg.mode, goal })
       const match = addToQueue({ id: data.id, ws }, msg.mode, goal)
       if (match) {
-        for (const pid of match.getPlayerIds()) {
-          queuedPlayers.delete(pid)
-          playerMatches.set(pid, match)
-        }
-        match.onEnd(() => {
-          for (const pid of match.getPlayerIds()) {
-            playerMatches.delete(pid)
-          }
-        })
-        match.start()
+        startMatch(match)
       }
+      return
+    }
+
+    if (msg.type === 'BOT_REQUEST') {
+      const entry = queuedPlayers.get(data.id)
+      if (!entry) return // not in queue — ignore
+
+      removeFromQueue(data.id)
+      queuedPlayers.delete(data.id)
+
+      const botId = `bot-${randomUUID()}`
+      const bot = createBot(entry.mode, MODE_CONFIGS[entry.mode].upgrades)
+      const match = new Match(
+        { id: data.id, ws },
+        { id: botId, ws: null },
+        entry.mode,
+        entry.goal,
+        bot,
+      )
+      startMatch(match)
     }
   })
 
@@ -109,6 +121,20 @@ wss.on('connection', (ws: WebSocket) => {
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+/** Register a match, wire up cleanup, and start it. */
+function startMatch(match: Match): void {
+  for (const pid of match.getPlayerIds()) {
+    queuedPlayers.delete(pid)
+    playerMatches.set(pid, match)
+  }
+  match.onEnd(() => {
+    for (const pid of match.getPlayerIds()) {
+      playerMatches.delete(pid)
+    }
+  })
+  match.start()
+}
 
 /**
  * Validate and normalize the goal from an untrusted client message.

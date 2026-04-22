@@ -24,6 +24,7 @@ import type {
   UpgradeId,
 } from '@game/shared'
 import { isValidClick, isValidPurchase } from './validation.js'
+import type { BotStrategy } from './bot.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export class Match {
   private readonly modeConfig: ModeConfig
   private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
+  private readonly bot: BotStrategy | null
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
@@ -62,9 +64,10 @@ export class Match {
 
   constructor(
     p1: { id: string; ws: WebSocket },
-    p2: { id: string; ws: WebSocket },
+    p2: { id: string; ws: WebSocket | null },
     mode: GameMode,
     goal?: Goal,
+    bot?: BotStrategy,
   ) {
     this.id = randomUUID()
     this.mode = mode
@@ -72,6 +75,7 @@ export class Match {
     this.modeConfig = MODE_CONFIGS[mode]
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.upgradeMap = new Map(this.modeConfig.upgrades.map((u) => [u.id, u]))
+    this.bot = bot ?? null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
 
@@ -177,7 +181,7 @@ export class Match {
 
   // ─── Private: setup ────────────────────────────────────────────────
 
-  private initPlayer(p: { id: string; ws: WebSocket }): MatchPlayer {
+  private initPlayer(p: { id: string; ws: WebSocket | null }): MatchPlayer {
     const base: MatchPlayer = {
       id: p.id,
       ws: p.ws,
@@ -206,7 +210,7 @@ export class Match {
     const startTime = Date.now()
     const durationSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
 
-    // Tick: compute passive income + update timer
+    // Tick: compute passive income, run bot, update timer
     this.tickTimer = setInterval(() => {
       this.tick++
       const elapsedSec = (Date.now() - startTime) / 1000
@@ -214,6 +218,11 @@ export class Match {
 
       for (const player of this.players) {
         this.applyPassiveIncome(player)
+      }
+
+      // Bot decision (always player index 1)
+      if (this.bot) {
+        this.processBotActions()
       }
 
       this.checkTargetScoreReached()
@@ -270,6 +279,39 @@ export class Match {
       }
     }
     player.ackSeq = seq
+  }
+
+  /** Run the bot strategy for player index 1 and apply its actions. */
+  private processBotActions(): void {
+    const botPlayer = this.players[1]
+    const tickSec = TICK_INTERVAL_MS / 1000
+    const actions = this.bot!.decide(botPlayer.state, tickSec)
+
+    for (const action of actions) {
+      if (action.type === 'click') {
+        if (!this.modeConfig.clicksEnabled) continue
+        // Track timestamp for accurate peakCps stat (bot skips isValidClick rate-limiting)
+        const now = Date.now()
+        const cutoff = now - 1000
+        while (
+          botPlayer.recentClickTimestamps.length > 0 &&
+          botPlayer.recentClickTimestamps[0] < cutoff
+        ) {
+          botPlayer.recentClickTimestamps.shift()
+        }
+        botPlayer.recentClickTimestamps.push(now)
+        this.applyClick(botPlayer)
+      } else if (action.type === 'buy') {
+        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap)) continue
+        this.applyPurchase(botPlayer, action.upgradeId)
+      } else {
+        // set_highlight — validate identically to processActions
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (this.mode === 'idler' && (action.highlight === 'wood' || action.highlight === 'ale')) {
+          botPlayer.state.highlight = action.highlight
+        }
+      }
+    }
   }
 
   private applyPassiveIncome(player: MatchPlayer): void {

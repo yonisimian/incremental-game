@@ -11,7 +11,14 @@ import type {
   UpgradeId,
 } from '@game/shared'
 import { INITIAL_PLAYER_STATE, COUNTDOWN_SEC } from '@game/shared'
-import { getSeq, queueAction, resetSeq, sendModeSelect, sendQuit } from './network.js'
+import {
+  getSeq,
+  queueAction,
+  resetSeq,
+  sendModeSelect,
+  sendQuit,
+  sendBotRequest,
+} from './network.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -173,6 +180,12 @@ export function cancelQueue(): void {
   if (state.screen !== 'waiting') return
   sendQuit()
   resetForMatch()
+}
+
+/** Request a bot opponent while waiting in queue. */
+export function requestBot(): void {
+  if (state.screen !== 'waiting') return
+  sendBotRequest()
 }
 
 /** Voluntarily quit the current match and return to lobby. */

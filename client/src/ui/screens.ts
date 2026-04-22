@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { cancelQueue, quitMatch } from '../game.js'
+import { cancelQueue, quitMatch, requestBot } from '../game.js'
 import { app } from './helpers.js'
 
 export function renderWakingScreen(): void {
@@ -19,10 +19,12 @@ export function renderWaitingScreen(): void {
       <h1>incremen<span class="brand-t">T</span>al</h1>
       <p class="status-text">Looking for opponent…</p>
       <div class="spinner"></div>
+      <button class="bot-btn" id="bot-btn">🤖 Play against a bot</button>
     </div>
   `
 
   document.getElementById('cancel-queue-btn')!.addEventListener('click', cancelQueue)
+  document.getElementById('bot-btn')!.addEventListener('click', requestBot)
 }
 
 export function renderCountdownScreen(state: Readonly<GameState>): void {

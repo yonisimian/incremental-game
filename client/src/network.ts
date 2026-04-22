@@ -106,6 +106,12 @@ export function sendQuit(): void {
   ws.send(JSON.stringify({ type: 'QUIT' }))
 }
 
+/** Send a bot request message (while in queue). */
+export function sendBotRequest(): void {
+  if (ws?.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ type: 'BOT_REQUEST' }))
+}
+
 /** Get the current sequence number (for optimistic reconciliation). */
 export function getSeq(): number {
   return seq
