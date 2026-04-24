@@ -2,6 +2,8 @@
 
 > Codename: incremenTal
 
+> **Reading guide**: Sections up to "Step-by-Step" reflect the original prototype plan and are kept for historical context. The game has since grown beyond that scope — see [Systems Roadmap](#systems-roadmap) for the current forward-looking design.
+
 ## Overview
 
 A real-time head-to-head incremental game playable on any device via the browser. Two players compete simultaneously, making strategic decisions about resource accumulation and upgrades within a shared time-limited round.
@@ -13,7 +15,8 @@ A real-time head-to-head incremental game playable on any device via the browser
 - **Genre**: Competitive multiplayer incremental (real-time head-to-head)
 - **Platform**: Web (mobile + desktop)
 - **Tech**: TypeScript, WebSocket server, browser client
-- **Session model**: Short time-limited rounds (e.g., 1–5 minutes)
+- **Game modes**: Clicker (manual tapping) and Idler (passive resource management with currency highlighting)
+- **Session model**: Short time-limited rounds (e.g., 30s–5 minutes)
 
 ---
 
@@ -96,8 +99,9 @@ A real-time head-to-head incremental game playable on any device via the browser
    └─► 3-2-1 countdown synced to server clock
 
 4. ROUND (the core loop)
-   ├─► Players click to generate currency
-   ├─► Players spend currency on upgrades that improve generation rate
+   ├─► Clicker: players tap to generate currency
+   ├─► Idler: players choose which currency to highlight (wood/ale) for boosted passive income
+   ├─► Both: players spend currency on upgrades that improve generation rate
    ├─► Timer counts down (server-authoritative)
    ├─► Each player sees: their own full state + opponent's full state (full visibility)
    └─► Server validates all actions in real time
@@ -116,27 +120,31 @@ The simplest version that proves the concept:
 
 ### What's IN:
 
-- [ ] One screen: a click button + currency display + upgrades + timer + opponent state
-- [ ] Matchmaking: queue of 2 → start match
-- [ ] Round timer: 60 seconds, server-controlled
-- [ ] Click action: tap/click → +1 currency
-- [ ] 3 basic upgrades (each can be purchased once, fixed cost):
+- [x] One screen: a click button + currency display + upgrades + timer + opponent state
+- [x] Matchmaking: queue of 2 → start match
+- [x] Round timer: configurable (30s / 60s), server-controlled
+- [x] Click action: tap/click → +1 currency
+- [x] 3 basic upgrades (each can be purchased once, fixed cost):
   - **Auto-Clicker** (costs 10): +1 currency per second passively (this is raw income, not a simulated click — Double Click does not affect it)
   - **Double Click** (costs 25): each manual click gives +2 instead of +1
   - **Multiplier** (costs 100): 2x all income (applies to both manual clicks and Auto-Clicker)
-- [ ] Score = total currency ever earned; highest score wins
-- [ ] Server validation of click rate + purchase validity
-- [ ] End screen: winner (or draw) + final scores
+- [x] Score = total currency ever earned; highest score wins
+- [x] Server validation of click rate + purchase validity
+- [x] End screen: winner (or draw) + final scores
+- [x] Idler game mode with wood/ale currencies and highlight mechanic
+- [x] Bot opponent support
+- [x] Visual effects (click popups, ripples, combo counter, milestone shockwave)
+- [x] Keyboard hotkeys (Space to click, Tab to toggle highlight, number keys for upgrades)
 
 ### What's OUT (future):
 
 - [ ] Accounts / persistence
 - [ ] ELO / ranking
-- [ ] More upgrades / prestige
+- [ ] Upgrade tree with dependencies (see [Systems Roadmap](#systems-roadmap))
+- [ ] Ability cards, perks, prestige (see [Systems Roadmap](#systems-roadmap))
 - [ ] Group matches
 - [ ] Spectating
 - [ ] Chat
-- [ ] Visual polish / animations
 
 ---
 
@@ -144,12 +152,11 @@ The simplest version that proves the concept:
 
 The interesting competitive dimension comes from **strategic choices under time pressure**:
 
-- Do I click manually early to afford upgrades faster?
-- Do I rush Auto-Clicker for passive income?
-- Do I save for the Multiplier and gamble on a late-game spike?
-- Can I read my opponent's score trajectory and adapt?
+- **Clicker**: Do I click manually early to afford upgrades faster? Do I rush Auto-Clicker for passive income? Do I save for the Multiplier and gamble on a late-game spike?
+- **Idler**: Do I rush wood upgrades for base production, or detour into ale for conversion upgrades? When do I switch highlight currencies?
+- **Both**: Can I read my opponent's score trajectory and adapt?
 
-Even with just 3 upgrades (each purchasable once in v0.0.1), there's a non-trivial decision tree. In future versions, making upgrades repeatable with scaling costs (à la Cookie Clicker) would deepen the strategy further.
+The prototype's 3 upgrades (clicker) and 4 upgrades (idler) already produce non-trivial decision trees. The [Systems Roadmap](#systems-roadmap) expands this into a full taxonomy of upgrade systems (upgrade tree, tiers, ability cards, perks, prestige) with three effect types: generate, transmute, and sabotage.
 
 ---
 
@@ -433,6 +440,7 @@ incremental-game/
 │       ├── index.ts             ← barrel export
 │       ├── messages.ts          ← WebSocket message type definitions
 │       ├── game-config.ts       ← round length, upgrade costs, rate limits
+│       ├── idler-logic.ts       ← idler mode passive income formulas
 │       └── types.ts             ← PlayerState, UpgradeId, etc.
 │
 ├── client/                      ← Vite vanilla-ts project
@@ -444,10 +452,22 @@ incremental-game/
 │   ├── .env.production           ← VITE_WS_URL=wss://incremental-server.onrender.com/ws
 │   └── src/
 │       ├── main.ts              ← entry: init UI, connect to server
-│       ├── game.ts              ← local game state + client prediction
+│       ├── game.ts              ← local game state + client prediction + milestone tracking
 │       ├── network.ts           ← WebSocket client, batching, reconciliation
-│       ├── ui.ts                ← DOM rendering (no framework)
-│       └── style.css            ← minimal responsive CSS
+│       ├── style.css            ← all game styling including VFX
+│       └── ui/
+│           ├── index.ts         ← screen router + render dispatch
+│           ├── components.ts    ← reusable UI components (timer, progress bars, upgrades)
+│           ├── helpers.ts       ← DOM utilities (setText, formatScore, etc.)
+│           ├── hotkeys.ts       ← keyboard shortcuts (Space, Tab, number keys)
+│           ├── lobby.ts         ← lobby / mode selection screen
+│           ├── playing.ts       ← playing screen render + in-place updates
+│           ├── screens.ts       ← waking, waiting, countdown screens
+│           ├── end.ts           ← end-of-round results screen
+│           └── vfx/
+│               ├── index.ts     ← barrel + click popup, ripple, pulse, combo, flash
+│               ├── shared.ts    ← hasDom, getLayer, shakeScreen
+│               └── shockwave.ts ← milestone shockwave energy nova effect
 │
 └── server/                      ← Node.js WebSocket server
     ├── package.json
@@ -456,6 +476,7 @@ incremental-game/
         ├── main.ts              ← HTTP server + WebSocket server setup
         ├── match.ts             ← match lifecycle: countdown, tick, scoring
         ├── matchmaking.ts       ← queue + pairing logic
+        ├── bot.ts               ← AI bot opponent logic
         └── validation.ts        ← anti-cheat: rate limiting, purchase checks
 ```
 
@@ -463,7 +484,9 @@ incremental-game/
 
 ## Step-by-Step: From Zero to Deployed
 
-### Phase 0: Repository Setup
+> These phases document the original build sequence for the prototype. For the forward-looking upgrade systems roadmap, see [Systems Roadmap](#systems-roadmap).
+
+### Step 0: Repository Setup
 
 1. Create GitHub repo (`incremental-game`)
 2. Clone locally, initialize pnpm workspace:
@@ -492,7 +515,7 @@ incremental-game/
    ```
 7. Create `.gitignore`, commit, push
 
-### Phase 1: Shared Types
+### Step 1: Shared Types
 
 1. Define message types in `shared/src/messages.ts`:
    - `ActionBatch` (client → server)
@@ -501,7 +524,7 @@ incremental-game/
    - Round duration, upgrade definitions, rate limits
 3. Export everything from `shared/src/index.ts`
 
-### Phase 2: Server — "Hello WebSocket"
+### Step 2: Server — "Hello WebSocket"
 
 1. Set up HTTP + WebSocket server in `server/src/main.ts`:
    - HTTP `GET /` returns health check (required by Render)
@@ -521,7 +544,7 @@ incremental-game/
    - Click rate check
    - Purchase affordability check
 
-### Phase 3: Client — "Hello Game"
+### Step 3: Client — "Hello Game"
 
 1. Scaffold with Vite vanilla-ts template
 2. Set up WebSocket connection in `client/src/network.ts`:
@@ -540,7 +563,7 @@ incremental-game/
    - Mobile-first, large tap target for the click button
    - Minimal and responsive
 
-### Phase 4: Deploy to Render
+### Step 4: Deploy to Render
 
 1. Create `render.yaml` at repo root (see above)
 2. Push to GitHub
@@ -552,7 +575,7 @@ incremental-game/
    - **Note**: The first client deploy won't connect to the server (placeholder URL). This is expected — it becomes functional after this step.
 7. Open `https://incremental-client.onrender.com` on two phones → play!
 
-### Phase 5: Iterate
+### Step 5: Iterate
 
 - Play with friend → note what's fun, what's broken, what's missing
 - Push changes to `main` → auto-redeploy
@@ -563,25 +586,27 @@ incremental-game/
 ## Open Questions
 
 - [ ] **Game name?** incremenTal (capital T only, still a code name and not final).
-- [ ] **Round length**: we'll start with 60s and make it configurable per match later on.
-- [ ] **Visibility**: we'll start with full visibility.
-- [ ] **Upgrade balance**: we'll think about that as we implement and test the core loop.
-- [ ] **Mobile UX**: we'll start with a simple responsive design and iterate based on testing.
-- [ ] **Reconnection mid-round**: if a player disconnects during a round, what happens? Options: forfeit after a grace period (e.g., 10s), pause the round (bad UX for opponent), or let the opponent keep playing (disconnected player falls behind). We'll start with a 10-second grace period — if the player doesn't reconnect, they forfeit.
+- [x] **Round length**: configurable per goal type (30s timed, 60s safety cap for target-score).
+- [x] **Visibility**: full visibility — both players see each other's complete state.
+- [ ] **Upgrade balance**: ongoing — see [BALANCE.md](BALANCE.md) for the balancing framework.
+- [ ] **Mobile UX**: current design is responsive but untested on devices. Needs real-device testing.
+- [x] **Reconnection mid-round**: opponent keeps playing; disconnected player falls behind. Server cleans up stale connections via ping/pong heartbeat.
 
 ---
 
 ## Future Directions (post-prototype)
 
-1. **More upgrades** → deeper strategy tree
-2. **Prestige system** → meta-progression across rounds
-3. **Team matches** (2v2, 3v3) → shared economy, role specialization
-4. **Async competition** → submit your best run, compare on leaderboard
-5. **Spectator mode** → watch live matches
-6. **Seasonal events** → limited-time upgrade sets or rules
-7. **Indirect competition** → shared world where players' economies interact
-8. **Accounts + persistence** → Firebase Auth + Firestore (already familiar)
-9. **ELO / ranking** → competitive ladder
+For the upgrade/bonus systems roadmap (upgrade tree, tiers, ability cards, perks, prestige), see [Systems Roadmap](#systems-roadmap) below.
+
+Other planned features:
+
+1. **Team matches** (2v2, 3v3) → shared economy, role specialization
+2. **Async competition** → submit your best run, compare on leaderboard
+3. **Spectator mode** → watch live matches
+4. **Seasonal events** → limited-time upgrade sets or rules
+5. **Indirect competition** → shared world where players' economies interact
+6. **Accounts + persistence** → Firebase Auth + Firestore (already familiar)
+7. **ELO / ranking** → competitive ladder
 
 ---
 
