@@ -1,6 +1,12 @@
 import { doClick, doBuy, setHighlight, getState } from '../game.js'
 import { canAfford } from './helpers.js'
 
+/**
+ * Set to true while the hotkey handler is processing a Space press.
+ * The click-button listener checks this to avoid double-firing doClick().
+ */
+export let handledByHotkey = false
+
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
   document.addEventListener('keydown', (e) => {
@@ -10,6 +16,10 @@ export function initHotkeys(): void {
     // Space — click (clicker mode)
     if (e.key === ' ' || e.code === 'Space') {
       e.preventDefault() // prevent page scroll
+      handledByHotkey = true
+      setTimeout(() => {
+        handledByHotkey = false
+      }, 10)
       doClick()
       return
     }
