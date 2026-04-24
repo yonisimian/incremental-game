@@ -1,16 +1,18 @@
-import type {
-  CurrencyHighlight,
-  GameMode,
-  Goal,
-  PlayerState,
-  RoundEndMessage,
-  RoundStartMessage,
-  ServerMessage,
-  StateUpdateMessage,
-  UpgradeDefinition,
-  UpgradeId,
+import {
+  type CurrencyHighlight,
+  type GameMode,
+  type Goal,
+  type PlayerState,
+  type RoundEndMessage,
+  type RoundStartMessage,
+  type ServerMessage,
+  type StateUpdateMessage,
+  type UpgradeDefinition,
+  type UpgradeId,
+  INITIAL_PLAYER_STATE,
+  COUNTDOWN_SEC,
+  MILESTONE_INTERVAL,
 } from '@game/shared'
-import { INITIAL_PLAYER_STATE, COUNTDOWN_SEC } from '@game/shared'
 import {
   getSeq,
   queueAction,
@@ -27,7 +29,8 @@ import {
   flashPurchase,
   shakeScreen,
   resetCombo,
-} from './ui/vfx.js'
+  shockwave,
+} from './ui/vfx/index.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -89,6 +92,9 @@ const pendingBatches: PendingBatch[] = []
 let onChange: StateChangeHandler = () => {}
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
+/** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
+let lastFiredMilestoneTier = 0
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 /** Subscribe to state changes. */
@@ -141,6 +147,8 @@ export function doClick(): void {
   spawnClickRipple()
   pulseClickButton()
   trackCombo()
+
+  checkMilestone()
 
   // Queue for server
   queueAction({ type: 'click', timestamp: Date.now() })
@@ -217,6 +225,7 @@ export function quitMatch(): void {
 /** Reset for a fresh match (e.g., rematch). */
 export function resetForMatch(): void {
   resetCombo()
+  lastFiredMilestoneTier = 0
   state.screen = 'lobby'
   state.mode = null
   state.goal = null
@@ -231,6 +240,15 @@ export function resetForMatch(): void {
   resetSeq()
   stopCountdown()
   notify()
+}
+
+/** Fire milestone shockwave if current score has crossed a new milestone tier. */
+function checkMilestone(): void {
+  const tier = Math.floor(state.player.score / MILESTONE_INTERVAL)
+  if (tier > lastFiredMilestoneTier) {
+    lastFiredMilestoneTier = tier
+    shockwave(`${tier * MILESTONE_INTERVAL}!`)
+  }
 }
 
 // ─── Private: message handlers ───────────────────────────────────────
@@ -248,6 +266,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   pendingBatches.length = 0
+  lastFiredMilestoneTier = 0
   resetSeq()
   notify()
 

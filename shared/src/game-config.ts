@@ -28,6 +28,11 @@ export const TICK_INTERVAL_MS = 250
 /** How often the server broadcasts state updates (ms). */
 export const BROADCAST_INTERVAL_MS = 500
 
+// ─── Milestones ──────────────────────────────────────────────────────
+
+/** Score interval at which milestone VFX fire (100 → 100, 200, 300…). */
+export const MILESTONE_INTERVAL = 100
+
 // ─── Anti-Cheat ──────────────────────────────────────────────────────
 
 /** Maximum clicks per second allowed before server rejects actions. */

@@ -1,5 +1,6 @@
 import type { GameState } from '../game.js'
 import { doClick, quitMatch, setHighlight } from '../game.js'
+import { handledByHotkey } from './hotkeys.js'
 import {
   renderTimer,
   renderProgressBars,
@@ -14,7 +15,7 @@ import {
   updateProgressBar,
   bindUpgradeEvents,
 } from './helpers.js'
-import { bumpScore } from './vfx.js'
+import { bumpScore } from './vfx/index.js'
 
 // ─── Render ──────────────────────────────────────────────────────────
 
@@ -176,7 +177,11 @@ export function updatePlaying(state: Readonly<GameState>): void {
 
 function bindPlayingEvents(clickEnabled: boolean): void {
   if (clickEnabled) {
-    document.getElementById('click-btn')!.addEventListener('click', doClick)
+    document.getElementById('click-btn')!.addEventListener('click', () => {
+      // Skip if we already processed this input via the keyboard hotkey handler
+      if (handledByHotkey) return
+      doClick()
+    })
   }
   document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
   bindUpgradeEvents()

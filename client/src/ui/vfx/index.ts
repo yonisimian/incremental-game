@@ -4,27 +4,13 @@
  */
 
 import type { UpgradeId } from '@game/shared'
+import { hasDom, getLayer } from './shared.js'
 
-// ─── Environment Guard ───────────────────────────────────────────────
+// Re-export shared utilities used by external consumers
+export { shakeScreen } from './shared.js'
 
-/** Returns false in test environments where no DOM exists. */
-function hasDom(): boolean {
-  return typeof document !== 'undefined'
-}
-
-// ─── VFX Layer ───────────────────────────────────────────────────────
-
-/** Overlay container for floating effects. Created lazily, never removed. */
-let layer: HTMLDivElement | null = null
-
-function getLayer(): HTMLDivElement {
-  if (!layer) {
-    layer = document.createElement('div')
-    layer.className = 'vfx-layer'
-    document.body.appendChild(layer)
-  }
-  return layer
-}
+// Re-export the shockwave effect
+export { shockwave } from './shockwave.js'
 
 // ─── Click Popup (+1, +2, etc.) ──────────────────────────────────────
 
@@ -152,31 +138,6 @@ export function flashPurchase(upgradeId: UpgradeId): void {
   }
 }
 
-// ─── Screen Shake ────────────────────────────────────────────────────
-
-/**
- * Quick micro-shake of the playing screen. Intensity scales with magnitude.
- */
-export function shakeScreen(intensity: 'light' | 'medium' | 'heavy' = 'light'): void {
-  if (!hasDom()) return
-  const screen = document.querySelector<HTMLElement>('.playing-screen')
-  if (!screen) return
-
-  const px = intensity === 'heavy' ? 8 : intensity === 'medium' ? 5 : 3
-
-  screen.animate(
-    [
-      { transform: 'translate(0, 0)' },
-      { transform: `translate(${px}px, -${px * 0.6}px)` },
-      { transform: `translate(-${px}px, ${px * 0.4}px)` },
-      { transform: `translate(${px * 0.6}px, -${px * 0.3}px)` },
-      { transform: `translate(-${px * 0.3}px, ${px * 0.15}px)` },
-      { transform: 'translate(0, 0)' },
-    ],
-    { duration: intensity === 'heavy' ? 500 : 300, easing: 'ease-out' },
-  )
-}
-
 // ─── Combo Counter ───────────────────────────────────────────────────
 
 let comboCount = 0
@@ -283,24 +244,4 @@ export function bumpScore(elementId: string): void {
     ],
     { duration: 300, easing: 'ease-out' },
   )
-}
-
-// ─── Milestone Celebration ───────────────────────────────────────────
-
-/**
- * Brief full-screen flash for hitting a milestone (e.g., target-score reached).
- */
-export function celebrateMilestone(): void {
-  if (!hasDom()) return
-  const el = document.createElement('div')
-  el.className = 'vfx-milestone-flash'
-  getLayer().appendChild(el)
-
-  el.animate([{ opacity: 0.4 }, { opacity: 0 }], {
-    duration: 600,
-    easing: 'ease-out',
-    fill: 'forwards',
-  }).onfinish = () => {
-    el.remove()
-  }
 }
