@@ -795,13 +795,10 @@ body {
   position: absolute;
   font-size: 1.2rem;
   font-weight: 900;
-  color: var(--accent);
-  text-shadow:
-    0 0 10px rgba(56, 189, 248, 0.6),
-    0 0 20px rgba(56, 189, 248, 0.3);
   white-space: nowrap;
   display: none;
   will-change: transform, opacity;
+  /* color and text-shadow driven by JS (continuous intensity) */
 }
 
 /* Shockwave — shared base for all shockwave layers */

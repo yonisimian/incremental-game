@@ -174,6 +174,15 @@ export function resetCombo(): void {
   hideCombo()
 }
 
+/** Half-life constant — combo reaches 50% intensity at count 3 + K. */
+const COMBO_HALF_LIFE = 12
+
+/** Continuous intensity: 0 at combo 3, approaches 1 asymptotically. */
+function comboIntensity(count: number): number {
+  const n = Math.max(count - 3, 0)
+  return n / (n + COMBO_HALF_LIFE)
+}
+
 function showCombo(count: number): void {
   if (!hasDom()) return
   let el = document.getElementById('vfx-combo')
@@ -195,23 +204,32 @@ function showCombo(count: number): void {
   el.textContent = `${count}× combo!`
   el.style.display = 'block'
 
-  // Scale-pop on each increment
+  // ── Continuous intensity (0 → 1 asymptotically) ─────────────
+  const t = comboIntensity(count)
+
+  // Color: cyan (190°) → red (0°), increasingly vivid
+  const hue = Math.round(190 * (1 - t))
+  const sat = Math.round(80 + 20 * t)
+  const lit = Math.round(65 - 10 * t)
+  el.style.color = `hsl(${hue}, ${sat}%, ${lit}%)`
+
+  // Glow: color-matched, radius grows with intensity
+  const glowAlpha = 0.2 + 0.3 * t
+  const glowSpread = Math.round(6 + 10 * t)
+  el.style.textShadow =
+    `0 0 ${glowSpread}px hsla(${hue}, ${sat}%, ${lit}%, ${glowAlpha.toFixed(2)}), ` +
+    `0 0 ${glowSpread * 2}px hsla(${hue}, ${sat}%, ${lit}%, ${(glowAlpha * 0.5).toFixed(2)})`
+
+  // Scale: base grows with t, pop animation overshoots then settles
+  const base = 1 + 0.25 * t
+  const pop = base * 1.2
   el.animate(
     [
-      { transform: 'translateY(-50%) scale(1.3)', opacity: 1 },
-      { transform: 'translateY(-50%) scale(1)', opacity: 1 },
+      { transform: `translateY(-50%) scale(${pop.toFixed(2)})`, opacity: 1 },
+      { transform: `translateY(-50%) scale(${base.toFixed(2)})`, opacity: 1 },
     ],
     { duration: 150, easing: 'ease-out', fill: 'forwards' },
   )
-
-  // Bigger combos get more intense color
-  if (count >= 15) {
-    el.style.color = 'var(--gold)'
-  } else if (count >= 8) {
-    el.style.color = 'var(--success)'
-  } else {
-    el.style.color = 'var(--accent)'
-  }
 }
 
 function hideCombo(): void {
