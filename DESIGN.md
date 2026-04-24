@@ -582,3 +582,119 @@ incremental-game/
 7. **Indirect competition** → shared world where players' economies interact
 8. **Accounts + persistence** → Firebase Auth + Firestore (already familiar)
 9. **ELO / ranking** → competitive ladder
+
+---
+
+## Systems Roadmap
+
+A taxonomy of every bonus/upgrade system planned for the game, their relationships, and the order in which they should be built.
+
+### Bonus Taxonomy
+
+Every ability that affects currency falls into exactly one **effect type**:
+
+| Effect Type   | What it does                             | Examples                                           |
+| ------------- | ---------------------------------------- | -------------------------------------------------- |
+| **Generate**  | Creates currency directly or indirectly  | "+100 wood", "each click worth 2× for 10s"         |
+| **Transmute** | Converts one currency into another       | "Convert 15 ale into a wood chopper"               |
+| **Sabotage**  | Destroys currency, mostly the opponent's | "Sacrifice 20 ale to reduce opponent's wood by 30" |
+
+> **Note**: a _tier_ (passive auto-generator, à la Cookie Clicker) is always a generate-type bonus.
+
+### Bonus Systems
+
+| System            | Layer  | When it applies   | Description                                                                                                   |
+| ----------------- | ------ | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Upgrade tree**  | Direct | During match      | Purchasable bonuses with dependency edges. Can be generate, transmute, or sabotage.                           |
+| **Tiers**         | Direct | During match      | Passive auto-generators bought with currency. Each tier produces more than the last. Always generate-type.    |
+| **Ability cards** | Direct | Pre-match + match | Chosen before the match from a limited hand. Activatable during the round. Can be any effect type.            |
+| **Perks**         | Meta   | Pre-match         | Passive amplifiers chosen before the match. Multiply or enhance other systems rather than producing currency. |
+| **Prestige**      | Meta   | Mid-match         | Voluntary currency reset in exchange for permanent multipliers for the rest of the round.                     |
+
+**Direct** systems produce, convert, or destroy currency. **Meta** systems amplify direct systems.
+
+### Ability Card Classes
+
+Ability cards can additionally belong to a **class** that describes _how_ they deliver their bonus:
+
+| Class          | Mechanic                                          | Example                                  |
+| -------------- | ------------------------------------------------- | ---------------------------------------- |
+| **Randomizer** | Outcome depends on RNG                            | "Gain between 10–50 ale"                 |
+| **Rhythmical** | Requires tapping in a specific rhythm to activate | "Tap 4 beats at 120 BPM to gain 40 wood" |
+
+Perks can target specific effect types or card classes. For example, a perk like _"Randomizers yield 10% more"_ would turn "gain 10–50 ale" into "gain 11–55 ale."
+
+### Native Bonuses
+
+Some bonuses are embedded directly into a game mode and don't require purchasing or pre-match selection. They are intrinsic to the mode's identity.
+
+| Mode        | Native bonus  | Description                                               |
+| ----------- | ------------- | --------------------------------------------------------- |
+| **Clicker** | CPS intensity | Sustained high clicks-per-second triggers enhanced income |
+
+These exist outside the upgrade/card/perk systems and are always available when playing that mode.
+
+### Modifier Pipeline
+
+All systems funnel through a single computation pipeline. This is the critical architecture that prevents spaghetti when systems interact.
+
+```
+base income
+  │
+  ├─► native bonuses (mode)      CPS intensity, mode-specific modifiers
+  │
+  ├─► tiers (additive)           +N per second per tier owned
+  │
+  ├─► upgrade tree (varies)      generate / transmute / sabotage
+  │
+  ├─► ability cards (varies)     generate / transmute / sabotage
+  │
+  ├─► perks (multiplicative)     ×1.1 to specific types or classes
+  │
+  ├─► prestige (multiplicative)  ×P global multiplier
+  │
+  └─► final income
+```
+
+Each system registers **modifiers** into the pipeline. The pipeline evaluates them in a fixed order (additive before multiplicative). This means:
+
+- Adding a new system = adding a new modifier stage. No existing code changes.
+- Balancing = adjusting coefficients at each stage independently.
+- Testing = snapshot the pipeline output for known inputs.
+
+### Implementation Order
+
+Build in dependency order — each system is minimally viable but designed with integration hooks for later systems:
+
+```
+Phase 1 ─ Modifier pipeline (architecture)
+           └─ The backbone. Every system registers modifiers here.
+
+Phase 2 ─ Upgrade tree (generate-type first, then transmute + sabotage)
+           └─ Core progression loop. The tree structure is type-agnostic.
+
+Phase 3 ─ Tiers / auto-generators
+           └─ Passive income. Changes pacing from pure clicking.
+
+Phase 4 ─ Ability cards (generate + transmute)
+           └─ Pre-match strategy emerges. Limited hand forces choices.
+
+Phase 5 ─ Sabotage abilities
+           └─ PvP tension. Only fun when both players have something to lose.
+
+Phase 6 ─ Prestige
+           └─ Mid-match reset. Needs enough content that resetting is a real trade.
+
+Phase 7 ─ Perks
+           └─ Multiplicative meta-layer. The things they multiply must exist first.
+
+Phase 8 ─ Card classes (randomizers, rhythmicals)
+           └─ Flavor and variety. Perks can now target specific classes.
+```
+
+### Balancing Across Systems
+
+- **Design each system with a `1.0×` placeholder** for systems that don't exist yet. When perks arrive, replace the placeholder. This way the upgrade tree is balanced _relative to itself_ and won't collapse when perks go live.
+- **Playtest at each phase.** After adding tiers, play 20 rounds. Does passive income make clicking feel pointless? Fix it before adding cards.
+- **Use effect types as a balancing constraint.** In any given match, total generate should exceed total sabotage — otherwise games feel punishing. This can be validated in tests.
+- **The modifier pipeline makes A/B testing trivial.** Swap one stage's coefficients and compare score distributions across playtests.
