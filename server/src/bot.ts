@@ -1,4 +1,4 @@
-import type { GameMode, PlayerState, UpgradeDefinition } from '@game/shared'
+import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -23,9 +23,11 @@ export interface BotStrategy {
  */
 export class ClickerBot implements BotStrategy {
   private readonly upgrades: readonly UpgradeDefinition[]
+  private readonly scoreResource: string
 
-  constructor(upgrades: readonly UpgradeDefinition[]) {
+  constructor(upgrades: readonly UpgradeDefinition[], scoreResource: string) {
     this.upgrades = upgrades
+    this.scoreResource = scoreResource
   }
 
   decide(state: Readonly<PlayerState>, tickSec: number): BotAction[] {
@@ -42,7 +44,8 @@ export class ClickerBot implements BotStrategy {
     const affordable = this.upgrades
       .filter((u) => {
         if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
-        return state.resources.currency >= u.cost
+        const costResource = u.costCurrency ?? this.scoreResource
+        return (state.resources[costResource] ?? 0) >= u.cost
       })
       .sort((a, b) => a.cost - b.cost)
 
@@ -120,6 +123,8 @@ export class IdlerBot implements BotStrategy {
 // ─── Factory ─────────────────────────────────────────────────────────
 
 /** Create a bot strategy for the given game mode. */
-export function createBot(mode: GameMode, upgrades: readonly UpgradeDefinition[]): BotStrategy {
-  return mode === 'clicker' ? new ClickerBot(upgrades) : new IdlerBot(upgrades)
+export function createBot(mode: GameMode, modeDef: ModeDefinition): BotStrategy {
+  return mode === 'clicker'
+    ? new ClickerBot(modeDef.upgrades, modeDef.scoreResource)
+    : new IdlerBot(modeDef.upgrades)
 }

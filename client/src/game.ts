@@ -348,34 +348,26 @@ function handleRoundEnd(msg: RoundEndMessage): void {
 
 // ─── Private: optimistic tracking ────────────────────────────────────
 
-function trackPendingClick(): void {
-  const currentSeq = getSeq() + 1 // next batch will have seq+1
-  let batch = pendingBatches.find((b) => b.seq === currentSeq)
+function getOrCreateBatch(): PendingBatch {
+  const targetSeq = getSeq() + 1
+  let batch = pendingBatches.find((b) => b.seq === targetSeq)
   if (!batch) {
-    batch = { seq: currentSeq, clicks: 0, purchases: [] }
+    batch = { seq: targetSeq, clicks: 0, purchases: [] }
     pendingBatches.push(batch)
   }
-  batch.clicks++
+  return batch
+}
+
+function trackPendingClick(): void {
+  getOrCreateBatch().clicks++
 }
 
 function trackPendingPurchase(upgradeId: string): void {
-  const currentSeq = getSeq() + 1
-  let batch = pendingBatches.find((b) => b.seq === currentSeq)
-  if (!batch) {
-    batch = { seq: currentSeq, clicks: 0, purchases: [] }
-    pendingBatches.push(batch)
-  }
-  batch.purchases.push(upgradeId)
+  getOrCreateBatch().purchases.push(upgradeId)
 }
 
 function trackPendingHighlight(target: string): void {
-  const currentSeq = getSeq() + 1
-  let batch = pendingBatches.find((b) => b.seq === currentSeq)
-  if (!batch) {
-    batch = { seq: currentSeq, clicks: 0, purchases: [] }
-    pendingBatches.push(batch)
-  }
-  batch.highlight = target
+  getOrCreateBatch().highlight = target
 }
 
 // ─── Private: countdown ──────────────────────────────────────────────

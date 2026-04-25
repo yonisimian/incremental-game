@@ -1,34 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal, ServerMessage, StateUpdateMessage } from '@game/shared'
-import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
+import type { Goal } from '@game/shared'
+import {
+  BROADCAST_INTERVAL_MS,
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getModeDefinition,
+} from '@game/shared'
 import { Match } from '../src/match.js'
 import { ClickerBot, IdlerBot, createBot } from '../src/bot.js'
 import type { BotStrategy } from '../src/bot.js'
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function createMockWs(): WebSocket {
-  return { readyState: 1, send: vi.fn() } as unknown as WebSocket
-}
-
-function sent(ws: WebSocket): ServerMessage[] {
-  return (ws.send as ReturnType<typeof vi.fn>).mock.calls.map(
-    ([raw]: string[]) => JSON.parse(raw) as ServerMessage,
-  )
-}
-
-function sentOfType<T extends ServerMessage['type']>(
-  ws: WebSocket,
-  type: T,
-): Extract<ServerMessage, { type: T }>[] {
-  return sent(ws).filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
-}
-
-function latestUpdate(ws: WebSocket): StateUpdateMessage {
-  const updates = sentOfType(ws, 'STATE_UPDATE')
-  return updates[updates.length - 1]
-}
+import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
@@ -48,9 +30,10 @@ describe('Bot', () => {
 
   describe('ClickerBot', () => {
     it('produces click actions each tick', () => {
-      const bot = new ClickerBot([
-        { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '' },
-      ])
+      const bot = new ClickerBot(
+        [{ id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] }],
+        'currency',
+      )
       const state = {
         score: 0,
         resources: { currency: 0 },
@@ -67,10 +50,13 @@ describe('Bot', () => {
     })
 
     it('buys cheapest affordable upgrade', () => {
-      const bot = new ClickerBot([
-        { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '' },
-        { id: 'double-click', name: 'Double Click', cost: 25, description: '' },
-      ])
+      const bot = new ClickerBot(
+        [
+          { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] },
+          { id: 'double-click', name: 'Double Click', cost: 25, description: '', modifiers: [] },
+        ],
+        'currency',
+      )
       const state = {
         score: 0,
         resources: { currency: 15 },
@@ -88,9 +74,10 @@ describe('Bot', () => {
     })
 
     it('does not buy already-owned one-shot upgrades', () => {
-      const bot = new ClickerBot([
-        { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '' },
-      ])
+      const bot = new ClickerBot(
+        [{ id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] }],
+        'currency',
+      )
       const state = {
         score: 0,
         resources: { currency: 100 },
@@ -107,10 +94,13 @@ describe('Bot', () => {
     })
 
     it('only clicks when all upgrades are already owned', () => {
-      const bot = new ClickerBot([
-        { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '' },
-        { id: 'double-click', name: 'Double Click', cost: 25, description: '' },
-      ])
+      const bot = new ClickerBot(
+        [
+          { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] },
+          { id: 'double-click', name: 'Double Click', cost: 25, description: '', modifiers: [] },
+        ],
+        'currency',
+      )
       const state = {
         score: 0,
         resources: { currency: 999 },
@@ -135,6 +125,7 @@ describe('Bot', () => {
         cost: 30,
         costCurrency: 'wood' as const,
         description: '',
+        modifiers: [],
       },
       {
         id: 'lumber-mill' as const,
@@ -142,6 +133,7 @@ describe('Bot', () => {
         cost: 80,
         costCurrency: 'wood' as const,
         description: '',
+        modifiers: [],
       },
       {
         id: 'tavern-recruits' as const,
@@ -149,6 +141,7 @@ describe('Bot', () => {
         cost: 15,
         costCurrency: 'ale' as const,
         description: '',
+        modifiers: [],
         repeatable: true,
       },
     ]
@@ -218,12 +211,12 @@ describe('Bot', () => {
 
   describe('createBot', () => {
     it('returns ClickerBot for clicker mode', () => {
-      const bot = createBot('clicker', [])
+      const bot = createBot('clicker', getModeDefinition('clicker'))
       expect(bot).toBeInstanceOf(ClickerBot)
     })
 
     it('returns IdlerBot for idler mode', () => {
-      const bot = createBot('idler', [])
+      const bot = createBot('idler', getModeDefinition('idler'))
       expect(bot).toBeInstanceOf(IdlerBot)
     })
   })
@@ -232,38 +225,7 @@ describe('Bot', () => {
 
   describe('Match with bot', () => {
     function createBotMatch(mode: 'clicker' | 'idler' = 'clicker', bot?: BotStrategy, goal?: Goal) {
-      const upgrades =
-        mode === 'clicker'
-          ? [
-              { id: 'auto-clicker' as const, name: 'AC', cost: 10, description: '' },
-              { id: 'double-click' as const, name: 'DC', cost: 25, description: '' },
-              { id: 'multiplier' as const, name: 'MX', cost: 100, description: '' },
-            ]
-          : [
-              {
-                id: 'sharpened-axes' as const,
-                name: 'SA',
-                cost: 30,
-                costCurrency: 'wood' as const,
-                description: '',
-              },
-              {
-                id: 'lumber-mill' as const,
-                name: 'LM',
-                cost: 80,
-                costCurrency: 'wood' as const,
-                description: '',
-              },
-              {
-                id: 'tavern-recruits' as const,
-                name: 'TR',
-                cost: 15,
-                costCurrency: 'ale' as const,
-                description: '',
-                repeatable: true,
-              },
-            ]
-      const strategy = bot ?? createBot(mode, upgrades)
+      const strategy = bot ?? createBot(mode, getModeDefinition(mode))
       return new Match({ id: 'human', ws: ws1 }, { id: 'bot-1', ws: null }, mode, goal, strategy)
     }
 

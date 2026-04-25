@@ -10,10 +10,16 @@
     "dev:server": "pnpm --filter server dev",
     "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build",
     "sim:idler": "pnpm --filter @game/shared build && tsx scripts/simulate-idler.ts",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r exec vitest run --coverage",
+    "typecheck": "pnpm --filter @game/shared build && tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p client/tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:exports": "knip",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "deps:check": "pnpm outdated -r",
+    "deps:update": "pnpm update -r",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
@@ -26,7 +32,9 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "simple-git-hooks": "^2.13.1",
+    "knip": "~5.88.0",
     "tsx": "^4.19.0",
+    "typescript": "~5.8.0",
     "typescript-eslint": "^8.59.0"
   },
   "keywords": [],

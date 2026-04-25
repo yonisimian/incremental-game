@@ -94,7 +94,8 @@ wss.on('connection', (ws: WebSocket) => {
       queuedPlayers.delete(data.id)
 
       const botId = `bot-${randomUUID()}`
-      const bot = createBot(entry.mode, getModeDefinition(entry.mode).upgrades)
+      const modeDef = getModeDefinition(entry.mode)
+      const bot = createBot(entry.mode, modeDef)
       const match = new Match(
         { id: data.id, ws },
         { id: botId, ws: null },

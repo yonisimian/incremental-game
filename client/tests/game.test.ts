@@ -15,6 +15,7 @@ vi.mock('../src/network.js', () => {
     }),
     sendModeSelect: vi.fn(() => true),
     sendQuit: vi.fn(),
+    sendBotRequest: vi.fn(),
   }
 })
 
@@ -77,6 +78,16 @@ function enterPlaying(game: GameModule): void {
   vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
 }
 
+/** Enter idler-mode playing state. */
+function enterIdlerPlaying(game: GameModule): void {
+  game.handleServerMessage(
+    makeRoundStart({
+      config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
+    }),
+  )
+  vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────
 
 describe('game.ts', () => {
@@ -117,6 +128,14 @@ describe('game.ts', () => {
       game.selectMode('clicker', defaultTimedGoal)
       game.selectMode('idler', defaultTimedGoal) // already on waiting screen
       expect(game.getState().mode).toBe('clicker')
+    })
+
+    it('stays on lobby when WebSocket is not connected', async () => {
+      const { sendModeSelect } = await import('../src/network.js')
+      vi.mocked(sendModeSelect).mockReturnValueOnce(false) // simulate disconnected
+      game.selectMode('clicker', defaultTimedGoal)
+      expect(game.getState().screen).toBe('lobby')
+      expect(game.getState().mode).toBeNull()
     })
   })
 
@@ -351,6 +370,68 @@ describe('game.ts', () => {
       // No pending → adopts server state exactly
       expect(game.getState().player.score).toBe(2)
     })
+
+    it('replays unacked purchases on top of server state', () => {
+      enterPlaying(game)
+
+      // Give the player enough currency via server state
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 50,
+            resources: { currency: 50 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
+        }),
+      )
+
+      // Buy auto-clicker (costs 10) — optimistic
+      game.doBuy('auto-clicker')
+      expect(game.getState().player.upgrades['auto-clicker']).toBe(1)
+      expect(game.getState().player.resources.currency).toBe(40)
+
+      // Server sends update that hasn't seen the buy yet (ackSeq=0)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 55,
+            resources: { currency: 55 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
+        }),
+      )
+
+      // Pending purchase should be replayed on top of server state
+      expect(game.getState().player.upgrades['auto-clicker']).toBe(1)
+      expect(game.getState().player.resources.currency).toBe(45) // 55 - 10
+    })
+
+    it('replays unacked highlight on top of server state', () => {
+      enterIdlerPlaying(game)
+
+      game.setHighlight('ale')
+      expect(game.getState().player.meta.highlight).toBe('ale')
+
+      // Server sends update that still shows old highlight
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 5,
+            resources: { wood: 5, ale: 5 },
+            upgrades: { 'sharpened-axes': 0, 'lumber-mill': 0, 'tavern-recruits': 0 },
+            meta: { highlight: 'wood' },
+          },
+        }),
+      )
+
+      // Pending highlight should be replayed
+      expect(game.getState().player.meta.highlight).toBe('ale')
+    })
   })
 
   // ── ROUND_END ────────────────────────────────────────────────────
@@ -478,15 +559,6 @@ describe('game.ts', () => {
   // ── Idler: setHighlight ────────────────────────────────────────────
 
   describe('setHighlight', () => {
-    function enterIdlerPlaying(g: GameModule): void {
-      g.handleServerMessage(
-        makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
-        }),
-      )
-      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
-    }
-
     it('optimistically updates highlight', () => {
       enterIdlerPlaying(game)
       expect(game.getState().player.meta.highlight).toBe('wood') // from createInitialState
@@ -530,15 +602,6 @@ describe('game.ts', () => {
   // ── Idler: doBuy ───────────────────────────────────────────────────
 
   describe('idler doBuy', () => {
-    function enterIdlerPlaying(g: GameModule): void {
-      g.handleServerMessage(
-        makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
-        }),
-      )
-      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
-    }
-
     function giveWood(g: GameModule, amount: number): void {
       g.handleServerMessage(
         makeStateUpdate({

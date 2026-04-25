@@ -1,35 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal, ServerMessage, StateUpdateMessage } from '@game/shared'
+import type { Goal } from '@game/shared'
 import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, MAX_CPS, ROUND_DURATION_SEC } from '@game/shared'
 import { Match } from '../src/match.js'
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function createMockWs(): WebSocket {
-  return { readyState: 1, send: vi.fn() } as unknown as WebSocket
-}
-
-/** All messages sent to a mock WebSocket, parsed from JSON. */
-function sent(ws: WebSocket): ServerMessage[] {
-  return (ws.send as ReturnType<typeof vi.fn>).mock.calls.map(
-    ([raw]: string[]) => JSON.parse(raw) as ServerMessage,
-  )
-}
-
-/** Messages of a specific type sent to a mock WebSocket. */
-function sentOfType<T extends ServerMessage['type']>(
-  ws: WebSocket,
-  type: T,
-): Extract<ServerMessage, { type: T }>[] {
-  return sent(ws).filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
-}
-
-/** The most recent STATE_UPDATE sent to a mock WebSocket. */
-function latestUpdate(ws: WebSocket): StateUpdateMessage {
-  const updates = sentOfType(ws, 'STATE_UPDATE')
-  return updates[updates.length - 1]
-}
+import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
 
 // ─── Tests ───────────────────────────────────────────────────────────
 

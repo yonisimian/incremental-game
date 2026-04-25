@@ -11,5 +11,5 @@
       "@game/shared": ["./shared/dist/index.d.ts"]
     }
   },
-  "include": ["scripts"]
+  "include": ["scripts", "knip.config.ts"]
 }
