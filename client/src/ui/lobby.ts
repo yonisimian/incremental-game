@@ -1,5 +1,5 @@
 import type { GameMode } from '@game/shared'
-import { MODE_CONFIGS } from '@game/shared'
+import { getModeDefinition } from '@game/shared'
 import { selectMode } from '../game.js'
 import { app } from './helpers.js'
 
@@ -36,7 +36,7 @@ export function renderLobbyScreen(): void {
 
 /** Replace mode buttons with just the selected one, then show goal cards. */
 function showGoalPicker(mode: GameMode): void {
-  const config = MODE_CONFIGS[mode]
+  const config = getModeDefinition(mode)
   const buttonsContainer = document.getElementById('mode-buttons')!
   const picker = document.getElementById('goal-picker')!
 

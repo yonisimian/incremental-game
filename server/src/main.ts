@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import WebSocket, { WebSocketServer } from 'ws'
-import { HEARTBEAT_INTERVAL_MS, MODE_CONFIGS, getDefaultGoal } from '@game/shared'
+import { HEARTBEAT_INTERVAL_MS, getModeDefinition, getDefaultGoal } from '@game/shared'
 import type { ClientMessage, GameMode, Goal } from '@game/shared'
 import { addToQueue, removeFromQueue } from './matchmaking.js'
 import { Match } from './match.js'
@@ -94,7 +94,7 @@ wss.on('connection', (ws: WebSocket) => {
       queuedPlayers.delete(data.id)
 
       const botId = `bot-${randomUUID()}`
-      const bot = createBot(entry.mode, MODE_CONFIGS[entry.mode].upgrades)
+      const bot = createBot(entry.mode, getModeDefinition(entry.mode).upgrades)
       const match = new Match(
         { id: data.id, ws },
         { id: botId, ws: null },
@@ -144,7 +144,7 @@ function startMatch(match: Match): void {
 function parseGoal(raw: unknown, mode: GameMode): Goal {
   if (raw && typeof raw === 'object' && 'type' in raw) {
     const obj = raw as Record<string, unknown>
-    const predefined = MODE_CONFIGS[mode].goals.find((g) => g.type === obj.type)
+    const predefined = getModeDefinition(mode).goals.find((g) => g.type === obj.type)
     if (predefined) return predefined
   }
   // Fallback — ignored bad payload, use default goal for the selected mode

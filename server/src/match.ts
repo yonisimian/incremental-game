@@ -4,18 +4,20 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   INITIAL_PLAYER_STATE,
-  MODE_CONFIGS,
   TICK_INTERVAL_MS,
-  applyIdlerPassiveIncome,
   applyIdlerPurchase,
   getDefaultGoal,
+  getModeDefinition,
+  collectModifiers,
+  computeClickIncome,
+  applyPassiveTick,
 } from '@game/shared'
 import type {
   ClientMessage,
   GameMode,
   Goal,
   MatchWinner,
-  ModeConfig,
+  ModeDefinition,
   PlayerAction,
   PlayerState,
   RoundEndReason,
@@ -49,7 +51,7 @@ export class Match {
   readonly id: string
   readonly mode: GameMode
   readonly goal: Goal
-  private readonly modeConfig: ModeConfig
+  private readonly modeDef: ModeDefinition
   private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
   private readonly bot: BotStrategy | null
@@ -72,9 +74,9 @@ export class Match {
     this.id = randomUUID()
     this.mode = mode
     this.goal = goal ?? getDefaultGoal(mode)
-    this.modeConfig = MODE_CONFIGS[mode]
+    this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
-    this.upgradeMap = new Map(this.modeConfig.upgrades.map((u) => [u.id, u]))
+    this.upgradeMap = new Map(this.modeDef.upgrades.map((u) => [u.id, u]))
     this.bot = bot ?? null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
@@ -94,7 +96,7 @@ export class Match {
     const config = {
       mode: this.mode,
       goal: this.goal,
-      upgrades: [...this.modeConfig.upgrades],
+      upgrades: [...this.modeDef.upgrades],
     }
 
     for (const player of this.players) {
@@ -263,7 +265,7 @@ export class Match {
   private processActions(player: MatchPlayer, actions: PlayerAction[], seq: number): void {
     for (const action of actions) {
       if (action.type === 'click') {
-        if (!this.modeConfig.clicksEnabled) continue
+        if (!this.modeDef.clicksEnabled) continue
         if (!isValidClick(player.recentClickTimestamps)) {
           continue
         }
@@ -289,7 +291,7 @@ export class Match {
 
     for (const action of actions) {
       if (action.type === 'click') {
-        if (!this.modeConfig.clicksEnabled) continue
+        if (!this.modeDef.clicksEnabled) continue
         // Track timestamp for accurate peakCps stat (bot skips isValidClick rate-limiting)
         const now = Date.now()
         const cutoff = now - 1000
@@ -316,30 +318,19 @@ export class Match {
 
   private applyPassiveIncome(player: MatchPlayer): void {
     const tickSec = TICK_INTERVAL_MS / 1000
-
-    if (this.mode === 'idler') {
-      applyIdlerPassiveIncome(player.state, tickSec)
-      return
-    }
-
-    // ── Clicker passive income ───────────────────────────────────
-    let income = this.modeConfig.basePassivePerSec * tickSec
-
-    if (player.state.upgrades['auto-clicker']) {
-      income += tickSec
-    }
-
-    if (player.state.upgrades.multiplier) income *= 2
-
-    if (income <= 0) return
-
-    player.state.currency += income
-    player.state.score += income
+    const modifiers = collectModifiers(player.state, this.modeDef)
+    applyPassiveTick(
+      player.state,
+      this.modeDef.resources,
+      this.modeDef.scoreResource,
+      modifiers,
+      tickSec,
+    )
   }
 
   private applyClick(player: MatchPlayer): void {
-    let income = player.state.upgrades['double-click'] ? 2 : 1
-    if (player.state.upgrades.multiplier) income *= 2
+    const modifiers = collectModifiers(player.state, this.modeDef)
+    const income = computeClickIncome(modifiers)
 
     player.state.currency += income
     player.state.score += income

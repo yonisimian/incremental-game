@@ -1,5 +1,5 @@
 import type { PlayerState, UpgradeId } from './types.js'
-import { IDLER_UPGRADES } from './game-config.js'
+import { IDLER_UPGRADES } from './modes/index.js'
 
 // ─── Upgrade lookup ──────────────────────────────────────────────────
 

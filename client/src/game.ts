@@ -12,6 +12,9 @@ import {
   INITIAL_PLAYER_STATE,
   COUNTDOWN_SEC,
   MILESTONE_INTERVAL,
+  getModeDefinition,
+  collectModifiers,
+  computeClickIncome as pipelineClickIncome,
 } from '@game/shared'
 import {
   getSeq,
@@ -404,9 +407,11 @@ function grantUpgrade(player: PlayerState, uid: UpgradeId, def: UpgradeDefinitio
 }
 
 function computeClickIncome(player: PlayerState): number {
-  let income = player.upgrades['double-click'] ? 2 : 1
-  if (player.upgrades.multiplier) income *= 2
-  return income
+  const mode = state.mode
+  if (!mode) return 1
+  const modeDef = getModeDefinition(mode)
+  const modifiers = collectModifiers(player, modeDef)
+  return pipelineClickIncome(modifiers)
 }
 
 function clonePlayerState(s: Readonly<PlayerState>): PlayerState {

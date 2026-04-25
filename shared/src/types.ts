@@ -1,3 +1,5 @@
+import type { Modifier } from './modifiers/types.js'
+
 /** Available game modes. */
 export type GameMode = 'clicker' | 'idler'
 
@@ -23,6 +25,8 @@ export interface UpgradeDefinition {
   readonly description: string
   /** If true, the upgrade can be purchased multiple times. */
   readonly repeatable?: boolean
+  /** Declarative modifiers this upgrade applies when owned. */
+  readonly modifiers: readonly Modifier[]
 }
 
 /**
