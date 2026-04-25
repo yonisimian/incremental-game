@@ -82,3 +82,5 @@ export const CLICKER_UPGRADES = clickerMode.upgrades
 
 /** Idler upgrade definitions (convenience alias for tests / existing code). */
 export const IDLER_UPGRADES = idlerMode.upgrades
+
+export { applyIdlerPurchase } from './idler.js'

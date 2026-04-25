@@ -12,12 +12,15 @@
 import {
   IDLER_UPGRADES,
   INITIAL_PLAYER_STATE,
-  MODE_CONFIGS,
   TICK_INTERVAL_MS,
-  applyIdlerPassiveIncome,
   applyIdlerPurchase,
+  applyPassiveTick,
+  collectModifiers,
+  getModeDefinition,
 } from '@game/shared'
 import type { CurrencyHighlight, PlayerState, UpgradeId } from '@game/shared'
+
+const idlerDef = getModeDefinition('idler')
 
 // ─── Strategy types ──────────────────────────────────────────────────
 
@@ -211,7 +214,7 @@ function executeAction(state: PlayerState, action: StrategyAction): void {
 
 function simulate(strategy: Strategy): SimResult {
   const state = createInitialState()
-  const timedGoal = MODE_CONFIGS.idler.goals.find((g) => g.type === 'timed')
+  const timedGoal = idlerDef.goals.find((g) => g.type === 'timed')
   const roundDurationSec = timedGoal && timedGoal.type === 'timed' ? timedGoal.durationSec : 35
   const tickSec = TICK_INTERVAL_MS / 1000
   const totalTicks = (roundDurationSec * 1000) / TICK_INTERVAL_MS
@@ -234,7 +237,13 @@ function simulate(strategy: Strategy): SimResult {
     const currentSec = (tick + 1) * tickSec // time after this tick
 
     // Step 1: passive income
-    applyIdlerPassiveIncome(state, tickSec)
+    applyPassiveTick(
+      state,
+      idlerDef.resources,
+      idlerDef.scoreResource,
+      collectModifiers(state, idlerDef),
+      tickSec,
+    )
 
     // Step 2: execute ready actions (may be multiple per tick)
     while (

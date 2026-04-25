@@ -439,9 +439,17 @@ incremental-game/
 │   └── src/
 │       ├── index.ts             ← barrel export
 │       ├── messages.ts          ← WebSocket message type definitions
-│       ├── game-config.ts       ← round length, upgrade costs, rate limits
-│       ├── idler-logic.ts       ← idler mode passive income formulas
-│       └── types.ts             ← PlayerState, UpgradeId, etc.
+│       ├── game-config.ts       ← round length, tick interval, heartbeat constants
+│       ├── types.ts             ← PlayerState, UpgradeId, etc.
+│       ├── modifiers/           ← mode-agnostic modifier pipeline
+│       │   ├── types.ts         ← Modifier, ModifierContext
+│       │   ├── pipeline.ts      ← computeClickIncome, computePassiveRates, applyPassiveTick
+│       │   └── index.ts         ← barrel re-export
+│       └── modes/               ← per-mode definitions & registry
+│           ├── types.ts         ← ModeDefinition interface
+│           ├── clicker.ts       ← clicker mode (upgrades, goals, native modifiers)
+│           ├── idler.ts         ← idler mode (upgrades, goals, purchase logic, dynamic modifiers)
+│           └── index.ts         ← getModeDefinition, collectModifiers, re-exports
 │
 ├── client/                      ← Vite vanilla-ts project
 │   ├── package.json
