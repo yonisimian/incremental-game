@@ -29,11 +29,11 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
+    "knip": "~5.88.0",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "simple-git-hooks": "^2.13.1",
-    "knip": "~5.88.0",
-    "tsx": "^4.19.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.0",
     "typescript-eslint": "^8.59.0"
   },
