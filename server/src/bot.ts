@@ -1,18 +1,12 @@
-import type {
-  CurrencyHighlight,
-  GameMode,
-  PlayerState,
-  UpgradeDefinition,
-  UpgradeId,
-} from '@game/shared'
+import type { GameMode, PlayerState, UpgradeDefinition } from '@game/shared'
 
-// ─── Types ───────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────
 
 /** A single bot decision. */
 export type BotAction =
   | { type: 'click' }
-  | { type: 'buy'; upgradeId: UpgradeId }
-  | { type: 'set_highlight'; highlight: CurrencyHighlight }
+  | { type: 'buy'; upgradeId: string }
+  | { type: 'set_highlight'; highlight: string }
 
 /** Strategy interface — one `decide` call per game tick. */
 export interface BotStrategy {
@@ -47,8 +41,8 @@ export class ClickerBot implements BotStrategy {
     // Buy cheapest affordable upgrade
     const affordable = this.upgrades
       .filter((u) => {
-        if (!u.repeatable && state.upgrades[u.id]) return false
-        return state.currency >= u.cost
+        if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
+        return state.resources.currency >= u.cost
       })
       .sort((a, b) => a.cost - b.cost)
 
@@ -69,7 +63,7 @@ export class ClickerBot implements BotStrategy {
  */
 export class IdlerBot implements BotStrategy {
   /** Ordered upgrade plan. */
-  private readonly plan: { id: UpgradeId; currency: CurrencyHighlight }[] = [
+  private readonly plan: { id: string; currency: string }[] = [
     { id: 'tavern-recruits', currency: 'ale' },
     { id: 'tavern-recruits', currency: 'ale' },
     { id: 'sharpened-axes', currency: 'wood' },
@@ -78,7 +72,7 @@ export class IdlerBot implements BotStrategy {
 
   private planIndex = 0
 
-  private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>
+  private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
 
   constructor(upgrades: readonly UpgradeDefinition[]) {
     this.upgradeMap = new Map(upgrades.map((u) => [u.id, u]))
@@ -94,7 +88,7 @@ export class IdlerBot implements BotStrategy {
     if (!def) return actions
 
     // Switch highlight if needed
-    if (state.highlight !== next.currency) {
+    if (state.meta.highlight !== next.currency) {
       actions.push({ type: 'set_highlight', highlight: next.currency })
     }
 
@@ -102,7 +96,7 @@ export class IdlerBot implements BotStrategy {
     // NOTE: planIndex advances optimistically here, assuming processBotActions
     // will accept the purchase. This is safe because both check the same balance,
     // but if validation logic diverges in the future this coupling could break.
-    const balance = next.currency === 'wood' ? (state.wood ?? 0) : (state.ale ?? 0)
+    const balance = state.resources[next.currency] ?? 0
     if (balance >= def.cost) {
       actions.push({ type: 'buy', upgradeId: next.id })
       this.planIndex++

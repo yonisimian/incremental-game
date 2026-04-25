@@ -27,7 +27,7 @@ export function initHotkeys(): void {
     // Tab — toggle highlight (idler mode)
     if (e.key === 'Tab') {
       e.preventDefault() // prevent focus shift
-      const current = state.player.highlight ?? 'wood'
+      const current = (state.player.meta.highlight as string | undefined) ?? 'wood'
       setHighlight(current === 'wood' ? 'ale' : 'wood')
       return
     }

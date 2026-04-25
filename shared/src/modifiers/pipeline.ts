@@ -96,21 +96,7 @@ export function applyPassiveTick(
 
   for (const resource of resources) {
     const gain = rates[resource] * tickSec
-
-    // Known-field mapper — maps resource keys to typed PlayerState fields.
-    // Stopgap until PlayerState is generalized with resources: Record<string, number>.
-    switch (resource) {
-      case 'currency':
-        state.currency += gain
-        break
-      case 'wood':
-        state.wood = (state.wood ?? 0) + gain
-        break
-      case 'ale':
-        state.ale = (state.ale ?? 0) + gain
-        break
-    }
-
+    state.resources[resource] = (state.resources[resource] ?? 0) + gain
     if (resource === scoreResource) state.score += gain
   }
 }

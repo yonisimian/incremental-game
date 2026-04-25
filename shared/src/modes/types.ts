@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { Goal, UpgradeDefinition } from '../types.js'
+import type { Goal, PlayerState, UpgradeDefinition } from '../types.js'
 
 /** Full definition of a game mode — replaces ModeConfig. */
 export interface ModeDefinition {
@@ -15,4 +15,10 @@ export interface ModeDefinition {
   readonly nativeModifiers: readonly Modifier[]
   /** Whether manual clicks are allowed. */
   readonly clicksEnabled: boolean
+  /** Starting resource balances for a new round. */
+  readonly initialResources: Readonly<Record<string, number>>
+  /** Starting mode-specific metadata (e.g., idler highlight). */
+  readonly initialMeta: Readonly<Record<string, unknown>>
+  /** Optional: collect dynamic (state-derived) modifiers. */
+  readonly collectDynamic?: (state: Readonly<PlayerState>) => Modifier[]
 }

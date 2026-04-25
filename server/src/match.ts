@@ -3,14 +3,14 @@ import WebSocket from 'ws'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
-  INITIAL_PLAYER_STATE,
   TICK_INTERVAL_MS,
-  applyIdlerPurchase,
   getDefaultGoal,
   getModeDefinition,
+  createInitialState,
   collectModifiers,
   computeClickIncome,
   applyPassiveTick,
+  applyPurchase,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -23,7 +23,6 @@ import type {
   RoundEndReason,
   ServerMessage,
   UpgradeDefinition,
-  UpgradeId,
 } from '@game/shared'
 import { isValidClick, isValidPurchase } from './validation.js'
 import type { BotStrategy } from './bot.js'
@@ -39,7 +38,7 @@ interface MatchPlayer {
   stats: {
     totalClicks: number
     peakCps: number
-    upgradesPurchased: UpgradeId[]
+    upgradesPurchased: string[]
   }
 }
 
@@ -52,7 +51,7 @@ export class Match {
   readonly mode: GameMode
   readonly goal: Goal
   private readonly modeDef: ModeDefinition
-  private readonly upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>
+  private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
   private readonly bot: BotStrategy | null
   private phase: MatchPhase = 'countdown'
@@ -184,26 +183,14 @@ export class Match {
   // ─── Private: setup ────────────────────────────────────────────────
 
   private initPlayer(p: { id: string; ws: WebSocket | null }): MatchPlayer {
-    const base: MatchPlayer = {
+    return {
       id: p.id,
       ws: p.ws,
-      state: {
-        score: INITIAL_PLAYER_STATE.score,
-        currency: INITIAL_PLAYER_STATE.currency,
-        upgrades: { ...INITIAL_PLAYER_STATE.upgrades },
-      },
+      state: createInitialState(this.modeDef),
       ackSeq: 0,
       recentClickTimestamps: [],
       stats: { totalClicks: 0, peakCps: 0, upgradesPurchased: [] },
     }
-
-    if (this.mode === 'idler') {
-      base.state.wood = 0
-      base.state.ale = 0
-      base.state.highlight = 'wood'
-    }
-
-    return base
   }
 
   // ─── Private: game loop ────────────────────────────────────────────
@@ -271,12 +258,15 @@ export class Match {
         }
         this.applyClick(player)
       } else if (action.type === 'buy' && action.upgradeId) {
-        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue
+        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap, this.modeDef))
+          continue
         this.applyPurchase(player, action.upgradeId)
       } else if (action.type === 'set_highlight' && action.highlight) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (this.mode === 'idler' && (action.highlight === 'wood' || action.highlight === 'ale')) {
-          player.state.highlight = action.highlight
+        if (
+          'highlight' in this.modeDef.initialMeta &&
+          this.modeDef.resources.includes(action.highlight)
+        ) {
+          player.state.meta.highlight = action.highlight
         }
       }
     }
@@ -304,13 +294,16 @@ export class Match {
         botPlayer.recentClickTimestamps.push(now)
         this.applyClick(botPlayer)
       } else if (action.type === 'buy') {
-        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap)) continue
+        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap, this.modeDef))
+          continue
         this.applyPurchase(botPlayer, action.upgradeId)
       } else {
         // set_highlight — validate identically to processActions
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (this.mode === 'idler' && (action.highlight === 'wood' || action.highlight === 'ale')) {
-          botPlayer.state.highlight = action.highlight
+        if (
+          'highlight' in this.modeDef.initialMeta &&
+          this.modeDef.resources.includes(action.highlight)
+        ) {
+          botPlayer.state.meta.highlight = action.highlight
         }
       }
     }
@@ -332,7 +325,8 @@ export class Match {
     const modifiers = collectModifiers(player.state, this.modeDef)
     const income = computeClickIncome(modifiers)
 
-    player.state.currency += income
+    const res = this.modeDef.scoreResource
+    player.state.resources[res] = (player.state.resources[res] ?? 0) + income
     player.state.score += income
     player.stats.totalClicks++
 
@@ -340,16 +334,8 @@ export class Match {
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
   }
 
-  private applyPurchase(player: MatchPlayer, upgradeId: UpgradeId): void {
-    if (this.mode === 'idler') {
-      applyIdlerPurchase(player.state, upgradeId)
-    } else {
-      // Clicker: deduct from generic currency
-      const def = this.upgradeMap.get(upgradeId)! // already validated
-      player.state.currency -= def.cost
-      player.state.upgrades[upgradeId] = true
-    }
-
+  private applyPurchase(player: MatchPlayer, upgradeId: string): void {
+    applyPurchase(player.state, upgradeId, this.modeDef)
     player.stats.upgradesPurchased.push(upgradeId)
   }
 

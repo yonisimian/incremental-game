@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
-import { COUNTDOWN_SEC, CLICKER_UPGRADES, IDLER_UPGRADES, ROUND_DURATION_SEC } from '@game/shared'
+import { COUNTDOWN_SEC, getModeDefinition, ROUND_DURATION_SEC } from '@game/shared'
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
@@ -29,32 +29,32 @@ async function loadGame(): Promise<GameModule> {
 
 const defaultTimedGoal: Goal = { type: 'timed', durationSec: ROUND_DURATION_SEC }
 
+const clickerDef = getModeDefinition('clicker')
+const idlerDef = getModeDefinition('idler')
+
 function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartMessage {
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
-    config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...CLICKER_UPGRADES] },
+    config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...clickerDef.upgrades] },
     serverTime: Date.now(),
     ...overrides,
   }
 }
 
-const defaultUpgrades = {
-  'auto-clicker': false,
-  'double-click': false,
-  multiplier: false,
-  'sharpened-axes': false,
-  'lumber-mill': false,
-  'tavern-recruits': 0,
-} as const
+const defaultUpgrades: Record<string, number> = {
+  'auto-clicker': 0,
+  'double-click': 0,
+  multiplier: 0,
+}
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
   return {
     type: 'STATE_UPDATE',
     tick: 1,
     ackSeq: 0,
-    player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
-    opponent: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
+    player: { score: 0, resources: { currency: 0 }, upgrades: { ...defaultUpgrades }, meta: {} },
+    opponent: { score: 0, resources: { currency: 0 }, upgrades: { ...defaultUpgrades }, meta: {} },
     timeLeft: 55,
     ...overrides,
   }
@@ -101,7 +101,6 @@ describe('game.ts', () => {
     it('has zeroed player state', () => {
       const s = game.getState()
       expect(s.player.score).toBe(0)
-      expect(s.player.currency).toBe(0)
     })
   })
 
@@ -133,7 +132,7 @@ describe('game.ts', () => {
       game.handleServerMessage(makeRoundStart({ matchId: 'm-123' }))
       const s = game.getState()
       expect(s.matchId).toBe('m-123')
-      expect(s.upgrades.length).toBe(CLICKER_UPGRADES.length)
+      expect(s.upgrades.length).toBe(clickerDef.upgrades.length)
     })
 
     it('counts down from COUNTDOWN_SEC to playing', () => {
@@ -160,7 +159,7 @@ describe('game.ts', () => {
 
       const s = game.getState()
       expect(s.player.score).toBe(1)
-      expect(s.player.currency).toBe(1)
+      expect(s.player.resources.currency).toBe(1)
     })
 
     it('accumulates multiple clicks', () => {
@@ -212,8 +211,8 @@ describe('game.ts', () => {
 
       game.doBuy('auto-clicker')
       const s = game.getState()
-      expect(s.player.upgrades['auto-clicker']).toBe(true)
-      expect(s.player.currency).toBe(0)
+      expect(s.player.upgrades['auto-clicker']).toBe(1)
+      expect(s.player.resources.currency).toBe(0)
       expect(s.player.score).toBe(10) // score unchanged by purchase
     })
 
@@ -222,8 +221,8 @@ describe('game.ts', () => {
       game.doClick() // 1 currency
 
       game.doBuy('auto-clicker') // costs 10
-      expect(game.getState().player.upgrades['auto-clicker']).toBe(false)
-      expect(game.getState().player.currency).toBe(1)
+      expect(game.getState().player.upgrades['auto-clicker']).toBe(0)
+      expect(game.getState().player.resources.currency).toBe(1)
     })
 
     it('rejects a duplicate purchase', () => {
@@ -232,12 +231,12 @@ describe('game.ts', () => {
 
       game.doBuy('auto-clicker') // costs 10
       game.doBuy('auto-clicker') // duplicate
-      expect(game.getState().player.currency).toBe(10) // 20 − 10, not 20 − 20
+      expect(game.getState().player.resources.currency).toBe(10) // 20 − 10, not 20 − 20
     })
 
     it('is a no-op outside playing screen', () => {
       game.doBuy('auto-clicker')
-      expect(game.getState().player.upgrades['auto-clicker']).toBe(false)
+      expect(game.getState().player.upgrades['auto-clicker']).toBeUndefined()
     })
   })
 
@@ -285,8 +284,18 @@ describe('game.ts', () => {
       game.handleServerMessage(
         makeStateUpdate({
           ackSeq: 0,
-          player: { score: 5, currency: 5, upgrades: { ...defaultUpgrades } },
-          opponent: { score: 3, currency: 3, upgrades: { ...defaultUpgrades } },
+          player: {
+            score: 5,
+            resources: { currency: 5 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
+          opponent: {
+            score: 3,
+            resources: { currency: 3 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
           timeLeft: 50,
         }),
       )
@@ -308,7 +317,12 @@ describe('game.ts', () => {
       game.handleServerMessage(
         makeStateUpdate({
           ackSeq: 0,
-          player: { score: 0, currency: 0, upgrades: { ...defaultUpgrades } },
+          player: {
+            score: 0,
+            resources: { currency: 0 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
         }),
       )
 
@@ -325,7 +339,12 @@ describe('game.ts', () => {
       game.handleServerMessage(
         makeStateUpdate({
           ackSeq: 999, // acks everything
-          player: { score: 2, currency: 2, upgrades: { ...defaultUpgrades } },
+          player: {
+            score: 2,
+            resources: { currency: 2 },
+            upgrades: { ...defaultUpgrades },
+            meta: {},
+          },
         }),
       )
 
@@ -373,7 +392,6 @@ describe('game.ts', () => {
       expect(s.screen).toBe('lobby')
       expect(s.mode).toBeNull()
       expect(s.player.score).toBe(0)
-      expect(s.player.currency).toBe(0)
       expect(s.matchId).toBeNull()
       expect(s.endData).toBeNull()
       expect(s.countdown).toBe(COUNTDOWN_SEC)
@@ -463,7 +481,7 @@ describe('game.ts', () => {
     function enterIdlerPlaying(g: GameModule): void {
       g.handleServerMessage(
         makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...IDLER_UPGRADES] },
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
         }),
       )
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
@@ -471,15 +489,15 @@ describe('game.ts', () => {
 
     it('optimistically updates highlight', () => {
       enterIdlerPlaying(game)
-      expect(game.getState().player.highlight).toBe(undefined) // server hasn't sent it
+      expect(game.getState().player.meta.highlight).toBe('wood') // from createInitialState
       game.setHighlight('ale')
-      expect(game.getState().player.highlight).toBe('ale')
+      expect(game.getState().player.meta.highlight).toBe('ale')
     })
 
     it('is a no-op in clicker mode', () => {
       enterPlaying(game)
       game.setHighlight('ale')
-      expect(game.getState().player.highlight).toBeUndefined()
+      expect(game.getState().player.meta.highlight).toBeUndefined()
     })
 
     it('is a no-op outside playing screen', () => {
@@ -495,6 +513,18 @@ describe('game.ts', () => {
       game.setHighlight('ale') // same value
       expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
     })
+
+    it('rejects an invalid target resource', () => {
+      enterIdlerPlaying(game)
+      game.setHighlight('bogus')
+      expect(game.getState().player.meta.highlight).toBe('wood') // unchanged
+    })
+
+    it('rejects a valid resource when mode has no highlight', () => {
+      enterPlaying(game) // clicker mode
+      game.setHighlight('currency') // valid resource for clicker, but mode has no highlight
+      expect(game.getState().player.meta.highlight).toBeUndefined()
+    })
   })
 
   // ── Idler: doBuy ───────────────────────────────────────────────────
@@ -503,7 +533,7 @@ describe('game.ts', () => {
     function enterIdlerPlaying(g: GameModule): void {
       g.handleServerMessage(
         makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...IDLER_UPGRADES] },
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
         }),
       )
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
@@ -514,11 +544,9 @@ describe('game.ts', () => {
         makeStateUpdate({
           player: {
             score: amount,
-            currency: 0,
-            upgrades: { ...defaultUpgrades },
-            wood: amount,
-            ale: 0,
-            highlight: 'wood',
+            resources: { wood: amount, ale: 0 },
+            upgrades: { 'sharpened-axes': 0, 'lumber-mill': 0, 'tavern-recruits': 0 },
+            meta: { highlight: 'wood' },
           },
         }),
       )
@@ -529,11 +557,9 @@ describe('game.ts', () => {
         makeStateUpdate({
           player: {
             score: 0,
-            currency: 0,
-            upgrades: { ...defaultUpgrades },
-            wood: 0,
-            ale: amount,
-            highlight: 'wood',
+            resources: { wood: 0, ale: amount },
+            upgrades: { 'sharpened-axes': 0, 'lumber-mill': 0, 'tavern-recruits': 0 },
+            meta: { highlight: 'wood' },
           },
         }),
       )
@@ -543,8 +569,8 @@ describe('game.ts', () => {
       enterIdlerPlaying(game)
       giveWood(game, 50)
       game.doBuy('sharpened-axes') // costs 30 wood
-      expect(game.getState().player.upgrades['sharpened-axes']).toBe(true)
-      expect(game.getState().player.wood).toBe(20)
+      expect(game.getState().player.upgrades['sharpened-axes']).toBe(1)
+      expect(game.getState().player.resources.wood).toBe(20)
     })
 
     it('deducts ale for ale-cost upgrades (repeatable)', () => {
@@ -552,7 +578,7 @@ describe('game.ts', () => {
       giveAle(game, 15)
       game.doBuy('tavern-recruits') // costs 15 ale
       expect(game.getState().player.upgrades['tavern-recruits']).toBe(1)
-      expect(game.getState().player.ale).toBe(0)
+      expect(game.getState().player.resources.ale).toBe(0)
     })
 
     it('allows buying repeatable upgrades multiple times', () => {
@@ -562,14 +588,14 @@ describe('game.ts', () => {
       game.doBuy('tavern-recruits') // 2nd: 30-15=15 ale
       game.doBuy('tavern-recruits') // 3rd: 15-15=0 ale
       expect(game.getState().player.upgrades['tavern-recruits']).toBe(3)
-      expect(game.getState().player.ale).toBe(0)
+      expect(game.getState().player.resources.ale).toBe(0)
     })
 
     it('rejects if wrong currency balance is too low', () => {
       enterIdlerPlaying(game)
       giveAle(game, 100) // plenty of ale, no wood
       game.doBuy('sharpened-axes') // costs 40 wood — should fail
-      expect(game.getState().player.upgrades['sharpened-axes']).toBe(false)
+      expect(game.getState().player.upgrades['sharpened-axes']).toBe(0)
     })
 
     it('rejects repeatable buy when insufficient funds', () => {
@@ -578,7 +604,7 @@ describe('game.ts', () => {
       game.doBuy('tavern-recruits') // 1st: 20-15=5 ale
       game.doBuy('tavern-recruits') // 2nd: 5 < 15 — should fail
       expect(game.getState().player.upgrades['tavern-recruits']).toBe(1)
-      expect(game.getState().player.ale).toBe(5)
+      expect(game.getState().player.resources.ale).toBe(5)
     })
   })
 })

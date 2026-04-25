@@ -1,11 +1,19 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { PlayerState, UpgradeDefinition, UpgradeId } from '../types.js'
+import type { PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import {
   IDLER_ROUND_DURATION_SEC,
   IDLER_TARGET_SCORE,
   TARGET_SCORE_SAFETY_CAP_SEC,
 } from '../game-config.js'
+
+/** Idler highlight values. */
+export type IdlerHighlight = 'wood' | 'ale'
+
+/** Get the currently highlighted resource for idler mode. */
+export function getHighlight(state: Readonly<PlayerState>): IdlerHighlight {
+  return (state.meta.highlight as IdlerHighlight | undefined) ?? 'wood'
+}
 
 // ─── Dynamic (state-derived) modifiers ───────────────────────────────
 
@@ -14,8 +22,8 @@ import {
  * The highlight mechanic: highlighted resource gets ×2 (or ×4 with sharpened-axes).
  */
 export function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
-  const highlight = state.highlight ?? 'wood'
-  const sharpenedAxes = Boolean(state.upgrades['sharpened-axes'])
+  const highlight = getHighlight(state)
+  const sharpenedAxes = (state.upgrades['sharpened-axes'] ?? 0) > 0
   return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]
 }
 
@@ -49,39 +57,6 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
 ]
 
-// ─── Purchase ────────────────────────────────────────────────────────
-
-const idlerUpgradeMap = new Map(idlerUpgrades.map((u) => [u.id, u]))
-
-/**
- * Apply an idler upgrade purchase to the player state.
- * Deducts the cost and marks the upgrade as owned.
- * Repeatable upgrades increment their buy count.
- * Mutates `state` in place.
- *
- * Callers are responsible for validating that the purchase is legal
- * (enough currency, upgrade not already owned / can re-buy, etc.).
- */
-export function applyIdlerPurchase(state: PlayerState, upgradeId: UpgradeId): void {
-  const def = idlerUpgradeMap.get(upgradeId)
-  if (!def) return // not an idler upgrade
-
-  // Deduct cost from correct currency
-  if (def.costCurrency === 'wood') {
-    state.wood = (state.wood ?? 0) - def.cost
-  } else if (def.costCurrency === 'ale') {
-    state.ale = (state.ale ?? 0) - def.cost
-  }
-
-  // Repeatable upgrades store a buy count; one-shot upgrades store true.
-  if (def.repeatable) {
-    const prev = Number(state.upgrades[upgradeId]) || 0
-    state.upgrades[upgradeId] = prev + 1
-  } else {
-    state.upgrades[upgradeId] = true
-  }
-}
-
 // ─── Mode Definition ─────────────────────────────────────────────────
 
 /** Idler mode definition — passive income only, pure upgrade strategy. */
@@ -89,6 +64,9 @@ export const idlerMode: ModeDefinition = {
   resources: ['wood', 'ale'],
   scoreResource: 'wood',
   clicksEnabled: false,
+  initialResources: { wood: 0, ale: 0 },
+  initialMeta: { highlight: 'wood' },
+  collectDynamic: collectIdlerDynamic,
   nativeModifiers: [
     { stage: 'additive', field: 'wood', value: 1 }, // base 1 wood/s
     { stage: 'additive', field: 'ale', value: 1 }, // base 1 ale/s

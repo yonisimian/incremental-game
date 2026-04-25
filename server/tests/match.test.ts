@@ -152,7 +152,7 @@ describe('Match', () => {
 
       const u = latestUpdate(ws1)
       expect(u.player.score).toBe(1)
-      expect(u.player.currency).toBe(1)
+      expect(u.player.resources.currency).toBe(1)
     })
 
     it('rejects clicks beyond the rate limit', () => {
@@ -178,8 +178,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['double-click']).toBe(true)
-      expect(u.player.currency).toBe(0)
+      expect(u.player.upgrades['double-click']).toBe(1)
+      expect(u.player.resources.currency).toBe(0)
       expect(u.player.score).toBe(25) // score unaffected by purchase
     })
 
@@ -190,8 +190,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['auto-clicker']).toBe(false)
-      expect(u.player.currency).toBe(1)
+      expect(u.player.upgrades['auto-clicker']).toBe(0)
+      expect(u.player.resources.currency).toBe(1)
     })
 
     it('rejects a duplicate purchase', () => {
@@ -203,8 +203,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['double-click']).toBe(true)
-      expect(u.player.currency).toBe(25) // 50 − 25, not 50 − 50
+      expect(u.player.upgrades['double-click']).toBe(1)
+      expect(u.player.resources.currency).toBe(25) // 50 − 25, not 50 − 50
     })
   })
 
@@ -455,8 +455,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Default highlight=wood → wood at 2/sec, ale at 1/sec
-      expect(u.player.wood).toBeCloseTo(2, 1)
-      expect(u.player.ale).toBeCloseTo(1, 1)
+      expect(u.player.resources.wood).toBeCloseTo(2, 1)
+      expect(u.player.resources.ale).toBeCloseTo(1, 1)
     })
 
     it('score = total wood produced (highlight = wood gives 2x)', () => {
@@ -474,8 +474,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Wood at 1/sec (not highlighted), ale at 2/sec (highlighted)
-      expect(u.player.wood).toBeCloseTo(1, 1)
-      expect(u.player.ale).toBeCloseTo(2, 1)
+      expect(u.player.resources.wood).toBeCloseTo(1, 1)
+      expect(u.player.resources.ale).toBeCloseTo(2, 1)
       expect(u.player.score).toBeCloseTo(1, 1) // score = wood
     })
 
@@ -489,7 +489,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Highlighted wood → 4/sec now (1 base × 4)
-      expect(u.player.wood).toBeGreaterThan(3.5)
+      expect(u.player.resources.wood).toBeGreaterThan(3.5)
     })
 
     it('Tavern Recruits adds +1 base wood/sec', () => {
@@ -504,7 +504,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Base wood = 1 + 1 (tavern) = 2, highlighted x2 = 4/sec
-      expect(u.player.wood).toBeGreaterThan(3.5)
+      expect(u.player.resources.wood).toBeGreaterThan(3.5)
     })
 
     it('Tavern Recruits stacks: buying twice gives +2 base wood/sec', () => {
@@ -520,7 +520,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Base wood = 1 + 2 (2×TR) = 3, highlighted x2 = 6/sec
-      expect(u.player.wood).toBeGreaterThan(5.5)
+      expect(u.player.resources.wood).toBeGreaterThan(5.5)
     })
 
     it('Lumber Mill adds +2 base wood/sec', () => {
@@ -537,7 +537,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(500)
       const u = latestUpdate(ws1)
       // Base = 1 + 1(TR) + 2(LM) = 4, highlighted = 4 × 2 = 8/sec → 0.5s = 4
-      expect(u.player.wood).toBeGreaterThan(3.5)
+      expect(u.player.resources.wood).toBeGreaterThan(3.5)
     })
 
     it('cannot buy wood upgrade with ale', () => {
@@ -549,7 +549,7 @@ describe('Match', () => {
       m.handleMessage('p1', buyMsg('sharpened-axes', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['sharpened-axes']).toBe(false)
+      expect(u.player.upgrades['sharpened-axes']).toBe(0)
     })
 
     it('rejects clicks in idler mode', () => {
@@ -560,11 +560,11 @@ describe('Match', () => {
       expect(u.player.score).toBeLessThan(2)
     })
 
-    it('currency field stays 0 in idler mode', () => {
+    it('currency resource is absent in idler mode', () => {
       enterIdlerPlaying()
       vi.advanceTimersByTime(5000)
       const u = latestUpdate(ws1)
-      expect(u.player.currency).toBe(0)
+      expect(u.player.resources.currency).toBeUndefined()
     })
   })
 

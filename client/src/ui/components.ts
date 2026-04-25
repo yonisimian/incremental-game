@@ -69,7 +69,7 @@ export function renderIdlerUpgrades(state: Readonly<GameState>): string {
       const affordable = canAfford(state, u)
       const disabled = (!u.repeatable && owned) || !affordable
       const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺'
-      const count = u.repeatable ? Number(owned) || 0 : 0
+      const count = u.repeatable ? owned || 0 : 0
       const costLabel =
         !u.repeatable && owned ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`
       const hotkey = i + 1

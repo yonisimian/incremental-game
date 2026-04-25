@@ -1,5 +1,5 @@
 import { MAX_CPS } from '@game/shared'
-import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared'
+import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.
@@ -25,26 +25,21 @@ export function isValidClick(recentTimestamps: number[]): boolean {
  * Validate a purchase action.
  * Returns true if the player can afford the upgrade and doesn't already own it
  * (or can re-buy it if repeatable).
- * For idler mode, checks the correct currency (wood or ale) based on costCurrency.
  */
 export function isValidPurchase(
   state: PlayerState,
-  upgradeId: UpgradeId,
-  upgradeMap: ReadonlyMap<UpgradeId, UpgradeDefinition>,
+  upgradeId: string,
+  upgradeMap: ReadonlyMap<string, UpgradeDefinition>,
+  mode: ModeDefinition,
 ): boolean {
   const def = upgradeMap.get(upgradeId)
   if (!def) return false
 
   // One-shot upgrades can only be purchased once
-  if (!def.repeatable && state.upgrades[upgradeId]) return false
+  if (!def.repeatable && (state.upgrades[upgradeId] ?? 0) > 0) return false
 
-  // Dual-currency: check the correct balance
-  if (def.costCurrency) {
-    const balance = def.costCurrency === 'wood' ? (state.wood ?? 0) : (state.ale ?? 0)
-    return balance >= def.cost
-  }
-
-  // Clicker: uses generic currency
-  if (state.currency < def.cost) return false
-  return true
+  // Check the correct resource balance
+  const costResource = def.costCurrency ?? mode.scoreResource
+  const balance = state.resources[costResource] ?? 0
+  return balance >= def.cost
 }

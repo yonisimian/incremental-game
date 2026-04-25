@@ -54,7 +54,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
 
       <div class="upgrades-wrapper">
         <div class="upgrades-header">
-          <span class="currency-bar" id="currency-bar">💰 <span id="currency">${Math.floor(state.player.currency)}</span></span>
+          <span class="currency-bar" id="currency-bar">💰 <span id="currency">${Math.floor(state.player.resources.currency)}</span></span>
           <span class="upgrades-hotkey"><span class="btn-hotkey">C</span> buy cheapest</span>
         </div>
         <div class="upgrades" id="upgrades">
@@ -68,9 +68,9 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
 }
 
 function renderIdlerPlayingScreen(state: Readonly<GameState>): void {
-  const highlight = state.player.highlight ?? 'wood'
-  const wood = Math.floor(state.player.wood ?? 0)
-  const ale = Math.floor(state.player.ale ?? 0)
+  const highlight = (state.player.meta.highlight as string | undefined) ?? 'wood'
+  const wood = Math.floor(state.player.resources.wood)
+  const ale = Math.floor(state.player.resources.ale)
 
   app.innerHTML = `
     <div class="screen playing-screen idler-playing">
@@ -152,11 +152,11 @@ export function updatePlaying(state: Readonly<GameState>): void {
   }
 
   if (state.mode === 'idler') {
-    setText('wood-balance', String(Math.floor(state.player.wood ?? 0)))
-    setText('ale-balance', String(Math.floor(state.player.ale ?? 0)))
+    setText('wood-balance', String(Math.floor(state.player.resources.wood)))
+    setText('ale-balance', String(Math.floor(state.player.resources.ale)))
 
     // Update highlight state on currency cards
-    const highlight = state.player.highlight ?? 'wood'
+    const highlight = (state.player.meta.highlight as string | undefined) ?? 'wood'
     const woodCard = document.getElementById('card-wood')
     const aleCard = document.getElementById('card-ale')
     if (woodCard) woodCard.classList.toggle('highlighted', highlight === 'wood')
@@ -166,7 +166,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
     if (container) container.innerHTML = renderIdlerUpgrades(state)
     bindUpgradeEvents()
   } else {
-    setText('currency', String(Math.floor(state.player.currency)))
+    setText('currency', String(Math.floor(state.player.resources.currency)))
     const container = document.getElementById('upgrades')
     if (container) container.innerHTML = renderClickerUpgrades(state)
     bindUpgradeEvents()

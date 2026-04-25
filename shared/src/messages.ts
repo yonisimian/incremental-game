@@ -5,7 +5,6 @@ import type {
   PlayerAction,
   PlayerState,
   UpgradeDefinition,
-  UpgradeId,
 } from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
@@ -80,7 +79,7 @@ export interface RoundEndMessage {
   stats: {
     totalClicks: number
     peakCps: number
-    upgradesPurchased: UpgradeId[]
+    upgradesPurchased: string[]
   }
 }
 

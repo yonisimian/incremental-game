@@ -1,5 +1,4 @@
 import {
-  type CurrencyHighlight,
   type GameMode,
   type Goal,
   type PlayerState,
@@ -8,10 +7,9 @@ import {
   type ServerMessage,
   type StateUpdateMessage,
   type UpgradeDefinition,
-  type UpgradeId,
-  INITIAL_PLAYER_STATE,
   COUNTDOWN_SEC,
   MILESTONE_INTERVAL,
+  createInitialState,
   getModeDefinition,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
@@ -70,20 +68,27 @@ export interface GameState {
 interface PendingBatch {
   seq: number
   clicks: number
-  purchases: UpgradeId[]
-  highlight?: CurrencyHighlight
+  purchases: string[]
+  highlight?: string
 }
 
 export type StateChangeHandler = (state: Readonly<GameState>) => void
 
 // ─── State ───────────────────────────────────────────────────────────
 
+const EMPTY_PLAYER_STATE: PlayerState = {
+  score: 0,
+  resources: {},
+  upgrades: {},
+  meta: {},
+}
+
 const state: GameState = {
   screen: 'lobby',
   mode: null,
   goal: null,
-  player: clonePlayerState(INITIAL_PLAYER_STATE),
-  opponent: clonePlayerState(INITIAL_PLAYER_STATE),
+  player: clonePlayerState(EMPTY_PLAYER_STATE),
+  opponent: clonePlayerState(EMPTY_PLAYER_STATE),
   timeLeft: 0,
   matchId: null,
   upgrades: [],
@@ -138,12 +143,15 @@ export function selectMode(mode: GameMode, goal: Goal): void {
 /** Record a click action (optimistic). Clicker mode only. */
 export function doClick(): void {
   if (state.screen !== 'playing') return
-  if (state.mode !== 'clicker') return
+  if (!state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!modeDef.clicksEnabled) return
 
   // Optimistic local update
   const income = computeClickIncome(state.player)
   state.player.score += income
-  state.player.currency += income
+  state.player.resources[modeDef.scoreResource] =
+    (state.player.resources[modeDef.scoreResource] ?? 0) + income
 
   // Visual effects
   spawnClickPopup(income)
@@ -160,40 +168,39 @@ export function doClick(): void {
 }
 
 /** Set the highlighted currency (idler mode, optimistic). */
-export function setHighlight(target: CurrencyHighlight): void {
+export function setHighlight(target: string): void {
   if (state.screen !== 'playing') return
-  if (state.mode !== 'idler') return
-  if (state.player.highlight === target) return
+  if (!state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!('highlight' in modeDef.initialMeta)) return
+  if (!modeDef.resources.includes(target)) return
+  if (state.player.meta.highlight === target) return
 
-  state.player.highlight = target
+  state.player.meta.highlight = target
   queueAction({ type: 'set_highlight', timestamp: Date.now(), highlight: target })
   trackPendingHighlight(target)
   notify()
 }
 
 /** Attempt to purchase an upgrade (optimistic). */
-export function doBuy(upgradeId: UpgradeId): void {
+export function doBuy(upgradeId: string): void {
   if (state.screen !== 'playing') return
+  if (!state.mode) return
 
   const def = state.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
   // One-shot upgrades can only be purchased once
-  if (!def.repeatable && state.player.upgrades[upgradeId]) return
+  if (!def.repeatable && (state.player.upgrades[upgradeId] ?? 0) > 0) return
 
-  // Check correct currency
-  if (def.costCurrency === 'wood') {
-    if ((state.player.wood ?? 0) < def.cost) return
-    state.player.wood = (state.player.wood ?? 0) - def.cost
-  } else if (def.costCurrency === 'ale') {
-    if ((state.player.ale ?? 0) < def.cost) return
-    state.player.ale = (state.player.ale ?? 0) - def.cost
-  } else {
-    if (state.player.currency < def.cost) return
-    state.player.currency -= def.cost
-  }
+  // Check correct resource balance
+  const modeDef = getModeDefinition(state.mode)
+  const costResource = def.costCurrency ?? modeDef.scoreResource
+  const balance = state.player.resources[costResource] ?? 0
+  if (balance < def.cost) return
+  state.player.resources[costResource] = balance - def.cost
 
-  grantUpgrade(state.player, upgradeId, def)
+  grantUpgrade(state.player, upgradeId)
 
   // Visual effects
   flashPurchase(upgradeId)
@@ -232,8 +239,8 @@ export function resetForMatch(): void {
   state.screen = 'lobby'
   state.mode = null
   state.goal = null
-  state.player = clonePlayerState(INITIAL_PLAYER_STATE)
-  state.opponent = clonePlayerState(INITIAL_PLAYER_STATE)
+  state.player = clonePlayerState(EMPTY_PLAYER_STATE)
+  state.opponent = clonePlayerState(EMPTY_PLAYER_STATE)
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -262,8 +269,9 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.mode = msg.config.mode
   state.goal = msg.config.goal
   state.upgrades = msg.config.upgrades
-  state.player = clonePlayerState(INITIAL_PLAYER_STATE)
-  state.opponent = clonePlayerState(INITIAL_PLAYER_STATE)
+  const modeDef = getModeDefinition(msg.config.mode)
+  state.player = createInitialState(modeDef)
+  state.opponent = createInitialState(modeDef)
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.countdown = COUNTDOWN_SEC
@@ -288,38 +296,35 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 
   // Start from server state, then re-apply pending optimistic actions
   const reconciled = clonePlayerState(msg.player)
+  const modeDef = state.mode ? getModeDefinition(state.mode) : undefined
   for (const batch of pendingBatches) {
     for (let i = 0; i < batch.clicks; i++) {
       const income = computeClickIncome(reconciled)
       reconciled.score += income
-      reconciled.currency += income
+      if (modeDef) {
+        reconciled.resources[modeDef.scoreResource] =
+          (reconciled.resources[modeDef.scoreResource] ?? 0) + income
+      }
     }
     for (const uid of batch.purchases) {
       const def = state.upgrades.find((u) => u.id === uid)
       if (!def) continue
 
       // One-shot upgrades can only be applied once
-      if (!def.repeatable && reconciled.upgrades[uid]) continue
+      if (!def.repeatable && (reconciled.upgrades[uid] ?? 0) > 0) continue
 
-      // Check correct currency and apply
-      if (def.costCurrency === 'wood') {
-        if ((reconciled.wood ?? 0) >= def.cost) {
-          reconciled.wood = (reconciled.wood ?? 0) - def.cost
-          grantUpgrade(reconciled, uid, def)
-        }
-      } else if (def.costCurrency === 'ale') {
-        if ((reconciled.ale ?? 0) >= def.cost) {
-          reconciled.ale = (reconciled.ale ?? 0) - def.cost
-          grantUpgrade(reconciled, uid, def)
-        }
-      } else if (reconciled.currency >= def.cost) {
-        reconciled.currency -= def.cost
-        grantUpgrade(reconciled, uid, def)
+      // Check correct resource and apply
+      if (!modeDef) continue
+      const costResource = def.costCurrency ?? modeDef.scoreResource
+      const balance = reconciled.resources[costResource] ?? 0
+      if (balance >= def.cost) {
+        reconciled.resources[costResource] = balance - def.cost
+        grantUpgrade(reconciled, uid)
       }
     }
     // Re-apply pending highlight
     if (batch.highlight) {
-      reconciled.highlight = batch.highlight
+      reconciled.meta.highlight = batch.highlight
     }
   }
 
@@ -353,7 +358,7 @@ function trackPendingClick(): void {
   batch.clicks++
 }
 
-function trackPendingPurchase(upgradeId: UpgradeId): void {
+function trackPendingPurchase(upgradeId: string): void {
   const currentSeq = getSeq() + 1
   let batch = pendingBatches.find((b) => b.seq === currentSeq)
   if (!batch) {
@@ -363,7 +368,7 @@ function trackPendingPurchase(upgradeId: UpgradeId): void {
   batch.purchases.push(upgradeId)
 }
 
-function trackPendingHighlight(target: CurrencyHighlight): void {
+function trackPendingHighlight(target: string): void {
   const currentSeq = getSeq() + 1
   let batch = pendingBatches.find((b) => b.seq === currentSeq)
   if (!batch) {
@@ -396,14 +401,9 @@ function stopCountdown(): void {
 
 // ─── Private: helpers ────────────────────────────────────────────────
 
-/** Mark an upgrade as owned. Repeatable upgrades increment count; one-shot set to true. */
-function grantUpgrade(player: PlayerState, uid: UpgradeId, def: UpgradeDefinition): void {
-  if (def.repeatable) {
-    const prev = Number(player.upgrades[uid]) || 0
-    player.upgrades[uid] = prev + 1
-  } else {
-    player.upgrades[uid] = true
-  }
+/** Mark an upgrade as owned. Repeatable upgrades increment count; one-shot set to 1. */
+function grantUpgrade(player: PlayerState, uid: string): void {
+  player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
 }
 
 function computeClickIncome(player: PlayerState): number {
@@ -417,11 +417,9 @@ function computeClickIncome(player: PlayerState): number {
 function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
   return {
     score: s.score,
-    currency: s.currency,
+    resources: { ...s.resources },
     upgrades: { ...s.upgrades },
-    wood: s.wood,
-    ale: s.ale,
-    highlight: s.highlight,
+    meta: structuredClone(s.meta),
   }
 }
 

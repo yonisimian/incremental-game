@@ -53,15 +53,13 @@ describe('Bot', () => {
       ])
       const state = {
         score: 0,
-        currency: 0,
+        resources: { currency: 0 },
         upgrades: {
-          'auto-clicker': false,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
-          'tavern-recruits': 0,
+          'auto-clicker': 0,
+          'double-click': 0,
+          multiplier: 0,
         },
+        meta: {},
       }
       const actions = bot.decide(state, 0.25)
       const clicks = actions.filter((a) => a.type === 'click')
@@ -75,15 +73,13 @@ describe('Bot', () => {
       ])
       const state = {
         score: 0,
-        currency: 15,
+        resources: { currency: 15 },
         upgrades: {
-          'auto-clicker': false,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
-          'tavern-recruits': 0,
+          'auto-clicker': 0,
+          'double-click': 0,
+          multiplier: 0,
         },
+        meta: {},
       }
       const actions = bot.decide(state, 0.25)
       const buys = actions.filter((a) => a.type === 'buy')
@@ -97,15 +93,13 @@ describe('Bot', () => {
       ])
       const state = {
         score: 0,
-        currency: 100,
+        resources: { currency: 100 },
         upgrades: {
-          'auto-clicker': true,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
-          'tavern-recruits': 0,
+          'auto-clicker': 1,
+          'double-click': 0,
+          multiplier: 0,
         },
+        meta: {},
       }
       const actions = bot.decide(state, 0.25)
       const buys = actions.filter((a) => a.type === 'buy')
@@ -119,15 +113,13 @@ describe('Bot', () => {
       ])
       const state = {
         score: 0,
-        currency: 999,
+        resources: { currency: 999 },
         upgrades: {
-          'auto-clicker': true,
-          'double-click': true,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
-          'tavern-recruits': 0,
+          'auto-clicker': 1,
+          'double-click': 1,
+          multiplier: 0,
         },
+        meta: {},
       }
       const actions = bot.decide(state, 0.25)
       expect(actions.every((a) => a.type === 'click')).toBe(true)
@@ -165,16 +157,11 @@ describe('Bot', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        currency: 0,
-        wood: 0,
-        ale: 0,
-        highlight: 'wood' as const,
+        resources: { wood: 0, ale: 0 },
+        meta: { highlight: 'wood' as const },
         upgrades: {
-          'auto-clicker': false,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
+          'sharpened-axes': 0,
+          'lumber-mill': 0,
           'tavern-recruits': 0,
         },
       }
@@ -187,16 +174,11 @@ describe('Bot', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        currency: 0,
-        wood: 0,
-        ale: 0,
-        highlight: 'ale' as const,
+        resources: { wood: 0, ale: 0 },
+        meta: { highlight: 'ale' as const },
         upgrades: {
-          'auto-clicker': false,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
+          'sharpened-axes': 0,
+          'lumber-mill': 0,
           'tavern-recruits': 0,
         },
       }
@@ -205,7 +187,7 @@ describe('Bot', () => {
       expect(actions.filter((a) => a.type === 'buy')).toHaveLength(0)
 
       // Now with enough ale
-      state.ale = 15
+      state.resources.ale = 15
       actions = bot.decide(state)
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'tavern-recruits' })
     })
@@ -214,16 +196,11 @@ describe('Bot', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        currency: 0,
-        wood: 200,
-        ale: 200,
-        highlight: 'ale' as const,
+        resources: { wood: 200, ale: 200 },
+        meta: { highlight: 'ale' as const },
         upgrades: {
-          'auto-clicker': false,
-          'double-click': false,
-          multiplier: false,
-          'sharpened-axes': false,
-          'lumber-mill': false,
+          'sharpened-axes': 0,
+          'lumber-mill': 0,
           'tavern-recruits': 0,
         },
       }

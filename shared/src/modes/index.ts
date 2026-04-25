@@ -2,7 +2,7 @@ import type { Modifier } from '../modifiers/types.js'
 import type { GameMode, Goal, PlayerState } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
-import { idlerMode, collectIdlerDynamic } from './idler.js'
+import { idlerMode } from './idler.js'
 
 // ─── Registry ────────────────────────────────────────────────────────
 
@@ -23,19 +23,15 @@ export function getDefaultGoal(mode: GameMode): Goal {
 
 // ─── Initial State ───────────────────────────────────────────────────
 
-/** Initial player state at the start of each round. */
-export const INITIAL_PLAYER_STATE = {
-  score: 0,
-  currency: 0,
-  upgrades: {
-    'auto-clicker': false,
-    'double-click': false,
-    multiplier: false,
-    'sharpened-axes': false,
-    'lumber-mill': false,
-    'tavern-recruits': 0,
-  },
-} as const satisfies PlayerState
+/** Create a fresh player state for a given mode. */
+export function createInitialState(mode: ModeDefinition): PlayerState {
+  return {
+    score: 0,
+    resources: { ...mode.initialResources },
+    upgrades: Object.fromEntries(mode.upgrades.map((u) => [u.id, 0])),
+    meta: structuredClone(mode.initialMeta),
+  }
+}
 
 // ─── Modifier Collection ─────────────────────────────────────────────
 
@@ -51,36 +47,45 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
 
   // Upgrade modifiers
   for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id]
-    if (!owned) continue
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned <= 0) continue
 
     if (upgrade.repeatable) {
       // Repeatable: scale modifier values by the owned count
-      const count = Number(owned) || 0
-      if (count <= 0) continue
       for (const mod of upgrade.modifiers) {
-        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * count })
+        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * owned })
       }
     } else {
-      // Boolean upgrade: emit modifiers as-is
+      // One-shot upgrade: emit modifiers as-is
       modifiers.push(...upgrade.modifiers)
     }
   }
 
-  // Dynamic (state-derived) modifiers — mode-specific
-  if (mode === idlerMode) {
-    modifiers.push(...collectIdlerDynamic(state))
+  // Dynamic (state-derived) modifiers — mode-specific hook
+  if (mode.collectDynamic) {
+    modifiers.push(...mode.collectDynamic(state))
   }
 
   return modifiers
 }
 
-// ─── Backward-Compat Re-exports ──────────────────────────────────────
+// ─── Purchase ────────────────────────────────────────────────────────
 
-/** Clicker upgrade definitions (convenience alias for tests / existing code). */
-export const CLICKER_UPGRADES = clickerMode.upgrades
+/**
+ * Apply an upgrade purchase to the player state.
+ * Deducts the cost from the correct resource and grants the upgrade.
+ * Mutates `state` in place.
+ *
+ * Callers are responsible for validating that the purchase is legal.
+ */
+export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeDefinition): void {
+  const def = mode.upgrades.find((u) => u.id === upgradeId)
+  if (!def) return
 
-/** Idler upgrade definitions (convenience alias for tests / existing code). */
-export const IDLER_UPGRADES = idlerMode.upgrades
+  // Deduct from correct resource
+  const costResource = def.costCurrency ?? mode.scoreResource
+  state.resources[costResource] = (state.resources[costResource] ?? 0) - def.cost
 
-export { applyIdlerPurchase } from './idler.js'
+  // Grant upgrade
+  state.upgrades[upgradeId] = (state.upgrades[upgradeId] ?? 0) + 1
+}

@@ -10,6 +10,8 @@ export const clickerMode: ModeDefinition = {
   resources: ['currency'],
   scoreResource: 'currency',
   clicksEnabled: true,
+  initialResources: { currency: 0 },
+  initialMeta: {},
   nativeModifiers: [
     { stage: 'additive', field: 'clickIncome', value: 1 }, // base 1 per click
   ],

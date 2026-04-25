@@ -3,25 +3,13 @@ import type { Modifier } from './modifiers/types.js'
 /** Available game modes. */
 export type GameMode = 'clicker' | 'idler'
 
-/** Which currency is currently highlighted (idler mode). */
-export type CurrencyHighlight = 'wood' | 'ale'
-
-/** Identifiers for all upgrades in the game. */
-export type UpgradeId =
-  | 'auto-clicker'
-  | 'double-click'
-  | 'multiplier'
-  | 'sharpened-axes'
-  | 'lumber-mill'
-  | 'tavern-recruits'
-
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {
-  readonly id: UpgradeId
+  readonly id: string
   readonly name: string
   readonly cost: number
-  /** Which currency pays for this upgrade. Absent for clicker upgrades. */
-  readonly costCurrency?: CurrencyHighlight
+  /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
+  readonly costCurrency?: string
   readonly description: string
   /** If true, the upgrade can be purchased multiple times. */
   readonly repeatable?: boolean
@@ -29,27 +17,16 @@ export interface UpgradeDefinition {
   readonly modifiers: readonly Modifier[]
 }
 
-/**
- * Set of upgrades a player currently owns.
- * One-shot upgrades are `boolean` (true = owned).
- * Repeatable upgrades are `number` (buy count, 0 = not owned).
- */
-export type OwnedUpgrades = Record<UpgradeId, boolean | number>
-
 /** Full state of a single player within a match. */
 export interface PlayerState {
-  /** Total score. In clicker = total currency earned. In idler = total wood produced. */
+  /** Total score. */
   score: number
-  /** Spendable resource (clicker mode only). Stays 0 in idler. */
-  currency: number
-  /** Which upgrades the player owns. */
-  upgrades: OwnedUpgrades
-  /** 🪵 Wood balance (idler mode). */
-  wood?: number
-  /** 🍺 Ale balance (idler mode). */
-  ale?: number
-  /** Currently highlighted currency (idler mode). */
-  highlight?: CurrencyHighlight
+  /** Spendable resources, keyed by resource name. */
+  resources: Record<string, number>
+  /** Owned upgrades. 0 = not owned, 1 = one-shot owned, n = repeatable buy count. */
+  upgrades: Record<string, number>
+  /** Mode-specific metadata (e.g., idler highlight). */
+  meta: Record<string, unknown>
 }
 
 /** Possible action types a client can send. */
@@ -61,9 +38,9 @@ export interface PlayerAction {
   /** Unix timestamp (ms) when the action occurred on the client. */
   timestamp: number
   /** For 'buy' actions: the upgrade to purchase. Undefined for 'click'. */
-  upgradeId?: UpgradeId
-  /** For 'set_highlight' actions: which currency to highlight. */
-  highlight?: CurrencyHighlight
+  upgradeId?: string
+  /** For 'set_highlight' actions: which resource to highlight. */
+  highlight?: string
 }
 
 // ─── Goal / Win Condition ────────────────────────────────────────────

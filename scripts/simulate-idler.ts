@@ -10,15 +10,14 @@
  */
 
 import {
-  IDLER_UPGRADES,
-  INITIAL_PLAYER_STATE,
   TICK_INTERVAL_MS,
-  applyIdlerPurchase,
   applyPassiveTick,
+  applyPurchase,
   collectModifiers,
+  createInitialState,
   getModeDefinition,
 } from '@game/shared'
-import type { CurrencyHighlight, PlayerState, UpgradeId } from '@game/shared'
+import type { PlayerState } from '@game/shared'
 
 const idlerDef = getModeDefinition('idler')
 
@@ -26,8 +25,8 @@ const idlerDef = getModeDefinition('idler')
 
 interface StrategyAction {
   type: 'buy' | 'set_highlight'
-  upgradeId?: UpgradeId
-  highlight?: CurrencyHighlight
+  upgradeId?: string
+  highlight?: string
 }
 
 interface Strategy {
@@ -37,19 +36,19 @@ interface Strategy {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-const buy = (upgradeId: UpgradeId): StrategyAction => ({
+const buy = (upgradeId: string): StrategyAction => ({
   type: 'buy',
   upgradeId,
 })
 
-const highlight = (h: CurrencyHighlight): StrategyAction => ({
+const highlight = (h: string): StrategyAction => ({
   type: 'set_highlight',
   highlight: h,
 })
 
 // ─── Upgrade lookup (for affordability checks) ──────────────────────
 
-const upgradeMap = new Map(IDLER_UPGRADES.map((u) => [u.id, u]))
+const upgradeMap = new Map(idlerDef.upgrades.map((u) => [u.id, u]))
 
 // ─── Strategies ──────────────────────────────────────────────────────
 // With repeatable TR, key decision is how many TRs to stack before
@@ -177,15 +176,8 @@ interface SimResult {
   lastPurchaseSec: number
 }
 
-function createInitialState(): PlayerState {
-  return {
-    score: INITIAL_PLAYER_STATE.score,
-    currency: INITIAL_PLAYER_STATE.currency,
-    upgrades: { ...INITIAL_PLAYER_STATE.upgrades },
-    wood: 0,
-    ale: 0,
-    highlight: 'wood',
-  }
+function createLocalInitialState(): PlayerState {
+  return createInitialState(idlerDef)
 }
 
 function isActionImmediate(action: StrategyAction): boolean {
@@ -197,23 +189,22 @@ function canAfford(state: PlayerState, action: StrategyAction): boolean {
   if (action.type === 'buy' && action.upgradeId) {
     const def = upgradeMap.get(action.upgradeId)
     if (!def) return false
-    if (def.costCurrency === 'wood') return (state.wood ?? 0) >= def.cost
-    if (def.costCurrency === 'ale') return (state.ale ?? 0) >= def.cost
-    return state.currency >= def.cost
+    const costResource = def.costCurrency ?? idlerDef.scoreResource
+    return (state.resources[costResource] ?? 0) >= def.cost
   }
   return false
 }
 
 function executeAction(state: PlayerState, action: StrategyAction): void {
   if (action.type === 'set_highlight' && action.highlight) {
-    state.highlight = action.highlight
+    state.meta['highlight'] = action.highlight
   } else if (action.type === 'buy' && action.upgradeId) {
-    applyIdlerPurchase(state, action.upgradeId)
+    applyPurchase(state, action.upgradeId, idlerDef)
   }
 }
 
 function simulate(strategy: Strategy): SimResult {
-  const state = createInitialState()
+  const state = createLocalInitialState()
   const timedGoal = idlerDef.goals.find((g) => g.type === 'timed')
   const roundDurationSec = timedGoal && timedGoal.type === 'timed' ? timedGoal.durationSec : 35
   const tickSec = TICK_INTERVAL_MS / 1000

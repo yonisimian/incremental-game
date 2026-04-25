@@ -3,7 +3,6 @@
  * No canvas, no libraries; just DOM elements + WAAPI.
  */
 
-import type { UpgradeId } from '@game/shared'
 import { hasDom, getLayer } from './shared.js'
 
 // Re-export shared utilities used by external consumers
@@ -106,7 +105,7 @@ export function pulseClickButton(): void {
 /**
  * Flash + glow on the purchased upgrade button, then a brief screen shake.
  */
-export function flashPurchase(upgradeId: UpgradeId): void {
+export function flashPurchase(upgradeId: string): void {
   if (!hasDom()) return
   const btn = document.querySelector<HTMLButtonElement>(`.upgrade-btn[data-upgrade="${upgradeId}"]`)
   if (!btn) return

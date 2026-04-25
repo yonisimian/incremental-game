@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isValidClick, isValidPurchase } from '../src/validation.js'
-import { MAX_CPS, CLICKER_UPGRADES } from '@game/shared'
-import type { PlayerState, UpgradeDefinition, UpgradeId } from '@game/shared'
+import { MAX_CPS, getModeDefinition } from '@game/shared'
+import type { PlayerState, UpgradeDefinition } from '@game/shared'
 
 // ─── isValidClick ────────────────────────────────────────────────────
 
@@ -55,61 +55,88 @@ describe('isValidClick', () => {
 
 // ─── isValidPurchase ─────────────────────────────────────────────────
 
-const testUpgradeMap = new Map<UpgradeId, UpgradeDefinition>(CLICKER_UPGRADES.map((u) => [u.id, u]))
+const clickerDef = getModeDefinition('clicker')
+const testUpgradeMap = new Map<string, UpgradeDefinition>(clickerDef.upgrades.map((u) => [u.id, u]))
 
 describe('isValidPurchase', () => {
   function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
       score: 0,
-      currency: 50,
+      resources: { currency: 50 },
       upgrades: {
-        'auto-clicker': false,
-        'double-click': false,
-        multiplier: false,
-        'sharpened-axes': false,
-        'lumber-mill': false,
-        'tavern-recruits': 0,
+        'auto-clicker': 0,
+        'double-click': 0,
+        multiplier: 0,
       },
+      meta: {},
       ...overrides,
     }
   }
 
   it('accepts a valid purchase', () => {
-    expect(isValidPurchase(makeState({ currency: 10 }), 'auto-clicker', testUpgradeMap)).toBe(true)
+    expect(
+      isValidPurchase(
+        makeState({ resources: { currency: 10 } }),
+        'auto-clicker',
+        testUpgradeMap,
+        clickerDef,
+      ),
+    ).toBe(true)
   })
 
   it('accepts at exact cost', () => {
-    expect(isValidPurchase(makeState({ currency: 25 }), 'double-click', testUpgradeMap)).toBe(true)
+    expect(
+      isValidPurchase(
+        makeState({ resources: { currency: 25 } }),
+        'double-click',
+        testUpgradeMap,
+        clickerDef,
+      ),
+    ).toBe(true)
   })
 
   it('rejects if already owned', () => {
     const state = makeState({
-      currency: 100,
+      resources: { currency: 100 },
       upgrades: {
-        'auto-clicker': true,
-        'double-click': false,
-        multiplier: false,
-        'sharpened-axes': false,
-        'lumber-mill': false,
-        'tavern-recruits': 0,
+        'auto-clicker': 1,
+        'double-click': 0,
+        multiplier: 0,
       },
     })
-    expect(isValidPurchase(state, 'auto-clicker', testUpgradeMap)).toBe(false)
+    expect(isValidPurchase(state, 'auto-clicker', testUpgradeMap, clickerDef)).toBe(false)
   })
 
   it('rejects if too expensive', () => {
-    expect(isValidPurchase(makeState({ currency: 9 }), 'auto-clicker', testUpgradeMap)).toBe(false)
+    expect(
+      isValidPurchase(
+        makeState({ resources: { currency: 9 } }),
+        'auto-clicker',
+        testUpgradeMap,
+        clickerDef,
+      ),
+    ).toBe(false)
   })
 
   it('rejects an unknown upgrade ID', () => {
-    expect(isValidPurchase(makeState({ currency: 9999 }), 'bogus' as any, testUpgradeMap)).toBe(
-      false,
-    )
+    expect(
+      isValidPurchase(
+        makeState({ resources: { currency: 9999 } }),
+        'bogus',
+        testUpgradeMap,
+        clickerDef,
+      ),
+    ).toBe(false)
   })
 
   it('rejects a cross-mode upgrade not in the map', () => {
-    expect(isValidPurchase(makeState({ currency: 9999 }), 'sharpened-axes', testUpgradeMap)).toBe(
-      false,
-    )
+    expect(
+      isValidPurchase(
+        makeState({ resources: { currency: 9999 } }),
+        'sharpened-axes',
+        testUpgradeMap,
+        clickerDef,
+      ),
+    ).toBe(false)
   })
 })
