@@ -7,6 +7,14 @@
 - [ ] Set up Dependabot for monthly automated dependency PRs
 - [ ] Add a README.md file
 
+## Bugs
+
+- [ ] UI: clicker button gets clipped from above when expanded on each click
+
 ## Features
 
 - [ ] Auto-generators (clicker + idle modes)
+- [ ] Hotkeys for auto-generators
+- [ ] Bot: teach bot to buy generators
+- [ ] Visual feedback on generator purchase
+- [ ] Unit tests for generator cost/purchase logic

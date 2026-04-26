@@ -14,6 +14,23 @@ import {
 
 // ─── Render ──────────────────────────────────────────────────────────
 
+/** Resource bar shown in the header, visible across all tabs. */
+function renderResourceBar(state: Readonly<GameState>): string {
+  if (state.mode === 'idler') {
+    return `
+      <div class="resource-bar" id="resource-bar">
+        <span class="resource-item">🪵 <span id="header-wood">${Math.floor(state.player.resources.wood)}</span></span>
+        <span class="resource-item">🍺 <span id="header-ale">${Math.floor(state.player.resources.ale)}</span></span>
+      </div>
+    `
+  }
+  return `
+    <div class="resource-bar" id="resource-bar">
+      <span class="resource-item gold">💰 <span id="header-currency">${Math.floor(state.player.resources.currency)}</span></span>
+    </div>
+  `
+}
+
 /** Shared scoreboard HTML for both modes. */
 function renderScoreboard(state: Readonly<GameState>): string {
   if (state.goal?.type === 'target-score') return ''
@@ -45,6 +62,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
           ${renderProgressBars(state)}
         </header>
         ${renderScoreboard(state)}
+        ${renderResourceBar(state)}
       </div>
 
       ${renderTabGrid()}
@@ -80,6 +98,14 @@ export function updatePlaying(state: Readonly<GameState>): void {
     setText('player-score', formatScore(state.player.score, state))
     setText('opponent-score', formatScore(state.opponent.score, state))
     if (scoreChanged) bumpScore('player-score')
+  }
+
+  // Update resource bar (visible across all tabs)
+  if (state.mode === 'idler') {
+    setText('header-wood', String(Math.floor(state.player.resources.wood)))
+    setText('header-ale', String(Math.floor(state.player.resources.ale)))
+  } else {
+    setText('header-currency', String(Math.floor(state.player.resources.currency)))
   }
 
   // Delegate panel-specific updates to the active panel

@@ -553,13 +553,20 @@ body {
   font-weight: 600;
 }
 
-/* Currency */
+/* Resource bar (header) */
 
-.currency-bar {
-  font-size: 0.75rem;
-  color: var(--gold);
+.resource-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+}
+
+.resource-item.gold {
+  color: var(--gold);
 }
 
 /* Tab Grid */
@@ -693,7 +700,7 @@ body {
 
 .upgrades-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 0.3rem;
 }

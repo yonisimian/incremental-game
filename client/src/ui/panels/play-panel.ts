@@ -30,7 +30,6 @@ function renderClickerContent(state: Readonly<GameState>): string {
 
     <div class="upgrades-wrapper">
       <div class="upgrades-header">
-        <span class="currency-bar" id="currency-bar">💰 <span id="currency">${Math.floor(state.player.resources.currency)}</span></span>
         <span class="upgrades-hotkey"><span class="btn-hotkey" aria-hidden="true">C</span> buy cheapest</span>
       </div>
       <div class="upgrades" id="upgrades">
@@ -62,7 +61,6 @@ function renderIdlerContent(state: Readonly<GameState>): string {
 
     <div class="upgrades-wrapper">
       <div class="upgrades-header">
-        <span></span>
         <span class="upgrades-hotkey"><span class="btn-hotkey" aria-hidden="true">C</span> buy cheapest</span>
       </div>
       <div class="upgrades" id="upgrades">
@@ -112,7 +110,6 @@ export const playPanel: Panel = {
 
       updateUpgradesIfDirty(renderIdlerUpgrades(state))
     } else {
-      setText('currency', String(Math.floor(state.player.resources.currency)))
       updateUpgradesIfDirty(renderClickerUpgrades(state))
     }
   },
