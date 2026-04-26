@@ -49,12 +49,15 @@ export function updateProgressBar(id: string, score: number, target: number): vo
   if (el) el.style.width = `${Math.min(100, (score / target) * 100)}%`
 }
 
-/** Bind click handlers on all .upgrade-btn elements. */
+/** Bind click handler via event delegation on #upgrades container. */
 export function bindUpgradeEvents(): void {
-  document.querySelectorAll<HTMLButtonElement>('.upgrade-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const uid = btn.dataset.upgrade
-      if (uid) doBuy(uid)
-    })
+  const container = document.getElementById('upgrades')
+  if (!container || container.dataset.delegated) return
+  container.dataset.delegated = 'true'
+  container.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.upgrade-btn')
+    if (!btn) return
+    const uid = btn.dataset.upgrade
+    if (uid) doBuy(uid)
   })
 }

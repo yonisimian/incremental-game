@@ -8,6 +8,13 @@
   padding: 0;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 :root {
   --bg: #0f172a;
   --surface: #1e293b;
@@ -375,8 +382,22 @@ body {
 
 /* ─── Playing ──────────────────────────────────────────────────────── */
 
+/* 4rem = #app padding (1rem × 2) + breathing room (2rem) */
 .playing-screen {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: stretch;
   gap: 1rem;
+  height: calc(100dvh - 4rem);
+}
+
+.playing-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  text-align: center;
 }
 
 .game-header {
@@ -541,11 +562,93 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Tab Grid */
+
+.tab-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 0.35rem;
+  width: 100%;
+  max-width: min(320px, 100%);
+  justify-self: center;
+  align-self: end;
+  grid-row: 3;
+  padding-bottom: env(safe-area-inset-bottom, 0.25rem);
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.4rem;
+  font-size: 1.2rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.tab-btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.tab-btn:hover:not(.locked) {
+  border-color: var(--text-dim);
+}
+
+.tab-btn.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+}
+
+.tab-btn.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Panel Container */
+
+.panel-container {
+  width: 100%;
+  min-height: 0;
+  padding: 0.75rem 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  grid-row: 2;
+}
+
+.panel-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.panel-placeholder .placeholder-icon {
+  font-size: 2rem;
+}
+
 /* Click button */
 
 .click-button {
   width: 160px;
-  height: 160px;
+  min-width: 80px;
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 3px solid var(--accent);
   background: var(--surface);
@@ -554,8 +657,8 @@ body {
   font-weight: 700;
   cursor: pointer;
   transition:
-    transform 0.08s,
-    background 0.15s;
+    background 0.15s,
+    color 0.15s;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;

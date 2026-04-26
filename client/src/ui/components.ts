@@ -55,7 +55,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${owned ? '✓' : `$${u.cost}`}</span>
           <span class="upgrade-desc">${u.description}</span>
-          <span class="upgrade-hotkey">${hotkey}</span>
+          <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
         </button>
       `
     })
@@ -82,7 +82,7 @@ export function renderIdlerUpgrades(state: Readonly<GameState>): string {
           <span class="upgrade-name">${u.name}</span>
           <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${u.description}</span>
-          <span class="upgrade-hotkey">${hotkey}</span>
+          <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
         </button>
       `
     })

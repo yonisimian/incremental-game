@@ -13,19 +13,29 @@ export function initHotkeys(): void {
     const state = getState()
     if (state.screen !== 'playing') return
 
-    // Space — click (clicker mode)
+    // Don't intercept keystrokes while typing in an input
+    const target = e.target as HTMLElement
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      return
+
+    // Let the tab grid handle its own keyboard events (Space activates tab, arrows navigate)
+    const inTabGrid = target.closest('#tab-grid') !== null
+
+    // Space — click (clicker mode), unless focus is inside the tab grid
     if (e.key === ' ' || e.code === 'Space') {
+      if (inTabGrid || state.mode !== 'clicker') return
       e.preventDefault() // prevent page scroll
       handledByHotkey = true
       setTimeout(() => {
         handledByHotkey = false
-      }, 10)
+      }, 200)
       doClick()
       return
     }
 
-    // Tab — toggle highlight (idler mode)
+    // Tab — toggle highlight (idler mode), unless focus is inside the tab grid
     if (e.key === 'Tab') {
+      if (inTabGrid || state.mode !== 'idler') return // allow natural focus movement
       e.preventDefault() // prevent focus shift
       const current = (state.player.meta.highlight as string | undefined) ?? 'wood'
       setHighlight(current === 'wood' ? 'ale' : 'wood')
