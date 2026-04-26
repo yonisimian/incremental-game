@@ -13,6 +13,8 @@ import {
   getModeDefinition,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
+  canAffordGenerator,
+  applyGeneratorPurchase,
 } from '@game/shared'
 import {
   getSeq,
@@ -69,6 +71,7 @@ interface PendingBatch {
   seq: number
   clicks: number
   purchases: string[]
+  generatorPurchases: string[]
   highlight?: string
 }
 
@@ -80,6 +83,7 @@ const EMPTY_PLAYER_STATE: PlayerState = {
   score: 0,
   resources: {},
   upgrades: {},
+  generators: {},
   meta: {},
 }
 
@@ -212,6 +216,19 @@ export function doBuy(upgradeId: string): void {
   notify()
 }
 
+/** Attempt to purchase a generator (optimistic). */
+export function doBuyGenerator(generatorId: string): void {
+  if (state.screen !== 'playing' || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  const def = modeDef.generators.find((g) => g.id === generatorId)
+  if (!def) return
+  if (!canAffordGenerator(state.player, def)) return
+  applyGeneratorPurchase(state.player, generatorId, modeDef)
+  queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
+  trackPendingGeneratorPurchase(generatorId)
+  notify()
+}
+
 /** Cancel matchmaking queue and return to lobby. */
 export function cancelQueue(): void {
   if (state.screen !== 'waiting') return
@@ -326,6 +343,14 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
     if (batch.highlight) {
       reconciled.meta.highlight = batch.highlight
     }
+    // Re-apply pending generator purchases
+    for (const gid of batch.generatorPurchases) {
+      if (!modeDef) continue
+      const gdef = modeDef.generators.find((g) => g.id === gid)
+      if (!gdef) continue
+      if (!canAffordGenerator(reconciled, gdef)) continue
+      applyGeneratorPurchase(reconciled, gid, modeDef)
+    }
   }
 
   state.player = reconciled
@@ -352,7 +377,7 @@ function getOrCreateBatch(): PendingBatch {
   const targetSeq = getSeq() + 1
   let batch = pendingBatches.find((b) => b.seq === targetSeq)
   if (!batch) {
-    batch = { seq: targetSeq, clicks: 0, purchases: [] }
+    batch = { seq: targetSeq, clicks: 0, purchases: [], generatorPurchases: [] }
     pendingBatches.push(batch)
   }
   return batch
@@ -368,6 +393,10 @@ function trackPendingPurchase(upgradeId: string): void {
 
 function trackPendingHighlight(target: string): void {
   getOrCreateBatch().highlight = target
+}
+
+function trackPendingGeneratorPurchase(generatorId: string): void {
+  getOrCreateBatch().generatorPurchases.push(generatorId)
 }
 
 // ─── Private: countdown ──────────────────────────────────────────────
@@ -411,6 +440,7 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     score: s.score,
     resources: { ...s.resources },
     upgrades: { ...s.upgrades },
+    generators: { ...s.generators },
     meta: structuredClone(s.meta),
   }
 }

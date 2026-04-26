@@ -72,6 +72,7 @@ export const idlerMode: ModeDefinition = {
     { stage: 'additive', field: 'ale', value: 1 }, // base 1 ale/s
   ],
   upgrades: idlerUpgrades,
+  generators: [],
   goals: [
     { type: 'timed', durationSec: IDLER_ROUND_DURATION_SEC },
     {

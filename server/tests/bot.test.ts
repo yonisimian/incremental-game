@@ -42,6 +42,7 @@ describe('Bot', () => {
           'double-click': 0,
           multiplier: 0,
         },
+        generators: {},
         meta: {},
       }
       const actions = bot.decide(state, 0.25)
@@ -65,6 +66,7 @@ describe('Bot', () => {
           'double-click': 0,
           multiplier: 0,
         },
+        generators: {},
         meta: {},
       }
       const actions = bot.decide(state, 0.25)
@@ -86,6 +88,7 @@ describe('Bot', () => {
           'double-click': 0,
           multiplier: 0,
         },
+        generators: {},
         meta: {},
       }
       const actions = bot.decide(state, 0.25)
@@ -109,6 +112,7 @@ describe('Bot', () => {
           'double-click': 1,
           multiplier: 0,
         },
+        generators: {},
         meta: {},
       }
       const actions = bot.decide(state, 0.25)
@@ -151,6 +155,7 @@ describe('Bot', () => {
       const state = {
         score: 0,
         resources: { wood: 0, ale: 0 },
+        generators: {},
         meta: { highlight: 'wood' as const },
         upgrades: {
           'sharpened-axes': 0,
@@ -168,6 +173,7 @@ describe('Bot', () => {
       const state = {
         score: 0,
         resources: { wood: 0, ale: 0 },
+        generators: {},
         meta: { highlight: 'ale' as const },
         upgrades: {
           'sharpened-axes': 0,
@@ -190,6 +196,7 @@ describe('Bot', () => {
       const state = {
         score: 0,
         resources: { wood: 200, ale: 200 },
+        generators: {},
         meta: { highlight: 'ale' as const },
         upgrades: {
           'sharpened-axes': 0,

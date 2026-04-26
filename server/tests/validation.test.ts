@@ -68,6 +68,7 @@ describe('isValidPurchase', () => {
         'double-click': 0,
         multiplier: 0,
       },
+      generators: {},
       meta: {},
       ...overrides,
     }

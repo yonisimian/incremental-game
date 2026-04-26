@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { Goal, PlayerState, UpgradeDefinition } from '../types.js'
+import type { Goal, GeneratorDefinition, PlayerState, UpgradeDefinition } from '../types.js'
 
 /** Full definition of a game mode — replaces ModeConfig. */
 export interface ModeDefinition {
@@ -19,6 +19,8 @@ export interface ModeDefinition {
   readonly initialResources: Readonly<Record<string, number>>
   /** Starting mode-specific metadata (e.g., idler highlight). */
   readonly initialMeta: Readonly<Record<string, unknown>>
+  /** Generator buildings available in this mode (may be empty). */
+  readonly generators: readonly GeneratorDefinition[]
   /** Optional: collect dynamic (state-derived) modifiers. */
   readonly collectDynamic?: (state: Readonly<PlayerState>) => Modifier[]
 }

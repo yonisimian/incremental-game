@@ -1,9 +1,44 @@
+import type { GeneratorDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import {
   CLICKER_TARGET_SCORE,
   ROUND_DURATION_SEC,
   TARGET_SCORE_SAFETY_CAP_SEC,
 } from '../game-config.js'
+
+// ─── Generators ─────────────────────────────────────────────────────────────
+
+const clickerGenerators: readonly GeneratorDefinition[] = [
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    icon: '🖱️',
+    baseCost: 15,
+    costScaling: 1.15,
+    costCurrency: 'currency',
+    production: { resource: 'currency', rate: 0.5 },
+  },
+  {
+    id: 'intern',
+    name: 'Intern',
+    icon: '👨‍💼',
+    baseCost: 100,
+    costScaling: 1.15,
+    costCurrency: 'currency',
+    production: { resource: 'currency', rate: 3 },
+  },
+  {
+    id: 'factory',
+    name: 'Factory',
+    icon: '🏭',
+    baseCost: 500,
+    costScaling: 1.15,
+    costCurrency: 'currency',
+    production: { resource: 'currency', rate: 15 },
+  },
+]
+
+// ─── Mode Definition ─────────────────────────────────────────────────────────
 
 /** Clicker mode definition — click fast, buy upgrades, outscore your opponent. */
 export const clickerMode: ModeDefinition = {
@@ -41,6 +76,7 @@ export const clickerMode: ModeDefinition = {
       ],
     },
   ],
+  generators: clickerGenerators,
   goals: [
     { type: 'timed', durationSec: ROUND_DURATION_SEC },
     {

@@ -796,6 +796,80 @@ body {
   }
 }
 
+/* Generators Panel */
+
+.generator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.generator-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.generator-card:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.generator-card:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.generator-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.generator-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.generator-name {
+  font-weight: 600;
+}
+
+.generator-rate {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.generator-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.generator-cost {
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.generator-count {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ─── End Screen ───────────────────────────────────────────────────── */
 
 .end-screen {

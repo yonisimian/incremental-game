@@ -1,5 +1,10 @@
-import { MAX_CPS } from '@game/shared'
-import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
+import { MAX_CPS, canAffordGenerator } from '@game/shared'
+import type {
+  GeneratorDefinition,
+  ModeDefinition,
+  PlayerState,
+  UpgradeDefinition,
+} from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.
@@ -42,4 +47,18 @@ export function isValidPurchase(
   const costResource = def.costCurrency ?? mode.scoreResource
   const balance = state.resources[costResource] ?? 0
   return balance >= def.cost
+}
+
+/**
+ * Validate a generator purchase.
+ * Returns true if the generator exists and the player can afford the next copy.
+ */
+export function isValidGeneratorPurchase(
+  state: PlayerState,
+  generatorId: string,
+  generatorMap: ReadonlyMap<string, GeneratorDefinition>,
+): boolean {
+  const def = generatorMap.get(generatorId)
+  if (!def) return false
+  return canAffordGenerator(state, def)
 }

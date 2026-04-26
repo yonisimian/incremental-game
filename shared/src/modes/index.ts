@@ -29,6 +29,7 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
     score: 0,
     resources: { ...mode.initialResources },
     upgrades: Object.fromEntries(mode.upgrades.map((u) => [u.id, 0])),
+    generators: Object.fromEntries(mode.generators.map((g) => [g.id, 0])),
     meta: structuredClone(mode.initialMeta),
   }
 }
@@ -64,6 +65,17 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   // Dynamic (state-derived) modifiers — mode-specific hook
   if (mode.collectDynamic) {
     modifiers.push(...mode.collectDynamic(state))
+  }
+
+  // Generator modifiers
+  for (const gen of mode.generators) {
+    const owned = state.generators[gen.id] ?? 0
+    if (owned <= 0) continue
+    modifiers.push({
+      stage: 'additive',
+      field: gen.production.resource,
+      value: gen.production.rate * owned,
+    })
   }
 
   return modifiers

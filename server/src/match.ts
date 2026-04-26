@@ -11,6 +11,7 @@ import {
   computeClickIncome,
   applyPassiveTick,
   applyPurchase,
+  applyGeneratorPurchase,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -23,8 +24,9 @@ import type {
   RoundEndReason,
   ServerMessage,
   UpgradeDefinition,
+  GeneratorDefinition,
 } from '@game/shared'
-import { isValidClick, isValidPurchase } from './validation.js'
+import { isValidClick, isValidPurchase, isValidGeneratorPurchase } from './validation.js'
 import type { BotStrategy } from './bot.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -52,6 +54,7 @@ export class Match {
   readonly goal: Goal
   private readonly modeDef: ModeDefinition
   private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
+  private readonly generatorMap: ReadonlyMap<string, GeneratorDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
   private readonly bot: BotStrategy | null
   private phase: MatchPhase = 'countdown'
@@ -76,6 +79,7 @@ export class Match {
     this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.upgradeMap = new Map(this.modeDef.upgrades.map((u) => [u.id, u]))
+    this.generatorMap = new Map(this.modeDef.generators.map((g) => [g.id, g]))
     this.bot = bot ?? null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
@@ -268,6 +272,9 @@ export class Match {
         ) {
           player.state.meta.highlight = action.highlight
         }
+      } else if (action.type === 'buy_generator' && action.generatorId) {
+        if (!isValidGeneratorPurchase(player.state, action.generatorId, this.generatorMap)) continue
+        applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
       }
     }
     player.ackSeq = seq

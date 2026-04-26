@@ -138,6 +138,7 @@ describe('applyPassiveTick', () => {
       score: 0,
       resources: { ...resources },
       upgrades: {},
+      generators: {},
       meta: {},
     }
   }
