@@ -13,7 +13,7 @@
 
 ## Features
 
-- [ ] Auto-generators (clicker + idle modes)
+- [x] Auto-generators (clicker + idle modes)
 - [ ] Hotkeys for auto-generators
 - [ ] Bot: teach bot to buy generators
 - [ ] Visual feedback on generator purchase

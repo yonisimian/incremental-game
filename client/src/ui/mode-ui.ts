@@ -35,7 +35,10 @@ const clickerUI: ModeUI = {
 
 const idlerUI: ModeUI = {
   resources: [],
-  panels: [{ index: 0, panel: playPanel }],
+  panels: [
+    { index: 0, panel: playPanel },
+    { index: 1, panel: generatorsPanel },
+  ],
 }
 
 const modeUIMap: Record<GameMode, ModeUI> = {

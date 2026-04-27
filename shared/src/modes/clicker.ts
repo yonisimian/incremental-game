@@ -16,6 +16,7 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 15,
     costScaling: 1.15,
     costCurrency: 'currency',
+    costIcon: '$',
     production: { resource: 'currency', rate: 0.5 },
   },
   {
@@ -25,6 +26,7 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 100,
     costScaling: 1.15,
     costCurrency: 'currency',
+    costIcon: '$',
     production: { resource: 'currency', rate: 3 },
   },
   {
@@ -34,6 +36,7 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 500,
     costScaling: 1.15,
     costCurrency: 'currency',
+    costIcon: '$',
     production: { resource: 'currency', rate: 15 },
   },
 ]

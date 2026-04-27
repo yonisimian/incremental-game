@@ -32,7 +32,7 @@ function renderGeneratorCard(
         <span class="generator-rate">+${totalRate % 1 === 0 ? totalRate : totalRate.toFixed(1)}/s</span>
       </span>
       <span class="generator-meta">
-        <span class="generator-cost">$${nextCost}</span>
+        <span class="generator-cost">${def.costIcon}${nextCost}</span>
         <span class="generator-count">×${owned}</span>
       </span>
     </button>

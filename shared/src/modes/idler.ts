@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { PlayerState, UpgradeDefinition } from '../types.js'
+import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import {
   IDLER_ROUND_DURATION_SEC,
@@ -57,6 +57,51 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
 ]
 
+// ─── Generators ──────────────────────────────────────────────────────────────
+
+const idlerGenerators: readonly GeneratorDefinition[] = [
+  {
+    id: 'woodcutter',
+    name: 'Woodcutter',
+    icon: '🪓',
+    baseCost: 10,
+    costScaling: 1.15,
+    costCurrency: 'wood',
+    costIcon: '🪵',
+    production: { resource: 'wood', rate: 0.2 },
+  },
+  {
+    id: 'brewer',
+    name: 'Brewer',
+    icon: '🍺',
+    baseCost: 10,
+    costScaling: 1.15,
+    costCurrency: 'ale',
+    costIcon: '🍺',
+    production: { resource: 'ale', rate: 0.2 },
+  },
+  {
+    id: 'sawmill',
+    name: 'Sawmill',
+    icon: '🏗️',
+    baseCost: 50,
+    costScaling: 1.15,
+    costCurrency: 'ale',
+    costIcon: '🍺',
+    production: { resource: 'wood', rate: 1 },
+  },
+  {
+    id: 'tavern',
+    name: 'Tavern',
+    icon: '🍻',
+    baseCost: 50,
+    costScaling: 1.15,
+    costCurrency: 'wood',
+    costIcon: '🪵',
+    production: { resource: 'ale', rate: 1 },
+  },
+]
+
 // ─── Mode Definition ─────────────────────────────────────────────────
 
 /** Idler mode definition — passive income only, pure upgrade strategy. */
@@ -72,7 +117,7 @@ export const idlerMode: ModeDefinition = {
     { stage: 'additive', field: 'ale', value: 1 }, // base 1 ale/s
   ],
   upgrades: idlerUpgrades,
-  generators: [],
+  generators: idlerGenerators,
   goals: [
     { type: 'timed', durationSec: IDLER_ROUND_DURATION_SEC },
     {
