@@ -9,24 +9,25 @@ import {
   renderActivePanel,
   updateActivePanel,
   bindTabEvents,
-  resetTabs,
+  configurePanels,
 } from './panels.js'
+import { getModeUI, type ModeUI } from './mode-ui.js'
 
 // ─── Render ──────────────────────────────────────────────────────────
 
+let activeModeUI: ModeUI | null = null
+
 /** Resource bar shown in the header, visible across all tabs. */
 function renderResourceBar(state: Readonly<GameState>): string {
-  if (state.mode === 'idler') {
-    return `
-      <div class="resource-bar" id="resource-bar">
-        <span class="resource-item">🪵 <span id="header-wood">${Math.floor(state.player.resources.wood)}</span></span>
-        <span class="resource-item">🍺 <span id="header-ale">${Math.floor(state.player.resources.ale)}</span></span>
-      </div>
-    `
-  }
+  if (!activeModeUI || activeModeUI.resources.length === 0) return ''
   return `
     <div class="resource-bar" id="resource-bar">
-      <span class="resource-item gold">💰 <span id="header-currency">${Math.floor(state.player.resources.currency)}</span></span>
+      ${activeModeUI.resources
+        .map((r) => {
+          const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
+          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
+        })
+        .join('')}
     </div>
   `
 }
@@ -51,7 +52,8 @@ function renderScoreboard(state: Readonly<GameState>): string {
 
 export function renderPlayingScreen(state: Readonly<GameState>): void {
   prevPlayerScore = 0
-  resetTabs()
+  activeModeUI = state.mode ? getModeUI(state.mode) : null
+  configurePanels(activeModeUI?.panels ?? [])
 
   app.innerHTML = `
     <div class="screen playing-screen">
@@ -101,11 +103,10 @@ export function updatePlaying(state: Readonly<GameState>): void {
   }
 
   // Update resource bar (visible across all tabs)
-  if (state.mode === 'idler') {
-    setText('header-wood', String(Math.floor(state.player.resources.wood)))
-    setText('header-ale', String(Math.floor(state.player.resources.ale)))
-  } else {
-    setText('header-currency', String(Math.floor(state.player.resources.currency)))
+  if (activeModeUI) {
+    for (const r of activeModeUI.resources) {
+      setText(`header-${r.key}`, String(Math.floor(state.player.resources[r.key])))
+    }
   }
 
   // Delegate panel-specific updates to the active panel

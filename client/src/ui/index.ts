@@ -12,7 +12,6 @@ import {
 import { renderPlayingScreen, updatePlaying } from './playing.js'
 import { renderEndScreen } from './end.js'
 import { initHotkeys } from './hotkeys.js'
-import { initPanels } from './panels/init.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -95,4 +94,3 @@ export function handleConnectionChange(state: ConnectionState): void {
 // ─── Init ────────────────────────────────────────────────────────────
 
 initHotkeys()
-initPanels()

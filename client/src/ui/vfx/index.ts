@@ -125,9 +125,9 @@ export function flashPurchase(upgradeId: string): void {
     { duration: 600, easing: 'ease-out' },
   )
 
-  // Also flash the currency bar briefly
+  // Also flash the resource bar briefly
   const currencyBar =
-    document.getElementById('currency-bar') ??
+    document.getElementById('resource-bar') ??
     document.getElementById('wood-balance')?.parentElement
   if (currencyBar) {
     currencyBar.animate(

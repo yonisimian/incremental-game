@@ -4,8 +4,9 @@
 //  - render(container, state): full HTML render
 //  - update(state): in-place DOM updates (optional)
 //
-// Only the active panel is rendered. Panels are registered at init time
-// and the tab bar + panel container are injected into the playing screen.
+// Only the active panel is rendered. Panels are configured per-mode at
+// match start and the tab bar + panel container are injected into the
+// playing screen.
 
 import type { GameState } from '../game.js'
 import { getState } from '../game.js'
@@ -31,9 +32,19 @@ const TOTAL_SLOTS = 10
 const panels: (Panel | null)[] = Array.from<Panel | null>({ length: TOTAL_SLOTS }).fill(null)
 let activeIndex = 0
 
-/** Register a panel in a specific slot (0-indexed). */
-export function registerPanel(index: number, panel: Panel): void {
-  panels[index] = panel
+/** Slot assignment for panel configuration. */
+export interface PanelSlot {
+  readonly index: number
+  readonly panel: Panel
+}
+
+/** Configure panels for the current mode. Clears all slots and resets to first tab. */
+export function configurePanels(slots: readonly PanelSlot[]): void {
+  panels.fill(null)
+  activeIndex = 0
+  for (const { index, panel } of slots) {
+    panels[index] = panel
+  }
 }
 
 // ─── Rendering ───────────────────────────────────────────────────────
@@ -198,9 +209,4 @@ export function bindTabEvents(): void {
     switchToTab(target)
     document.querySelector<HTMLButtonElement>(`.tab-btn[data-tab="${target}"]`)?.focus()
   })
-}
-
-/** Reset active tab to 0 (call on match start). */
-export function resetTabs(): void {
-  activeIndex = 0
 }
