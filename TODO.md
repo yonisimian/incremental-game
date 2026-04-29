@@ -10,10 +10,12 @@
 ## Bugs
 
 - [ ] UI: clicker button gets clipped from above when expanded on each click
+- [ ] UI: CLICK button's bounding rectangle shows on some devices
+- [ ] UI: screen bottom is cropped on Tal's device
 
 ## UI
 
-- [ ] Remove hotkeys from small screens (mobiles don't have keyboards anyway)
+- [x] Remove hotkeys from mobiles
 - [ ] Make hotkeys per-panel (e.g., on generators panel press 1/2/3 to buy tiers; on upgrade-tree panel press 1/2/3 to buy upgrades)
 
 ## Features
@@ -29,6 +31,7 @@
 - [ ] Prestige
 - [ ] Ability card classes (randomizers, rhythmicals, etc.)
 - [ ] Achievements
+- [ ] Game goal: first to buy a specific upgrade
 
 ## Game Modes
 
@@ -39,3 +42,7 @@
 - [ ] Map control / expansion
 - [ ] Map exploration
 - [ ] Compound
+
+## Metrics && Analysis
+
+- [ ] Think about metrics and analysis
