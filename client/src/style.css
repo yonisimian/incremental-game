@@ -792,6 +792,16 @@ body {
   display: none;
 }
 
+/* Hide keyboard hints on touch devices (no physical keyboard) */
+@media (pointer: coarse) {
+  .btn-hotkey,
+  .cards-hotkey,
+  .upgrades-hotkey,
+  .upgrade-hotkey {
+    display: none;
+  }
+}
+
 /* Show desc on wider screens */
 @media (min-width: 400px) {
   .upgrade-btn {
