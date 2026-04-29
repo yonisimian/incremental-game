@@ -9,6 +9,8 @@ export let handledByHotkey = false
 
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
+  if (window.matchMedia('(pointer: coarse)').matches) return
+
   document.addEventListener('keydown', (e) => {
     const state = getState()
     if (state.screen !== 'playing') return
