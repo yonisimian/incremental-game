@@ -2,6 +2,7 @@ import type { Modifier } from '../modifiers/types.js'
 import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import {
+  BUY_UPGRADE_SAFETY_CAP_SEC,
   IDLER_ROUND_DURATION_SEC,
   IDLER_TARGET_SCORE,
   TARGET_SCORE_SAFETY_CAP_SEC,
@@ -107,6 +108,17 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
       { stage: 'multiplicative', field: 'ale', value: 1.25 },
     ],
   },
+
+  // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
+  {
+    id: 'royal-throne',
+    name: '👑 Royal Throne',
+    cost: 1000,
+    costCurrency: 'wood',
+    description: 'Carved from the finest oak. Cements your reign.',
+    goalType: 'buy-upgrade',
+    modifiers: [],
+  },
 ]
 
 // ─── Generators ──────────────────────────────────────────────────────────────
@@ -177,5 +189,6 @@ export const idlerMode: ModeDefinition = {
       target: IDLER_TARGET_SCORE,
       safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
     },
+    { type: 'buy-upgrade', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
   ],
 }

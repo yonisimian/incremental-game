@@ -1,7 +1,12 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import WebSocket, { WebSocketServer } from 'ws'
-import { HEARTBEAT_INTERVAL_MS, getModeDefinition, getDefaultGoal } from '@game/shared'
+import {
+  HEARTBEAT_INTERVAL_MS,
+  getAvailableUpgrades,
+  getModeDefinition,
+  getDefaultGoal,
+} from '@game/shared'
 import type { ClientMessage, GameMode, Goal } from '@game/shared'
 import { addToQueue, removeFromQueue } from './matchmaking.js'
 import { Match } from './match.js'
@@ -95,7 +100,8 @@ wss.on('connection', (ws: WebSocket) => {
 
       const botId = `bot-${randomUUID()}`
       const modeDef = getModeDefinition(entry.mode)
-      const bot = createBot(entry.mode, modeDef)
+      const availableUpgrades = getAvailableUpgrades(modeDef, entry.goal)
+      const bot = createBot(entry.mode, modeDef, availableUpgrades)
       const match = new Match(
         { id: data.id, ws },
         { id: botId, ws: null },

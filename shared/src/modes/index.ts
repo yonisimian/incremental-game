@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { GameMode, Goal, PlayerState } from '../types.js'
+import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
@@ -19,6 +19,14 @@ export function getModeDefinition(mode: GameMode): ModeDefinition {
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {
   return MODE_REGISTRY[mode].goals[0]
+}
+
+/** Upgrades visible/valid under the given goal — filters out goal-tagged upgrades whose tag doesn't match. */
+export function getAvailableUpgrades(
+  mode: ModeDefinition,
+  goal: Goal | null,
+): readonly UpgradeDefinition[] {
+  return mode.upgrades.filter((u) => !u.goalType || u.goalType === goal?.type)
 }
 
 // ─── Initial State ───────────────────────────────────────────────────

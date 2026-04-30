@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getAvailableUpgrades,
   getModeDefinition,
   getDefaultGoal,
   createInitialState,
   collectModifiers,
   applyPurchase,
 } from '../src/index.js'
-import type { ModeDefinition, PlayerState } from '../src/index.js'
+import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
 // ─── getModeDefinition ───────────────────────────────────────────────
 
@@ -37,6 +38,68 @@ describe('getDefaultGoal', () => {
   it('returns the first goal for idler', () => {
     const goal = getDefaultGoal('idler')
     expect(goal.type).toBe('timed')
+  })
+})
+
+// ─── Mode goal & trophy coverage ─────────────────────────────────────
+
+describe('mode goals', () => {
+  it.each(['clicker', 'idler'] as const)('%s mode has all three goal types', (mode) => {
+    const types = getModeDefinition(mode)
+      .goals.map((g) => g.type)
+      .sort()
+    expect(types).toEqual(['buy-upgrade', 'target-score', 'timed'])
+  })
+
+  it.each(['clicker', 'idler'] as const)(
+    '%s mode has exactly one upgrade tagged for buy-upgrade',
+    (mode) => {
+      const tagged = getModeDefinition(mode).upgrades.filter((u) => u.goalType === 'buy-upgrade')
+      expect(tagged).toHaveLength(1)
+    },
+  )
+})
+
+// ─── getAvailableUpgrades ────────────────────────────────────────────
+
+describe('getAvailableUpgrades', () => {
+  // Build a small synthetic mode so the test is independent of real mode tuning.
+  const untagged: UpgradeDefinition = {
+    id: 'untagged',
+    name: 'Untagged',
+    cost: 10,
+    description: '',
+    modifiers: [],
+  }
+  const trophy: UpgradeDefinition = {
+    id: 'trophy',
+    name: 'Trophy',
+    cost: 100,
+    description: '',
+    modifiers: [],
+    goalType: 'buy-upgrade',
+  }
+  const fakeMode = { upgrades: [untagged, trophy] } as unknown as ModeDefinition
+
+  const timedGoal: Goal = { type: 'timed', durationSec: 30 }
+  const buyUpgradeGoal: Goal = { type: 'buy-upgrade', safetyCapSec: 600 }
+
+  it('includes untagged upgrades regardless of goal', () => {
+    expect(getAvailableUpgrades(fakeMode, timedGoal)).toContain(untagged)
+    expect(getAvailableUpgrades(fakeMode, buyUpgradeGoal)).toContain(untagged)
+    expect(getAvailableUpgrades(fakeMode, null)).toContain(untagged)
+  })
+
+  it('excludes tagged upgrades when goal type does not match', () => {
+    expect(getAvailableUpgrades(fakeMode, timedGoal)).not.toContain(trophy)
+  })
+
+  it('includes tagged upgrades when goal type matches', () => {
+    expect(getAvailableUpgrades(fakeMode, buyUpgradeGoal)).toContain(trophy)
+  })
+
+  it('excludes tagged upgrades when goal is null', () => {
+    expect(getAvailableUpgrades(fakeMode, null)).not.toContain(trophy)
   })
 })
 

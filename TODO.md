@@ -17,6 +17,7 @@
 
 - [x] Remove hotkeys from mobiles
 - [ ] Make hotkeys per-panel (e.g., on generators panel press 1/2/3 to buy tiers; on upgrade-tree panel press 1/2/3 to buy upgrades)
+- [ ] End-game screen: aggregate repeated upgrade purchases (show "🍻 Tavern Recruits ×3" instead of three separate entries)
 
 ## Features
 
@@ -25,6 +26,7 @@
 - [ ] Bot: teach bot to buy generators
 - [ ] Visual feedback on generator purchase
 - [ ] Unit tests for generator cost/purchase logic
+- [ ] Unit tests for buy-upgrade match-end flow (trophy buy → buyer wins regardless of score; safety-cap → score-based winner)
 - [x] Upgrade tree (own panel, like generators — start with idler game mode)
 - [ ] Upgrade tree: support mixed AND/OR prerequisites per edge (currently AND-only)
 - [ ] Upgrade tree: visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned (currently always fully visible)
@@ -36,7 +38,7 @@
 - [ ] Prestige
 - [ ] Ability card classes (randomizers, rhythmicals, etc.)
 - [ ] Achievements
-- [ ] Game goal: first to buy a specific upgrade
+- [x] Game goal: first to buy a specific upgrade
 
 ## Game Modes
 

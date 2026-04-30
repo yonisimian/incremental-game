@@ -59,11 +59,20 @@ function showGoalPicker(mode: GameMode): void {
           </button>
         `
       }
+      if (goal.type === 'target-score') {
+        return `
+          <button class="goal-card" data-goal-type="target-score">
+            <span class="goal-icon">🎯</span>
+            <span class="goal-name">Race to ${goal.target}</span>
+            <span class="goal-detail">First to ${goal.target} wins</span>
+          </button>
+        `
+      }
       return `
-        <button class="goal-card" data-goal-type="target-score">
-          <span class="goal-icon">🎯</span>
-          <span class="goal-name">Race to ${goal.target}</span>
-          <span class="goal-detail">First to ${goal.target} wins</span>
+        <button class="goal-card" data-goal-type="buy-upgrade">
+          <span class="goal-icon">🏆</span>
+          <span class="goal-name">Race to Buy</span>
+          <span class="goal-detail">First to buy the trophy</span>
         </button>
       `
     })

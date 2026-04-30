@@ -4,6 +4,7 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   TICK_INTERVAL_MS,
+  getAvailableUpgrades,
   getDefaultGoal,
   getModeDefinition,
   createInitialState,
@@ -53,6 +54,7 @@ export class Match {
   readonly mode: GameMode
   readonly goal: Goal
   private readonly modeDef: ModeDefinition
+  private readonly availableUpgrades: readonly UpgradeDefinition[]
   private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
   private readonly generatorMap: ReadonlyMap<string, GeneratorDefinition>
   private readonly players: [MatchPlayer, MatchPlayer]
@@ -78,7 +80,8 @@ export class Match {
     this.goal = goal ?? getDefaultGoal(mode)
     this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
-    this.upgradeMap = new Map(this.modeDef.upgrades.map((u) => [u.id, u]))
+    this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
+    this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
     this.generatorMap = new Map(this.modeDef.generators.map((g) => [g.id, g]))
     this.bot = bot ?? null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
@@ -99,7 +102,7 @@ export class Match {
     const config = {
       mode: this.mode,
       goal: this.goal,
-      upgrades: [...this.modeDef.upgrades],
+      upgrades: [...this.availableUpgrades],
     }
 
     for (const player of this.players) {
@@ -226,9 +229,9 @@ export class Match {
       this.broadcastState()
     }, BROADCAST_INTERVAL_MS)
 
-    // End the round after the full duration (timed) or safety cap (target-score)
+    // End the round after the full duration (timed) or safety cap (target-score / buy-upgrade)
     this.roundTimer = setTimeout(() => {
-      if (this.goal.type === 'target-score') {
+      if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
         this.endRound('safety-cap')
       } else {
         this.endRound('complete')
@@ -265,6 +268,7 @@ export class Match {
         if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap, this.modeDef))
           continue
         this.applyPurchase(player, action.upgradeId)
+        if (this.checkBuyUpgradeWin(action.upgradeId, player)) break
       } else if (action.type === 'set_highlight' && action.highlight) {
         if (
           'highlight' in this.modeDef.initialMeta &&
@@ -278,6 +282,16 @@ export class Match {
       }
     }
     player.ackSeq = seq
+  }
+
+  /** Returns true if this purchase ended the match via trophy — caller should stop processing further actions. */
+  private checkBuyUpgradeWin(upgradeId: string, buyer: MatchPlayer): boolean {
+    if (this.goal.type !== 'buy-upgrade') return false
+    const def = this.upgradeMap.get(upgradeId)
+    if (def?.goalType !== 'buy-upgrade') return false
+    const winnerIdx = this.players[0] === buyer ? 0 : 1
+    this.endRound('complete', winnerIdx)
+    return true
   }
 
   /** Run the bot strategy for player index 1 and apply its actions. */
@@ -304,6 +318,7 @@ export class Match {
         if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap, this.modeDef))
           continue
         this.applyPurchase(botPlayer, action.upgradeId)
+        if (this.checkBuyUpgradeWin(action.upgradeId, botPlayer)) break
       } else {
         // set_highlight — validate identically to processActions
         if (
@@ -372,16 +387,25 @@ export class Match {
 
   // ─── Private: ending ───────────────────────────────────────────────
 
-  private endRound(reason: RoundEndReason = 'complete'): void {
+  private endRound(reason: RoundEndReason = 'complete', winnerPlayerIdx?: 0 | 1): void {
     if (this.phase === 'ended') return
     this.phase = 'ended'
     this.clearTimers()
 
     const [p1, p2] = this.players
-    const tie = p1.state.score === p2.state.score
-    const p1Wins = p1.state.score > p2.state.score
-    const winnerForP1: MatchWinner = tie ? 'draw' : p1Wins ? 'player' : 'opponent'
-    const winnerForP2: MatchWinner = tie ? 'draw' : p1Wins ? 'opponent' : 'player'
+    let winnerForP1: MatchWinner
+    let winnerForP2: MatchWinner
+    if (winnerPlayerIdx !== undefined) {
+      // Explicit winner override (e.g., buy-upgrade trophy purchase).
+      winnerForP1 = winnerPlayerIdx === 0 ? 'player' : 'opponent'
+      winnerForP2 = winnerPlayerIdx === 1 ? 'player' : 'opponent'
+    } else {
+      // Score-based derivation (timed, target-score, buy-upgrade safety-cap).
+      const tie = p1.state.score === p2.state.score
+      const p1Wins = p1.state.score > p2.state.score
+      winnerForP1 = tie ? 'draw' : p1Wins ? 'player' : 'opponent'
+      winnerForP2 = tie ? 'draw' : p1Wins ? 'opponent' : 'player'
+    }
 
     this.send(p1, {
       type: 'ROUND_END',

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isValidClick, isValidPurchase } from '../src/validation.js'
-import { MAX_CPS, getModeDefinition } from '@game/shared'
+import { MAX_CPS, getAvailableUpgrades, getModeDefinition } from '@game/shared'
 import type { PlayerState, UpgradeDefinition } from '@game/shared'
 
 // ─── isValidClick ────────────────────────────────────────────────────
@@ -139,6 +139,52 @@ describe('isValidPurchase', () => {
         clickerDef,
       ),
     ).toBe(false)
+  })
+})
+
+// ─── isValidPurchase: goal-tagged upgrades ───────────────────────────
+
+describe('isValidPurchase — goal-tagged upgrades', () => {
+  // Trophy is tagged with goalType: 'buy-upgrade' and is filtered out of the
+  // upgrade map under any other goal. Validation enforces this purely via
+  // map presence — no signature change in isValidPurchase.
+
+  function makeAffordableState(): PlayerState {
+    return {
+      score: 0,
+      resources: { currency: 9999 },
+      upgrades: Object.fromEntries(clickerDef.upgrades.map((u) => [u.id, 0])),
+      generators: {},
+      meta: {},
+    }
+  }
+
+  it('rejects the trophy under timed goal (filtered out of map)', () => {
+    const timedGoal = { type: 'timed', durationSec: 30 } as const
+    const filteredMap = new Map<string, UpgradeDefinition>(
+      getAvailableUpgrades(clickerDef, timedGoal).map((u) => [u.id, u]),
+    )
+    expect(isValidPurchase(makeAffordableState(), 'coronation', filteredMap, clickerDef)).toBe(
+      false,
+    )
+  })
+
+  it('accepts the trophy under buy-upgrade goal when affordable', () => {
+    const buyUpgradeGoal = { type: 'buy-upgrade', safetyCapSec: 600 } as const
+    const filteredMap = new Map<string, UpgradeDefinition>(
+      getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
+    )
+    expect(isValidPurchase(makeAffordableState(), 'coronation', filteredMap, clickerDef)).toBe(true)
+  })
+
+  it('rejects the trophy under buy-upgrade goal when too expensive', () => {
+    const buyUpgradeGoal = { type: 'buy-upgrade', safetyCapSec: 600 } as const
+    const filteredMap = new Map<string, UpgradeDefinition>(
+      getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
+    )
+    const state = makeAffordableState()
+    state.resources.currency = 100 // trophy costs 1000
+    expect(isValidPurchase(state, 'coronation', filteredMap, clickerDef)).toBe(false)
   })
 })
 

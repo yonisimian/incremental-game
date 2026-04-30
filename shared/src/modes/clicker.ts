@@ -1,6 +1,7 @@
 import type { GeneratorDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
 import {
+  BUY_UPGRADE_SAFETY_CAP_SEC,
   CLICKER_TARGET_SCORE,
   ROUND_DURATION_SEC,
   TARGET_SCORE_SAFETY_CAP_SEC,
@@ -78,6 +79,14 @@ export const clickerMode: ModeDefinition = {
         { stage: 'multiplicative', field: 'currency', value: 2 },
       ],
     },
+    {
+      id: 'coronation',
+      name: 'The Coronation',
+      cost: 1000,
+      description: 'An ostentatious ceremony declaring you Click Monarch.',
+      goalType: 'buy-upgrade',
+      modifiers: [],
+    },
   ],
   generators: clickerGenerators,
   goals: [
@@ -87,5 +96,6 @@ export const clickerMode: ModeDefinition = {
       target: CLICKER_TARGET_SCORE,
       safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
     },
+    { type: 'buy-upgrade', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
   ],
 }
