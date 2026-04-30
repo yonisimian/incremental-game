@@ -15,6 +15,10 @@ textarea {
   font-family: inherit;
 }
 
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 :root {
   --bg: #0f172a;
   --surface: #1e293b;
@@ -48,6 +52,9 @@ body {
   width: 100%;
   max-width: 420px;
   padding: 1rem;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ─── Screens (shared) ─────────────────────────────────────────────── */
@@ -666,8 +673,6 @@ body {
   transition:
     background 0.15s,
     color 0.15s;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
@@ -829,7 +834,6 @@ body {
 
 .tree-viewport.panning {
   cursor: grabbing;
-  user-select: none;
 }
 
 .tree-canvas {
