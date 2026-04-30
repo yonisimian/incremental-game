@@ -10,7 +10,7 @@
 ## Bugs
 
 - [ ] UI: clicker button gets clipped from above when expanded on each click
-- [ ] UI: CLICK button's bounding rectangle shows on some devices
+- [x] UI: CLICK button's bounding rectangle shows on some devices
 - [ ] UI: screen bottom is cropped on Tal's device
 
 ## UI

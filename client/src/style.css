@@ -674,6 +674,12 @@ body {
     background 0.15s,
     color 0.15s;
   touch-action: manipulation;
+  clip-path: circle(50%);
+}
+
+.click-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .click-button:active {
