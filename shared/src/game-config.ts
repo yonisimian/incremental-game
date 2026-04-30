@@ -15,6 +15,9 @@ export const IDLER_TARGET_SCORE = 364
 /** Safety cap for target-score matches (seconds). */
 export const TARGET_SCORE_SAFETY_CAP_SEC = 300
 
+/** Safety cap for buy-upgrade matches (seconds). */
+export const BUY_UPGRADE_SAFETY_CAP_SEC = 600
+
 /** Countdown before round starts (seconds). */
 export const COUNTDOWN_SEC = 3
 

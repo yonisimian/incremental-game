@@ -122,9 +122,21 @@ export class IdlerBot implements BotStrategy {
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
-/** Create a bot strategy for the given game mode. */
-export function createBot(mode: GameMode, modeDef: ModeDefinition): BotStrategy {
+/**
+ * Create a bot strategy for the given game mode.
+ *
+ * `availableUpgrades` is the goal-filtered list (typically from
+ * `getAvailableUpgrades(modeDef, goal)`); bots only consider these. Under
+ * goals that hide the trophy, the bot doesn't try to buy it; under
+ * buy-upgrade, the trophy is visible but bots don't actively pursue it in
+ * v1 — human can still win the race.
+ */
+export function createBot(
+  mode: GameMode,
+  modeDef: ModeDefinition,
+  availableUpgrades: readonly UpgradeDefinition[] = modeDef.upgrades,
+): BotStrategy {
   return mode === 'clicker'
-    ? new ClickerBot(modeDef.upgrades, modeDef.scoreResource)
-    : new IdlerBot(modeDef.upgrades)
+    ? new ClickerBot(availableUpgrades, modeDef.scoreResource)
+    : new IdlerBot(availableUpgrades)
 }

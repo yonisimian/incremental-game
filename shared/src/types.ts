@@ -36,6 +36,12 @@ export interface UpgradeDefinition {
    * upgrades; ignored for play-panel upgrades.
    */
   readonly position?: UpgradePosition
+  /**
+   * If set, this upgrade only exists when the active goal's type matches.
+   * Used for goal-specific "trophy" upgrades (e.g., buy-upgrade goal's win
+   * condition). Untagged upgrades are always available.
+   */
+  readonly goalType?: Goal['type']
 }
 
 /** Static definition of a generator building (repeatable, scaling cost). */
@@ -103,8 +109,15 @@ export interface TargetScoreGoal {
   readonly safetyCapSec: number
 }
 
+/** Buy-upgrade goal — first player to buy a goal-tagged "trophy" upgrade wins. */
+export interface BuyUpgradeGoal {
+  readonly type: 'buy-upgrade'
+  /** Maximum match length; on expiry, winner is derived from score. */
+  readonly safetyCapSec: number
+}
+
 /** A win condition for a round. */
-export type Goal = TimedGoal | TargetScoreGoal
+export type Goal = TimedGoal | TargetScoreGoal | BuyUpgradeGoal
 
 /** Match outcome. */
 export type MatchWinner = 'player' | 'opponent' | 'draw'

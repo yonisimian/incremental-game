@@ -8,6 +8,7 @@ function mockWs(): WebSocket {
 
 const timedGoal: Goal = { type: 'timed', durationSec: 60 }
 const targetGoal: Goal = { type: 'target-score', target: 666, safetyCapSec: 300 }
+const buyUpgradeGoal: Goal = { type: 'buy-upgrade', safetyCapSec: 600 }
 
 describe('matchmaking', () => {
   let addToQueue: (typeof import('../src/matchmaking.js'))['addToQueue']
@@ -71,5 +72,17 @@ describe('matchmaking', () => {
     const match = addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', targetGoal)
     expect(match).not.toBeNull()
     expect(match!.goal.type).toBe('target-score')
+  })
+
+  it('matches players with buy-upgrade goal', () => {
+    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', buyUpgradeGoal)
+    const match = addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', buyUpgradeGoal)
+    expect(match).not.toBeNull()
+    expect(match!.goal.type).toBe('buy-upgrade')
+  })
+
+  it('does not cross-match buy-upgrade with timed', () => {
+    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', buyUpgradeGoal)
+    expect(addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', timedGoal)).toBeNull()
   })
 })

@@ -4,9 +4,10 @@ import type { UpgradeDefinition } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
 
-/** The timer element — styled as a safety-cap timer for target-score goals. */
+/** The timer element — styled as a safety-cap timer for non-timed goals. */
 export function renderTimer(state: Readonly<GameState>): string {
-  const cls = state.goal?.type === 'target-score' ? 'timer safety-timer' : 'timer'
+  const isSafetyCap = state.goal?.type === 'target-score' || state.goal?.type === 'buy-upgrade'
+  const cls = isSafetyCap ? 'timer safety-timer' : 'timer'
   return `<div class="${cls}" id="timer">${formatTime(state.timeLeft)}</div>`
 }
 

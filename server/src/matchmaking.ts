@@ -10,7 +10,9 @@ interface QueuedPlayer {
 /** Queue key combines mode + goal identity so players only match with identical settings. */
 function queueKey(mode: GameMode, goal: Goal): string {
   if (goal.type === 'timed') return `${mode}:timed:${String(goal.durationSec)}`
-  return `${mode}:target:${String(goal.target)}:${String(goal.safetyCapSec)}`
+  if (goal.type === 'target-score')
+    return `${mode}:target:${String(goal.target)}:${String(goal.safetyCapSec)}`
+  return `${mode}:buy:${String(goal.safetyCapSec)}`
 }
 
 const queues = new Map<string, { players: QueuedPlayer[]; goal: Goal }>()
