@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
 import type { GameState } from '../src/game.js'
-import { canBuy, isUnlocked } from '../src/ui/helpers.js'
+import { canBuy, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.js'
 
 // ─── Test fixture helpers ────────────────────────────────────────────
 
@@ -120,5 +120,42 @@ describe('canBuy', () => {
       upgrades: { 'test-upgrade': 3 },
     })
     expect(canBuy(state, u)).toBe(true)
+  })
+})
+
+// ─── formatUpgradesPurchased ─────────────────────────────────────────
+
+describe('formatUpgradesPurchased', () => {
+  const upgrades: UpgradeDefinition[] = [
+    makeUpgrade({ id: 'tavern-recruits', name: '🍻 Tavern Recruits' }),
+    makeUpgrade({ id: 'sharpened-axes', name: '🪓 Sharpened Axes' }),
+    makeUpgrade({ id: 'lumber-mill', name: '🏗️ Lumber Mill' }),
+  ]
+
+  it('returns "none" for an empty list', () => {
+    expect(formatUpgradesPurchased([], upgrades)).toBe('none')
+  })
+
+  it('shows a single non-repeated purchase as just the name', () => {
+    expect(formatUpgradesPurchased(['sharpened-axes'], upgrades)).toBe('🪓 Sharpened Axes')
+  })
+
+  it('aggregates repeats with ×N suffix', () => {
+    expect(
+      formatUpgradesPurchased(['tavern-recruits', 'tavern-recruits', 'tavern-recruits'], upgrades),
+    ).toBe('🍻 Tavern Recruits ×3')
+  })
+
+  it('preserves first-purchase order across distinct ids', () => {
+    expect(
+      formatUpgradesPurchased(
+        ['tavern-recruits', 'sharpened-axes', 'tavern-recruits', 'lumber-mill'],
+        upgrades,
+      ),
+    ).toBe('🍻 Tavern Recruits ×2, 🪓 Sharpened Axes, 🏗️ Lumber Mill')
+  })
+
+  it('falls back to the raw id for unknown upgrades', () => {
+    expect(formatUpgradesPurchased(['ghost', 'ghost'], upgrades)).toBe('ghost ×2')
   })
 })

@@ -83,6 +83,25 @@ export function updateProgressBar(id: string, score: number, target: number): vo
   if (el) el.style.width = `${Math.min(100, (score / target) * 100)}%`
 }
 
+/** Format purchased upgrade IDs as names with ×N suffix for repeats; preserves first-purchase order; unknown IDs fall back to the raw id. */
+export function formatUpgradesPurchased(
+  purchased: readonly string[],
+  upgrades: readonly UpgradeDefinition[],
+): string {
+  if (purchased.length === 0) return 'none'
+  const counts = new Map<string, number>()
+  for (const id of purchased) {
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+  }
+  const idToName = new Map(upgrades.map((u) => [u.id, u.name]))
+  return [...counts]
+    .map(([id, n]) => {
+      const name = idToName.get(id) ?? id
+      return n > 1 ? `${name} ×${n}` : name
+    })
+    .join(', ')
+}
+
 /** Bind click handler via event delegation on the given container. Defaults to '#upgrades'. */
 export function bindUpgradeEvents(containerId = 'upgrades'): void {
   const container = document.getElementById(containerId)
