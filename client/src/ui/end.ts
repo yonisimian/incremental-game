@@ -1,6 +1,6 @@
 import type { GameState } from '../game.js'
 import { resetForMatch } from '../game.js'
-import { app } from './helpers.js'
+import { app, formatUpgradesPurchased } from './helpers.js'
 
 export function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!
@@ -41,7 +41,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       <div class="stats">
         ${isIdler ? '' : `<div>Clicks: ${end.stats.totalClicks}</div>`}
         ${isIdler ? '' : `<div>Peak CPS: ${end.stats.peakCps}</div>`}
-        <div>Upgrades: ${end.stats.upgradesPurchased.length > 0 ? end.stats.upgradesPurchased.join(', ') : 'none'}</div>
+        <div>Upgrades: ${formatUpgradesPurchased(end.stats.upgradesPurchased, state.upgrades)}</div>
       </div>
       <button class="rematch-button" id="rematch-btn">Back to Lobby</button>
     </div>

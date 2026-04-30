@@ -17,7 +17,8 @@
 
 - [x] Remove hotkeys from mobiles
 - [ ] Make hotkeys per-panel (e.g., on generators panel press 1/2/3 to buy tiers; on upgrade-tree panel press 1/2/3 to buy upgrades)
-- [ ] End-game screen: aggregate repeated upgrade purchases (show "🍻 Tavern Recruits ×3" instead of three separate entries)
+- [x] End-game screen: aggregate repeated upgrade purchases (show "🍻 Tavern Recruits ×3" instead of three separate entries)
+- [ ] End-game screen: also show counts of auto-generators purchased and upgrade-tree upgrades purchased
 
 ## Features
 
