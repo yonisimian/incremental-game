@@ -3,6 +3,15 @@ import type { Modifier } from './modifiers/types.js'
 /** Available game modes. */
 export type GameMode = 'clicker' | 'idler'
 
+/** Which panel hosts an upgrade. */
+export type UpgradeCategory = 'play' | 'tree'
+
+/** A 2D position on the upgrade-tree canvas (logical units; render-time scale applies). */
+export interface UpgradePosition {
+  readonly x: number
+  readonly y: number
+}
+
 /** Static definition of an upgrade (cost, effect description). */
 export interface UpgradeDefinition {
   readonly id: string
@@ -15,6 +24,18 @@ export interface UpgradeDefinition {
   readonly repeatable?: boolean
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
+  /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
+  readonly category?: UpgradeCategory
+  /**
+   * IDs of upgrades that must be owned (count > 0) before this one is buyable.
+   * AND-semantics: every listed upgrade must be owned. Empty/missing = always unlocked.
+   */
+  readonly prerequisites?: readonly string[]
+  /**
+   * Hand-placed position on the tree canvas. Required for `category: 'tree'`
+   * upgrades; ignored for play-panel upgrades.
+   */
+  readonly position?: UpgradePosition
 }
 
 /** Static definition of a generator building (repeatable, scaling cost). */

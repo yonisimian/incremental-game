@@ -141,3 +141,58 @@ describe('isValidPurchase', () => {
     ).toBe(false)
   })
 })
+
+// ─── isValidPurchase: prerequisites (idler tree) ─────────────────────
+
+const idlerDef = getModeDefinition('idler')
+const idlerUpgradeMap = new Map<string, UpgradeDefinition>(idlerDef.upgrades.map((u) => [u.id, u]))
+
+describe('isValidPurchase — prerequisites', () => {
+  function makeIdlerState(overrides: Partial<PlayerState> = {}): PlayerState {
+    return {
+      score: 0,
+      resources: { wood: 9999, ale: 9999 },
+      upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+      generators: {},
+      meta: { highlight: 'wood' },
+      ...overrides,
+    }
+  }
+
+  it('rejects industrial-era when no prerequisites are owned (even with infinite resources)', () => {
+    const state = makeIdlerState()
+    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
+  })
+
+  it('rejects industrial-era when only one of two prerequisites is owned (AND-semantics)', () => {
+    const state = makeIdlerState({
+      upgrades: {
+        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+        'heavy-logging': 1, // royal-brewery still unowned
+      },
+    })
+    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
+  })
+
+  it('accepts industrial-era when both prerequisites are owned', () => {
+    const state = makeIdlerState({
+      upgrades: {
+        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+        'heavy-logging': 1,
+        'royal-brewery': 1,
+      },
+    })
+    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(true)
+  })
+
+  it('rejects master-craftsmen when royal-brewery is unowned', () => {
+    const state = makeIdlerState()
+    expect(isValidPurchase(state, 'master-craftsmen', idlerUpgradeMap, idlerDef)).toBe(false)
+  })
+
+  it('accepts root-level upgrades (no prerequisites) immediately', () => {
+    const state = makeIdlerState()
+    expect(isValidPurchase(state, 'heavy-logging', idlerUpgradeMap, idlerDef)).toBe(true)
+    expect(isValidPurchase(state, 'royal-brewery', idlerUpgradeMap, idlerDef)).toBe(true)
+  })
+})

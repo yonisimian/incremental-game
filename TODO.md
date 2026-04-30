@@ -25,7 +25,12 @@
 - [ ] Bot: teach bot to buy generators
 - [ ] Visual feedback on generator purchase
 - [ ] Unit tests for generator cost/purchase logic
-- [ ] Upgrade tree (own panel, like generators — start with idler game mode)
+- [x] Upgrade tree (own panel, like generators — start with idler game mode)
+- [ ] Upgrade tree: support mixed AND/OR prerequisites per edge (currently AND-only)
+- [ ] Upgrade tree: visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned (currently always fully visible)
+- [ ] Upgrade tree: replace hand-placed (x, y) with a layout system
+- [ ] Upgrade tree: startup-time cycle detection on prereq graph (currently no validation; bad data silently locks all nodes in a cycle)
+- [ ] Upgrade tree: generic hotkeys (e.g. buy cheapest tree upgrade, buy all affordable tree upgrades) — replaces the removed Q/W/E/R per-index hotkeys
 - [ ] Ability cards (own panel, also a pre-match decision — see DESIGN.md)
 - [ ] Perks (pre-match decision)
 - [ ] Prestige

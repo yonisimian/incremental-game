@@ -197,6 +197,11 @@ export function doBuy(upgradeId: string): void {
   // One-shot upgrades can only be purchased once
   if (!def.repeatable && (state.player.upgrades[upgradeId] ?? 0) > 0) return
 
+  // All prerequisites must be owned
+  for (const pid of def.prerequisites ?? []) {
+    if ((state.player.upgrades[pid] ?? 0) <= 0) return
+  }
+
   // Check correct resource balance
   const modeDef = getModeDefinition(state.mode)
   const costResource = def.costCurrency ?? modeDef.scoreResource
@@ -329,6 +334,9 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 
       // One-shot upgrades can only be applied once
       if (!def.repeatable && (reconciled.upgrades[uid] ?? 0) > 0) continue
+
+      // Skip if any prerequisite isn't owned in the reconciled state
+      if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue
 
       // Check correct resource and apply
       if (!modeDef) continue

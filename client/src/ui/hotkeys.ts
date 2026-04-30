@@ -1,5 +1,6 @@
 import { doClick, doBuy, setHighlight, getState } from '../game.js'
-import { canAfford } from './helpers.js'
+import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
+import type { UpgradeCategory } from '@game/shared'
 
 /**
  * Set to true while the hotkey handler is processing a Space press.
@@ -19,6 +20,9 @@ export function initHotkeys(): void {
     const target = e.target as HTMLElement
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       return
+
+    // Don't intercept browser shortcuts (Ctrl+R reload, Ctrl+W close, Ctrl+1 switch tab, etc.)
+    if (e.ctrlKey || e.metaKey || e.altKey) return
 
     // Let the tab grid handle its own keyboard events (Space activates tab, arrows navigate)
     const inTabGrid = target.closest('#tab-grid') !== null
@@ -44,19 +48,24 @@ export function initHotkeys(): void {
       return
     }
 
-    // C — buy all affordable upgrades (cheapest first)
+    // C — buy all buyable upgrades (cheapest first); skips locked & one-shot-owned
     if (e.key === 'c' || e.key === 'C') {
-      const affordable = state.upgrades
-        .filter((u) => canAfford(state, u))
-        .sort((a, b) => a.cost - b.cost)
-      for (const u of affordable) doBuy(u.id)
+      const buyable = state.upgrades.filter((u) => canBuy(state, u)).sort((a, b) => a.cost - b.cost)
+      for (const u of buyable) doBuy(u.id)
       return
     }
 
-    // 1/2/3 — buy upgrade by index
-    const index = Number(e.key) - 1
-    if (index >= 0 && index < state.upgrades.length) {
-      doBuy(state.upgrades[index].id)
+    // Per-category indexed buy: 1/2/3… → play (see UPGRADE_HOTKEYS).
+    // Categories without an entry (e.g. tree) have no per-index hotkeys.
+    const pressed = e.key.toLowerCase()
+    for (const cat of Object.keys(UPGRADE_HOTKEYS) as UpgradeCategory[]) {
+      const keys = UPGRADE_HOTKEYS[cat]
+      if (!keys) continue
+      const idx = keys.toLowerCase().indexOf(pressed)
+      if (idx === -1) continue
+      const upgrades = state.upgrades.filter((u) => (u.category ?? 'play') === cat)
+      if (idx < upgrades.length) doBuy(upgrades[idx].id)
+      return
     }
   })
 }

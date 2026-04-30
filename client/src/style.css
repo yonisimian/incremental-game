@@ -813,6 +813,62 @@ body {
   }
 }
 
+/* Upgrade Tree Panel — pan/zoom viewport + canvas + edges + nodes */
+
+.tree-viewport {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  overflow: hidden;
+  touch-action: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: grab;
+}
+
+.tree-viewport.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.tree-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+/* Edges layer — sits behind nodes; overflow set via SVG attribute, not CSS */
+.tree-edges {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tree-edges line {
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.tree-edges line.unlocked {
+  stroke: var(--accent);
+}
+
+/* Tree nodes — reuse .upgrade-btn but absolutely-positioned, fixed-width, centered on coords */
+.upgrade-btn.tree-node {
+  position: absolute;
+  width: 180px;
+  transform: translate(-50%, -50%);
+  flex-wrap: wrap;
+}
+
+.upgrade-btn.tree-node.locked {
+  /* Dim via filter (saturation+brightness), NOT opacity — opacity would
+     let the SVG edges show through the node body. */
+  filter: grayscale(0.7) brightness(0.55);
+  cursor: not-allowed;
+}
+
 /* Generators Panel */
 
 .generator-list {
