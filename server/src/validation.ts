@@ -28,8 +28,8 @@ export function isValidClick(recentTimestamps: number[]): boolean {
 
 /**
  * Validate a purchase action.
- * Returns true if the player can afford the upgrade and doesn't already own it
- * (or can re-buy it if repeatable).
+ * Returns true if the player can afford the upgrade, doesn't already own it
+ * (or can re-buy it if repeatable), and all prerequisites are owned.
  */
 export function isValidPurchase(
   state: PlayerState,
@@ -42,6 +42,11 @@ export function isValidPurchase(
 
   // One-shot upgrades can only be purchased once
   if (!def.repeatable && (state.upgrades[upgradeId] ?? 0) > 0) return false
+
+  // All prerequisites must be owned (count > 0)
+  for (const pid of def.prerequisites ?? []) {
+    if ((state.upgrades[pid] ?? 0) <= 0) return false
+  }
 
   // Check the correct resource balance
   const costResource = def.costCurrency ?? mode.scoreResource

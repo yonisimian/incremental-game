@@ -2,6 +2,7 @@ import type { GameMode } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
+import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ const idlerUI: ModeUI = {
   panels: [
     { index: 0, panel: playPanel },
     { index: 1, panel: generatorsPanel },
+    { index: 2, panel: upgradeTreePanel },
   ],
 }
 

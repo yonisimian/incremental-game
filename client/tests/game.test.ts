@@ -690,5 +690,59 @@ describe('game.ts', () => {
       expect(game.getState().player.upgrades['tavern-recruits']).toBe(1)
       expect(game.getState().player.resources.ale).toBe(5)
     })
+
+    it('rejects buying a tree upgrade when prerequisites are unowned', () => {
+      enterIdlerPlaying(game)
+      // Provide tons of resources but no prereqs
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { wood: 9999, ale: 9999 },
+            upgrades: { 'industrial-era': 0, 'heavy-logging': 0, 'royal-brewery': 0 },
+            generators: {},
+            meta: { highlight: 'wood' },
+          },
+        }),
+      )
+      game.doBuy('industrial-era') // prereqs unmet → no-op
+      expect(game.getState().player.upgrades['industrial-era'] ?? 0).toBe(0)
+      // Cost should NOT be deducted on rejected buy
+      expect(game.getState().player.resources.wood).toBe(9999)
+    })
+
+    it('accepts buying a tree upgrade once both prerequisites are owned', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { wood: 9999, ale: 9999 },
+            upgrades: { 'industrial-era': 0, 'heavy-logging': 1, 'royal-brewery': 1 },
+            generators: {},
+            meta: { highlight: 'wood' },
+          },
+        }),
+      )
+      game.doBuy('industrial-era')
+      expect(game.getState().player.upgrades['industrial-era']).toBe(1)
+    })
+
+    it('AND-semantics: rejects when only one of two prerequisites is owned', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { wood: 9999, ale: 9999 },
+            upgrades: { 'industrial-era': 0, 'heavy-logging': 1, 'royal-brewery': 0 },
+            generators: {},
+            meta: { highlight: 'wood' },
+          },
+        }),
+      )
+      game.doBuy('industrial-era')
+      expect(game.getState().player.upgrades['industrial-era'] ?? 0).toBe(0)
+    })
   })
 })

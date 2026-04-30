@@ -55,6 +55,58 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     repeatable: true,
     modifiers: [{ stage: 'additive', field: 'wood', value: 1 }], // scaled by count
   },
+
+  // ─── Tree-panel upgrades ────────────────────────────────────────────
+  // Note: array order determines Q/W/E/R hotkey mapping (per UPGRADE_HOTKEYS).
+  // Reordering here silently re-maps the keys.
+  {
+    id: 'heavy-logging',
+    name: '🌲 Heavy Logging',
+    cost: 25,
+    costCurrency: 'wood',
+    description: '+5 base 🪵/sec',
+    category: 'tree',
+    position: { x: 0, y: 0 },
+    modifiers: [{ stage: 'additive', field: 'wood', value: 5 }],
+  },
+  {
+    id: 'royal-brewery',
+    name: '👑 Royal Brewery',
+    cost: 25,
+    costCurrency: 'ale',
+    description: '+5 base 🍺/sec',
+    category: 'tree',
+    position: { x: 400, y: 0 },
+    modifiers: [{ stage: 'additive', field: 'ale', value: 5 }],
+  },
+  {
+    id: 'master-craftsmen',
+    name: '👷 Master Craftsmen',
+    cost: 10,
+    costCurrency: 'ale',
+    description: '+5 base 🪵/sec (stackable)',
+    category: 'tree',
+    // Offset to the right of royal-brewery so the royal→industrial line
+    // doesn't visually graze this node mid-segment.
+    position: { x: 500, y: 200 },
+    prerequisites: ['royal-brewery'],
+    repeatable: true,
+    modifiers: [{ stage: 'additive', field: 'wood', value: 5 }], // scaled by count
+  },
+  {
+    id: 'industrial-era',
+    name: '⚙️ Industrial Era',
+    cost: 50,
+    costCurrency: 'wood',
+    description: 'All production ×1.25',
+    category: 'tree',
+    position: { x: 200, y: 400 },
+    prerequisites: ['heavy-logging', 'royal-brewery'],
+    modifiers: [
+      { stage: 'multiplicative', field: 'wood', value: 1.25 },
+      { stage: 'multiplicative', field: 'ale', value: 1.25 },
+    ],
+  },
 ]
 
 // ─── Generators ──────────────────────────────────────────────────────────────

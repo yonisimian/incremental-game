@@ -1,11 +1,32 @@
-import type { UpgradeDefinition } from '@game/shared'
+import type { UpgradeCategory, UpgradeDefinition } from '@game/shared'
 import { getModeDefinition } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 
+// ─── Hotkeys ─────────────────────────────────────────────────────────
+
+/**
+ * Per-category index-hotkey characters — single source of truth for both
+ * rendering (per-card label) and the global keydown handler (key → upgrade
+ * by index). The Nth character is the hotkey for the Nth upgrade in that
+ * category. Upgrades past the string length render without a hotkey label
+ * and aren't keyboard-buyable; extend the string to add more.
+ *
+ * Categories without an entry (e.g. 'tree') get no per-index hotkeys.
+ * Tree-specific hotkeys (buy-cheapest-in-tree, buy-all-in-tree) are tracked
+ * in TODO.md and intentionally not wired here yet.
+ */
+export const UPGRADE_HOTKEYS: Partial<Record<UpgradeCategory, string>> = {
+  play: '123456789',
+}
+
 // ─── Shared DOM Root ─────────────────────────────────────────────────
 
-export const app = document.querySelector<HTMLDivElement>('#app')!
+// Guarded for non-DOM environments (vitest in node). Production always has #app.
+export const app =
+  typeof document !== 'undefined'
+    ? document.querySelector<HTMLDivElement>('#app')!
+    : (null as unknown as HTMLDivElement)
 
 // ─── DOM Helpers ─────────────────────────────────────────────────────
 
@@ -43,20 +64,33 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
   return balance >= u.cost
 }
 
+/** Are this upgrade's prerequisites all owned? Empty / missing prereqs = always unlocked. */
+export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+  for (const pid of u.prerequisites ?? []) {
+    if ((state.player.upgrades[pid] ?? 0) <= 0) return false
+  }
+  return true
+}
+
+/** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
+export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+  return isUnlocked(state, u) && canAfford(state, u)
+}
+
 /** Update a progress bar element's width. */
 export function updateProgressBar(id: string, score: number, target: number): void {
   const el = document.getElementById(id)
   if (el) el.style.width = `${Math.min(100, (score / target) * 100)}%`
 }
 
-/** Bind click handler via event delegation on #upgrades container. */
-export function bindUpgradeEvents(): void {
-  const container = document.getElementById('upgrades')
+/** Bind click handler via event delegation on the given container. Defaults to '#upgrades'. */
+export function bindUpgradeEvents(containerId = 'upgrades'): void {
+  const container = document.getElementById(containerId)
   if (!container || container.dataset.delegated) return
   container.dataset.delegated = 'true'
   container.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.upgrade-btn')
-    if (!btn) return
+    if (!btn || btn.disabled) return
     const uid = btn.dataset.upgrade
     if (uid) doBuy(uid)
   })
