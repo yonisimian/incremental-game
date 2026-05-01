@@ -1,57 +1,129 @@
 # TODO
 
-## Chores
+## Core Gameplay
 
-- [x] Upgrade major dependencies (TypeScript 6, Vite 8, knip 6, @types/node 25)
-- [x] Upgrade minor dependencies (vitest, tsx, ws)
-- [ ] Set up Dependabot for monthly automated dependency PRs
-- [ ] Add a README.md file
+### Modes
 
-## Bugs
+- [x] Clicker
+- [x] Idler
+- [ ] Monster Wave clicker (e.g. Tap Tap Infinity)
+- [ ] Bullet Heaven (e.g. Vampire Survivors)
+- [ ] Tower Defense (e.g. Outhold)
+- [ ] Timed Survival (e.g. Minutescape)
+- [ ] Map Control / Expansion (e.g. Lumberjacking, Harventure)
+- [ ] Map Exploration (e.g. Digseum, Idle Chapel)
+- [ ] Compound (e.g. Dwarf Eats Mountain, Rock Island, The Gnope Apolog)
 
-- [ ] UI: clicker button gets clipped from above when expanded on each click
-- [x] UI: CLICK button's bounding rectangle shows on some devices
-- [ ] UI: screen bottom is cropped on Tal's device
+### Goals
 
-## UI
+- [x] By time
+- [x] By first to score
+- [x] By first to buy a specific upgrade
 
-- [x] Remove hotkeys from mobiles
-- [ ] Make hotkeys per-panel (e.g., on generators panel press 1/2/3 to buy tiers; on upgrade-tree panel press 1/2/3 to buy upgrades)
-- [x] End-game screen: aggregate repeated upgrade purchases (show "🍻 Tavern Recruits ×3" instead of three separate entries)
-- [ ] End-game screen: also show counts of auto-generators purchased and upgrade-tree upgrades purchased
+### Player Count
 
-## Features
+- [ ] Single player
+- [x] 1 vs 1
+- [x] 1 vs bot
+- [ ] Group vs group
+- [ ] Battle royal (survival, all against all)
 
-- [x] Auto-generators (clicker + idle modes)
-- [ ] Hotkeys for auto-generators
-- [ ] Bot: teach bot to buy generators
+### Controls & Input
+
+- [ ] Per-panel hotkeys (generators: 1/2/3 for tiers; upgrade-tree: 1/2/3 for upgrades)
+- [ ] Hotkey for "quit"
+- [ ] Hotkeys for generators
+
+### Match Flow
+
+- [ ] Quick-match option (random game mode + game goal)
+- [ ] CPS encourager mechanism (see Trello)
+
+## Progression Systems
+
+### Generators
+
 - [ ] Visual feedback on generator purchase
+- [ ] Bot: teach bot to buy generators
 - [ ] Unit tests for generator cost/purchase logic
-- [ ] Unit tests for buy-upgrade match-end flow (trophy buy → buyer wins regardless of score; safety-cap → score-based winner)
-- [x] Upgrade tree (own panel, like generators — start with idler game mode)
-- [ ] Upgrade tree: support mixed AND/OR prerequisites per edge (currently AND-only)
-- [ ] Upgrade tree: visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned (currently always fully visible)
-- [ ] Upgrade tree: replace hand-placed (x, y) with a layout system
-- [ ] Upgrade tree: startup-time cycle detection on prereq graph (currently no validation; bad data silently locks all nodes in a cycle)
-- [ ] Upgrade tree: generic hotkeys (e.g. buy cheapest tree upgrade, buy all affordable tree upgrades) — replaces the removed Q/W/E/R per-index hotkeys
-- [ ] Ability cards (own panel, also a pre-match decision — see DESIGN.md)
-- [ ] Perks (pre-match decision)
-- [ ] Prestige
+
+### Upgrade Tree
+
+- [ ] Support mixed AND/OR prerequisites per edge (currently AND-only)
+- [ ] Visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned
+- [ ] Replace hand-placed (x, y) with a layout system
+- [ ] Startup-time cycle detection on prereq graph
+- [ ] Generic hotkeys (buy cheapest / buy all affordable)
+- [ ] Multi-purchase with fixed cost
+- [ ] Multi-purchase with dynamic cost
+- [ ] Choice upgrades (locks sibling upgrades when bought)
+- Specific upgrades — generator:
+  - [ ] Time Mul: multiply generators by a factor entangled with time since purchase
+  - [ ] Add power to generator(s) (more points per tick)
+  - [ ] Increase tick speed (…per generator?)
+  - [ ] Lower tier support: each N tier-1 entities add power to tier-2 generators
+- Specific upgrades — idler:
+  - [ ] Highlight battery charge: highlight "nothing" to charge a battery that amplifies highlighting power
+  - [ ] Highlight battery diminish: lower drain rate
+  - [ ] Highlight battery recharge: faster charging rate
+  - [ ] Highlight battery max charge
+- Specific upgrades — clicker:
+  - [ ] Add power to the click
+  - [ ] Multiply click power
+  - [ ] Critical click chance (starts at 0%)
+  - [ ] Critical click power
+
+### Ability Cards
+
+- [ ] Own panel, also a pre-match decision (see DESIGN.md)
 - [ ] Ability card classes (randomizers, rhythmicals, etc.)
-- [ ] Achievements
-- [x] Game goal: first to buy a specific upgrade
-- [x] User name
 
-## Game Modes
+### Perks
 
-- [ ] Monster wave clicker
-- [ ] Bullet heaven
-- [ ] Monster tower defense
-- [ ] Monster timed survival
-- [ ] Map control / expansion
-- [ ] Map exploration
-- [ ] Compound
+### Prestige
 
-## Metrics && Analysis
+### Achievements
 
-- [ ] Think about metrics and analysis
+## Anti-Cheating
+
+- [ ] Punish players with too-high CPS
+- [ ] Punish players with even gaps between clicks (auto-clicker detection)
+
+## UX
+
+- [ ] Confirmation panel ("are you sure you wanna quit?")
+- [ ] End-game screen: show counts of generators + tree upgrades purchased
+- [x] User name (lobby input, localStorage persistence)
+
+## Presentation
+
+### Visualization
+
+- [ ] Particle system(?)
+- [ ] Post effects(?)
+
+### Sound
+
+- [ ] Sound track
+- [ ] Sound effects
+
+### Other
+
+- [ ] Vibration
+- [ ] Themes
+
+## Analytics
+
+- [ ] In-game: for each generator, show percentage of its value-per-tick relative to total
+
+## Infrastructure
+
+- [ ] Set up Dependabot for monthly automated dependency PRs
+- [ ] Add a README.md
+- [ ] Add a MANUAL.md with game instructions
+- [ ] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
+
+## Known Bugs
+
+- [ ] Clicker button gets clipped from above when expanded on each click
+- [ ] Screen bottom is cropped on Tal's device
