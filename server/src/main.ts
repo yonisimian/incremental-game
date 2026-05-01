@@ -36,7 +36,7 @@ interface PlayerData {
 
 const wsData = new Map<WebSocket, PlayerData>()
 const playerMatches = new Map<string, Match>()
-const queuedPlayers = new Map<string, { ws: WebSocket; mode: GameMode; goal: Goal }>()
+const queuedPlayers = new Map<string, { ws: WebSocket; mode: GameMode; goal: Goal; name: string }>()
 
 wss.on('connection', (ws: WebSocket) => {
   const playerId = randomUUID()
@@ -82,9 +82,16 @@ wss.on('connection', (ws: WebSocket) => {
 
       // Validate and extract goal from the message
       const goal = parseGoal(msg.goal, msg.mode)
+      const name =
+        typeof msg.name === 'string'
+          ? msg.name
+              .trim()
+              .replace(/\p{Cc}/gu, '')
+              .slice(0, 16)
+          : ''
 
-      queuedPlayers.set(data.id, { ws, mode: msg.mode, goal })
-      const match = addToQueue({ id: data.id, ws }, msg.mode, goal)
+      queuedPlayers.set(data.id, { ws, mode: msg.mode, goal, name })
+      const match = addToQueue({ id: data.id, ws, name }, msg.mode, goal)
       if (match) {
         startMatch(match)
       }
@@ -103,8 +110,8 @@ wss.on('connection', (ws: WebSocket) => {
       const availableUpgrades = getAvailableUpgrades(modeDef, entry.goal)
       const bot = createBot(entry.mode, modeDef, availableUpgrades)
       const match = new Match(
-        { id: data.id, ws },
-        { id: botId, ws: null },
+        { id: data.id, ws, name: entry.name },
+        { id: botId, ws: null, name: 'Bot' },
         entry.mode,
         entry.goal,
         bot,

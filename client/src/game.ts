@@ -64,6 +64,10 @@ export interface GameState {
   countdown: number
   /** End-of-round data. */
   endData: RoundEndMessage | null
+  /** Local player's display name. */
+  playerName: string
+  /** Opponent's display name. */
+  opponentName: string
 }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
@@ -98,6 +102,8 @@ const state: GameState = {
   upgrades: [],
   countdown: COUNTDOWN_SEC,
   endData: null,
+  playerName: '',
+  opponentName: '',
 }
 
 const pendingBatches: PendingBatch[] = []
@@ -119,6 +125,25 @@ export function getState(): Readonly<GameState> {
   return state
 }
 
+const STORAGE_KEY_NAME = 'player-name'
+
+/** Set the player's display name (persisted to localStorage). */
+export function setPlayerName(name: string): void {
+  state.playerName = name
+  try {
+    localStorage.setItem(STORAGE_KEY_NAME, name)
+  } catch {
+    /* localStorage unavailable — ignore */
+  }
+}
+
+// Restore name from localStorage on load
+try {
+  state.playerName = localStorage.getItem(STORAGE_KEY_NAME) ?? ''
+} catch {
+  /* localStorage unavailable */
+}
+
 /** Handle an incoming server message. Called by network.ts. */
 export function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
@@ -137,7 +162,7 @@ export function handleServerMessage(msg: ServerMessage): void {
 /** Select a game mode and goal, then enter matchmaking. */
 export function selectMode(mode: GameMode, goal: Goal): void {
   if (state.screen !== 'lobby') return
-  if (!sendModeSelect(mode, goal)) return // not connected — stay on lobby
+  if (!sendModeSelect(mode, goal, state.playerName)) return // not connected — stay on lobby
   state.mode = mode
   state.goal = goal
   state.screen = 'waiting'
@@ -268,6 +293,7 @@ export function resetForMatch(): void {
   state.upgrades = []
   state.countdown = COUNTDOWN_SEC
   state.endData = null
+  state.opponentName = ''
   pendingBatches.length = 0
   resetSeq()
   stopCountdown()
@@ -291,6 +317,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.mode = msg.config.mode
   state.goal = msg.config.goal
   state.upgrades = msg.config.upgrades
+  state.opponentName = msg.opponentName
   const modeDef = getModeDefinition(msg.config.mode)
   state.player = createInitialState(modeDef)
   state.opponent = createInitialState(modeDef)

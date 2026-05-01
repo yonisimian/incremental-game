@@ -44,6 +44,30 @@ export function formatTime(seconds: number): string {
 
 // ─── Game-Related Helpers ────────────────────────────────────────────
 
+/** Escape HTML-special characters to prevent XSS when interpolating into innerHTML / attributes. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** Public alias for escaping untrusted strings inside HTML attribute values. */
+export const escapeAttr = escapeHtml
+
+/** Get the display name for the local player ('Player' if empty). */
+export function playerDisplayName(state: Readonly<GameState>): string {
+  const name = state.playerName.trim()
+  return name ? escapeHtml(name) : 'Player'
+}
+
+/** Get the display name for the opponent ('Opponent' if empty). */
+export function opponentDisplayName(state: Readonly<GameState>): string {
+  const name = state.opponentName.trim()
+  return name ? escapeHtml(name) : 'Opponent'
+}
+
 /** Format a score for the scoreboard (includes target for target-score goal). */
 export function formatScore(score: number, state: Readonly<GameState>): string {
   const suffix = state.mode === 'idler' ? ' 🪵' : ''

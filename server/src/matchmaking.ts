@@ -5,6 +5,7 @@ import { Match } from './match.js'
 interface QueuedPlayer {
   id: string
   ws: WebSocket
+  name: string
 }
 
 /** Queue key combines mode + goal identity so players only match with identical settings. */

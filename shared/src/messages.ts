@@ -22,6 +22,8 @@ export interface ModeSelectMessage {
   type: 'MODE_SELECT'
   mode: GameMode
   goal: Goal
+  /** Player's chosen display name (may be empty). */
+  name: string
 }
 
 /** Sent by client to voluntarily quit the current match. */
@@ -63,6 +65,8 @@ export interface RoundStartMessage {
     goal: Goal
     upgrades: readonly UpgradeDefinition[]
   }
+  /** Opponent's display name (may be empty). */
+  opponentName: string
   /** Server timestamp (ms) for clock synchronization. */
   serverTime: number
 }

@@ -1,7 +1,15 @@
 import type { GameState } from '../game.js'
 import { quitMatch } from '../game.js'
 import { renderTimer, renderProgressBars } from './components.js'
-import { app, setText, formatTime, formatScore, updateProgressBar } from './helpers.js'
+import {
+  app,
+  setText,
+  formatTime,
+  formatScore,
+  updateProgressBar,
+  playerDisplayName,
+  opponentDisplayName,
+} from './helpers.js'
 import { bumpScore } from './vfx/index.js'
 import {
   renderTabGrid,
@@ -38,12 +46,12 @@ function renderScoreboard(state: Readonly<GameState>): string {
   return `
     <div class="scoreboard">
       <div class="player-col you">
-        <span class="label">You</span>
+        <span class="label">${playerDisplayName(state)}</span>
         <span class="score" id="player-score">${formatScore(state.player.score, state)}</span>
       </div>
       <div class="vs">vs</div>
       <div class="player-col opponent">
-        <span class="label">Opponent</span>
+        <span class="label">${opponentDisplayName(state)}</span>
         <span class="score" id="opponent-score">${formatScore(state.opponent.score, state)}</span>
       </div>
     </div>

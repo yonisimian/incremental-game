@@ -40,6 +40,7 @@
 - [ ] Ability card classes (randomizers, rhythmicals, etc.)
 - [ ] Achievements
 - [x] Game goal: first to buy a specific upgrade
+- [x] User name
 
 ## Game Modes
 

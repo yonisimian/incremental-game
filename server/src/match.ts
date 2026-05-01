@@ -34,6 +34,7 @@ import type { BotStrategy } from './bot.js'
 
 interface MatchPlayer {
   readonly id: string
+  readonly name: string
   ws: WebSocket | null
   state: PlayerState
   ackSeq: number
@@ -69,8 +70,8 @@ export class Match {
   private onEndCallback: (() => void) | null = null
 
   constructor(
-    p1: { id: string; ws: WebSocket },
-    p2: { id: string; ws: WebSocket | null },
+    p1: { id: string; ws: WebSocket; name?: string },
+    p2: { id: string; ws: WebSocket | null; name?: string },
     mode: GameMode,
     goal?: Goal,
     bot?: BotStrategy,
@@ -105,11 +106,14 @@ export class Match {
       upgrades: [...this.availableUpgrades],
     }
 
-    for (const player of this.players) {
+    for (let i = 0; i < this.players.length; i++) {
+      const player = this.players[i]
+      const opponent = this.players[1 - i]
       this.send(player, {
         type: 'ROUND_START',
         matchId: this.id,
         config,
+        opponentName: opponent.name,
         serverTime: Date.now(),
       })
     }
@@ -189,9 +193,10 @@ export class Match {
 
   // ─── Private: setup ────────────────────────────────────────────────
 
-  private initPlayer(p: { id: string; ws: WebSocket | null }): MatchPlayer {
+  private initPlayer(p: { id: string; ws: WebSocket | null; name?: string }): MatchPlayer {
     return {
       id: p.id,
+      name: p.name ?? '',
       ws: p.ws,
       state: createInitialState(this.modeDef),
       ackSeq: 0,

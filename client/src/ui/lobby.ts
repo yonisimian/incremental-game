@@ -1,12 +1,23 @@
 import type { GameMode } from '@game/shared'
 import { getModeDefinition } from '@game/shared'
-import { selectMode } from '../game.js'
-import { app } from './helpers.js'
+import { selectMode, getState, setPlayerName } from '../game.js'
+import { app, escapeAttr } from './helpers.js'
 
 export function renderLobbyScreen(): void {
+  const currentName = getState().playerName
+
   app.innerHTML = `
     <div class="screen lobby-screen">
       <h1>incremen<span class="brand-t">T</span>al</h1>
+      <input
+        class="name-input"
+        id="name-input"
+        type="text"
+        placeholder="Enter your name"
+        maxlength="16"
+        autocomplete="off"
+        value="${escapeAttr(currentName)}"
+      />
       <p class="status-text">Choose a game mode</p>
       <div class="mode-buttons" id="mode-buttons">
         <button class="mode-btn" data-mode="clicker">
@@ -25,6 +36,10 @@ export function renderLobbyScreen(): void {
       <div class="goal-picker hidden" id="goal-picker"></div>
     </div>
   `
+
+  document.getElementById('name-input')?.addEventListener('input', (e) => {
+    setPlayerName((e.target as HTMLInputElement).value)
+  })
 
   document.querySelectorAll<HTMLButtonElement>('.mode-btn:not(:disabled)').forEach((btn) => {
     btn.addEventListener('click', () => {

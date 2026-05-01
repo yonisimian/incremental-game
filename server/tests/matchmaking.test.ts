@@ -22,26 +22,26 @@ describe('matchmaking', () => {
   })
 
   it('returns null when only one player is queued', () => {
-    expect(addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)).toBeNull()
+    expect(addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)).toBeNull()
   })
 
   it('returns a Match when two players are queued in the same mode', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)
-    const match = addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', timedGoal)
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)
+    const match = addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', timedGoal)
     expect(match).not.toBeNull()
     expect(match!.getPlayerIds()).toEqual(['p1', 'p2'])
   })
 
   it('empties the queue after a match is created', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)
-    addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', timedGoal)
-    expect(addToQueue({ id: 'p3', ws: mockWs() }, 'clicker', timedGoal)).toBeNull()
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)
+    addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', timedGoal)
+    expect(addToQueue({ id: 'p3', ws: mockWs(), name: '' }, 'clicker', timedGoal)).toBeNull()
   })
 
   it('removes a queued player before matching', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)
     removeFromQueue('p1')
-    expect(addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', timedGoal)).toBeNull()
+    expect(addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', timedGoal)).toBeNull()
   })
 
   it('tolerates removing an unknown player ID', () => {
@@ -51,38 +51,38 @@ describe('matchmaking', () => {
   })
 
   it('does not match players from different modes', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)
-    expect(addToQueue({ id: 'p2', ws: mockWs() }, 'idler', timedGoal)).toBeNull()
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)
+    expect(addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'idler', timedGoal)).toBeNull()
   })
 
   it('matches players within the same idler queue', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'idler', timedGoal)
-    const match = addToQueue({ id: 'p2', ws: mockWs() }, 'idler', timedGoal)
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'idler', timedGoal)
+    const match = addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'idler', timedGoal)
     expect(match).not.toBeNull()
     expect(match!.mode).toBe('idler')
   })
 
   it('does not match players with different goal types', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', timedGoal)
-    expect(addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', targetGoal)).toBeNull()
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', timedGoal)
+    expect(addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', targetGoal)).toBeNull()
   })
 
   it('matches players with the same goal type', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', targetGoal)
-    const match = addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', targetGoal)
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', targetGoal)
+    const match = addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', targetGoal)
     expect(match).not.toBeNull()
     expect(match!.goal.type).toBe('target-score')
   })
 
   it('matches players with buy-upgrade goal', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', buyUpgradeGoal)
-    const match = addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', buyUpgradeGoal)
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', buyUpgradeGoal)
+    const match = addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', buyUpgradeGoal)
     expect(match).not.toBeNull()
     expect(match!.goal.type).toBe('buy-upgrade')
   })
 
   it('does not cross-match buy-upgrade with timed', () => {
-    addToQueue({ id: 'p1', ws: mockWs() }, 'clicker', buyUpgradeGoal)
-    expect(addToQueue({ id: 'p2', ws: mockWs() }, 'clicker', timedGoal)).toBeNull()
+    addToQueue({ id: 'p1', ws: mockWs(), name: '' }, 'clicker', buyUpgradeGoal)
+    expect(addToQueue({ id: 'p2', ws: mockWs(), name: '' }, 'clicker', timedGoal)).toBeNull()
   })
 })
