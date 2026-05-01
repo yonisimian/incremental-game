@@ -1,5 +1,13 @@
 import type { GameState } from '../game.js'
-import { canAfford, isUnlocked, formatTime, formatScore, UPGRADE_HOTKEYS } from './helpers.js'
+import {
+  canAfford,
+  isUnlocked,
+  formatTime,
+  formatScore,
+  playerDisplayName,
+  opponentDisplayName,
+  UPGRADE_HOTKEYS,
+} from './helpers.js'
 import type { UpgradeDefinition } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -25,13 +33,13 @@ export function renderProgressBars(state: Readonly<GameState>): string {
       <div class="progress-row you">
         <div class="progress-bar bar-you">
           <div class="progress-fill you" id="player-progress" style="width:${playerPct}%"></div>
-          <span class="bar-label">You: <span id="player-bar-score">${formatScore(state.player.score, state)}</span></span>
+          <span class="bar-label">${playerDisplayName(state)}: <span id="player-bar-score">${formatScore(state.player.score, state)}</span></span>
         </div>
       </div>
       <div class="progress-row opponent">
         <div class="progress-bar bar-opponent">
           <div class="progress-fill opponent" id="opponent-progress" style="width:${opponentPct}%"></div>
-          <span class="bar-label">Opponent: <span id="opponent-bar-score">${formatScore(state.opponent.score, state)}</span></span>
+          <span class="bar-label">${opponentDisplayName(state)}: <span id="opponent-bar-score">${formatScore(state.opponent.score, state)}</span></span>
         </div>
       </div>
     </div>

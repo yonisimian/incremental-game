@@ -38,6 +38,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
     type: 'ROUND_START',
     matchId: 'test-match',
     config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...clickerDef.upgrades] },
+    opponentName: '',
     serverTime: Date.now(),
     ...overrides,
   }

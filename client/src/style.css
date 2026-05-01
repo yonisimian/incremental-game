@@ -101,6 +101,29 @@ body {
 
 /* ─── Lobby ────────────────────────────────────────────────────────── */
 
+.name-input {
+  width: 80%;
+  max-width: 260px;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.name-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.name-input:focus {
+  border-color: var(--accent);
+}
+
 .mode-buttons {
   display: flex;
   flex-direction: column;

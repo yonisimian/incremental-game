@@ -93,9 +93,9 @@ export function queueAction(action: PlayerAction): void {
 }
 
 /** Send a mode + goal selection message to the server (enters matchmaking). Returns false if not connected. */
-export function sendModeSelect(mode: GameMode, goal: Goal): boolean {
+export function sendModeSelect(mode: GameMode, goal: Goal, name: string): boolean {
   if (ws?.readyState !== WebSocket.OPEN) return false
-  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode, goal }
+  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode, goal, name }
   ws.send(JSON.stringify(msg))
   return true
 }

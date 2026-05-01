@@ -32,6 +32,8 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     upgrades: [...idlerDef.upgrades],
     countdown: COUNTDOWN_SEC,
     endData: null,
+    playerName: '',
+    opponentName: '',
   }
 }
 

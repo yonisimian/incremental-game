@@ -42,6 +42,8 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     upgrades: [],
     countdown: COUNTDOWN_SEC,
     endData: null,
+    playerName: '',
+    opponentName: '',
   }
 }
 
