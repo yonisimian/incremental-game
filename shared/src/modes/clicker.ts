@@ -17,7 +17,6 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 15,
     costScaling: 1.15,
     costCurrency: 'currency',
-    costIcon: '$',
     production: { resource: 'currency', rate: 0.5 },
   },
   {
@@ -27,7 +26,6 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 100,
     costScaling: 1.15,
     costCurrency: 'currency',
-    costIcon: '$',
     production: { resource: 'currency', rate: 3 },
   },
   {
@@ -37,7 +35,6 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 500,
     costScaling: 1.15,
     costCurrency: 'currency',
-    costIcon: '$',
     production: { resource: 'currency', rate: 15 },
   },
 ]
@@ -55,13 +52,6 @@ export const clickerMode: ModeDefinition = {
     { stage: 'additive', field: 'clickIncome', value: 1 }, // base 1 per click
   ],
   upgrades: [
-    {
-      id: 'auto-clicker',
-      name: 'Auto-Clicker',
-      cost: 10,
-      description: '+1 currency/sec passively',
-      modifiers: [{ stage: 'additive', field: 'currency', value: 1 }],
-    },
     {
       id: 'double-click',
       name: 'Double Click',

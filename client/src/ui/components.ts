@@ -6,9 +6,8 @@ import {
   formatScore,
   playerDisplayName,
   opponentDisplayName,
-  UPGRADE_HOTKEYS,
 } from './helpers.js'
-import type { UpgradeDefinition } from '@game/shared'
+import { getResourceIcon } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
 
@@ -62,38 +61,9 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${u.name}</span>
-          <span class="upgrade-cost">${owned ? '✓' : `$${u.cost}`}</span>
+          <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon('currency')}${u.cost}`}</span>
           <span class="upgrade-desc">${u.description}</span>
           <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
-        </button>
-      `
-    })
-    .join('')
-}
-
-/** Renders play-category idler upgrades only. Tree-category upgrades are rendered by `renderUpgradeTree`. */
-export function renderIdlerUpgrades(state: Readonly<GameState>): string {
-  return state.upgrades
-    .filter((u) => (u.category ?? 'play') === 'play')
-    .map((u: UpgradeDefinition, i: number) => {
-      const owned = state.player.upgrades[u.id]
-      const affordable = canAfford(state, u)
-      const disabled = (!u.repeatable && owned) || !affordable
-      const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺'
-      const count = u.repeatable ? owned || 0 : 0
-      const costLabel =
-        !u.repeatable && owned ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`
-      const hotkey = UPGRADE_HOTKEYS.play?.[i] ?? ''
-      return `
-        <button
-          class="upgrade-btn ${!u.repeatable && owned ? 'owned' : ''} ${!affordable && !(owned && !u.repeatable) ? 'too-expensive' : ''}"
-          data-upgrade="${u.id}"
-          ${disabled ? 'disabled' : ''}
-        >
-          <span class="upgrade-name">${u.name}</span>
-          <span class="upgrade-cost">${costLabel}</span>
-          <span class="upgrade-desc">${u.description}</span>
-          ${hotkey ? `<span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>` : ''}
         </button>
       `
     })
@@ -212,7 +182,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const buyable = unlocked && affordable && !ownedOneShot
       const disabled = !buyable
 
-      const emoji = u.costCurrency === 'wood' ? '🪵' : '🍺'
+      const emoji = getResourceIcon(u.costCurrency ?? 'wood')
       const count = u.repeatable ? owned : 0
       const costLabel = ownedOneShot ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`
 

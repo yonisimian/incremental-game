@@ -2,8 +2,12 @@
  * Idler Balance Simulation Script
  *
  * Automates upgrade chain traces for every meaningful idler strategy.
- * Tavern Recruits (TR) is repeatable (+1 base wood/sec each, 15 ale).
- * Sharpened Axes (SA, 30 wood) and Lumber Mill (LM, 80 wood) are one-shot.
+ * Play-panel upgrades have been removed; all upgrades are now in the tree.
+ * Sharpened Axes (SA, 30 wood, tree) doubles highlight to 4×.
+ * Heavy Logging (HL, 25 wood, tree) adds +5 wood/sec.
+ * Royal Brewery (RB, 25 ale, tree) adds +5 ale/sec.
+ * Master Craftsmen (MC, 10 ale, tree, repeatable, prereq: RB) adds +5 wood/sec each.
+ * Industrial Era (IE, 50 wood, tree, prereqs: HL+SA+RB) multiplies all ×1.25.
  *
  * Run: pnpm sim:idler
  * Prereq: pnpm --filter @game/shared build
@@ -51,8 +55,8 @@ const highlight = (h: string): StrategyAction => ({
 const upgradeMap = new Map(idlerDef.upgrades.map((u) => [u.id, u]))
 
 // ─── Strategies ──────────────────────────────────────────────────────
-// With repeatable TR, key decision is how many TRs to stack before
-// switching to wood upgrades.
+// With tree upgrades, key decisions are which order to buy SA/HL/RB and
+// how many MCs to stack before going for Industrial Era.
 
 const STRATEGIES: Strategy[] = [
   {
@@ -64,105 +68,97 @@ const STRATEGIES: Strategy[] = [
     actions: [highlight('wood'), buy('sharpened-axes')],
   },
   {
-    name: 'SA→LM',
-    actions: [highlight('wood'), buy('sharpened-axes'), buy('lumber-mill')],
+    name: 'HL only',
+    actions: [highlight('wood'), buy('heavy-logging')],
   },
   {
-    name: 'TR×1→SA→LM',
+    name: 'SA→HL',
+    actions: [highlight('wood'), buy('sharpened-axes'), buy('heavy-logging')],
+  },
+  {
+    name: 'HL→SA',
+    actions: [highlight('wood'), buy('heavy-logging'), buy('sharpened-axes')],
+  },
+  {
+    name: 'RB→MC×1→SA→HL',
     actions: [
       highlight('ale'),
-      buy('tavern-recruits'),
+      buy('royal-brewery'),
+      buy('master-craftsmen'),
       highlight('wood'),
       buy('sharpened-axes'),
-      buy('lumber-mill'),
+      buy('heavy-logging'),
     ],
   },
   {
-    name: 'TR×2→SA→LM',
+    name: 'RB→MC×2→SA→HL',
     actions: [
       highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
+      buy('royal-brewery'),
+      buy('master-craftsmen'),
+      buy('master-craftsmen'),
       highlight('wood'),
       buy('sharpened-axes'),
-      buy('lumber-mill'),
+      buy('heavy-logging'),
     ],
   },
   {
-    name: 'TR×3→SA→LM',
+    name: 'RB→MC×3→SA→HL',
     actions: [
       highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
+      buy('royal-brewery'),
+      buy('master-craftsmen'),
+      buy('master-craftsmen'),
+      buy('master-craftsmen'),
       highlight('wood'),
       buy('sharpened-axes'),
-      buy('lumber-mill'),
+      buy('heavy-logging'),
     ],
   },
   {
-    name: 'TR×4→SA→LM',
-    actions: [
-      highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      highlight('wood'),
-      buy('sharpened-axes'),
-      buy('lumber-mill'),
-    ],
-  },
-  {
-    name: 'TR×1→SA',
-    actions: [highlight('ale'), buy('tavern-recruits'), highlight('wood'), buy('sharpened-axes')],
-  },
-  {
-    name: 'TR×2→SA',
-    actions: [
-      highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      highlight('wood'),
-      buy('sharpened-axes'),
-    ],
-  },
-  {
-    name: 'TR×1 only',
-    actions: [highlight('ale'), buy('tavern-recruits'), highlight('wood')],
-  },
-  {
-    name: 'TR×3 only',
-    actions: [
-      highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      highlight('wood'),
-    ],
-  },
-  {
-    name: 'SA→TR×1→LM',
+    name: 'SA→HL→RB→IE',
     actions: [
       highlight('wood'),
       buy('sharpened-axes'),
+      buy('heavy-logging'),
       highlight('ale'),
-      buy('tavern-recruits'),
+      buy('royal-brewery'),
       highlight('wood'),
-      buy('lumber-mill'),
+      buy('industrial-era'),
     ],
   },
   {
-    name: 'SA→TR×2→LM',
+    name: 'RB→MC×1→SA→HL→IE',
     actions: [
+      highlight('ale'),
+      buy('royal-brewery'),
+      buy('master-craftsmen'),
       highlight('wood'),
       buy('sharpened-axes'),
-      highlight('ale'),
-      buy('tavern-recruits'),
-      buy('tavern-recruits'),
-      highlight('wood'),
-      buy('lumber-mill'),
+      buy('heavy-logging'),
+      buy('industrial-era'),
     ],
+  },
+  {
+    name: 'RB→MC×2→SA→HL→IE',
+    actions: [
+      highlight('ale'),
+      buy('royal-brewery'),
+      buy('master-craftsmen'),
+      buy('master-craftsmen'),
+      highlight('wood'),
+      buy('sharpened-axes'),
+      buy('heavy-logging'),
+      buy('industrial-era'),
+    ],
+  },
+  {
+    name: 'RB only',
+    actions: [highlight('ale'), buy('royal-brewery'), highlight('wood')],
+  },
+  {
+    name: 'RB→MC×1',
+    actions: [highlight('ale'), buy('royal-brewery'), buy('master-craftsmen'), highlight('wood')],
   },
 ]
 
@@ -171,7 +167,7 @@ const STRATEGIES: Strategy[] = [
 interface SimResult {
   name: string
   score: number
-  trCount: number
+  mcCount: number
   purchaseLog: { id: string; time: number }[]
   lastPurchaseSec: number
 }
@@ -256,7 +252,7 @@ function simulate(strategy: Strategy): SimResult {
   return {
     name: strategy.name,
     score: Math.round(state.score * 100) / 100,
-    trCount: Number(state.upgrades['tavern-recruits']) || 0,
+    mcCount: Number(state.upgrades['master-craftsmen']) || 0,
     purchaseLog,
     lastPurchaseSec,
   }
@@ -265,9 +261,11 @@ function simulate(strategy: Strategy): SimResult {
 // ─── Output formatting ──────────────────────────────────────────────
 
 const UPGRADE_ABBR: Record<string, string> = {
-  'tavern-recruits': 'TR',
   'sharpened-axes': 'SA',
-  'lumber-mill': 'LM',
+  'heavy-logging': 'HL',
+  'royal-brewery': 'RB',
+  'master-craftsmen': 'MC',
+  'industrial-era': 'IE',
 }
 
 function printComparisonTable(results: SimResult[]): void {
@@ -283,7 +281,7 @@ function printComparisonTable(results: SimResult[]): void {
     '├────────────────────────────────────────────────────────────────────────────────────┤',
   )
   console.log(
-    '│ Strategy              Score  % Best  TR#  Purchase timeline                       │',
+    '│ Strategy              Score  % Best  MC#  Purchase timeline                       │',
   )
   console.log(
     '├────────────────────────────────────────────────────────────────────────────────────┤',
@@ -293,13 +291,13 @@ function printComparisonTable(results: SimResult[]): void {
     const pct = ((r.score / bestScore) * 100).toFixed(0).padStart(3)
     const name = r.name.padEnd(20)
     const score = r.score.toFixed(0).padStart(6)
-    const trCount = String(r.trCount).padStart(2)
+    const mcCount = String(r.mcCount).padStart(2)
 
     const timeline = r.purchaseLog
       .map((p) => `${UPGRADE_ABBR[p.id] ?? p.id}@${p.time.toFixed(1)}s`)
       .join(' → ')
 
-    console.log(`│ ${name} ${score}   ${pct}%   ${trCount}  ${timeline.padEnd(38)}│`)
+    console.log(`│ ${name} ${score}   ${pct}%   ${mcCount}  ${timeline.padEnd(38)}│`)
   }
 
   console.log(

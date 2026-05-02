@@ -54,8 +54,6 @@ export interface GeneratorDefinition {
   readonly costScaling: number
   /** Which resource pays for this generator. */
   readonly costCurrency: string
-  /** Display symbol for the cost (e.g., '$', '🪵'). */
-  readonly costIcon: string
   /** What this generator produces. */
   readonly production: {
     readonly resource: string

@@ -10,8 +10,6 @@ import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
 interface ResourceDisplay {
   /** Key in PlayerState.resources. */
   readonly key: string
-  /** Emoji icon displayed before the value. */
-  readonly icon: string
   /** Optional CSS class applied to the resource item (e.g., 'gold'). */
   readonly className?: string
 }
@@ -27,7 +25,7 @@ export interface ModeUI {
 // ─── Mode UI Definitions ─────────────────────────────────────────────
 
 const clickerUI: ModeUI = {
-  resources: [{ key: 'currency', icon: '💰', className: 'gold' }],
+  resources: [{ key: 'currency', className: 'gold' }],
   panels: [
     { index: 0, panel: playPanel },
     { index: 1, panel: generatorsPanel },
@@ -35,7 +33,7 @@ const clickerUI: ModeUI = {
 }
 
 const idlerUI: ModeUI = {
-  resources: [],
+  resources: [{ key: 'wood' }, { key: 'ale' }],
   panels: [
     { index: 0, panel: playPanel },
     { index: 1, panel: generatorsPanel },

@@ -31,35 +31,19 @@ export function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
 // ─── Upgrades ────────────────────────────────────────────────────────
 
 const idlerUpgrades: readonly UpgradeDefinition[] = [
+  // ─── Tree-panel upgrades ────────────────────────────────────────────
+  // Note: array order determines Q/W/E/R hotkey mapping (per UPGRADE_HOTKEYS).
+  // Reordering here silently re-maps the keys.
   {
     id: 'sharpened-axes',
     name: '🪓 Sharpened Axes',
     cost: 30,
     costCurrency: 'wood',
     description: 'Highlight boost → 4× (from 2×)',
+    category: 'tree',
+    position: { x: 200, y: 0 },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
   },
-  {
-    id: 'lumber-mill',
-    name: '🏗️ Lumber Mill',
-    cost: 80,
-    costCurrency: 'wood',
-    description: '+2 base 🪵/sec',
-    modifiers: [{ stage: 'additive', field: 'wood', value: 2 }],
-  },
-  {
-    id: 'tavern-recruits',
-    name: '🍻 Tavern Recruits',
-    cost: 15,
-    costCurrency: 'ale',
-    description: '+1 base 🪵/sec (stackable)',
-    repeatable: true,
-    modifiers: [{ stage: 'additive', field: 'wood', value: 1 }], // scaled by count
-  },
-
-  // ─── Tree-panel upgrades ────────────────────────────────────────────
-  // Note: array order determines Q/W/E/R hotkey mapping (per UPGRADE_HOTKEYS).
-  // Reordering here silently re-maps the keys.
   {
     id: 'heavy-logging',
     name: '🌲 Heavy Logging',
@@ -102,7 +86,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     description: 'All production ×1.25',
     category: 'tree',
     position: { x: 200, y: 400 },
-    prerequisites: ['heavy-logging', 'royal-brewery'],
+    prerequisites: ['heavy-logging', 'sharpened-axes', 'royal-brewery'],
     modifiers: [
       { stage: 'multiplicative', field: 'wood', value: 1.25 },
       { stage: 'multiplicative', field: 'ale', value: 1.25 },
@@ -131,7 +115,6 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 10,
     costScaling: 1.15,
     costCurrency: 'wood',
-    costIcon: '🪵',
     production: { resource: 'wood', rate: 0.2 },
   },
   {
@@ -141,7 +124,6 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 10,
     costScaling: 1.15,
     costCurrency: 'ale',
-    costIcon: '🍺',
     production: { resource: 'ale', rate: 0.2 },
   },
   {
@@ -151,7 +133,6 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 50,
     costScaling: 1.15,
     costCurrency: 'ale',
-    costIcon: '🍺',
     production: { resource: 'wood', rate: 1 },
   },
   {
@@ -161,7 +142,6 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 50,
     costScaling: 1.15,
     costCurrency: 'wood',
-    costIcon: '🪵',
     production: { resource: 'ale', rate: 1 },
   },
 ]

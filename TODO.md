@@ -127,3 +127,7 @@
 
 - [ ] Clicker button gets clipped from above when expanded on each click
 - [ ] Screen bottom is cropped on Tal's device
+- [ ] Bot never buys the trophy in idler race-to-buy goal
+- [ ] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
+- [ ] Game stays on 0:00 for ~5 seconds before showing the end screen
+- [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
