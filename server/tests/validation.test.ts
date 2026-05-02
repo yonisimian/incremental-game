@@ -64,7 +64,6 @@ describe('isValidPurchase', () => {
       score: 0,
       resources: { currency: 50 },
       upgrades: {
-        'auto-clicker': 0,
         'double-click': 0,
         multiplier: 0,
       },
@@ -77,8 +76,8 @@ describe('isValidPurchase', () => {
   it('accepts a valid purchase', () => {
     expect(
       isValidPurchase(
-        makeState({ resources: { currency: 10 } }),
-        'auto-clicker',
+        makeState({ resources: { currency: 25 } }),
+        'double-click',
         testUpgradeMap,
         clickerDef,
       ),
@@ -88,8 +87,8 @@ describe('isValidPurchase', () => {
   it('accepts at exact cost', () => {
     expect(
       isValidPurchase(
-        makeState({ resources: { currency: 25 } }),
-        'double-click',
+        makeState({ resources: { currency: 100 } }),
+        'multiplier',
         testUpgradeMap,
         clickerDef,
       ),
@@ -100,19 +99,18 @@ describe('isValidPurchase', () => {
     const state = makeState({
       resources: { currency: 100 },
       upgrades: {
-        'auto-clicker': 1,
-        'double-click': 0,
+        'double-click': 1,
         multiplier: 0,
       },
     })
-    expect(isValidPurchase(state, 'auto-clicker', testUpgradeMap, clickerDef)).toBe(false)
+    expect(isValidPurchase(state, 'double-click', testUpgradeMap, clickerDef)).toBe(false)
   })
 
   it('rejects if too expensive', () => {
     expect(
       isValidPurchase(
-        makeState({ resources: { currency: 9 } }),
-        'auto-clicker',
+        makeState({ resources: { currency: 24 } }),
+        'double-click',
         testUpgradeMap,
         clickerDef,
       ),
@@ -210,22 +208,23 @@ describe('isValidPurchase — prerequisites', () => {
     expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('rejects industrial-era when only one of two prerequisites is owned (AND-semantics)', () => {
+  it('rejects industrial-era when only one of three prerequisites is owned (AND-semantics)', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        'heavy-logging': 1, // royal-brewery still unowned
+        'heavy-logging': 1, // royal-brewery and sharpened-axes still unowned
       },
     })
     expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('accepts industrial-era when both prerequisites are owned', () => {
+  it('accepts industrial-era when all three prerequisites are owned', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
         'heavy-logging': 1,
         'royal-brewery': 1,
+        'sharpened-axes': 1,
       },
     })
     expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(true)

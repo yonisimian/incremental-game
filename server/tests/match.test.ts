@@ -160,11 +160,11 @@ describe('Match', () => {
     it('rejects an unaffordable purchase', () => {
       const m = enterPlaying()
       m.handleMessage('p1', clickMsg(1)) // earn 1
-      m.handleMessage('p1', buyMsg('auto-clicker', 2)) // costs 10
+      m.handleMessage('p1', buyMsg('double-click', 2)) // costs 25
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['auto-clicker']).toBe(0)
+      expect(u.player.upgrades['double-click']).toBe(0)
       expect(u.player.resources.currency).toBe(1)
     })
 
@@ -185,20 +185,28 @@ describe('Match', () => {
   // ── Upgrade effects ──────────────────────────────────────────────
 
   describe('upgrade effects', () => {
-    it('auto-clicker adds passive income each tick', () => {
+    it('auto-generators add passive income each tick', () => {
       const m = enterPlaying()
-      const seq = earnCurrency(m, 'p1', 10)
-      m.handleMessage('p1', buyMsg('auto-clicker', seq))
+      // Use generators for passive income: buy a cursor (costs 15, produces 0.5 currency/sec)
+      const seq = earnCurrency(m, 'p1', 15)
+      m.handleMessage(
+        'p1',
+        JSON.stringify({
+          type: 'ACTION_BATCH',
+          seq,
+          actions: [{ type: 'buy_generator', timestamp: Date.now(), generatorId: 'cursor' }],
+        }),
+      )
 
       // Snapshot after purchase
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const scoreBefore = latestUpdate(ws1).player.score
 
-      // Advance exactly 1 second (4 ticks × 250ms) → +1.0 from auto-clicker
+      // Advance exactly 1 second (4 ticks × 250ms) → +0.5 from cursor
       vi.advanceTimersByTime(1000)
       const scoreAfter = latestUpdate(ws1).player.score
 
-      expect(scoreAfter - scoreBefore).toBeCloseTo(1, 5)
+      expect(scoreAfter - scoreBefore).toBeCloseTo(0.5, 1)
     })
 
     it('double-click gives +2 per click', () => {
@@ -420,8 +428,8 @@ describe('Match', () => {
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
       expect(ids).toContain('sharpened-axes')
-      expect(ids).toContain('tavern-recruits')
-      expect(ids).not.toContain('auto-clicker')
+      expect(ids).toContain('heavy-logging')
+      expect(ids).not.toContain('double-click')
     })
 
     it('produces wood and ale at 1/sec base rate', () => {
@@ -466,52 +474,29 @@ describe('Match', () => {
       expect(u.player.resources.wood).toBeGreaterThan(3.5)
     })
 
-    it('Tavern Recruits adds +1 base wood/sec', () => {
+    it('Heavy Logging adds +5 base wood/sec', () => {
       const m = enterIdlerPlaying()
-      // Switch to ale highlight to build up ale
-      m.handleMessage('p1', highlightMsg('ale', 1))
-      vi.advanceTimersByTime(8000) // ale ~= 16 (enough for cost 15)
-      m.handleMessage('p1', buyMsg('tavern-recruits', 2))
-      // Now switch back to wood highlight
-      m.handleMessage('p1', highlightMsg('wood', 3))
+      // Wait for enough wood (heavy-logging costs 25 wood)
+      vi.advanceTimersByTime(13_000) // ~26 wood at 2/sec
+      m.handleMessage('p1', buyMsg('heavy-logging', 1))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Base wood = 1 + 1 (tavern) = 2, highlighted x2 = 4/sec
-      expect(u.player.resources.wood).toBeGreaterThan(3.5)
+      // Base wood = 1 + 5(HL) = 6, highlighted x2 = 12/sec
+      expect(u.player.resources.wood).toBeGreaterThan(11)
     })
 
-    it('Tavern Recruits stacks: buying twice gives +2 base wood/sec', () => {
+    it('Royal Brewery adds +5 base ale/sec', () => {
       const m = enterIdlerPlaying()
-      // Switch to ale highlight to accumulate ale
+      // Switch to ale to earn enough (costs 25 ale)
       m.handleMessage('p1', highlightMsg('ale', 1))
-      vi.advanceTimersByTime(15_000) // ale ~= 30 (enough for 2 × 15)
-      m.handleMessage('p1', buyMsg('tavern-recruits', 2))
-      m.handleMessage('p1', buyMsg('tavern-recruits', 3))
-      // Switch to wood highlight
-      m.handleMessage('p1', highlightMsg('wood', 4))
+      vi.advanceTimersByTime(13_000) // ~26 ale at 2/sec
+      m.handleMessage('p1', buyMsg('royal-brewery', 2))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Base wood = 1 + 2 (2×TR) = 3, highlighted x2 = 6/sec
-      expect(u.player.resources.wood).toBeGreaterThan(5.5)
-    })
-
-    it('Lumber Mill adds +2 base wood/sec', () => {
-      const m = enterIdlerPlaying()
-      // Highlight ale to earn TR cost, then buy TR to boost wood base
-      m.handleMessage('p1', highlightMsg('ale', 1))
-      vi.advanceTimersByTime(8_000) // ale ~16, wood ~8
-      m.handleMessage('p1', buyMsg('tavern-recruits', 2))
-      // TR adds +1 base wood. Switch to wood highlight → 4/sec
-      m.handleMessage('p1', highlightMsg('wood', 3))
-      vi.advanceTimersByTime(18_000) // wood ~8 + 72 = ~80
-      m.handleMessage('p1', buyMsg('lumber-mill', 4))
-      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
-      vi.advanceTimersByTime(500)
-      const u = latestUpdate(ws1)
-      // Base = 1 + 1(TR) + 2(LM) = 4, highlighted = 4 × 2 = 8/sec → 0.5s = 4
-      expect(u.player.resources.wood).toBeGreaterThan(3.5)
+      // Base ale = 1 + 5(RB) = 6, highlighted x2 = 12/sec
+      expect(u.player.resources.ale).toBeGreaterThan(11)
     })
 
     it('cannot buy wood upgrade with ale', () => {
@@ -635,18 +620,18 @@ describe('Match', () => {
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
 
-      // Buy auto-clicker (costs 10, earn 10 first)
-      const seq = earnCurrency(m, 'p1', 10)
+      // Buy double-click (costs 25, earn 25 first)
+      const seq = earnCurrency(m, 'p1', 25)
       m.handleMessage(
         'p1',
         JSON.stringify({
           type: 'ACTION_BATCH',
           seq,
-          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'auto-clicker' }],
+          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'double-click' }],
         }),
       )
 
-      // p1 score is already 10 from earning currency — should have ended
+      // p1 score is already 25 from earning currency — should have ended
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
     })
   })

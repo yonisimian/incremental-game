@@ -1,5 +1,6 @@
 import type { GameState } from '../game.js'
 import { quitMatch } from '../game.js'
+import { getResourceIcon } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
 import {
   app,
@@ -33,7 +34,7 @@ function renderResourceBar(state: Readonly<GameState>): string {
       ${activeModeUI.resources
         .map((r) => {
           const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
-          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
+          return `<span class="${cls}">${getResourceIcon(r.key)} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
         })
         .join('')}
     </div>

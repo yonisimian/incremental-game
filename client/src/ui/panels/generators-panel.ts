@@ -6,6 +6,7 @@ import {
   getModeDefinition,
   getGeneratorCost,
   canAffordGenerator,
+  getResourceIcon,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -20,6 +21,8 @@ function renderGeneratorCard(
   affordable: boolean,
 ): string {
   const totalRate = def.production.rate * owned
+  const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
+  const prodIcon = getResourceIcon(def.production.resource)
   return `
     <button
       class="generator-card ${!affordable ? 'too-expensive' : ''}"
@@ -29,10 +32,10 @@ function renderGeneratorCard(
       <span class="generator-icon">${def.icon}</span>
       <span class="generator-info">
         <span class="generator-name">${def.name}</span>
-        <span class="generator-rate">+${totalRate % 1 === 0 ? totalRate : totalRate.toFixed(1)}/s</span>
+        <span class="generator-rate">+${rateStr} ${prodIcon}/s</span>
       </span>
       <span class="generator-meta">
-        <span class="generator-cost">${def.costIcon}${nextCost}</span>
+        <span class="generator-cost">${getResourceIcon(def.costCurrency)}${nextCost}</span>
         <span class="generator-count">×${owned}</span>
       </span>
     </button>
@@ -50,7 +53,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       </div>
     `
   }
-  return modeDef.generators
+  const cards = modeDef.generators
     .map((def) => {
       const owned = state.player.generators[def.id] ?? 0
       const nextCost = getGeneratorCost(def, owned)
@@ -58,6 +61,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       return renderGeneratorCard(def, owned, nextCost, affordable)
     })
     .join('')
+  return cards
 }
 
 // ─── Generators Panel ────────────────────────────────────────────────

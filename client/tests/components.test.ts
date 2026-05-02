@@ -82,9 +82,9 @@ describe('renderUpgradeTree', () => {
   it('emits one <line> per prereq edge in the idler tree', () => {
     const { edgesSvg } = renderUpgradeTree(makeIdlerState())
     // 1 edge: master-craftsmen ← royal-brewery
-    // 2 edges: industrial-era ← heavy-logging, industrial-era ← royal-brewery
+    // 3 edges: industrial-era ← heavy-logging, industrial-era ← sharpened-axes, industrial-era ← royal-brewery
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
-    expect(lineCount).toBe(3)
+    expect(lineCount).toBe(4)
   })
 
   it('marks line as `unlocked` only when child node is unlocked', () => {

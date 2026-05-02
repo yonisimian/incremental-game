@@ -2,8 +2,9 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doClick, setHighlight } from '../../game.js'
 import { handledByHotkey } from '../hotkeys.js'
-import { renderClickerUpgrades, renderIdlerUpgrades } from '../components.js'
+import { renderClickerUpgrades } from '../components.js'
 import { setText, bindUpgradeEvents } from '../helpers.js'
+import { getResourceIcon } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -48,24 +49,15 @@ function renderIdlerContent(state: Readonly<GameState>): string {
     <div class="currency-cards">
       <span class="cards-hotkey" aria-hidden="true">Tab</span>
       <button class="currency-card ${highlight === 'wood' ? 'highlighted' : ''}" id="card-wood">
-        <span class="card-emoji">🪵</span>
+        <span class="card-emoji">${getResourceIcon('wood')}</span>
         <span class="card-name">Wood</span>
         <span class="card-balance" id="wood-balance">${wood}</span>
       </button>
       <button class="currency-card ${highlight === 'ale' ? 'highlighted' : ''}" id="card-ale">
-        <span class="card-emoji">🍺</span>
+        <span class="card-emoji">${getResourceIcon('ale')}</span>
         <span class="card-name">Ale</span>
         <span class="card-balance" id="ale-balance">${ale}</span>
       </button>
-    </div>
-
-    <div class="upgrades-wrapper">
-      <div class="upgrades-header">
-        <span class="upgrades-hotkey"><span class="btn-hotkey" aria-hidden="true">C</span> buy cheapest</span>
-      </div>
-      <div class="upgrades" id="upgrades">
-        ${renderIdlerUpgrades(state)}
-      </div>
     </div>
   `
 }
@@ -86,6 +78,7 @@ export const playPanel: Panel = {
         if (handledByHotkey) return
         doClick()
       })
+      bindUpgradeEvents()
     } else {
       document.getElementById('card-wood')?.addEventListener('click', () => {
         setHighlight('wood')
@@ -94,7 +87,6 @@ export const playPanel: Panel = {
         setHighlight('ale')
       })
     }
-    bindUpgradeEvents()
   },
 
   update(state) {
@@ -107,8 +99,6 @@ export const playPanel: Panel = {
       const aleCard = document.getElementById('card-ale')
       if (woodCard) woodCard.classList.toggle('highlighted', highlight === 'wood')
       if (aleCard) aleCard.classList.toggle('highlighted', highlight === 'ale')
-
-      updateUpgradesIfDirty(renderIdlerUpgrades(state))
     } else {
       updateUpgradesIfDirty(renderClickerUpgrades(state))
     }

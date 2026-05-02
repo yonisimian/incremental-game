@@ -25,7 +25,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   const resultClass = end.reason === 'quit' || end.reason === 'forfeit' ? 'player' : end.winner
 
-  const scoreLabel = isIdler ? '🪵 Total' : 'Score'
+  const scoreLabel = isIdler ? 'Total' : 'Score'
   const pName = playerDisplayName(state)
   const oName = opponentDisplayName(state)
 

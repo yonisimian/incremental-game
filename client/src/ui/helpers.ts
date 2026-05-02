@@ -70,11 +70,10 @@ export function opponentDisplayName(state: Readonly<GameState>): string {
 
 /** Format a score for the scoreboard (includes target for target-score goal). */
 export function formatScore(score: number, state: Readonly<GameState>): string {
-  const suffix = state.mode === 'idler' ? ' 🪵' : ''
   if (state.goal?.type === 'target-score') {
-    return `${Math.floor(score)}${suffix} / ${state.goal.target}`
+    return `${Math.floor(score)} / ${state.goal.target}`
   }
-  return `${Math.floor(score)}${suffix}`
+  return `${Math.floor(score)}`
 }
 
 /** Can the player afford this upgrade (and is it still purchasable)? */
