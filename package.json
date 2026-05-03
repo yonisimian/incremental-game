@@ -15,6 +15,8 @@
     "typecheck": "pnpm --filter @game/shared build && tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p client/tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:exports": "knip",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -31,6 +33,7 @@
     "eslint-config-prettier": "^10.1.8",
     "knip": "~6.7.0",
     "lint-staged": "^16.4.0",
+    "markdownlint-cli2": "^0.22.1",
     "prettier": "^3.8.3",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.21.0",
@@ -46,6 +49,7 @@
   },
   "lint-staged": {
     "*.{ts,js,json,md,css,html}": "prettier --write",
-    "*.ts": "eslint --fix"
+    "*.ts": "eslint --fix",
+    "*.md": "markdownlint-cli2 --fix"
   }
 }

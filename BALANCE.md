@@ -22,7 +22,7 @@ In an incremental game, every upgrade is an **investment**: you spend accumulate
 
 The **payback period** of an upgrade is the time it takes to recoup its cost:
 
-```
+```text
 payback_period = cost / benefit_increase_per_second
 ```
 
@@ -39,7 +39,7 @@ payback_period = cost / benefit_increase_per_second
 
 The payback formula above treats production rate as constant. In practice, each upgrade _changes_ the rate at which you farm the next one. This compounding effect is the heart of incremental games, and the right way to analyze it is by **tracing the full upgrade chain** with evolving rates:
 
-```
+```text
  0– 5s   Highlight ale → accumulate 10🍺, 5🪵     (rates: 1🪵/s, 2🍺/s)
     5s   Buy Tavern Recruits (10🍺) → base wood = 2
  5–14s   Highlight wood → 4/s → ~41🪵 total        (rates: 4🪵/s, 1🍺/s)
@@ -59,7 +59,7 @@ The simulation script automates these chain traces across every strategy, so we 
 
 Payback period alone doesn't capture the full picture. In our idler mode, switching highlight to farm ale means you're _not_ producing wood at the boosted rate. The **true cost** of an ale-based upgrade is:
 
-```
+```text
 true_cost = upgrade_cost_in_ale + (wood_production_lost_during_farming × farming_duration)
 ```
 
@@ -79,7 +79,7 @@ When creating a _new_ upgrade, you need to pick a cost. The **k heuristic** is a
 
 Pick the time window you want the upgrade purchased in, choose a k, and derive the cost:
 
-```
+```text
 max_cost = benefit_per_sec × time_remaining_at_intended_purchase × k
 ```
 
@@ -119,7 +119,7 @@ In our game, growth is a **staircase**: flat within each interval (constant rate
 
 Work backwards from the round duration. For a 60-second round:
 
-```
+```text
  0–12s    Accumulation phase    Build toward first purchase.
 12–30s    Mid-game pivot        1–2 purchases reshape the strategy.
 30–50s    Execution phase       High rates pay off; late-game purchases add final staircase steps.
@@ -130,7 +130,7 @@ Work backwards from the round duration. For a 60-second round:
 
 Compute how many resources the player will have accumulated at the intended purchase time (using a chain trace from Section 1), then apply a spend fraction:
 
-```
+```text
 cost = total_accumulated_at_target × spend_fraction
 ```
 
@@ -142,7 +142,7 @@ The chain trace is essential here because the production rate changes with each 
 
 For **additive rate upgrades**, given the cost and the time window, the upgrade's benefit must satisfy:
 
-```
+```text
 benefit_per_sec ≥ cost / (time_remaining × k)
 ```
 

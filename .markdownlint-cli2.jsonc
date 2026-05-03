@@ -1,0 +1,21 @@
+{
+  // https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  "config": {
+    "default": true,
+    // Allow long lines — prose wraps in editors, tables need width
+    "MD013": false,
+    // Allow duplicate headings in different sections
+    "MD024": { "siblings_only": true },
+    // Consecutive blockquotes separated by blank lines are intentional
+    "MD028": false,
+    // <details>/<summary> is standard GitHub-flavored Markdown
+    "MD033": false,
+    // Emphasis is sometimes used stylistically, not as a heading substitute
+    "MD036": false,
+    // Table column spacing style is too strict for planning docs
+    "MD060": false,
+    // Ordered lists broken by code blocks lose continuity — allow explicit numbering
+    "MD029": false
+  },
+  "ignores": ["**/node_modules", "**/dist", "**/CHANGELOG.md"]
+}
