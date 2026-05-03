@@ -15,7 +15,9 @@ textarea {
   font-family: inherit;
 }
 
-:focus:not(:focus-visible) {
+/* Game UI — no keyboard-focus outlines (focus is managed by hotkeys, not tab) */
+*:focus,
+*:focus-visible {
   outline: none;
 }
 
@@ -111,8 +113,7 @@ body {
   color: var(--text);
   font-size: 1rem;
   text-align: center;
-  outline: none;
-  transition: border-color 0.15s;
+  outline: none; /* redundant with global rule, kept for specificity */
 }
 
 .name-input::placeholder {
@@ -632,10 +633,7 @@ body {
     background 0.15s;
 }
 
-.tab-btn:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
-}
+/* Tab focus outlines disabled globally — see Reset & Base */
 
 .tab-btn:hover:not(.locked) {
   border-color: var(--text-dim);
@@ -701,10 +699,7 @@ body {
   clip-path: circle(50%);
 }
 
-.click-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
+/* Tab focus outlines disabled globally — see Reset & Base */
 
 .click-button:active {
   background: var(--accent);

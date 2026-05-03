@@ -96,6 +96,7 @@
 - [ ] Confirmation panel ("are you sure you wanna quit?")
 - [ ] End-game screen: show counts of generators + tree upgrades purchased (or show no statistics at all?)
 - [x] User name (lobby input, localStorage persistence)
+- [x] Remove support of "focused" elements (i.e. pressing "tab" shouldn't highlight random buttons)
 
 ## Presentation
 

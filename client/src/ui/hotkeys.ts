@@ -10,6 +10,13 @@ export let handledByHotkey = false
 
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
+  // Block Tab from cycling focus on all screens — this is a game, not a form.
+  // Must be registered unconditionally (even on touch devices) so Tab never
+  // moves focus to arbitrary buttons/links.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') e.preventDefault()
+  })
+
   if (window.matchMedia('(pointer: coarse)').matches) return
 
   document.addEventListener('keydown', (e) => {
@@ -44,7 +51,6 @@ export function initHotkeys(): void {
     // Tab — cycle highlight (non-clicking modes with highlight), unless focus is inside the tab grid
     if (e.key === 'Tab') {
       if (inTabGrid || !modeDef.highlightEnabled) return
-      e.preventDefault() // prevent focus shift
       const resources = modeDef.resources
       const current = (state.player.meta.highlight as string | undefined) ?? resources[0]
       const idx = resources.indexOf(current)
