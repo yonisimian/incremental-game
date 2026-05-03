@@ -7,6 +7,8 @@ import {
   getGeneratorCost,
   canAffordGenerator,
   getResourceIcon,
+  getGeneratorName,
+  getGeneratorIcon,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -19,23 +21,26 @@ function renderGeneratorCard(
   owned: number,
   nextCost: number,
   affordable: boolean,
+  state: Readonly<GameState>,
 ): string {
+  const modeDef = getModeDefinition(state.mode!)
+  const flavor = modeDef.flavor
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
-  const prodIcon = getResourceIcon(def.production.resource)
+  const prodIcon = getResourceIcon(flavor, def.production.resource)
   return `
     <button
       class="generator-card ${!affordable ? 'too-expensive' : ''}"
       data-generator="${def.id}"
       ${!affordable ? 'disabled' : ''}
     >
-      <span class="generator-icon">${def.icon}</span>
+      <span class="generator-icon">${getGeneratorIcon(flavor, def.id)}</span>
       <span class="generator-info">
-        <span class="generator-name">${def.name}</span>
+        <span class="generator-name">${getGeneratorName(flavor, def.id)}</span>
         <span class="generator-rate">+${rateStr} ${prodIcon}/s</span>
       </span>
       <span class="generator-meta">
-        <span class="generator-cost">${getResourceIcon(def.costCurrency)}${nextCost}</span>
+        <span class="generator-cost">${getResourceIcon(flavor, def.costCurrency)}${nextCost}</span>
         <span class="generator-count">×${owned}</span>
       </span>
     </button>
@@ -58,7 +63,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const owned = state.player.generators[def.id] ?? 0
       const nextCost = getGeneratorCost(def, owned)
       const affordable = canAffordGenerator(state.player, def)
-      return renderGeneratorCard(def, owned, nextCost, affordable)
+      return renderGeneratorCard(def, owned, nextCost, affordable, state)
     })
     .join('')
   return cards

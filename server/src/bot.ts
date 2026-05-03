@@ -61,16 +61,15 @@ export class ClickerBot implements BotStrategy {
 
 /**
  * Medium-difficulty idler bot.
- * Strategy: TR×2 → SA → LM (strong from sim analysis).
- * Switches highlight between ale/wood as needed for the next target upgrade.
+ * Strategy: u0 (Sharpened Axes) → u1 (Heavy Logging) → u2 (Royal Brewery).
+ * Switches highlight between resources as needed for the next target upgrade.
  */
 export class IdlerBot implements BotStrategy {
   /** Ordered upgrade plan. */
   private readonly plan: { id: string; currency: string }[] = [
-    { id: 'tavern-recruits', currency: 'ale' },
-    { id: 'tavern-recruits', currency: 'ale' },
-    { id: 'sharpened-axes', currency: 'wood' },
-    { id: 'lumber-mill', currency: 'wood' },
+    { id: 'u0', currency: 'r0' }, // Sharpened Axes (costs wood)
+    { id: 'u1', currency: 'r0' }, // Heavy Logging (costs wood)
+    { id: 'u2', currency: 'r1' }, // Royal Brewery (costs ale)
   ]
 
   private planIndex = 0
@@ -79,6 +78,16 @@ export class IdlerBot implements BotStrategy {
 
   constructor(upgrades: readonly UpgradeDefinition[]) {
     this.upgradeMap = new Map(upgrades.map((u) => [u.id, u]))
+
+    // Validate plan entries against actual upgrade definitions (fail-fast).
+    for (const step of this.plan) {
+      if (!this.upgradeMap.has(step.id)) {
+        throw new Error(
+          `[IdlerBot] plan references unknown upgrade '${step.id}'. ` +
+            `Available: ${[...this.upgradeMap.keys()].join(', ')}`,
+        )
+      }
+    }
   }
 
   decide(state: Readonly<PlayerState>): BotAction[] {
@@ -96,9 +105,6 @@ export class IdlerBot implements BotStrategy {
     }
 
     // Buy when affordable
-    // NOTE: planIndex advances optimistically here, assuming processBotActions
-    // will accept the purchase. This is safe because both check the same balance,
-    // but if validation logic diverges in the future this coupling could break.
     const balance = state.resources[next.currency] ?? 0
     if (balance >= def.cost) {
       actions.push({ type: 'buy', upgradeId: next.id })
@@ -111,8 +117,8 @@ export class IdlerBot implements BotStrategy {
           actions.push({ type: 'set_highlight', highlight: upcoming.currency })
         }
       } else {
-        // Plan done — focus on wood for max score
-        actions.push({ type: 'set_highlight', highlight: 'wood' })
+        // Plan done — focus on r0 (score resource) for max score
+        actions.push({ type: 'set_highlight', highlight: 'r0' })
       }
     }
 

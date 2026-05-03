@@ -1,5 +1,5 @@
 import type { GeneratorDefinition } from '../types.js'
-import type { ModeDefinition } from './types.js'
+import type { ModeDefinition, ModeFlavor } from './types.js'
 import {
   BUY_UPGRADE_SAFETY_CAP_SEC,
   CLICKER_TARGET_SCORE,
@@ -11,74 +11,87 @@ import {
 
 const clickerGenerators: readonly GeneratorDefinition[] = [
   {
-    id: 'cursor',
-    name: 'Cursor',
-    icon: '🖱️',
+    id: 'g0', // Cursor
     baseCost: 15,
     costScaling: 1.15,
-    costCurrency: 'currency',
-    production: { resource: 'currency', rate: 0.5 },
+    costCurrency: 'r0',
+    production: { resource: 'r0', rate: 0.5 },
   },
   {
-    id: 'intern',
-    name: 'Intern',
-    icon: '👨‍💼',
+    id: 'g1', // Intern
     baseCost: 100,
     costScaling: 1.15,
-    costCurrency: 'currency',
-    production: { resource: 'currency', rate: 3 },
+    costCurrency: 'r0',
+    production: { resource: 'r0', rate: 3 },
   },
   {
-    id: 'factory',
-    name: 'Factory',
-    icon: '🏭',
+    id: 'g2', // Factory
     baseCost: 500,
     costScaling: 1.15,
-    costCurrency: 'currency',
-    production: { resource: 'currency', rate: 15 },
+    costCurrency: 'r0',
+    production: { resource: 'r0', rate: 15 },
   },
 ]
+
+// ─── Flavor ──────────────────────────────────────────────────────────
+
+const clickerFlavor: ModeFlavor = {
+  themeClass: 'theme-clicker',
+  scoreLabel: 'Score',
+  showClickStats: true,
+  resources: [{ key: 'r0', displayName: 'Gold', icon: '💰', className: 'gold' }],
+  upgrades: [
+    { id: 'u0', name: 'Double Click', description: 'Each manual click gives +2 instead of +1' },
+    { id: 'u1', name: 'Multiplier', description: '2x all income' },
+    {
+      id: 'u2',
+      name: 'The Coronation',
+      description: 'An ostentatious ceremony declaring you Click Monarch.',
+    },
+  ],
+  generators: [
+    { id: 'g0', name: 'Cursor', icon: '🖱️' },
+    { id: 'g1', name: 'Intern', icon: '👨‍💼' },
+    { id: 'g2', name: 'Factory', icon: '🏭' },
+  ],
+}
 
 // ─── Mode Definition ─────────────────────────────────────────────────────────
 
 /** Clicker mode definition — click fast, buy upgrades, outscore your opponent. */
 export const clickerMode: ModeDefinition = {
-  resources: ['currency'],
-  scoreResource: 'currency',
+  resources: ['r0'],
+  scoreResource: 'r0',
   clicksEnabled: true,
-  initialResources: { currency: 0 },
+  highlightEnabled: false,
+  initialResources: { r0: 0 },
   initialMeta: {},
   nativeModifiers: [
     { stage: 'additive', field: 'clickIncome', value: 1 }, // base 1 per click
   ],
   upgrades: [
     {
-      id: 'double-click',
-      name: 'Double Click',
+      id: 'u0', // Double Click
       cost: 25,
-      description: 'Each manual click gives +2 instead of +1',
       modifiers: [{ stage: 'additive', field: 'clickIncome', value: 1 }],
     },
     {
-      id: 'multiplier',
-      name: 'Multiplier',
+      id: 'u1', // Multiplier
       cost: 100,
-      description: '2x all income',
       modifiers: [
         { stage: 'multiplicative', field: 'clickIncome', value: 2 },
-        { stage: 'multiplicative', field: 'currency', value: 2 },
+        { stage: 'multiplicative', field: 'r0', value: 2 },
       ],
     },
     {
-      id: 'coronation',
-      name: 'The Coronation',
+      id: 'u2', // The Coronation
       cost: 1000,
-      description: 'An ostentatious ceremony declaring you Click Monarch.',
       goalType: 'buy-upgrade',
       modifiers: [],
     },
   ],
   generators: clickerGenerators,
+  flavor: clickerFlavor,
   goals: [
     { type: 'timed', durationSec: ROUND_DURATION_SEC },
     {

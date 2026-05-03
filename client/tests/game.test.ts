@@ -45,8 +45,8 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
 }
 
 const defaultUpgrades: Record<string, number> = {
-  'double-click': 0,
-  multiplier: 0,
+  u0: 0,
+  u1: 0,
 }
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
@@ -56,14 +56,14 @@ function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpda
     ackSeq: 0,
     player: {
       score: 0,
-      resources: { currency: 0 },
+      resources: { r0: 0 },
       upgrades: { ...defaultUpgrades },
       generators: {},
       meta: {},
     },
     opponent: {
       score: 0,
-      resources: { currency: 0 },
+      resources: { r0: 0 },
       upgrades: { ...defaultUpgrades },
       generators: {},
       meta: {},
@@ -184,13 +184,13 @@ describe('game.ts', () => {
   // ── Clicks (optimistic) ──────────────────────────────────────────
 
   describe('doClick', () => {
-    it('increments score and currency by 1', () => {
+    it('increments score and r0 by 1', () => {
       enterPlaying(game)
       game.doClick()
 
       const s = game.getState()
       expect(s.player.score).toBe(1)
-      expect(s.player.resources.currency).toBe(1)
+      expect(s.player.resources.r0).toBe(1)
     })
 
     it('accumulates multiple clicks', () => {
@@ -235,71 +235,71 @@ describe('game.ts', () => {
   // ── Purchases (optimistic) ───────────────────────────────────────
 
   describe('doBuy', () => {
-    it('deducts currency and grants upgrade', () => {
+    it('deducts r0 and grants upgrade', () => {
       enterPlaying(game)
-      // double-click costs 25 — earn enough
+      // u0 costs 25 — earn enough
       for (let i = 0; i < 25; i++) game.doClick()
 
-      game.doBuy('double-click')
+      game.doBuy('u0')
       const s = game.getState()
-      expect(s.player.upgrades['double-click']).toBe(1)
-      expect(s.player.resources.currency).toBe(0)
+      expect(s.player.upgrades.u0).toBe(1)
+      expect(s.player.resources.r0).toBe(0)
       expect(s.player.score).toBe(25) // score unchanged by purchase
     })
 
-    it('rejects if not enough currency', () => {
+    it('rejects if not enough r0', () => {
       enterPlaying(game)
-      game.doClick() // 1 currency
+      game.doClick() // 1 r0
 
-      game.doBuy('double-click') // costs 25
-      expect(game.getState().player.upgrades['double-click']).toBe(0)
-      expect(game.getState().player.resources.currency).toBe(1)
+      game.doBuy('u0') // costs 25
+      expect(game.getState().player.upgrades.u0).toBe(0)
+      expect(game.getState().player.resources.r0).toBe(1)
     })
 
     it('rejects a duplicate purchase', () => {
       enterPlaying(game)
       for (let i = 0; i < 50; i++) game.doClick()
 
-      game.doBuy('double-click') // costs 25
-      game.doBuy('double-click') // duplicate
-      expect(game.getState().player.resources.currency).toBe(25) // 50 − 25, not 50 − 50
+      game.doBuy('u0') // costs 25
+      game.doBuy('u0') // duplicate
+      expect(game.getState().player.resources.r0).toBe(25) // 50 − 25, not 50 − 50
     })
 
     it('is a no-op outside playing screen', () => {
-      game.doBuy('double-click')
-      expect(game.getState().player.upgrades['double-click']).toBeUndefined()
+      game.doBuy('u0')
+      expect(game.getState().player.upgrades.u0).toBeUndefined()
     })
   })
 
   // ── Upgrade effects on click income ──────────────────────────────
 
   describe('upgrade effects on clicks', () => {
-    it('double-click gives +2 per click', () => {
+    it('u0 gives +2 per click', () => {
       enterPlaying(game)
       for (let i = 0; i < 25; i++) game.doClick()
-      game.doBuy('double-click') // costs 25
+      game.doBuy('u0') // costs 25
 
       const before = game.getState().player.score
       game.doClick()
       expect(game.getState().player.score - before).toBe(2)
     })
 
-    it('multiplier doubles click income', () => {
+    it('u1 doubles click income', () => {
       enterPlaying(game)
       for (let i = 0; i < 100; i++) game.doClick()
-      game.doBuy('multiplier') // costs 100
+      game.doBuy('u1') // costs 100
 
       const before = game.getState().player.score
       game.doClick()
       expect(game.getState().player.score - before).toBe(2) // 1 * 2
     })
 
-    it('double-click + multiplier gives +4 per click', () => {
+    it('u0 + u1 gives +4 per click', () => {
       enterPlaying(game)
-      // earn 125 currency (25 + 100)
+      // earn 125 r0 (25 + 100)
       for (let i = 0; i < 125; i++) game.doClick()
-      game.doBuy('double-click')
-      game.doBuy('multiplier')
+      game.doBuy('u0')
+      game.doBuy('u1')
 
       const before = game.getState().player.score
       game.doClick()
@@ -317,14 +317,14 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 5,
-            resources: { currency: 5 },
+            resources: { r0: 5 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
           },
           opponent: {
             score: 3,
-            resources: { currency: 3 },
+            resources: { r0: 3 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -352,7 +352,7 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 0,
-            resources: { currency: 0 },
+            resources: { r0: 0 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -375,7 +375,7 @@ describe('game.ts', () => {
           ackSeq: 999, // acks everything
           player: {
             score: 2,
-            resources: { currency: 2 },
+            resources: { r0: 2 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -396,7 +396,7 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 50,
-            resources: { currency: 50 },
+            resources: { r0: 50 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -404,10 +404,10 @@ describe('game.ts', () => {
         }),
       )
 
-      // Buy double-click (costs 25) — optimistic
-      game.doBuy('double-click')
-      expect(game.getState().player.upgrades['double-click']).toBe(1)
-      expect(game.getState().player.resources.currency).toBe(25)
+      // Buy u0 (costs 25) — optimistic
+      game.doBuy('u0')
+      expect(game.getState().player.upgrades.u0).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(25)
 
       // Server sends update that hasn't seen the buy yet (ackSeq=0)
       game.handleServerMessage(
@@ -415,7 +415,7 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 55,
-            resources: { currency: 55 },
+            resources: { r0: 55 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -424,15 +424,15 @@ describe('game.ts', () => {
       )
 
       // Pending purchase should be replayed on top of server state
-      expect(game.getState().player.upgrades['double-click']).toBe(1)
-      expect(game.getState().player.resources.currency).toBe(30) // 55 - 25
+      expect(game.getState().player.upgrades.u0).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(30) // 55 - 25
     })
 
     it('replays unacked highlight on top of server state', () => {
       enterIdlerPlaying(game)
 
-      game.setHighlight('ale')
-      expect(game.getState().player.meta.highlight).toBe('ale')
+      game.setHighlight('r1')
+      expect(game.getState().player.meta.highlight).toBe('r1')
 
       // Server sends update that still shows old highlight
       game.handleServerMessage(
@@ -440,16 +440,16 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 5,
-            resources: { wood: 5, ale: 5 },
-            upgrades: { 'sharpened-axes': 0 },
+            resources: { r0: 5, r1: 5 },
+            upgrades: { u0: 0 },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
 
       // Pending highlight should be replayed
-      expect(game.getState().player.meta.highlight).toBe('ale')
+      expect(game.getState().player.meta.highlight).toBe('r1')
     })
   })
 
@@ -580,14 +580,14 @@ describe('game.ts', () => {
   describe('setHighlight', () => {
     it('optimistically updates highlight', () => {
       enterIdlerPlaying(game)
-      expect(game.getState().player.meta.highlight).toBe('wood') // from createInitialState
-      game.setHighlight('ale')
-      expect(game.getState().player.meta.highlight).toBe('ale')
+      expect(game.getState().player.meta.highlight).toBe('r0') // from createInitialState
+      game.setHighlight('r1')
+      expect(game.getState().player.meta.highlight).toBe('r1')
     })
 
     it('is a no-op in clicker mode', () => {
       enterPlaying(game)
-      game.setHighlight('ale')
+      game.setHighlight('r1')
       expect(game.getState().player.meta.highlight).toBeUndefined()
     })
 
@@ -598,22 +598,22 @@ describe('game.ts', () => {
 
     it('is a no-op when already set to same value', async () => {
       enterIdlerPlaying(game)
-      game.setHighlight('ale')
+      game.setHighlight('r1')
       const { queueAction } = await import('../src/network.js')
       vi.mocked(queueAction).mockClear()
-      game.setHighlight('ale') // same value
+      game.setHighlight('r1') // same value
       expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
     })
 
     it('rejects an invalid target resource', () => {
       enterIdlerPlaying(game)
       game.setHighlight('bogus')
-      expect(game.getState().player.meta.highlight).toBe('wood') // unchanged
+      expect(game.getState().player.meta.highlight).toBe('r0') // unchanged
     })
 
     it('rejects a valid resource when mode has no highlight', () => {
       enterPlaying(game) // clicker mode
-      game.setHighlight('currency') // valid resource for clicker, but mode has no highlight
+      game.setHighlight('r0') // valid resource for clicker, but mode has no highlight
       expect(game.getState().player.meta.highlight).toBeUndefined()
     })
   })
@@ -621,98 +621,98 @@ describe('game.ts', () => {
   // ── Idler: doBuy ───────────────────────────────────────────────────
 
   describe('idler doBuy', () => {
-    function giveWood(g: GameModule, amount: number): void {
+    function giveR0(g: GameModule, amount: number): void {
       g.handleServerMessage(
         makeStateUpdate({
           player: {
             score: amount,
-            resources: { wood: amount, ale: 0 },
-            upgrades: { 'sharpened-axes': 0 },
+            resources: { r0: amount, r1: 0 },
+            upgrades: { u0: 0 },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
     }
 
-    function giveAle(g: GameModule, amount: number): void {
+    function giveR1(g: GameModule, amount: number): void {
       g.handleServerMessage(
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 0, ale: amount },
-            upgrades: { 'sharpened-axes': 0 },
+            resources: { r0: 0, r1: amount },
+            upgrades: { u0: 0 },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
     }
 
-    it('deducts wood for wood-cost upgrades', () => {
+    it('deducts r0 for r0-cost upgrades', () => {
       enterIdlerPlaying(game)
-      giveWood(game, 50)
-      game.doBuy('sharpened-axes') // costs 30 wood
-      expect(game.getState().player.upgrades['sharpened-axes']).toBe(1)
-      expect(game.getState().player.resources.wood).toBe(20)
+      giveR0(game, 50)
+      game.doBuy('u0') // costs 30 r0
+      expect(game.getState().player.upgrades.u0).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(20)
     })
 
-    it('deducts ale for ale-cost tree upgrades', () => {
+    it('deducts r1 for r1-cost tree upgrades', () => {
       enterIdlerPlaying(game)
-      giveAle(game, 25)
-      game.doBuy('royal-brewery') // costs 25 ale
-      expect(game.getState().player.upgrades['royal-brewery']).toBe(1)
-      expect(game.getState().player.resources.ale).toBe(0)
+      giveR1(game, 25)
+      game.doBuy('u2') // costs 25 r1
+      expect(game.getState().player.upgrades.u2).toBe(1)
+      expect(game.getState().player.resources.r1).toBe(0)
     })
 
     it('allows buying repeatable upgrades multiple times', () => {
       enterIdlerPlaying(game)
-      giveAle(game, 30)
-      game.doBuy('master-craftsmen') // prereq: royal-brewery
-      // master-craftsmen requires royal-brewery, so give it via state
+      giveR1(game, 30)
+      game.doBuy('u3') // prereq: u2
+      // u3 requires u2, so give it via state
       game.handleServerMessage(
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 0, ale: 30 },
-            upgrades: { 'royal-brewery': 1, 'master-craftsmen': 0, 'sharpened-axes': 0 },
+            resources: { r0: 0, r1: 30 },
+            upgrades: { u2: 1, u3: 0, u0: 0 },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
-      game.doBuy('master-craftsmen') // 1st: 30-10=20 ale
-      game.doBuy('master-craftsmen') // 2nd: 20-10=10 ale
-      game.doBuy('master-craftsmen') // 3rd: 10-10=0 ale
-      expect(game.getState().player.upgrades['master-craftsmen']).toBe(3)
-      expect(game.getState().player.resources.ale).toBe(0)
+      game.doBuy('u3') // 1st: 30-10=20 r1
+      game.doBuy('u3') // 2nd: 20-10=10 r1
+      game.doBuy('u3') // 3rd: 10-10=0 r1
+      expect(game.getState().player.upgrades.u3).toBe(3)
+      expect(game.getState().player.resources.r1).toBe(0)
     })
 
     it('rejects if wrong currency balance is too low', () => {
       enterIdlerPlaying(game)
-      giveAle(game, 100) // plenty of ale, no wood
-      game.doBuy('sharpened-axes') // costs 30 wood — should fail
-      expect(game.getState().player.upgrades['sharpened-axes']).toBe(0)
+      giveR1(game, 100) // plenty of r1, no r0
+      game.doBuy('u0') // costs 30 r0 — should fail
+      expect(game.getState().player.upgrades.u0).toBe(0)
     })
 
     it('rejects repeatable buy when insufficient funds', () => {
       enterIdlerPlaying(game)
-      // Give royal-brewery prereq + some ale
+      // Give u2 prereq + some r1
       game.handleServerMessage(
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 0, ale: 15 },
-            upgrades: { 'royal-brewery': 1, 'master-craftsmen': 0, 'sharpened-axes': 0 },
+            resources: { r0: 0, r1: 15 },
+            upgrades: { u2: 1, u3: 0, u0: 0 },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
-      game.doBuy('master-craftsmen') // 1st: 15-10=5 ale
-      game.doBuy('master-craftsmen') // 2nd: 5 < 10 — should fail
-      expect(game.getState().player.upgrades['master-craftsmen']).toBe(1)
-      expect(game.getState().player.resources.ale).toBe(5)
+      game.doBuy('u3') // 1st: 15-10=5 r1
+      game.doBuy('u3') // 2nd: 5 < 10 — should fail
+      expect(game.getState().player.upgrades.u3).toBe(1)
+      expect(game.getState().player.resources.r1).toBe(5)
     })
 
     it('rejects buying a tree upgrade when prerequisites are unowned', () => {
@@ -722,22 +722,22 @@ describe('game.ts', () => {
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 9999, ale: 9999 },
+            resources: { r0: 9999, r1: 9999 },
             upgrades: {
-              'industrial-era': 0,
-              'heavy-logging': 0,
-              'royal-brewery': 0,
-              'sharpened-axes': 0,
+              u4: 0,
+              u1: 0,
+              u2: 0,
+              u0: 0,
             },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
-      game.doBuy('industrial-era') // prereqs unmet → no-op
-      expect(game.getState().player.upgrades['industrial-era'] ?? 0).toBe(0)
+      game.doBuy('u4') // prereqs unmet → no-op
+      expect(game.getState().player.upgrades.u4).toBe(0)
       // Cost should NOT be deducted on rejected buy
-      expect(game.getState().player.resources.wood).toBe(9999)
+      expect(game.getState().player.resources.r0).toBe(9999)
     })
 
     it('accepts buying a tree upgrade once both prerequisites are owned', () => {
@@ -746,20 +746,20 @@ describe('game.ts', () => {
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 9999, ale: 9999 },
+            resources: { r0: 9999, r1: 9999 },
             upgrades: {
-              'industrial-era': 0,
-              'heavy-logging': 1,
-              'royal-brewery': 1,
-              'sharpened-axes': 1,
+              u4: 0,
+              u1: 1,
+              u2: 1,
+              u0: 1,
             },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
-      game.doBuy('industrial-era')
-      expect(game.getState().player.upgrades['industrial-era']).toBe(1)
+      game.doBuy('u4')
+      expect(game.getState().player.upgrades.u4).toBe(1)
     })
 
     it('AND-semantics: rejects when only one of two prerequisites is owned', () => {
@@ -768,20 +768,20 @@ describe('game.ts', () => {
         makeStateUpdate({
           player: {
             score: 0,
-            resources: { wood: 9999, ale: 9999 },
+            resources: { r0: 9999, r1: 9999 },
             upgrades: {
-              'industrial-era': 0,
-              'heavy-logging': 1,
-              'royal-brewery': 0,
-              'sharpened-axes': 0,
+              u4: 0,
+              u1: 1,
+              u2: 0,
+              u0: 0,
             },
             generators: {},
-            meta: { highlight: 'wood' },
+            meta: { highlight: 'r0' },
           },
         }),
       )
-      game.doBuy('industrial-era')
-      expect(game.getState().player.upgrades['industrial-era'] ?? 0).toBe(0)
+      game.doBuy('u4')
+      expect(game.getState().player.upgrades.u4).toBe(0)
     })
   })
 })

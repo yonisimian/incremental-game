@@ -4,12 +4,13 @@ import { doClick, setHighlight } from '../../game.js'
 import { handledByHotkey } from '../hotkeys.js'
 import { renderClickerUpgrades } from '../components.js'
 import { setText, bindUpgradeEvents } from '../helpers.js'
-import { getResourceIcon } from '@game/shared'
+import { getModeDefinition, getResourceIcon, getResourceName } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function getHighlight(state: Readonly<GameState>): string {
-  return (state.player.meta.highlight as string | undefined) ?? 'wood'
+  const modeDef = getModeDefinition(state.mode!)
+  return (state.player.meta.highlight as string | undefined) ?? modeDef.resources[0]
 }
 
 /** Cache of last upgrade HTML to avoid unnecessary DOM churn. */
@@ -41,23 +42,27 @@ function renderClickerContent(state: Readonly<GameState>): string {
 }
 
 function renderIdlerContent(state: Readonly<GameState>): string {
+  const modeDef = getModeDefinition(state.mode!)
+  const flavor = modeDef.flavor
   const highlight = getHighlight(state)
-  const wood = Math.floor(state.player.resources.wood)
-  const ale = Math.floor(state.player.resources.ale)
+
+  const cards = modeDef.resources
+    .map((key) => {
+      const balance = Math.floor(state.player.resources[key])
+      const isHighlighted = highlight === key
+      return `
+      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}">
+        <span class="card-emoji">${getResourceIcon(flavor, key)}</span>
+        <span class="card-name">${getResourceName(flavor, key)}</span>
+        <span class="card-balance" id="${key}-balance">${balance}</span>
+      </button>`
+    })
+    .join('')
 
   return `
     <div class="currency-cards">
       <span class="cards-hotkey" aria-hidden="true">Tab</span>
-      <button class="currency-card ${highlight === 'wood' ? 'highlighted' : ''}" id="card-wood">
-        <span class="card-emoji">${getResourceIcon('wood')}</span>
-        <span class="card-name">Wood</span>
-        <span class="card-balance" id="wood-balance">${wood}</span>
-      </button>
-      <button class="currency-card ${highlight === 'ale' ? 'highlighted' : ''}" id="card-ale">
-        <span class="card-emoji">${getResourceIcon('ale')}</span>
-        <span class="card-name">Ale</span>
-        <span class="card-balance" id="ale-balance">${ale}</span>
-      </button>
+      ${cards}
     </div>
   `
 }
@@ -68,37 +73,41 @@ export const playPanel: Panel = {
 
   render(container, state) {
     prevUpgradeHtml = ''
-    container.innerHTML =
-      state.mode === 'idler' ? renderIdlerContent(state) : renderClickerContent(state)
+    const modeDef = getModeDefinition(state.mode!)
+    container.innerHTML = modeDef.clicksEnabled
+      ? renderClickerContent(state)
+      : renderIdlerContent(state)
   },
 
   bind(state) {
-    if (state.mode !== 'idler') {
+    const modeDef = getModeDefinition(state.mode!)
+    if (modeDef.clicksEnabled) {
       document.getElementById('click-btn')?.addEventListener('click', () => {
         if (handledByHotkey) return
         doClick()
       })
       bindUpgradeEvents()
     } else {
-      document.getElementById('card-wood')?.addEventListener('click', () => {
-        setHighlight('wood')
-      })
-      document.getElementById('card-ale')?.addEventListener('click', () => {
-        setHighlight('ale')
-      })
+      for (const key of modeDef.resources) {
+        document.getElementById(`card-${key}`)?.addEventListener('click', () => {
+          setHighlight(key)
+        })
+      }
     }
   },
 
   update(state) {
-    if (state.mode === 'idler') {
-      setText('wood-balance', String(Math.floor(state.player.resources.wood)))
-      setText('ale-balance', String(Math.floor(state.player.resources.ale)))
+    const modeDef = getModeDefinition(state.mode!)
+    if (!modeDef.clicksEnabled) {
+      for (const key of modeDef.resources) {
+        setText(`${key}-balance`, String(Math.floor(state.player.resources[key])))
+      }
 
       const highlight = getHighlight(state)
-      const woodCard = document.getElementById('card-wood')
-      const aleCard = document.getElementById('card-ale')
-      if (woodCard) woodCard.classList.toggle('highlighted', highlight === 'wood')
-      if (aleCard) aleCard.classList.toggle('highlighted', highlight === 'ale')
+      for (const key of modeDef.resources) {
+        const card = document.getElementById(`card-${key}`)
+        if (card) card.classList.toggle('highlighted', highlight === key)
+      }
     } else {
       updateUpgradesIfDirty(renderClickerUpgrades(state))
     }

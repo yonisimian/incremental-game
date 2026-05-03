@@ -7,7 +7,12 @@ import {
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
-import { getResourceIcon } from '@game/shared'
+import {
+  getModeDefinition,
+  getResourceIcon,
+  getUpgradeName,
+  getUpgradeDescription,
+} from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
 
@@ -48,6 +53,8 @@ export function renderProgressBars(state: Readonly<GameState>): string {
 // ─── Upgrades ────────────────────────────────────────────────────────
 
 export function renderClickerUpgrades(state: Readonly<GameState>): string {
+  const modeDef = getModeDefinition(state.mode!)
+  const flavor = modeDef.flavor
   return state.upgrades
     .map((u, i) => {
       const owned = state.player.upgrades[u.id]
@@ -60,9 +67,9 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
         >
-          <span class="upgrade-name">${u.name}</span>
-          <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon('currency')}${u.cost}`}</span>
-          <span class="upgrade-desc">${u.description}</span>
+          <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
+          <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon(flavor, modeDef.scoreResource)}${u.cost}`}</span>
+          <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
           <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
         </button>
       `
@@ -102,6 +109,8 @@ export interface UpgradeTreeRender {
  * label is suppressed only on locked nodes (owned/too-expensive keep it).
  */
 export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
+  const modeDef = getModeDefinition(state.mode!)
+  const flavor = modeDef.flavor
   const tree = state.upgrades.filter((u) => u.category === 'tree')
 
   // Bounds — initialize with sentinels so the first node defines the box (not
@@ -182,7 +191,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const buyable = unlocked && affordable && !ownedOneShot
       const disabled = !buyable
 
-      const emoji = getResourceIcon(u.costCurrency ?? 'wood')
+      const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const count = u.repeatable ? owned : 0
       const costLabel = ownedOneShot ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`
 
@@ -193,9 +202,9 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
           style="left: ${u.position.x}px; top: ${u.position.y}px"
           ${disabled ? 'disabled' : ''}
         >
-          <span class="upgrade-name">${u.name}</span>
+          <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
           <span class="upgrade-cost">${costLabel}</span>
-          <span class="upgrade-desc">${u.description}</span>
+          <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
         </button>
       `
     })

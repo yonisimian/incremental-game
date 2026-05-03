@@ -12,14 +12,12 @@ export interface UpgradePosition {
   readonly y: number
 }
 
-/** Static definition of an upgrade (cost, effect description). */
+/** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
-  readonly name: string
   readonly cost: number
   /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
   readonly costCurrency?: string
-  readonly description: string
   /** If true, the upgrade can be purchased multiple times. */
   readonly repeatable?: boolean
   /** Declarative modifiers this upgrade applies when owned. */
@@ -47,8 +45,6 @@ export interface UpgradeDefinition {
 /** Static definition of a generator building (repeatable, scaling cost). */
 export interface GeneratorDefinition {
   readonly id: string
-  readonly name: string
-  readonly icon: string
   readonly baseCost: number
   /** Cost multiplier per owned copy (e.g., 1.15). */
   readonly costScaling: number
