@@ -180,7 +180,7 @@ export class Match {
   }
 
   /** Handle player disconnect.
-   * TODO: implement 10s grace period per DESIGN.md — currently forfeits immediately.
+   * TODO: implement 10s grace period per docs/DESIGN.md — currently forfeits immediately.
    */
   handleDisconnect(playerId: string): void {
     if (this.phase === 'ended') return

@@ -448,7 +448,10 @@ cd server && pnpm build && node dist/main.js
 
 ```text
 incremental-game/
-├── DESIGN.md                    ← this file
+├── docs/                        ← project documentation
+│   ├── DESIGN.md                ← this file
+│   ├── BALANCE.md               ← balancing framework & analysis
+│   └── MANUAL.md                ← player manual (WIP)
 ├── render.yaml                  ← Render Blueprint (infra-as-code)
 ├── pnpm-workspace.yaml          ← declares workspace packages
 ├── package.json                 ← root scripts (dev, build, etc.)
@@ -631,7 +634,7 @@ incremental-game/
 - [ ] **Game name?** incremenTal (capital T only, still a code name and not final).
 - [x] **Round length**: configurable per goal type (30s timed, 60s safety cap for target-score).
 - [x] **Visibility**: full visibility — both players see each other's complete state.
-- [ ] **Upgrade balance**: ongoing — see [BALANCE.md](BALANCE.md) for the balancing framework.
+- [ ] **Upgrade balance**: ongoing — see [BALANCE.md](BALANCE.md) for the balancing framework. <!-- same directory -->
 - [ ] **Mobile UX**: current design is responsive but untested on devices. Needs real-device testing.
 - [x] **Reconnection mid-round**: opponent keeps playing; disconnected player falls behind. Server cleans up stale connections via ping/pong heartbeat.
 
