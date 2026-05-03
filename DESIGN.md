@@ -24,7 +24,7 @@ A real-time head-to-head incremental game playable on any device via the browser
 
 ### High-Level Components
 
-```
+```text
 ┌─────────────┐         WebSocket          ┌─────────────────┐
 │   Client A  │ ◄──────────────────────►   │                 │
 │  (Browser)  │                            │   Game Server   │
@@ -63,7 +63,7 @@ A real-time head-to-head incremental game playable on any device via the browser
 
 4. **Message types**:
 
-   ```
+   ```text
    Client → Server:
      ACTION_BATCH  { actions: [{ type, timestamp, payload }], seq }
 
@@ -93,7 +93,7 @@ All game mechanics use **abstract identifiers** (e.g. `r0`, `r1` for resources, 
 - **Validation at startup.** `validateModeDefinition` checks that flavor ↔ mechanics agree (matching resource keys, no missing/orphan entries, highlight consistency). The app won't start if a flavor is incomplete.
 - **Cached lookups.** `flavor.ts` provides `WeakMap`-cached helpers (`getResourceIcon`, `getUpgradeName`, etc.) so per-tick rendering doesn't rebuild lookup tables.
 
-```
+```text
 ModeDefinition (mechanics)          ModeFlavor (display)
 ┌─────────────────────────┐        ┌──────────────────────────┐
 │ resources: ['r0', 'r1'] │        │ themeClass: 'medieval'   │
@@ -109,7 +109,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 
 ## Game Flow
 
-```
+```text
 1. LOBBY
    └─► Player opens the app, enters matchmaking queue
 
@@ -139,7 +139,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 
 The simplest version that proves the concept:
 
-### What's IN:
+### What's IN
 
 - [x] One screen: a click button + resource display + upgrades + timer + opponent state
 - [x] Matchmaking: queue of 2 → start match
@@ -155,7 +155,7 @@ The simplest version that proves the concept:
 - [x] Keyboard hotkeys (Space to click, Tab to cycle highlight, number keys for upgrades)
 - [x] Flavor abstraction: abstract IDs for mechanics, display data (names, icons, descriptions) in separate `ModeFlavor` objects
 
-### What's OUT (future):
+### What's OUT (future)
 
 - [ ] Accounts / persistence
 - [ ] ELO / ranking
@@ -249,12 +249,14 @@ The prototype's 3 upgrades (clicker) and 6 upgrades (idler, including a tree wit
 - The project is a **monorepo** with three packages: `client/`, `server/`, `shared/`
 - pnpm workspaces let both `client` and `server` import from `shared` as a local dependency
 - **Root `pnpm-workspace.yaml`**:
+
   ```yaml
   packages:
     - client
     - server
     - shared
   ```
+
 - **Root `package.json`** must include a `"packageManager"` field (e.g., `"packageManager": "pnpm@10.x.x"` — exact version pinned at setup time). This is required by `corepack enable` to know which pnpm version to activate in Render's build environment.
 - **How shared imports work**:
   - `shared/package.json` has `"name": "@game/shared"`
@@ -286,7 +288,7 @@ The prototype's 3 upgrades (clicker) and 6 upgrades (idler, including a tree wit
 
 Both services deploy from the **same GitHub repo** (monorepo). Render's `buildFilter` controls when each service rebuilds. We do **not** set `rootDir` because both services need access to `shared/` at build time (Render excludes files outside the root directory).
 
-```
+```text
 ┌──────────────────────────┐     ┌──────────────────────────┐
 │   Render Static Site     │     │   Render Web Service     │
 │   (client)               │     │   (server)               │
@@ -444,7 +446,7 @@ cd server && pnpm build && node dist/main.js
 
 ## Project Structure
 
-```
+```text
 incremental-game/
 ├── DESIGN.md                    ← this file
 ├── render.yaml                  ← Render Blueprint (infra-as-code)
@@ -525,19 +527,24 @@ incremental-game/
 
 1. Create GitHub repo (`incremental-game`)
 2. Clone locally, initialize pnpm workspace:
+
    ```bash
    pnpm init
    # create pnpm-workspace.yaml listing client, server, shared
    ```
+
 3. Create `shared/`, `client/`, `server/` packages:
+
    ```bash
    mkdir shared && cd shared && pnpm init
    cd .. && pnpm create vite@latest client -- --template vanilla-ts
    mkdir -p server/src && cd server && pnpm init
    ```
+
 4. Set up TypeScript configs (`tsconfig.json`) in each package
 5. Wire up `@game/shared` as a workspace dependency in client and server
 6. Add root-level convenience scripts:
+
    ```json
    {
      "packageManager": "pnpm@10.x.x",
@@ -548,6 +555,7 @@ incremental-game/
      }
    }
    ```
+
 7. Create `.gitignore`, commit, push
 
 ### Step 1: Shared Types
@@ -698,7 +706,7 @@ These exist outside the upgrade/card/perk systems and are always available when 
 
 All systems funnel through a single computation pipeline. This is the critical architecture that prevents spaghetti when systems interact.
 
-```
+```text
 base income
   │
   ├─► native bonuses (mode)      CPS intensity, mode-specific modifiers
@@ -726,7 +734,7 @@ Each system registers **modifiers** into the pipeline. The pipeline evaluates th
 
 Build in dependency order — each system is minimally viable but designed with integration hooks for later systems:
 
-```
+```text
 Phase 1 ✅ Modifier pipeline (architecture)
            └─ The backbone. Every system registers modifiers here.
 
