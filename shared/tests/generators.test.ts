@@ -18,6 +18,7 @@ function makeDef(overrides?: Partial<GeneratorDefinition>): GeneratorDefinition 
 
 function makeState(overrides?: Partial<PlayerState>): PlayerState {
   return {
+    score: 0,
     resources: { r0: 100 },
     upgrades: {},
     generators: {},
