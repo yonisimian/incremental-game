@@ -45,6 +45,9 @@
     "Talnazar"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@10.28.1",
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
