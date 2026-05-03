@@ -18,12 +18,16 @@ export interface BotStrategy {
 
 /**
  * Medium-difficulty clicker bot.
- * - Clicks at a randomized rate (~8–12 CPS).
- * - Buys the cheapest affordable upgrade each tick.
+ * - Clicks at a randomized rate (~4–7 CPS).
+ * - Buys the cheapest affordable upgrade with a ~1.5–2.5 s reaction delay.
  */
 export class ClickerBot implements BotStrategy {
   private readonly upgrades: readonly UpgradeDefinition[]
   private readonly scoreResource: string
+  /** Accumulated seconds since the last purchase attempt. */
+  private purchaseCooldown = 0
+  /** Pre-rolled delay before the next purchase attempt. */
+  private nextPurchaseDelay = 1.5 + Math.random()
 
   constructor(upgrades: readonly UpgradeDefinition[], scoreResource: string) {
     this.upgrades = upgrades
@@ -33,24 +37,30 @@ export class ClickerBot implements BotStrategy {
   decide(state: Readonly<PlayerState>, tickSec: number): BotAction[] {
     const actions: BotAction[] = []
 
-    // Randomized clicking: ~8–12 CPS, scaled by tick duration
-    const cps = 8 + Math.random() * 4
+    // Randomized clicking: ~4–7 CPS, scaled by tick duration
+    const cps = 4 + Math.random() * 3
     const clicks = Math.round(cps * tickSec)
     for (let i = 0; i < clicks; i++) {
       actions.push({ type: 'click' })
     }
 
-    // Buy cheapest affordable upgrade
-    const affordable = this.upgrades
-      .filter((u) => {
-        if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
-        const costResource = u.costCurrency ?? this.scoreResource
-        return (state.resources[costResource] ?? 0) >= u.cost
-      })
-      .sort((a, b) => a.cost - b.cost)
+    // Buy cheapest affordable upgrade with a ~1.5–2.5 s reaction delay
+    this.purchaseCooldown += tickSec
+    if (this.purchaseCooldown >= this.nextPurchaseDelay) {
+      const affordable = this.upgrades
+        .filter((u) => {
+          if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
+          const costResource = u.costCurrency ?? this.scoreResource
+          return (state.resources[costResource] ?? 0) >= u.cost
+        })
+        .sort((a, b) => a.cost - b.cost)
 
-    if (affordable.length > 0) {
-      actions.push({ type: 'buy', upgradeId: affordable[0].id })
+      if (affordable.length > 0) {
+        actions.push({ type: 'buy', upgradeId: affordable[0].id })
+      }
+      // Reset regardless — don't let cooldown accumulate past the threshold
+      this.purchaseCooldown = 0
+      this.nextPurchaseDelay = 1.5 + Math.random()
     }
 
     return actions
