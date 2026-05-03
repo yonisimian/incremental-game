@@ -46,7 +46,7 @@ describe('Bot', () => {
       expect(clicks.length).toBeGreaterThan(0)
     })
 
-    it('buys cheapest affordable upgrade', () => {
+    it('buys cheapest affordable upgrade after cooldown', () => {
       const bot = new ClickerBot(
         [
           { id: 'u0', cost: 10, modifiers: [] },
@@ -64,8 +64,13 @@ describe('Bot', () => {
         generators: {},
         meta: {},
       }
-      const actions = bot.decide(state, 0.25)
-      const buys = actions.filter((a) => a.type === 'buy')
+      // 0.25 s — below the 1.5 s minimum threshold, no buy yet
+      const early = bot.decide(state, 0.25)
+      expect(early.filter((a) => a.type === 'buy')).toHaveLength(0)
+
+      // Single large tick guarantees cooldown passes (0.25 + 3 = 3.25 s > 2.5 s max)
+      const result = bot.decide(state, 3)
+      const buys = result.filter((a) => a.type === 'buy')
       expect(buys).toHaveLength(1)
       expect(buys[0]).toEqual({ type: 'buy', upgradeId: 'u0' })
     })
@@ -82,7 +87,8 @@ describe('Bot', () => {
         generators: {},
         meta: {},
       }
-      const actions = bot.decide(state, 0.25)
+      // Single large tick guarantees cooldown passes — still no buy (already owned)
+      const actions = bot.decide(state, 3)
       const buys = actions.filter((a) => a.type === 'buy')
       expect(buys).toHaveLength(0)
     })
@@ -105,7 +111,8 @@ describe('Bot', () => {
         generators: {},
         meta: {},
       }
-      const actions = bot.decide(state, 0.25)
+      // Large tick so cooldown passes — purchase logic runs but finds nothing to buy
+      const actions = bot.decide(state, 3)
       expect(actions.every((a) => a.type === 'click')).toBe(true)
       expect(actions.length).toBeGreaterThan(0)
     })
