@@ -1,5 +1,5 @@
-import type { UpgradeCategory, UpgradeDefinition } from '@game/shared'
-import { getModeDefinition } from '@game/shared'
+import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/shared'
+import { getModeDefinition, getUpgradeName } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 
@@ -107,19 +107,15 @@ export function updateProgressBar(id: string, score: number, target: number): vo
 }
 
 /** Format purchased upgrade IDs as names with ×N suffix for repeats; preserves first-purchase order; unknown IDs fall back to the raw id. */
-export function formatUpgradesPurchased(
-  purchased: readonly string[],
-  upgrades: readonly UpgradeDefinition[],
-): string {
+export function formatUpgradesPurchased(purchased: readonly string[], flavor: ModeFlavor): string {
   if (purchased.length === 0) return 'none'
   const counts = new Map<string, number>()
   for (const id of purchased) {
     counts.set(id, (counts.get(id) ?? 0) + 1)
   }
-  const idToName = new Map(upgrades.map((u) => [u.id, u.name]))
   return [...counts]
     .map(([id, n]) => {
-      const name = idToName.get(id) ?? id
+      const name = getUpgradeName(flavor, id)
       return n > 1 ? `${name} ×${n}` : name
     })
     .join(', ')

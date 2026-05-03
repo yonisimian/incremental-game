@@ -15,7 +15,7 @@ A real-time head-to-head incremental game playable on any device via the browser
 - **Genre**: Competitive multiplayer incremental (real-time head-to-head)
 - **Platform**: Web (mobile + desktop)
 - **Tech**: TypeScript, WebSocket server, browser client
-- **Game modes**: Clicker (manual tapping) and Idler (passive resource management with currency highlighting)
+- **Game modes**: Clicker (manual tapping) and Idler (passive resource management with resource highlighting)
 - **Session model**: Short time-limited rounds (e.g., 30s–5 minutes)
 
 ---
@@ -56,9 +56,9 @@ A real-time head-to-head incremental game playable on any device via the browser
    - Own the round timer (clients sync to server time)
    - Determine the winner
 
-3. **Score vs Currency**:
-   - **Currency**: the spendable resource. Earned by clicking and passive income. Spent on upgrades. Goes down when you buy something.
-   - **Score**: total currency ever earned (lifetime production). Never decreases. **The player with the highest score at round end wins.** This means buying upgrades never hurts your score — it only costs currency.
+3. **Score vs Resources**:
+   - **Resources**: spendable currencies (e.g. gold, wood, ale). Earned by clicking and passive income. Spent on upgrades. Go down when you buy something. Each mode defines its own resource keys (abstract IDs like `r0`, `r1`) and one `scoreResource` whose balance tracks the score.
+   - **Score**: total `scoreResource` ever earned (lifetime production). Never decreases. **The player with the highest score at round end wins.** This means buying upgrades never hurts your score — it only costs resources.
    - **Tiebreaker**: if both players end with the same score, the round is a **draw**. (Ties are extremely unlikely in practice — manual click timestamps and batch processing order create natural variance between players — but the UI and ROUND_END message must handle this case.)
 
 4. **Message types**:
@@ -68,7 +68,7 @@ A real-time head-to-head incremental game playable on any device via the browser
      ACTION_BATCH  { actions: [{ type, timestamp, payload }], seq }
 
    Server → Client:
-     STATE_UPDATE  { tick, ackSeq, player: { score, currency, upgrades }, opponent: { score, currency, upgrades }, timeLeft }
+     STATE_UPDATE  { tick, ackSeq, player: { score, resources, upgrades, generators, meta }, opponent: { ... }, timeLeft }
      ROUND_START   { matchId, config, serverTime }
      ROUND_END     { winner, finalScores, stats }  // winner: 'player' | 'opponent' | 'draw'
 
@@ -83,6 +83,27 @@ A real-time head-to-head incremental game playable on any device via the browser
 - No spatial state → no interpolation/extrapolation needed
 - Low tick rate is fine (~2–4 Hz server updates)
 - Opponent state visibility is configurable (starting with full visibility; can be reduced later for strategic depth)
+
+### Flavor Abstraction (Mechanics ↔ Display Decoupling)
+
+All game mechanics use **abstract identifiers** (e.g. `r0`, `r1` for resources, `u0`–`u5` for upgrades, `g0`–`g3` for generators). Display data — names, icons, descriptions, theme classes — lives in a separate `ModeFlavor` object attached to each `ModeDefinition`. This separation has several benefits:
+
+- **Server is display-agnostic.** The server never sees "Wood" or "🪵" — only `r0`. This keeps the authority boundary clean and makes the wire protocol stable across re-themes.
+- **Adding a new mode** requires defining mechanics (resources, upgrades, modifiers) and a `ModeFlavor`. The client UI derives everything else automatically (panels, hotkeys, resource bars, generator cards).
+- **Validation at startup.** `validateModeDefinition` checks that flavor ↔ mechanics agree (matching resource keys, no missing/orphan entries, highlight consistency). The app won't start if a flavor is incomplete.
+- **Cached lookups.** `flavor.ts` provides `WeakMap`-cached helpers (`getResourceIcon`, `getUpgradeName`, etc.) so per-tick rendering doesn't rebuild lookup tables.
+
+```
+ModeDefinition (mechanics)          ModeFlavor (display)
+┌─────────────────────────┐        ┌──────────────────────────┐
+│ resources: ['r0', 'r1'] │        │ themeClass: 'medieval'   │
+│ upgrades: [u0..u5]      │◄──────►│ resources: [{key:'r0',   │
+│ generators: [g0..g3]    │        │   name:'Wood', icon:'🪵'}]│
+│ nativeModifiers: [...]  │        │ upgrades: [{id:'u0',     │
+│ highlightEnabled: true   │        │   name:'Sharpened Axes'}]│
+└─────────────────────────┘        └──────────────────────────┘
+         ▲ shared (server + client)        ▲ client only (rendering)
+```
 
 ---
 
@@ -99,9 +120,9 @@ A real-time head-to-head incremental game playable on any device via the browser
    └─► 3-2-1 countdown synced to server clock
 
 4. ROUND (the core loop)
-   ├─► Clicker: players tap to generate currency
-   ├─► Idler: players choose which currency to highlight (wood/ale) for boosted passive income
-   ├─► Both: players spend currency on upgrades that improve generation rate
+   ├─► Clicker: players tap to generate resources
+   ├─► Idler: players choose which resource to highlight for boosted passive income
+   ├─► Both: players spend resources on upgrades that improve generation rate
    ├─► Timer counts down (server-authoritative)
    ├─► Each player sees: their own full state + opponent's full state (full visibility)
    └─► Server validates all actions in real time
@@ -120,27 +141,25 @@ The simplest version that proves the concept:
 
 ### What's IN:
 
-- [x] One screen: a click button + currency display + upgrades + timer + opponent state
+- [x] One screen: a click button + resource display + upgrades + timer + opponent state
 - [x] Matchmaking: queue of 2 → start match
 - [x] Round timer: configurable (30s / 60s), server-controlled
-- [x] Click action: tap/click → +1 currency
-- [x] 3 basic upgrades (each can be purchased once, fixed cost):
-  - **Auto-Clicker** (costs 10): +1 currency per second passively (this is raw income, not a simulated click — Double Click does not affect it)
-  - **Double Click** (costs 25): each manual click gives +2 instead of +1
-  - **Multiplier** (costs 100): 2x all income (applies to both manual clicks and Auto-Clicker)
-- [x] Score = total currency ever earned; highest score wins
+- [x] Click action: tap/click → +1 score resource
+- [x] Clicker upgrades (2 one-shot + 1 trophy, fixed cost) + 3 generator tiers (scaling cost, passive income)
+- [x] Score = total score-resource ever earned; highest score wins
 - [x] Server validation of click rate + purchase validity
 - [x] End screen: winner (or draw) + final scores
-- [x] Idler game mode with wood/ale currencies and highlight mechanic
+- [x] Idler game mode with two-resource economy and highlight mechanic
 - [x] Bot opponent support
 - [x] Visual effects (click popups, ripples, combo counter, milestone shockwave)
-- [x] Keyboard hotkeys (Space to click, Tab to toggle highlight, number keys for upgrades)
+- [x] Keyboard hotkeys (Space to click, Tab to cycle highlight, number keys for upgrades)
+- [x] Flavor abstraction: abstract IDs for mechanics, display data (names, icons, descriptions) in separate `ModeFlavor` objects
 
 ### What's OUT (future):
 
 - [ ] Accounts / persistence
 - [ ] ELO / ranking
-- [ ] Upgrade tree with dependencies (see [Systems Roadmap](#systems-roadmap))
+- [x] Upgrade tree with dependencies (idler mode; see [Systems Roadmap](#systems-roadmap) for expansion plans)
 - [ ] Ability cards, perks, prestige (see [Systems Roadmap](#systems-roadmap))
 - [ ] Group matches
 - [ ] Spectating
@@ -152,11 +171,11 @@ The simplest version that proves the concept:
 
 The interesting competitive dimension comes from **strategic choices under time pressure**:
 
-- **Clicker**: Do I click manually early to afford upgrades faster? Do I rush Auto-Clicker for passive income? Do I save for the Multiplier and gamble on a late-game spike?
-- **Idler**: Do I rush wood upgrades for base production, or detour into ale for conversion upgrades? When do I switch highlight currencies?
+- **Clicker**: Do I click manually early to afford upgrades faster? Do I rush generators for passive income? Do I save for the multiplier and gamble on a late-game spike?
+- **Idler**: Do I rush resource-A upgrades for base production, or detour into resource-B for conversion upgrades? When do I switch highlighted resource?
 - **Both**: Can I read my opponent's score trajectory and adapt?
 
-The prototype's 3 upgrades (clicker) and 4 upgrades (idler) already produce non-trivial decision trees. The [Systems Roadmap](#systems-roadmap) expands this into a full taxonomy of upgrade systems (upgrade tree, tiers, ability cards, perks, prestige) with three effect types: generate, transmute, and sabotage.
+The prototype's 3 upgrades (clicker) and 6 upgrades (idler, including a tree with prerequisites) already produce non-trivial decision trees. The [Systems Roadmap](#systems-roadmap) expands this into a full taxonomy of upgrade systems (upgrade tree, tiers, ability cards, perks, prestige) with three effect types: generate, transmute, and sabotage.
 
 ---
 
@@ -166,9 +185,9 @@ The prototype's 3 upgrades (clicker) and 4 upgrades (idler) already produce non-
 
 | Layer        | Technology              | Version   | Rationale                                          |
 | ------------ | ----------------------- | --------- | -------------------------------------------------- |
-| Language     | TypeScript              | ~5.x      | Type safety shared across client & server          |
+| Language     | TypeScript              | ~6.x      | Type safety shared across client & server          |
 | Client       | Vanilla TS + HTML + CSS | —         | Maximum portability, no framework overhead         |
-| Client Build | Vite                    | ~6.x      | Fast dev server, native TS support, HMR            |
+| Client Build | Vite                    | ~8.x      | Fast dev server, native TS support, HMR            |
 | Server       | Node.js                 | ≥20.19    | Same language as client, Render native runtime     |
 | WebSocket    | `ws`                    | ~8.x      | Blazing fast, 22.7k★, thoroughly tested WS library |
 | Pkg Manager  | pnpm                    | ~10.x     | Workspace support for monorepo shared types        |
@@ -176,7 +195,7 @@ The prototype's 3 upgrades (clicker) and 4 upgrades (idler) already produce non-
 | Deploy       | Render                  | Free tier | $0 hosting — static site + WS web service          |
 | Server Dev   | `tsx`                   | latest    | TypeScript execution for Node.js (dev-only)        |
 
-### TypeScript (~5.x)
+### TypeScript (~6.x)
 
 - Both client and server are written in TypeScript
 - Shared types (message schemas, game config) live in a `shared/` package
@@ -184,7 +203,7 @@ The prototype's 3 upgrades (clicker) and 4 upgrades (idler) already produce non-
 - `strict: true` in all tsconfig files
 - Compiled to ES2022 (all target environments support it)
 
-### Vite (~6.x) — Client Build Tool
+### Vite (~8.x) — Client Build Tool
 
 - **What it does**: Bundles the client-side TypeScript + HTML into static files for production
 - **Dev server**: `vite dev` serves files at `http://localhost:5173` with hot module replacement (HMR) — changes appear instantly in the browser without refresh
@@ -440,16 +459,18 @@ incremental-game/
 │       ├── index.ts             ← barrel export
 │       ├── messages.ts          ← WebSocket message type definitions
 │       ├── game-config.ts       ← round length, tick interval, heartbeat constants
-│       ├── types.ts             ← PlayerState, UpgradeId, etc.
+│       ├── types.ts             ← PlayerState, UpgradeDefinition, GeneratorDefinition, etc.
+│       ├── flavor.ts            ← WeakMap-cached flavor lookup helpers (icons, names, descriptions)
+│       ├── generators.ts        ← generator cost/affordability helpers
 │       ├── modifiers/           ← mode-agnostic modifier pipeline
 │       │   ├── types.ts         ← Modifier, ModifierContext
 │       │   ├── pipeline.ts      ← computeClickIncome, computePassiveRates, applyPassiveTick
 │       │   └── index.ts         ← barrel re-export
 │       └── modes/               ← per-mode definitions & registry
-│           ├── types.ts         ← ModeDefinition interface
-│           ├── clicker.ts       ← clicker mode (upgrades, goals, native modifiers)
-│           ├── idler.ts         ← idler mode (upgrades, goals, purchase logic, dynamic modifiers)
-│           └── index.ts         ← getModeDefinition, collectModifiers, re-exports
+│           ├── types.ts         ← ModeDefinition, ModeFlavor, ResourceFlavor, UpgradeFlavor, GeneratorFlavor
+│           ├── clicker.ts       ← clicker mode (abstract IDs, mechanics, clickerFlavor)
+│           ├── idler.ts         ← idler mode (abstract IDs, mechanics, idlerFlavor, dynamic modifiers)
+│           └── index.ts         ← getModeDefinition, validateModeDefinition, collectModifiers, re-exports
 │
 ├── client/                      ← Vite vanilla-ts project
 │   ├── package.json
@@ -462,12 +483,18 @@ incremental-game/
 │       ├── main.ts              ← entry: init UI, connect to server
 │       ├── game.ts              ← local game state + client prediction + milestone tracking
 │       ├── network.ts           ← WebSocket client, batching, reconciliation
-│       ├── style.css            ← all game styling including VFX
+│       ├── style.css            ← all game styling including VFX + theme scaffolding
 │       └── ui/
 │           ├── index.ts         ← screen router + render dispatch
 │           ├── components.ts    ← reusable UI components (timer, progress bars, upgrades)
-│           ├── helpers.ts       ← DOM utilities (setText, formatScore, etc.)
+│           ├── helpers.ts       ← DOM utilities (setText, formatScore, canBuy, etc.)
 │           ├── hotkeys.ts       ← keyboard shortcuts (Space, Tab, number keys)
+│           ├── mode-ui.ts       ← derives panel configuration from ModeDefinition
+│           ├── panels.ts        ← panel registry + tab-grid management
+│           ├── panels/          ← per-panel implementations
+│           │   ├── play-panel.ts       ← click button (clicker) / currency cards (idler)
+│           │   ├── generators-panel.ts ← generator purchase cards
+│           │   └── upgrade-tree-panel.ts ← pan/zoom tree viewport
 │           ├── lobby.ts         ← lobby / mode selection screen
 │           ├── playing.ts       ← playing screen render + in-place updates
 │           ├── screens.ts       ← waking, waiting, countdown screens
@@ -700,13 +727,13 @@ Each system registers **modifiers** into the pipeline. The pipeline evaluates th
 Build in dependency order — each system is minimally viable but designed with integration hooks for later systems:
 
 ```
-Phase 1 ─ Modifier pipeline (architecture)
+Phase 1 ✅ Modifier pipeline (architecture)
            └─ The backbone. Every system registers modifiers here.
 
-Phase 2 ─ Upgrade tree (generate-type first, then transmute + sabotage)
+Phase 2 ✅ Upgrade tree (generate-type first, then transmute + sabotage)
            └─ Core progression loop. The tree structure is type-agnostic.
 
-Phase 3 ─ Tiers / auto-generators
+Phase 3 ✅ Tiers / auto-generators
            └─ Passive income. Changes pacing from pure clicking.
 
 Phase 4 ─ Ability cards (generate + transmute)

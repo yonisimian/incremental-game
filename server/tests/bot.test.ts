@@ -30,17 +30,13 @@ describe('Bot', () => {
 
   describe('ClickerBot', () => {
     it('produces click actions each tick', () => {
-      const bot = new ClickerBot(
-        [{ id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] }],
-        'currency',
-      )
+      const bot = new ClickerBot([{ id: 'u0', cost: 10, modifiers: [] }], 'r0')
       const state = {
         score: 0,
-        resources: { currency: 0 },
+        resources: { r0: 0 },
         upgrades: {
-          'auto-clicker': 0,
-          'double-click': 0,
-          multiplier: 0,
+          u0: 0,
+          u1: 0,
         },
         generators: {},
         meta: {},
@@ -53,18 +49,17 @@ describe('Bot', () => {
     it('buys cheapest affordable upgrade', () => {
       const bot = new ClickerBot(
         [
-          { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] },
-          { id: 'double-click', name: 'Double Click', cost: 25, description: '', modifiers: [] },
+          { id: 'u0', cost: 10, modifiers: [] },
+          { id: 'u1', cost: 25, modifiers: [] },
         ],
-        'currency',
+        'r0',
       )
       const state = {
         score: 0,
-        resources: { currency: 15 },
+        resources: { r0: 15 },
         upgrades: {
-          'auto-clicker': 0,
-          'double-click': 0,
-          multiplier: 0,
+          u0: 0,
+          u1: 0,
         },
         generators: {},
         meta: {},
@@ -72,21 +67,17 @@ describe('Bot', () => {
       const actions = bot.decide(state, 0.25)
       const buys = actions.filter((a) => a.type === 'buy')
       expect(buys).toHaveLength(1)
-      expect(buys[0]).toEqual({ type: 'buy', upgradeId: 'auto-clicker' })
+      expect(buys[0]).toEqual({ type: 'buy', upgradeId: 'u0' })
     })
 
     it('does not buy already-owned one-shot upgrades', () => {
-      const bot = new ClickerBot(
-        [{ id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] }],
-        'currency',
-      )
+      const bot = new ClickerBot([{ id: 'u0', cost: 10, modifiers: [] }], 'r0')
       const state = {
         score: 0,
-        resources: { currency: 100 },
+        resources: { r0: 100 },
         upgrades: {
-          'auto-clicker': 1,
-          'double-click': 0,
-          multiplier: 0,
+          u0: 1,
+          u1: 0,
         },
         generators: {},
         meta: {},
@@ -99,18 +90,17 @@ describe('Bot', () => {
     it('only clicks when all upgrades are already owned', () => {
       const bot = new ClickerBot(
         [
-          { id: 'auto-clicker', name: 'Auto-Clicker', cost: 10, description: '', modifiers: [] },
-          { id: 'double-click', name: 'Double Click', cost: 25, description: '', modifiers: [] },
+          { id: 'u0', cost: 10, modifiers: [] },
+          { id: 'u1', cost: 25, modifiers: [] },
         ],
-        'currency',
+        'r0',
       )
       const state = {
         score: 0,
-        resources: { currency: 999 },
+        resources: { r0: 999 },
         upgrades: {
-          'auto-clicker': 1,
-          'double-click': 1,
-          multiplier: 0,
+          u0: 1,
+          u1: 1,
         },
         generators: {},
         meta: {},
@@ -122,91 +112,86 @@ describe('Bot', () => {
   })
 
   describe('IdlerBot', () => {
+    // Synthetic upgrades matching the bot's hardcoded plan: u0(r0), u1(r0), u2(r1)
     const idlerUpgrades = [
       {
-        id: 'sharpened-axes' as const,
-        name: 'SA',
+        id: 'u0' as const,
         cost: 30,
-        costCurrency: 'wood' as const,
-        description: '',
+        costCurrency: 'r0' as const,
         modifiers: [],
       },
       {
-        id: 'lumber-mill' as const,
-        name: 'LM',
-        cost: 80,
-        costCurrency: 'wood' as const,
-        description: '',
+        id: 'u1' as const,
+        cost: 25,
+        costCurrency: 'r0' as const,
         modifiers: [],
       },
       {
-        id: 'tavern-recruits' as const,
-        name: 'TR',
-        cost: 15,
-        costCurrency: 'ale' as const,
-        description: '',
+        id: 'u2' as const,
+        cost: 25,
+        costCurrency: 'r1' as const,
         modifiers: [],
-        repeatable: true,
       },
     ]
 
-    it('switches to ale highlight first (for tavern-recruits)', () => {
+    it('stays on r0 highlight first (for u0)', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        resources: { wood: 0, ale: 0 },
+        resources: { r0: 0, r1: 0 },
         generators: {},
-        meta: { highlight: 'wood' as const },
+        meta: { highlight: 'r0' as const },
         upgrades: {
-          'sharpened-axes': 0,
-          'lumber-mill': 0,
-          'tavern-recruits': 0,
+          u0: 0,
+          u1: 0,
+          u2: 0,
         },
       }
       const actions = bot.decide(state)
+      // First plan step is u0 (costs r0), highlight should stay on r0
       const highlights = actions.filter((a) => a.type === 'set_highlight')
-      expect(highlights).toContainEqual({ type: 'set_highlight', highlight: 'ale' })
+      expect(highlights).toHaveLength(0) // already on r0, no switch needed
     })
 
-    it('buys tavern-recruits when ale is sufficient', () => {
+    it('buys u0 when r0 is sufficient', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        resources: { wood: 0, ale: 0 },
+        resources: { r0: 0, r1: 0 },
         generators: {},
-        meta: { highlight: 'ale' as const },
+        meta: { highlight: 'r0' as const },
         upgrades: {
-          'sharpened-axes': 0,
-          'lumber-mill': 0,
-          'tavern-recruits': 0,
+          u0: 0,
+          u1: 0,
+          u2: 0,
         },
       }
-      // First call — not enough ale
+      // First call — not enough r0
       let actions = bot.decide(state)
       expect(actions.filter((a) => a.type === 'buy')).toHaveLength(0)
 
-      // Now with enough ale
-      state.resources.ale = 15
+      // Now with enough r0
+      state.resources.r0 = 30
       actions = bot.decide(state)
-      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'tavern-recruits' })
+      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'u0' })
     })
 
     it('returns empty actions after plan is exhausted', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
-        resources: { wood: 200, ale: 200 },
+        resources: { r0: 200, r1: 200 },
         generators: {},
-        meta: { highlight: 'ale' as const },
+        meta: { highlight: 'r0' as const },
         upgrades: {
-          'sharpened-axes': 0,
-          'lumber-mill': 0,
-          'tavern-recruits': 0,
+          u0: 0,
+          u1: 0,
+          u2: 0,
         },
       }
 
-      // Buy through entire plan: TR, TR, SA, LM (4 steps)
-      for (let i = 0; i < 4; i++) {
+      // Buy through entire plan: u0, u1, u2 (3 steps)
+      for (let i = 0; i < 3; i++) {
         bot.decide(state)
       }
 

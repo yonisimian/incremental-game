@@ -1,10 +1,12 @@
 import type { GameState } from '../game.js'
 import { resetForMatch } from '../game.js'
+import { getModeDefinition } from '@game/shared'
 import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
 
 export function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!
-  const isIdler = state.mode === 'idler'
+  const modeDef = getModeDefinition(state.mode!)
+  const flavor = modeDef.flavor
 
   let winnerText: string
   if (end.reason === 'quit') {
@@ -25,7 +27,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   const resultClass = end.reason === 'quit' || end.reason === 'forfeit' ? 'player' : end.winner
 
-  const scoreLabel = isIdler ? 'Total' : 'Score'
+  const scoreLabel = flavor.scoreLabel
   const pName = playerDisplayName(state)
   const oName = opponentDisplayName(state)
 
@@ -37,9 +39,9 @@ export function renderEndScreen(state: Readonly<GameState>): void {
         <div>${oName}'s ${scoreLabel}: <strong>${Math.floor(end.finalScores.opponent)}</strong></div>
       </div>
       <div class="stats">
-        ${isIdler ? '' : `<div>Clicks: ${end.stats.totalClicks}</div>`}
-        ${isIdler ? '' : `<div>Peak CPS: ${end.stats.peakCps}</div>`}
-        <div>Upgrades: ${formatUpgradesPurchased(end.stats.upgradesPurchased, state.upgrades)}</div>
+        ${flavor.showClickStats ? `<div>Clicks: ${end.stats.totalClicks}</div>` : ''}
+        ${flavor.showClickStats ? `<div>Peak CPS: ${end.stats.peakCps}</div>` : ''}
+        <div>Upgrades: ${formatUpgradesPurchased(end.stats.upgradesPurchased, flavor)}</div>
       </div>
       <button class="rematch-button" id="rematch-btn">Back to Lobby</button>
     </div>

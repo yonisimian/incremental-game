@@ -1,6 +1,6 @@
 import { doClick, doBuy, setHighlight, getState } from '../game.js'
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
-import type { UpgradeCategory } from '@game/shared'
+import { type UpgradeCategory, getModeDefinition } from '@game/shared'
 
 /**
  * Set to true while the hotkey handler is processing a Space press.
@@ -14,7 +14,9 @@ export function initHotkeys(): void {
 
   document.addEventListener('keydown', (e) => {
     const state = getState()
-    if (state.screen !== 'playing') return
+    if (state.screen !== 'playing' || !state.mode) return
+
+    const modeDef = getModeDefinition(state.mode)
 
     // Don't intercept keystrokes while typing in an input
     const target = e.target as HTMLElement
@@ -27,9 +29,9 @@ export function initHotkeys(): void {
     // Let the tab grid handle its own keyboard events (Space activates tab, arrows navigate)
     const inTabGrid = target.closest('#tab-grid') !== null
 
-    // Space — click (clicker mode), unless focus is inside the tab grid
+    // Space — click (clicks-enabled modes), unless focus is inside the tab grid
     if (e.key === ' ' || e.code === 'Space') {
-      if (inTabGrid || state.mode !== 'clicker') return
+      if (inTabGrid || !modeDef.clicksEnabled) return
       e.preventDefault() // prevent page scroll
       handledByHotkey = true
       setTimeout(() => {
@@ -39,12 +41,14 @@ export function initHotkeys(): void {
       return
     }
 
-    // Tab — toggle highlight (idler mode), unless focus is inside the tab grid
+    // Tab — cycle highlight (non-clicking modes with highlight), unless focus is inside the tab grid
     if (e.key === 'Tab') {
-      if (inTabGrid || state.mode !== 'idler') return // allow natural focus movement
+      if (inTabGrid || !modeDef.highlightEnabled) return
       e.preventDefault() // prevent focus shift
-      const current = (state.player.meta.highlight as string | undefined) ?? 'wood'
-      setHighlight(current === 'wood' ? 'ale' : 'wood')
+      const resources = modeDef.resources
+      const current = (state.player.meta.highlight as string | undefined) ?? resources[0]
+      const idx = resources.indexOf(current)
+      setHighlight(resources[(idx + 1) % resources.length])
       return
     }
 

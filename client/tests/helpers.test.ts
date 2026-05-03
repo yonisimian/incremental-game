@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { UpgradeDefinition } from '@game/shared'
+import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { canBuy, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.js'
@@ -9,9 +9,7 @@ import { canBuy, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.j
 function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinition {
   return {
     id: 'test-upgrade',
-    name: 'Test',
     cost: 10,
-    description: '',
     modifiers: [],
     ...overrides,
   }
@@ -24,10 +22,10 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     goal: { type: 'timed', durationSec: ROUND_DURATION_SEC },
     player: {
       score: 0,
-      resources: { wood: 100, ale: 100 },
+      resources: { r0: 100, r1: 100 },
       upgrades: {},
       generators: {},
-      meta: { highlight: 'wood' },
+      meta: { highlight: 'r0' },
       ...overrides,
     },
     opponent: {
@@ -89,36 +87,36 @@ describe('isUnlocked', () => {
 
 describe('canBuy', () => {
   it('returns true when unlocked AND can afford', () => {
-    const u = makeUpgrade({ cost: 50, costCurrency: 'wood' })
-    const state = makeState({ resources: { wood: 100, ale: 0 } })
+    const u = makeUpgrade({ cost: 50, costCurrency: 'r0' })
+    const state = makeState({ resources: { r0: 100, r1: 0 } })
     expect(canBuy(state, u)).toBe(true)
   })
 
   it('returns false when locked even if affordable', () => {
-    const u = makeUpgrade({ cost: 50, costCurrency: 'wood', prerequisites: ['ghost'] })
-    const state = makeState({ resources: { wood: 9999, ale: 9999 } })
+    const u = makeUpgrade({ cost: 50, costCurrency: 'r0', prerequisites: ['ghost'] })
+    const state = makeState({ resources: { r0: 9999, r1: 9999 } })
     expect(canBuy(state, u)).toBe(false)
   })
 
   it('returns false when unlocked but cannot afford', () => {
-    const u = makeUpgrade({ cost: 50, costCurrency: 'wood' })
-    const state = makeState({ resources: { wood: 0, ale: 9999 } })
+    const u = makeUpgrade({ cost: 50, costCurrency: 'r0' })
+    const state = makeState({ resources: { r0: 0, r1: 9999 } })
     expect(canBuy(state, u)).toBe(false)
   })
 
   it('returns false for one-shot upgrade already owned', () => {
-    const u = makeUpgrade({ cost: 10, costCurrency: 'wood' })
+    const u = makeUpgrade({ cost: 10, costCurrency: 'r0' })
     const state = makeState({
-      resources: { wood: 9999, ale: 0 },
+      resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 1 },
     })
     expect(canBuy(state, u)).toBe(false)
   })
 
   it('returns true for repeatable upgrade already owned (with funds)', () => {
-    const u = makeUpgrade({ cost: 10, costCurrency: 'wood', repeatable: true })
+    const u = makeUpgrade({ cost: 10, costCurrency: 'r0', repeatable: true })
     const state = makeState({
-      resources: { wood: 9999, ale: 0 },
+      resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 3 },
     })
     expect(canBuy(state, u)).toBe(true)
@@ -128,36 +126,38 @@ describe('canBuy', () => {
 // ─── formatUpgradesPurchased ─────────────────────────────────────────
 
 describe('formatUpgradesPurchased', () => {
-  const upgrades: UpgradeDefinition[] = [
-    makeUpgrade({ id: 'tavern-recruits', name: '🍻 Tavern Recruits' }),
-    makeUpgrade({ id: 'sharpened-axes', name: '🪓 Sharpened Axes' }),
-    makeUpgrade({ id: 'lumber-mill', name: '🏗️ Lumber Mill' }),
-  ]
+  const testFlavor: ModeFlavor = {
+    themeClass: 'theme-test',
+    scoreLabel: 'Score',
+    showClickStats: false,
+    resources: [],
+    upgrades: [
+      { id: 'u0', name: '🍻 Tavern Recruits', description: '' },
+      { id: 'u1', name: '🪓 Sharpened Axes', description: '' },
+      { id: 'u2', name: '🏗️ Lumber Mill', description: '' },
+    ],
+    generators: [],
+  }
 
   it('returns "none" for an empty list', () => {
-    expect(formatUpgradesPurchased([], upgrades)).toBe('none')
+    expect(formatUpgradesPurchased([], testFlavor)).toBe('none')
   })
 
   it('shows a single non-repeated purchase as just the name', () => {
-    expect(formatUpgradesPurchased(['sharpened-axes'], upgrades)).toBe('🪓 Sharpened Axes')
+    expect(formatUpgradesPurchased(['u1'], testFlavor)).toBe('🪓 Sharpened Axes')
   })
 
   it('aggregates repeats with ×N suffix', () => {
-    expect(
-      formatUpgradesPurchased(['tavern-recruits', 'tavern-recruits', 'tavern-recruits'], upgrades),
-    ).toBe('🍻 Tavern Recruits ×3')
+    expect(formatUpgradesPurchased(['u0', 'u0', 'u0'], testFlavor)).toBe('🍻 Tavern Recruits ×3')
   })
 
   it('preserves first-purchase order across distinct ids', () => {
-    expect(
-      formatUpgradesPurchased(
-        ['tavern-recruits', 'sharpened-axes', 'tavern-recruits', 'lumber-mill'],
-        upgrades,
-      ),
-    ).toBe('🍻 Tavern Recruits ×2, 🪓 Sharpened Axes, 🏗️ Lumber Mill')
+    expect(formatUpgradesPurchased(['u0', 'u1', 'u0', 'u2'], testFlavor)).toBe(
+      '🍻 Tavern Recruits ×2, 🪓 Sharpened Axes, 🏗️ Lumber Mill',
+    )
   })
 
   it('falls back to the raw id for unknown upgrades', () => {
-    expect(formatUpgradesPurchased(['ghost', 'ghost'], upgrades)).toBe('ghost ×2')
+    expect(formatUpgradesPurchased(['ghost', 'ghost'], testFlavor)).toBe('ghost ×2')
   })
 })

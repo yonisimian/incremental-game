@@ -119,14 +119,14 @@ describe('Match', () => {
   // ── Click actions ────────────────────────────────────────────────
 
   describe('click actions', () => {
-    it('awards +1 score and +1 currency per click', () => {
+    it('awards +1 score and +1 r0 per click', () => {
       const m = enterPlaying()
       m.handleMessage('p1', clickMsg(1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
       expect(u.player.score).toBe(1)
-      expect(u.player.resources.currency).toBe(1)
+      expect(u.player.resources.r0).toBe(1)
     })
 
     it('rejects clicks beyond the rate limit', () => {
@@ -144,41 +144,41 @@ describe('Match', () => {
   // ── Purchases ────────────────────────────────────────────────────
 
   describe('purchases', () => {
-    it('deducts currency and grants the upgrade', () => {
+    it('deducts r0 and grants the upgrade', () => {
       const m = enterPlaying()
-      // double-click costs 25, no passive income side-effect
+      // u0 costs 25, no passive income side-effect
       const seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage('p1', buyMsg('double-click', seq))
+      m.handleMessage('p1', buyMsg('u0', seq))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['double-click']).toBe(1)
-      expect(u.player.resources.currency).toBe(0)
+      expect(u.player.upgrades.u0).toBe(1)
+      expect(u.player.resources.r0).toBe(0)
       expect(u.player.score).toBe(25) // score unaffected by purchase
     })
 
     it('rejects an unaffordable purchase', () => {
       const m = enterPlaying()
       m.handleMessage('p1', clickMsg(1)) // earn 1
-      m.handleMessage('p1', buyMsg('double-click', 2)) // costs 25
+      m.handleMessage('p1', buyMsg('u0', 2)) // costs 25
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['double-click']).toBe(0)
-      expect(u.player.resources.currency).toBe(1)
+      expect(u.player.upgrades.u0).toBe(0)
+      expect(u.player.resources.r0).toBe(1)
     })
 
     it('rejects a duplicate purchase', () => {
       const m = enterPlaying()
-      // double-click costs 25; earn 50 to prove only 25 is deducted
+      // u0 costs 25; earn 50 to prove only 25 is deducted
       let seq = earnCurrency(m, 'p1', 50)
-      m.handleMessage('p1', buyMsg('double-click', seq++))
-      m.handleMessage('p1', buyMsg('double-click', seq))
+      m.handleMessage('p1', buyMsg('u0', seq++))
+      m.handleMessage('p1', buyMsg('u0', seq))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['double-click']).toBe(1)
-      expect(u.player.resources.currency).toBe(25) // 50 − 25, not 50 − 50
+      expect(u.player.upgrades.u0).toBe(1)
+      expect(u.player.resources.r0).toBe(25) // 50 − 25, not 50 − 50
     })
   })
 
@@ -187,14 +187,14 @@ describe('Match', () => {
   describe('upgrade effects', () => {
     it('auto-generators add passive income each tick', () => {
       const m = enterPlaying()
-      // Use generators for passive income: buy a cursor (costs 15, produces 0.5 currency/sec)
+      // Use generators for passive income: buy a g0 (costs 15, produces 0.5 r0/sec)
       const seq = earnCurrency(m, 'p1', 15)
       m.handleMessage(
         'p1',
         JSON.stringify({
           type: 'ACTION_BATCH',
           seq,
-          actions: [{ type: 'buy_generator', timestamp: Date.now(), generatorId: 'cursor' }],
+          actions: [{ type: 'buy_generator', timestamp: Date.now(), generatorId: 'g0' }],
         }),
       )
 
@@ -209,10 +209,10 @@ describe('Match', () => {
       expect(scoreAfter - scoreBefore).toBeCloseTo(0.5, 1)
     })
 
-    it('double-click gives +2 per click', () => {
+    it('u0 gives +2 per click', () => {
       const m = enterPlaying()
       let seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage('p1', buyMsg('double-click', seq++))
+      m.handleMessage('p1', buyMsg('u0', seq++))
 
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const scoreBefore = latestUpdate(ws1).player.score
@@ -422,93 +422,95 @@ describe('Match', () => {
       expect(msg.config.mode).toBe('idler')
     })
 
-    it('uses idler upgrades, not clicker upgrades', () => {
+    it('uses idler upgrades in config', () => {
       const m = createIdlerMatch()
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).toContain('sharpened-axes')
-      expect(ids).toContain('heavy-logging')
-      expect(ids).not.toContain('double-click')
+      // Idler has more upgrades than clicker (5 non-trophy vs 2)
+      expect(ids.length).toBeGreaterThanOrEqual(4)
+      // Idler-exclusive upgrade IDs (u3, u4 only exist in idler)
+      expect(ids).toContain('u3')
+      expect(ids).toContain('u4')
     })
 
-    it('produces wood and ale at 1/sec base rate', () => {
+    it('produces r0 and r1 at 1/sec base rate', () => {
       enterIdlerPlaying()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Default highlight=wood → wood at 2/sec, ale at 1/sec
-      expect(u.player.resources.wood).toBeCloseTo(2, 1)
-      expect(u.player.resources.ale).toBeCloseTo(1, 1)
+      // Default highlight=r0 → r0 at 2/sec, r1 at 1/sec
+      expect(u.player.resources.r0).toBeCloseTo(2, 1)
+      expect(u.player.resources.r1).toBeCloseTo(1, 1)
     })
 
-    it('score = total wood produced (highlight = wood gives 2x)', () => {
+    it('score = total r0 produced (highlight = r0 gives 2x)', () => {
       enterIdlerPlaying()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Highlighted wood → 2/sec → score = wood produced
+      // Highlighted r0 → 2/sec → score = r0 produced
       expect(u.player.score).toBeCloseTo(2, 1)
     })
 
     it('highlight toggle changes production rates', () => {
       const m = enterIdlerPlaying()
-      // Switch to ale highlight
-      m.handleMessage('p1', highlightMsg('ale', 1))
+      // Switch to r1 highlight
+      m.handleMessage('p1', highlightMsg('r1', 1))
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Wood at 1/sec (not highlighted), ale at 2/sec (highlighted)
-      expect(u.player.resources.wood).toBeCloseTo(1, 1)
-      expect(u.player.resources.ale).toBeCloseTo(2, 1)
-      expect(u.player.score).toBeCloseTo(1, 1) // score = wood
+      // r0 at 1/sec (not highlighted), r1 at 2/sec (highlighted)
+      expect(u.player.resources.r0).toBeCloseTo(1, 1)
+      expect(u.player.resources.r1).toBeCloseTo(2, 1)
+      expect(u.player.score).toBeCloseTo(1, 1) // score = r0
     })
 
     it('Sharpened Axes makes highlight 4x', () => {
       const m = enterIdlerPlaying()
-      // Give player enough wood to buy (30)
-      vi.advanceTimersByTime(15_000) // ~30 wood at 2/sec
-      m.handleMessage('p1', buyMsg('sharpened-axes', 1))
+      // Give player enough r0 to buy (30)
+      vi.advanceTimersByTime(15_000) // ~30 r0 at 2/sec
+      m.handleMessage('p1', buyMsg('u0', 1))
       // Clear updates to measure from here
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Highlighted wood → 4/sec now (1 base × 4)
-      expect(u.player.resources.wood).toBeGreaterThan(3.5)
+      // Highlighted r0 → 4/sec now (1 base × 4)
+      expect(u.player.resources.r0).toBeGreaterThan(3.5)
     })
 
-    it('Heavy Logging adds +5 base wood/sec', () => {
+    it('Heavy Logging adds +5 base r0/sec', () => {
       const m = enterIdlerPlaying()
-      // Wait for enough wood (heavy-logging costs 25 wood)
-      vi.advanceTimersByTime(13_000) // ~26 wood at 2/sec
-      m.handleMessage('p1', buyMsg('heavy-logging', 1))
+      // Wait for enough r0 (u1 costs 25 r0)
+      vi.advanceTimersByTime(13_000) // ~26 r0 at 2/sec
+      m.handleMessage('p1', buyMsg('u1', 1))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Base wood = 1 + 5(HL) = 6, highlighted x2 = 12/sec
-      expect(u.player.resources.wood).toBeGreaterThan(11)
+      // Base r0 = 1 + 5(HL) = 6, highlighted x2 = 12/sec
+      expect(u.player.resources.r0).toBeGreaterThan(11)
     })
 
-    it('Royal Brewery adds +5 base ale/sec', () => {
+    it('Royal Brewery adds +5 base r1/sec', () => {
       const m = enterIdlerPlaying()
-      // Switch to ale to earn enough (costs 25 ale)
-      m.handleMessage('p1', highlightMsg('ale', 1))
-      vi.advanceTimersByTime(13_000) // ~26 ale at 2/sec
-      m.handleMessage('p1', buyMsg('royal-brewery', 2))
+      // Switch to r1 to earn enough (costs 25 r1)
+      m.handleMessage('p1', highlightMsg('r1', 1))
+      vi.advanceTimersByTime(13_000) // ~26 r1 at 2/sec
+      m.handleMessage('p1', buyMsg('u2', 2))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Base ale = 1 + 5(RB) = 6, highlighted x2 = 12/sec
-      expect(u.player.resources.ale).toBeGreaterThan(11)
+      // Base r1 = 1 + 5(RB) = 6, highlighted x2 = 12/sec
+      expect(u.player.resources.r1).toBeGreaterThan(11)
     })
 
-    it('cannot buy wood upgrade with ale', () => {
+    it('cannot buy r0 upgrade with r1', () => {
       const m = enterIdlerPlaying()
-      // Switch to ale to build up only ale
-      m.handleMessage('p1', highlightMsg('ale', 1))
-      vi.advanceTimersByTime(10_000) // ale ~= 20, wood ~= 10
-      // Try to buy Sharpened Axes (costs 30 wood) — should fail
-      m.handleMessage('p1', buyMsg('sharpened-axes', 2))
+      // Switch to r1 to build up only r1
+      m.handleMessage('p1', highlightMsg('r1', 1))
+      vi.advanceTimersByTime(10_000) // r1 ~= 20, r0 ~= 10
+      // Try to buy u0 (costs 30 r0) — should fail
+      m.handleMessage('p1', buyMsg('u0', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['sharpened-axes']).toBe(0)
+      expect(u.player.upgrades.u0).toBe(0)
     })
 
     it('rejects clicks in idler mode', () => {
@@ -519,11 +521,12 @@ describe('Match', () => {
       expect(u.player.score).toBeLessThan(2)
     })
 
-    it('currency resource is absent in idler mode', () => {
+    it('r0 resource is present, no extraneous keys in idler mode', () => {
       enterIdlerPlaying()
       vi.advanceTimersByTime(5000)
       const u = latestUpdate(ws1)
-      expect(u.player.resources.currency).toBeUndefined()
+      expect(u.player.resources.r0).toBeDefined()
+      expect(u.player.resources.r1).toBeDefined()
     })
   })
 
@@ -627,7 +630,7 @@ describe('Match', () => {
         JSON.stringify({
           type: 'ACTION_BATCH',
           seq,
-          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'double-click' }],
+          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'u0' }],
         }),
       )
 

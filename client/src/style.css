@@ -1156,3 +1156,12 @@ body {
     0 3px 10px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
 }
+
+/* ─── Theme Scaffolding ─────────────────────────────────────────────── */
+/* Scoped per-theme overrides. Add theme-specific rules here. */
+.theme-clicker {
+  /* clicker mode */
+}
+.theme-medieval {
+  /* idler mode */
+}

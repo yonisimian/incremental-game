@@ -4,11 +4,55 @@ import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
 
+// ─── Validation ──────────────────────────────────────────────────────
+
+/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+export function validateModeDefinition(id: string, def: ModeDefinition): void {
+  const f = def.flavor
+
+  // Resource keys must match exactly (same set, same count)
+  const mechKeys = new Set(def.resources)
+  const flavorKeys = new Set(f.resources.map((r) => r.key))
+  if (mechKeys.size !== flavorKeys.size || ![...mechKeys].every((k) => flavorKeys.has(k)))
+    throw new Error(`[${id}] flavor.resources keys don't match mode.resources`)
+
+  // Every mechanical upgrade must have a flavor entry
+  for (const u of def.upgrades) {
+    if (!f.upgrades.some((fu) => fu.id === u.id))
+      throw new Error(`[${id}] missing flavor for upgrade '${u.id}'`)
+  }
+
+  // Every mechanical generator must have a flavor entry
+  for (const g of def.generators) {
+    if (!f.generators.some((fg) => fg.id === g.id))
+      throw new Error(`[${id}] missing flavor for generator '${g.id}'`)
+  }
+
+  // No orphan flavor entries (flavor references nonexistent mechanic)
+  for (const fu of f.upgrades) {
+    if (!def.upgrades.some((u) => u.id === fu.id))
+      throw new Error(`[${id}] flavor references unknown upgrade '${fu.id}'`)
+  }
+  for (const fg of f.generators) {
+    if (!def.generators.some((g) => g.id === fg.id))
+      throw new Error(`[${id}] flavor references unknown generator '${fg.id}'`)
+  }
+
+  // highlightEnabled ↔ initialMeta consistency
+  if (def.highlightEnabled && !('highlight' in def.initialMeta))
+    throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
+}
+
 // ─── Registry ────────────────────────────────────────────────────────
 
 const MODE_REGISTRY: Record<GameMode, ModeDefinition> = {
   clicker: clickerMode,
   idler: idlerMode,
+}
+
+// Validate all modes at registration time — app won't start if a flavor is incomplete.
+for (const [id, def] of Object.entries(MODE_REGISTRY)) {
+  validateModeDefinition(id, def)
 }
 
 /** Look up the mode definition for a GameMode. */

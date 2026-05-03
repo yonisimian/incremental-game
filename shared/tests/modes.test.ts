@@ -14,15 +14,15 @@ import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../sr
 describe('getModeDefinition', () => {
   it('returns the clicker mode definition', () => {
     const def = getModeDefinition('clicker')
-    expect(def.resources).toEqual(['currency'])
-    expect(def.scoreResource).toBe('currency')
+    expect(def.resources).toEqual(['r0'])
+    expect(def.scoreResource).toBe('r0')
     expect(def.clicksEnabled).toBe(true)
   })
 
   it('returns the idler mode definition', () => {
     const def = getModeDefinition('idler')
-    expect(def.resources).toEqual(['wood', 'ale'])
-    expect(def.scoreResource).toBe('wood')
+    expect(def.resources).toEqual(['r0', 'r1'])
+    expect(def.scoreResource).toBe('r0')
     expect(def.clicksEnabled).toBe(false)
   })
 })
@@ -66,16 +66,12 @@ describe('getAvailableUpgrades', () => {
   // Build a small synthetic mode so the test is independent of real mode tuning.
   const untagged: UpgradeDefinition = {
     id: 'untagged',
-    name: 'Untagged',
     cost: 10,
-    description: '',
     modifiers: [],
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
-    name: 'Trophy',
     cost: 100,
-    description: '',
     modifiers: [],
     goalType: 'buy-upgrade',
   }
@@ -110,7 +106,7 @@ describe('createInitialState', () => {
     const def = getModeDefinition('clicker')
     const state = createInitialState(def)
     expect(state.score).toBe(0)
-    expect(state.resources).toEqual({ currency: 0 })
+    expect(state.resources).toEqual({ r0: 0 })
     expect(state.meta).toEqual({})
     // All upgrades initialized to 0
     for (const u of def.upgrades) {
@@ -122,18 +118,18 @@ describe('createInitialState', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     expect(state.score).toBe(0)
-    expect(state.resources).toEqual({ wood: 0, ale: 0 })
-    expect(state.meta.highlight).toBe('wood')
+    expect(state.resources).toEqual({ r0: 0, r1: 0 })
+    expect(state.meta.highlight).toBe('r0')
   })
 
   it('returns independent copies (no shared references)', () => {
     const def = getModeDefinition('clicker')
     const a = createInitialState(def)
     const b = createInitialState(def)
-    a.resources.currency = 999
-    a.upgrades['double-click'] = 1
-    expect(b.resources.currency).toBe(0)
-    expect(b.upgrades['double-click']).toBe(0)
+    a.resources.r0 = 999
+    a.upgrades.u0 = 1
+    expect(b.resources.r0).toBe(0)
+    expect(b.upgrades.u0).toBe(0)
   })
 })
 
@@ -151,9 +147,9 @@ describe('collectModifiers', () => {
   it('includes upgrade modifiers when owned', () => {
     const def = getModeDefinition('clicker')
     const state = createInitialState(def)
-    state.upgrades['double-click'] = 1
+    state.upgrades.u0 = 1
     const mods = collectModifiers(state, def)
-    // double-click adds +1 clickIncome
+    // u0 (double-click) adds +1 clickIncome
     expect(
       mods.some((m) => m.field === 'clickIncome' && m.value === 1 && m.stage === 'additive'),
     ).toBe(true)
@@ -163,7 +159,7 @@ describe('collectModifiers', () => {
     const def = getModeDefinition('clicker')
     const state = createInitialState(def)
     const mods = collectModifiers(state, def)
-    // clickIncome comes from native modifiers, but no extra additive clickIncome without double-click
+    // clickIncome comes from native modifiers, but no extra additive clickIncome without u0
     const additiveClickIncome = mods.filter(
       (m) => m.field === 'clickIncome' && m.stage === 'additive' && m.value > 1,
     )
@@ -173,11 +169,11 @@ describe('collectModifiers', () => {
   it('scales repeatable upgrade modifiers by count', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
-    state.upgrades['royal-brewery'] = 1 // prereq for master-craftsmen
-    state.upgrades['master-craftsmen'] = 3
+    state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
+    state.upgrades.u3 = 3
     const mods = collectModifiers(state, def)
-    // master-craftsmen: +5 base wood/sec × 3 = +15
-    const mcMod = mods.find((m) => m.field === 'wood' && m.stage === 'additive' && m.value === 15)
+    // u3 (master-craftsmen): +5 base r0/sec × 3 = +15
+    const mcMod = mods.find((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 15)
     expect(mcMod).toBeDefined()
   })
 
@@ -187,7 +183,7 @@ describe('collectModifiers', () => {
     const mods = collectModifiers(state, def)
     // Highlight mechanic should produce a multiplicative modifier
     expect(
-      mods.some((m) => m.stage === 'multiplicative' && (m.field === 'wood' || m.field === 'ale')),
+      mods.some((m) => m.stage === 'multiplicative' && (m.field === 'r0' || m.field === 'r1')),
     ).toBe(true)
   })
 })
@@ -202,38 +198,38 @@ describe('applyPurchase', () => {
   it('deducts cost from scoreResource for clicker upgrades', () => {
     const def = getModeDefinition('clicker')
     const state = makeState(def)
-    state.resources.currency = 50
-    applyPurchase(state, 'double-click', def) // costs 25
-    expect(state.resources.currency).toBe(25)
-    expect(state.upgrades['double-click']).toBe(1)
+    state.resources.r0 = 50
+    applyPurchase(state, 'u0', def) // costs 25
+    expect(state.resources.r0).toBe(25)
+    expect(state.upgrades.u0).toBe(1)
   })
 
   it('deducts cost from costCurrency for idler upgrades', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
-    state.resources.wood = 100
-    applyPurchase(state, 'sharpened-axes', def) // costs 30 wood
-    expect(state.resources.wood).toBe(70)
-    expect(state.upgrades['sharpened-axes']).toBe(1)
+    state.resources.r0 = 100
+    applyPurchase(state, 'u0', def) // costs 30 r0
+    expect(state.resources.r0).toBe(70)
+    expect(state.upgrades.u0).toBe(1)
   })
 
   it('increments count for repeatable upgrades', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
-    state.resources.ale = 30
-    state.upgrades['royal-brewery'] = 1 // prereq for master-craftsmen
-    applyPurchase(state, 'master-craftsmen', def) // costs 10 ale
-    applyPurchase(state, 'master-craftsmen', def)
-    applyPurchase(state, 'master-craftsmen', def)
-    expect(state.upgrades['master-craftsmen']).toBe(3)
-    expect(state.resources.ale).toBe(0)
+    state.resources.r1 = 30
+    state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
+    applyPurchase(state, 'u3', def) // costs 10 r1
+    applyPurchase(state, 'u3', def)
+    applyPurchase(state, 'u3', def)
+    expect(state.upgrades.u3).toBe(3)
+    expect(state.resources.r1).toBe(0)
   })
 
   it('does nothing for unknown upgrade ID', () => {
     const def = getModeDefinition('clicker')
     const state = makeState(def)
-    state.resources.currency = 999
+    state.resources.r0 = 999
     applyPurchase(state, 'bogus', def)
-    expect(state.resources.currency).toBe(999)
+    expect(state.resources.r0).toBe(999)
   })
 })

@@ -1,6 +1,7 @@
 import type { GameState } from '../game.js'
 import { quitMatch } from '../game.js'
-import { getResourceIcon } from '@game/shared'
+import { getModeDefinition } from '@game/shared'
+import type { ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
 import {
   app,
@@ -24,17 +25,22 @@ import { getModeUI, type ModeUI } from './mode-ui.js'
 
 // ─── Render ──────────────────────────────────────────────────────────
 
+// Module-level cache — set in renderPlayingScreen, read in updatePlaying.
+// Safe to leave stale: updatePlaying is only called while screen === 'playing',
+// and renderPlayingScreen always re-assigns before the first updatePlaying call.
+// Flavor objects are static constants, so stale refs don't leak allocations.
 let activeModeUI: ModeUI | null = null
+let activeFlavor: ModeFlavor | null = null
 
 /** Resource bar shown in the header, visible across all tabs. */
 function renderResourceBar(state: Readonly<GameState>): string {
-  if (!activeModeUI || activeModeUI.resources.length === 0) return ''
+  if (!activeFlavor || activeFlavor.resources.length === 0) return ''
   return `
     <div class="resource-bar" id="resource-bar">
-      ${activeModeUI.resources
+      ${activeFlavor.resources
         .map((r) => {
           const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
-          return `<span class="${cls}">${getResourceIcon(r.key)} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
+          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
         })
         .join('')}
     </div>
@@ -62,10 +68,14 @@ function renderScoreboard(state: Readonly<GameState>): string {
 export function renderPlayingScreen(state: Readonly<GameState>): void {
   prevPlayerScore = 0
   activeModeUI = state.mode ? getModeUI(state.mode) : null
+  const modeDef = state.mode ? getModeDefinition(state.mode) : null
+  activeFlavor = modeDef?.flavor ?? null
   configurePanels(activeModeUI?.panels ?? [])
 
+  const themeClass = activeFlavor?.themeClass ?? ''
+
   app.innerHTML = `
-    <div class="screen playing-screen">
+    <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
           <button class="quit-btn" id="quit-btn">← Quit</button>
@@ -112,8 +122,8 @@ export function updatePlaying(state: Readonly<GameState>): void {
   }
 
   // Update resource bar (visible across all tabs)
-  if (activeModeUI) {
-    for (const r of activeModeUI.resources) {
+  if (activeFlavor) {
+    for (const r of activeFlavor.resources) {
       setText(`header-${r.key}`, String(Math.floor(state.player.resources[r.key])))
     }
   }

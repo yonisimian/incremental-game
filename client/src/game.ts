@@ -201,7 +201,7 @@ export function setHighlight(target: string): void {
   if (state.screen !== 'playing') return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
-  if (!('highlight' in modeDef.initialMeta)) return
+  if (!modeDef.highlightEnabled) return
   if (!modeDef.resources.includes(target)) return
   if (state.player.meta.highlight === target) return
 

@@ -32,6 +32,7 @@
 
 - [ ] Per-panel hotkeys (generators: 1/2/3 for tiers; upgrade-tree: 1/2/3 for upgrades)
 - [ ] Hotkey for "quit"
+- [ ] Hotkey for "back"
 - [ ] Hotkeys for generators
 
 ### Match Flow
@@ -44,6 +45,7 @@
 ### Generators
 
 - [ ] Visual feedback on generator purchase
+- [ ] "Buy Max" button for generators (possibly unlocked via an upgrade)
 - [ ] Bot: teach bot to buy generators
 - [ ] Unit tests for generator cost/purchase logic
 
@@ -54,7 +56,7 @@
 - [ ] Replace hand-placed (x, y) with a layout system
 - [ ] Startup-time cycle detection on prereq graph
 - [ ] Generic hotkeys (buy cheapest / buy all affordable)
-- [ ] Multi-purchase with fixed cost
+- [x] Multi-purchase with fixed cost
 - [ ] Multi-purchase with dynamic cost
 - [ ] Choice upgrades (locks sibling upgrades when bought)
 - Specific upgrades — generator:
@@ -92,7 +94,7 @@
 ## UX
 
 - [ ] Confirmation panel ("are you sure you wanna quit?")
-- [ ] End-game screen: show counts of generators + tree upgrades purchased
+- [ ] End-game screen: show counts of generators + tree upgrades purchased (or show no statistics at all?)
 - [x] User name (lobby input, localStorage persistence)
 
 ## Presentation
@@ -131,3 +133,4 @@
 - [ ] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
 - [ ] Game stays on 0:00 for ~5 seconds before showing the end screen
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
+- [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)

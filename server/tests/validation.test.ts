@@ -62,10 +62,10 @@ describe('isValidPurchase', () => {
   function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
       score: 0,
-      resources: { currency: 50 },
+      resources: { r0: 50 },
       upgrades: {
-        'double-click': 0,
-        multiplier: 0,
+        u0: 0,
+        u1: 0,
       },
       generators: {},
       meta: {},
@@ -75,67 +75,42 @@ describe('isValidPurchase', () => {
 
   it('accepts a valid purchase', () => {
     expect(
-      isValidPurchase(
-        makeState({ resources: { currency: 25 } }),
-        'double-click',
-        testUpgradeMap,
-        clickerDef,
-      ),
+      isValidPurchase(makeState({ resources: { r0: 25 } }), 'u0', testUpgradeMap, clickerDef),
     ).toBe(true)
   })
 
   it('accepts at exact cost', () => {
     expect(
-      isValidPurchase(
-        makeState({ resources: { currency: 100 } }),
-        'multiplier',
-        testUpgradeMap,
-        clickerDef,
-      ),
+      isValidPurchase(makeState({ resources: { r0: 100 } }), 'u1', testUpgradeMap, clickerDef),
     ).toBe(true)
   })
 
   it('rejects if already owned', () => {
     const state = makeState({
-      resources: { currency: 100 },
+      resources: { r0: 100 },
       upgrades: {
-        'double-click': 1,
-        multiplier: 0,
+        u0: 1,
+        u1: 0,
       },
     })
-    expect(isValidPurchase(state, 'double-click', testUpgradeMap, clickerDef)).toBe(false)
+    expect(isValidPurchase(state, 'u0', testUpgradeMap, clickerDef)).toBe(false)
   })
 
   it('rejects if too expensive', () => {
     expect(
-      isValidPurchase(
-        makeState({ resources: { currency: 24 } }),
-        'double-click',
-        testUpgradeMap,
-        clickerDef,
-      ),
+      isValidPurchase(makeState({ resources: { r0: 24 } }), 'u0', testUpgradeMap, clickerDef),
     ).toBe(false)
   })
 
   it('rejects an unknown upgrade ID', () => {
     expect(
-      isValidPurchase(
-        makeState({ resources: { currency: 9999 } }),
-        'bogus',
-        testUpgradeMap,
-        clickerDef,
-      ),
+      isValidPurchase(makeState({ resources: { r0: 9999 } }), 'bogus', testUpgradeMap, clickerDef),
     ).toBe(false)
   })
 
   it('rejects a cross-mode upgrade not in the map', () => {
     expect(
-      isValidPurchase(
-        makeState({ resources: { currency: 9999 } }),
-        'sharpened-axes',
-        testUpgradeMap,
-        clickerDef,
-      ),
+      isValidPurchase(makeState({ resources: { r0: 9999 } }), 'u3', testUpgradeMap, clickerDef),
     ).toBe(false)
   })
 })
@@ -150,7 +125,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   function makeAffordableState(): PlayerState {
     return {
       score: 0,
-      resources: { currency: 9999 },
+      resources: { r0: 9999 },
       upgrades: Object.fromEntries(clickerDef.upgrades.map((u) => [u.id, 0])),
       generators: {},
       meta: {},
@@ -162,9 +137,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(clickerDef, timedGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'coronation', filteredMap, clickerDef)).toBe(
-      false,
-    )
+    expect(isValidPurchase(makeAffordableState(), 'u2', filteredMap, clickerDef)).toBe(false)
   })
 
   it('accepts the trophy under buy-upgrade goal when affordable', () => {
@@ -172,7 +145,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'coronation', filteredMap, clickerDef)).toBe(true)
+    expect(isValidPurchase(makeAffordableState(), 'u2', filteredMap, clickerDef)).toBe(true)
   })
 
   it('rejects the trophy under buy-upgrade goal when too expensive', () => {
@@ -181,8 +154,8 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
       getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
     const state = makeAffordableState()
-    state.resources.currency = 100 // trophy costs 1000
-    expect(isValidPurchase(state, 'coronation', filteredMap, clickerDef)).toBe(false)
+    state.resources.r0 = 100 // trophy costs 1000
+    expect(isValidPurchase(state, 'u2', filteredMap, clickerDef)).toBe(false)
   })
 })
 
@@ -195,49 +168,49 @@ describe('isValidPurchase — prerequisites', () => {
   function makeIdlerState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
       score: 0,
-      resources: { wood: 9999, ale: 9999 },
+      resources: { r0: 9999, r1: 9999 },
       upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
       generators: {},
-      meta: { highlight: 'wood' },
+      meta: { highlight: 'r0' },
       ...overrides,
     }
   }
 
-  it('rejects industrial-era when no prerequisites are owned (even with infinite resources)', () => {
+  it('rejects u4 when no prerequisites are owned (even with infinite resources)', () => {
     const state = makeIdlerState()
-    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
+    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('rejects industrial-era when only one of three prerequisites is owned (AND-semantics)', () => {
+  it('rejects u4 when only one of three prerequisites is owned (AND-semantics)', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        'heavy-logging': 1, // royal-brewery and sharpened-axes still unowned
+        u1: 1, // royal-brewery and sharpened-axes still unowned
       },
     })
-    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(false)
+    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('accepts industrial-era when all three prerequisites are owned', () => {
+  it('accepts u4 when all three prerequisites are owned', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        'heavy-logging': 1,
-        'royal-brewery': 1,
-        'sharpened-axes': 1,
+        u1: 1,
+        u2: 1,
+        u0: 1,
       },
     })
-    expect(isValidPurchase(state, 'industrial-era', idlerUpgradeMap, idlerDef)).toBe(true)
+    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(true)
   })
 
-  it('rejects master-craftsmen when royal-brewery is unowned', () => {
+  it('rejects u3 when u2 is unowned', () => {
     const state = makeIdlerState()
-    expect(isValidPurchase(state, 'master-craftsmen', idlerUpgradeMap, idlerDef)).toBe(false)
+    expect(isValidPurchase(state, 'u3', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
   it('accepts root-level upgrades (no prerequisites) immediately', () => {
     const state = makeIdlerState()
-    expect(isValidPurchase(state, 'heavy-logging', idlerUpgradeMap, idlerDef)).toBe(true)
-    expect(isValidPurchase(state, 'royal-brewery', idlerUpgradeMap, idlerDef)).toBe(true)
+    expect(isValidPurchase(state, 'u1', idlerUpgradeMap, idlerDef)).toBe(true)
+    expect(isValidPurchase(state, 'u2', idlerUpgradeMap, idlerDef)).toBe(true)
   })
 })

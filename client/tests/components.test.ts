@@ -14,10 +14,10 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     goal: { type: 'timed', durationSec: ROUND_DURATION_SEC },
     player: {
       score: 0,
-      resources: { wood: 0, ale: 0 },
+      resources: { r0: 0, r1: 0 },
       upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
       generators: {},
-      meta: { highlight: 'wood' },
+      meta: { highlight: 'r0' },
       ...playerOverrides,
     },
     opponent: {
@@ -58,9 +58,7 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'far-node',
-          name: 'Far',
           cost: 0,
-          description: '',
           modifiers: [],
           category: 'tree',
           position: { x: 500, y: 500 },
@@ -92,12 +90,12 @@ describe('renderUpgradeTree', () => {
     const lockedTree = renderUpgradeTree(makeIdlerState())
     expect(lockedTree.edgesSvg).not.toContain('class="unlocked"')
 
-    // royal-brewery owned → master-craftsmen edge becomes unlocked
+    // u2 owned → u3 edge becomes unlocked
     const partial = renderUpgradeTree(
       makeIdlerState({
         upgrades: {
           ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-          'royal-brewery': 1,
+          u2: 1,
         },
       }),
     )
@@ -107,9 +105,9 @@ describe('renderUpgradeTree', () => {
 
   it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState())
-    // master-craftsmen + industrial-era have prereqs → both .locked
-    expect(nodes).toMatch(/data-upgrade="master-craftsmen"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="industrial-era"[^>]*\sdisabled\b/)
+    // u3 + u4 have prereqs → both .locked
+    expect(nodes).toMatch(/data-upgrade="u3"[^>]*\sdisabled\b/)
+    expect(nodes).toMatch(/data-upgrade="u4"[^>]*\sdisabled\b/)
     // .locked class is applied to those nodes
     const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
     expect(lockedCount).toBe(2)
@@ -117,31 +115,27 @@ describe('renderUpgradeTree', () => {
 
   it('marks one-shot owned upgrades with `.owned` class and disables them', () => {
     const state = makeIdlerState({
-      resources: { wood: 9999, ale: 9999 },
+      resources: { r0: 9999, r1: 9999 },
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        'heavy-logging': 1, // one-shot, owned
+        u1: 1, // one-shot, owned
       },
     })
     const { nodes } = renderUpgradeTree(state)
     expect(nodes).toMatch(
-      /class="upgrade-btn tree-node owned"[^>]*data-upgrade="heavy-logging"[^>]*\sdisabled\b/,
+      /class="upgrade-btn tree-node owned"[^>]*data-upgrade="u1"[^>]*\sdisabled\b/,
     )
   })
 
   it('marks unlocked-but-broke nodes with `.too-expensive` (and disables), not `.locked`', () => {
     const state = makeIdlerState({
-      resources: { wood: 0, ale: 0 }, // no money for any unlocked root
+      resources: { r0: 0, r1: 0 }, // no money for any unlocked root
       // both roots have no prereqs → unlocked
     })
     const { nodes } = renderUpgradeTree(state)
-    expect(nodes).toMatch(
-      /class="upgrade-btn tree-node too-expensive"[^>]*data-upgrade="heavy-logging"/,
-    )
+    expect(nodes).toMatch(/class="upgrade-btn tree-node too-expensive"[^>]*data-upgrade="u1"/)
     // Same node should NOT carry `.locked` (priority ordering)
-    expect(nodes).not.toMatch(
-      /class="upgrade-btn tree-node locked"[^>]*data-upgrade="heavy-logging"/,
-    )
+    expect(nodes).not.toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u1"/)
   })
 
   it('does not emit any `.upgrade-hotkey` span on tree nodes', () => {
@@ -160,18 +154,14 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'src',
-          name: 'src',
           cost: 0,
-          description: '',
           modifiers: [],
           category: 'tree',
           position: { x: 0, y: 0 },
         },
         {
           id: 'dst',
-          name: 'dst',
           cost: 0,
-          description: '',
           modifiers: [],
           category: 'tree',
           position: { x: 50, y: 0 }, // length 50 < 2 * 60 = 120
