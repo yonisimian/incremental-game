@@ -12,6 +12,7 @@ import {
 import { renderPlayingScreen, updatePlaying } from './playing.js'
 import { renderEndScreen } from './end.js'
 import { initHotkeys } from './hotkeys.js'
+import { markRender, initPerfOverlay } from './perf-overlay.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -22,12 +23,14 @@ let connectionState: ConnectionState = 'disconnected'
 
 /** Called whenever the game state changes. */
 export function render(state: Readonly<GameState>): void {
+  const endMark = import.meta.env.DEV ? markRender() : undefined
   // The connection overlay takes priority during waking/connecting
   if (connectionState === 'waking' || connectionState === 'connecting') {
     if (currentScreen !== 'waking') {
       currentScreen = 'waking'
       renderWakingScreen()
     }
+    endMark?.()
     return
   }
 
@@ -61,6 +64,7 @@ export function render(state: Readonly<GameState>): void {
         break
     }
   }
+  endMark?.()
 }
 
 /** Called when the connection state changes. */
@@ -94,3 +98,4 @@ export function handleConnectionChange(state: ConnectionState): void {
 // ─── Init ────────────────────────────────────────────────────────────
 
 initHotkeys()
+if (import.meta.env.DEV) initPerfOverlay()
