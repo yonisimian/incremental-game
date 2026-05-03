@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Competitive multiplayer incremental game",
   "scripts": {
-    "dev": "pnpm --filter @game/shared build && pnpm --filter server dev & pnpm --filter client dev",
+    "dev": "pnpm --filter @game/shared build && concurrently -n server,client -c blue,green \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
     "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "concurrently": "^9.2.1",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "knip": "~6.7.0",
