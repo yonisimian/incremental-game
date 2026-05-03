@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getModeDefinition, validateModeDefinition } from '../src/modes/index.js'
 import type { ModeDefinition, ModeFlavor } from '../src/modes/types.js'
 import type { GameMode } from '../src/types.js'
+import {
+  getResourceIcon,
+  getResourceName,
+  getUpgradeName,
+  getUpgradeDescription,
+  getGeneratorName,
+  getGeneratorIcon,
+} from '../src/flavor.js'
 
 // ─── Positive: real modes pass validation ────────────────────────────
 
@@ -201,5 +209,140 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).not.toThrow()
+  })
+})
+
+// ─── Lookup helpers (flavor.ts functions) ────────────────────────────
+
+/** A standalone flavor object — NOT shared with the ones above so WeakMap
+ *  caches start fresh for these tests. */
+function makeFlavor(): ModeFlavor {
+  return {
+    themeClass: 'theme-test',
+    scoreLabel: 'Score',
+    showClickStats: false,
+    resources: [
+      { key: 'r0', displayName: 'Gold', icon: '💰' },
+      { key: 'r1', displayName: 'Wood', icon: '🪵' },
+    ],
+    upgrades: [
+      { id: 'u0', name: 'Pickaxe', description: 'Mine faster' },
+      { id: 'u1', name: 'Furnace', description: 'Smelt ore' },
+    ],
+    generators: [
+      { id: 'g0', name: 'Miner', icon: '⛏️' },
+      { id: 'g1', name: 'Lumberjack', icon: '🪓' },
+    ],
+  }
+}
+
+describe('getResourceIcon', () => {
+  it('returns the icon for a known resource key', () => {
+    expect(getResourceIcon(makeFlavor(), 'r0')).toBe('💰')
+    expect(getResourceIcon(makeFlavor(), 'r1')).toBe('🪵')
+  })
+
+  it('returns the raw key and warns for an unknown resource', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getResourceIcon(makeFlavor(), 'r99')
+    expect(result).toBe('r99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('resource icon'))
+    warn.mockRestore()
+  })
+})
+
+describe('getResourceName', () => {
+  it('returns the display name for a known resource key', () => {
+    expect(getResourceName(makeFlavor(), 'r0')).toBe('Gold')
+    expect(getResourceName(makeFlavor(), 'r1')).toBe('Wood')
+  })
+
+  it('returns the raw key and warns for an unknown resource', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getResourceName(makeFlavor(), 'r99')
+    expect(result).toBe('r99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('resource name'))
+    warn.mockRestore()
+  })
+})
+
+describe('getUpgradeName', () => {
+  it('returns the name for a known upgrade id', () => {
+    expect(getUpgradeName(makeFlavor(), 'u0')).toBe('Pickaxe')
+  })
+
+  it('returns the raw id and warns for an unknown upgrade', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getUpgradeName(makeFlavor(), 'u99')
+    expect(result).toBe('u99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('upgrade name'))
+    warn.mockRestore()
+  })
+})
+
+describe('getUpgradeDescription', () => {
+  it('returns the description for a known upgrade id', () => {
+    expect(getUpgradeDescription(makeFlavor(), 'u1')).toBe('Smelt ore')
+  })
+
+  it('returns empty string and warns for an unknown upgrade', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getUpgradeDescription(makeFlavor(), 'u99')
+    expect(result).toBe('')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('upgrade description'))
+    warn.mockRestore()
+  })
+})
+
+describe('getGeneratorName', () => {
+  it('returns the name for a known generator id', () => {
+    expect(getGeneratorName(makeFlavor(), 'g0')).toBe('Miner')
+  })
+
+  it('returns the raw id and warns for an unknown generator', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getGeneratorName(makeFlavor(), 'g99')
+    expect(result).toBe('g99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('generator name'))
+    warn.mockRestore()
+  })
+})
+
+describe('getGeneratorIcon', () => {
+  it('returns the icon for a known generator id', () => {
+    expect(getGeneratorIcon(makeFlavor(), 'g1')).toBe('🪓')
+  })
+
+  it('returns the raw id and warns for an unknown generator', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getGeneratorIcon(makeFlavor(), 'g99')
+    expect(result).toBe('g99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('generator icon'))
+    warn.mockRestore()
+  })
+})
+
+describe('flavor lookup caching', () => {
+  it('returns the same result on repeated calls (cache hit)', () => {
+    const flavor = makeFlavor()
+    // First call builds the cache
+    const first = getResourceIcon(flavor, 'r0')
+    // Second call should hit the cache
+    const second = getResourceIcon(flavor, 'r0')
+    expect(first).toBe(second)
+    expect(first).toBe('💰')
+  })
+
+  it('uses separate caches for different flavor objects', () => {
+    const flavor1 = makeFlavor()
+    const flavor2: ModeFlavor = {
+      ...makeFlavor(),
+      resources: [
+        { key: 'r0', displayName: 'Gems', icon: '💎' },
+        { key: 'r1', displayName: 'Iron', icon: '🔩' },
+      ],
+    }
+    expect(getResourceIcon(flavor1, 'r0')).toBe('💰')
+    expect(getResourceIcon(flavor2, 'r0')).toBe('💎')
   })
 })
