@@ -497,7 +497,7 @@ incremental-game/
 │           ├── types.ts         ← ModeDefinition, ModeFlavor, ResourceFlavor, UpgradeFlavor, GeneratorFlavor
 │           ├── clicker.ts       ← clicker mode (abstract IDs, mechanics, clickerFlavor)
 │           ├── idler.ts         ← idler mode (abstract IDs, mechanics, idlerFlavor, dynamic modifiers)
-│           └── index.ts         ← AVAILABLE_MODES, getModeDefinition, getGoalLabel, collectModifiers, re-exports
+│           └── index.ts         ← AVAILABLE_MODES, getModeDefinition, collectModifiers, re-exports
 │
 ├── client/                      ← Vite vanilla-ts project
 │   ├── package.json

@@ -88,7 +88,7 @@ export interface TreeBounds {
 }
 
 /** Output of `renderUpgradeTree` — separate edges and nodes layers + bounds. */
-export interface UpgradeTreeRender {
+interface UpgradeTreeRender {
   readonly edgesSvg: string
   readonly nodes: string
   readonly bounds: TreeBounds

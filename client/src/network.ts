@@ -12,8 +12,8 @@ import type {
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type ServerMessageHandler = (msg: ServerMessage) => void
-export type ConnectionStateHandler = (state: ConnectionState) => void
+type ServerMessageHandler = (msg: ServerMessage) => void
+type ConnectionStateHandler = (state: ConnectionState) => void
 export type ConnectionState =
   | 'waking' // HTTP health check in progress (cold-start)
   | 'connecting' // WebSocket handshake in progress
@@ -78,16 +78,6 @@ export async function connect(): Promise<void> {
   }
 
   openWebSocket(wsUrl)
-}
-
-/** Disconnect and stop reconnecting. */
-export function disconnect(): void {
-  intentionalClose = true
-  stopBatching()
-  if (ws) {
-    ws.close()
-    ws = null
-  }
 }
 
 /** Queue a player action to be sent in the next batch. */

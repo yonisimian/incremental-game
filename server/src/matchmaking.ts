@@ -10,7 +10,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface QueuedPlayer {
+interface QueuedPlayer {
   id: string
   ws: WebSocket | null
   name: string
@@ -101,7 +101,7 @@ function cancelTtlTimer(room: Room): void {
   }
 }
 
-export type CreateRoomResult =
+type CreateRoomResult =
   | { ok: true; room: Room }
   | { ok: false; reason: 'room_limit' | 'already_in_room' }
 
@@ -135,7 +135,7 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
   return { ok: true, room }
 }
 
-export type JoinRoomResult =
+type JoinRoomResult =
   | { ok: true; room: Room; matchReady: boolean }
   | { ok: false; reason: 'full' | 'not_found' | 'already_in_room' }
 
@@ -168,7 +168,7 @@ export function joinRoom(player: QueuedPlayer, code: string): JoinRoomResult {
   return { ok: true, room, matchReady: false }
 }
 
-export type UpdateResult = { ok: true; settings: RoomSettings } | { ok: false }
+type UpdateResult = { ok: true; settings: RoomSettings } | { ok: false }
 
 /**
  * Update room settings. Only the creator may call this.
@@ -210,7 +210,7 @@ export function updateRoomSettings(
   return { ok: true, settings: { mode: room.mode, goal: room.goal } }
 }
 
-export type LeaveRoomResult =
+type LeaveRoomResult =
   | { destroyed: true }
   | { destroyed: false; room: Room; promoted: boolean; leaverName: string }
   | null // player wasn't in a room

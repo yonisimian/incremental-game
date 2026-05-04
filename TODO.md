@@ -121,6 +121,12 @@
 
 - [ ] In-game: for each generator, show percentage of its value-per-tick relative to total
 
+## Networking & Resilience
+
+- [ ] Intentional disconnect: call `disconnect()` on quit so the server can distinguish voluntary quit from network drop
+- [ ] Heartbeat timeout: terminate connections that don't respond to ping within a timeout
+- [ ] Reconnect grace period: give disconnected players ~10 s to rejoin before forfeiting
+
 ## Infrastructure
 
 - [ ] Set up Dependabot for monthly automated dependency PRs
