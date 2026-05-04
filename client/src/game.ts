@@ -12,6 +12,7 @@ import {
   COUNTDOWN_SEC,
   MILESTONE_INTERVAL,
   createInitialState,
+  getDefaultGoal,
   getModeDefinition,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
@@ -273,11 +274,27 @@ export function joinRoom(code: string): void {
   // Screen will change to 'room' when ROOM_JOINED arrives
 }
 
-/** Update room settings (creator only). */
+/** Update room settings (creator only). Optimistically updates local state. */
 export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): void {
   if (state.screen !== 'room') return
   if (!state.isRoomCreator) return
+  if (!state.roomSettings) return
   sendRoomUpdate(update)
+
+  // Optimistic local update — mirrors server-side updateRoomSettings logic
+  if (update.mode !== undefined) {
+    state.roomSettings = { ...state.roomSettings, mode: update.mode }
+    // If the current goal is no longer valid for the new mode, reset it
+    const modeDef = getModeDefinition(update.mode)
+    const goalStillValid = modeDef.goals.some((g) => g.type === state.roomSettings!.goal.type)
+    if (!goalStillValid) {
+      state.roomSettings.goal = getDefaultGoal(update.mode)
+    }
+  }
+  if (update.goal !== undefined) {
+    state.roomSettings = { ...state.roomSettings, goal: update.goal }
+  }
+  notify()
 }
 
 /** Record a click action (optimistic). Clicker mode only. */
