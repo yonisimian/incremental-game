@@ -134,7 +134,7 @@
 - [ ] Screen bottom is cropped on Tal's device
 - [ ] Bot never buys the trophy in idler race-to-buy goal
 - [x] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
-- [ ] Game stays on 0:00 for ~5 seconds before showing the end screen
+- [x] Game stays on 0:00 for ~5 seconds before showing the end screen
 - [ ] "Cancel" / "Leave" button is too far above the title on waiting/room screens — move closer
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
 - [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
