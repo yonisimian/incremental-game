@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getModeDefinition } from '@game/shared'
+import {
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getModeDefinition,
+  getAvailableUpgrades,
+} from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
 
@@ -8,14 +13,16 @@ import { renderUpgradeTree } from '../src/ui/components.js'
 const idlerDef = getModeDefinition('idler')
 
 function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): GameState {
+  const goal = { type: 'timed' as const, label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
+  const upgrades = getAvailableUpgrades(idlerDef, goal)
   return {
     screen: 'playing',
     mode: 'idler',
-    goal: { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC },
+    goal,
     player: {
       score: 0,
       resources: { r0: 0, r1: 0 },
-      upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+      upgrades: Object.fromEntries(upgrades.map((u) => [u.id, 0])),
       generators: {},
       meta: { highlight: 'r0' },
       ...playerOverrides,
@@ -29,7 +36,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     },
     timeLeft: ROUND_DURATION_SEC,
     matchId: 'test-match',
-    upgrades: [...idlerDef.upgrades],
+    upgrades: [...upgrades],
     countdown: COUNTDOWN_SEC,
     endData: null,
     playerName: '',

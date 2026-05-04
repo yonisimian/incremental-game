@@ -81,6 +81,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 1000,
     costCurrency: 'r0',
     goalType: 'buy-upgrade',
+    category: 'tree',
+    position: { x: 200, y: 600 },
+    prerequisites: ['u4'],
     modifiers: [],
   },
 ]
