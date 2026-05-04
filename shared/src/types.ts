@@ -92,12 +92,14 @@ export interface PlayerAction {
 /** Timed goal — highest score when the clock runs out wins. */
 export interface TimedGoal {
   readonly type: 'timed'
+  readonly label: string
   readonly durationSec: number
 }
 
 /** Target-score goal — first player to reach the target wins. */
 export interface TargetScoreGoal {
   readonly type: 'target-score'
+  readonly label: string
   readonly target: number
   /** Maximum match length to prevent infinite games (seconds). */
   readonly safetyCapSec: number
@@ -106,6 +108,7 @@ export interface TargetScoreGoal {
 /** Buy-upgrade goal — first player to buy a goal-tagged "trophy" upgrade wins. */
 export interface BuyUpgradeGoal {
   readonly type: 'buy-upgrade'
+  readonly label: string
   /** Maximum match length; on expiry, winner is derived from score. */
   readonly safetyCapSec: number
 }

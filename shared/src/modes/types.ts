@@ -37,6 +37,8 @@ export interface GeneratorFlavor {
 
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
+  /** Human-readable mode name shown in UI (e.g. 'Clicker', 'Idler'). */
+  readonly displayName: string
   /** CSS class applied to the playing-screen root (e.g. 'theme-medieval'). */
   readonly themeClass: string
   /** Label for the score in scoreboards/end screens (e.g. 'Score', 'Total'). */

@@ -11,7 +11,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
   return {
     screen: 'playing',
     mode: 'idler',
-    goal: { type: 'timed', durationSec: ROUND_DURATION_SEC },
+    goal: { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC },
     player: {
       score: 0,
       resources: { r0: 0, r1: 0 },
@@ -34,6 +34,12 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     endData: null,
     playerName: '',
     opponentName: '',
+    roomCode: null,
+    roomSettings: null,
+    roomPlayers: [],
+    isRoomCreator: false,
+    serverActiveRooms: 0,
+    roomError: null,
   }
 }
 

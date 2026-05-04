@@ -8,6 +8,8 @@ import {
   renderWaitingScreen,
   renderCountdownScreen,
   updateCountdown,
+  renderRoomScreen,
+  updateRoomScreen,
 } from './screens.js'
 import { renderPlayingScreen, updatePlaying } from './playing.js'
 import { renderEndScreen } from './end.js'
@@ -23,14 +25,14 @@ let connectionState: ConnectionState = 'disconnected'
 
 /** Called whenever the game state changes. */
 export function render(state: Readonly<GameState>): void {
-  const endMark = import.meta.env.DEV ? markRender() : undefined
+  const endMark = markRender()
   // The connection overlay takes priority during waking/connecting
   if (connectionState === 'waking' || connectionState === 'connecting') {
     if (currentScreen !== 'waking') {
       currentScreen = 'waking'
       renderWakingScreen()
     }
-    endMark?.()
+    endMark()
     return
   }
 
@@ -39,6 +41,9 @@ export function render(state: Readonly<GameState>): void {
     switch (state.screen) {
       case 'lobby':
         renderLobbyScreen()
+        break
+      case 'room':
+        renderRoomScreen(state)
         break
       case 'waiting':
         renderWaitingScreen()
@@ -56,6 +61,9 @@ export function render(state: Readonly<GameState>): void {
   } else {
     // Update existing screen in-place
     switch (state.screen) {
+      case 'room':
+        updateRoomScreen(state)
+        break
       case 'countdown':
         updateCountdown(state)
         break
@@ -64,7 +72,7 @@ export function render(state: Readonly<GameState>): void {
         break
     }
   }
-  endMark?.()
+  endMark()
 }
 
 /** Called when the connection state changes. */
@@ -83,7 +91,12 @@ export function handleConnectionChange(state: ConnectionState): void {
   } else {
     // disconnected — show overlay when in an active session
     const gs = getState()
-    if (gs.screen === 'playing' || gs.screen === 'countdown' || gs.screen === 'waiting') {
+    if (
+      gs.screen === 'playing' ||
+      gs.screen === 'countdown' ||
+      gs.screen === 'waiting' ||
+      gs.screen === 'room'
+    ) {
       app.innerHTML = `
         <div class="screen disconnected-screen">
           <h1>Disconnected</h1>
@@ -98,4 +111,4 @@ export function handleConnectionChange(state: ConnectionState): void {
 // ─── Init ────────────────────────────────────────────────────────────
 
 initHotkeys()
-if (import.meta.env.DEV) initPerfOverlay()
+initPerfOverlay()

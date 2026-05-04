@@ -72,7 +72,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     resources: ['r0'],
     scoreResource: 'r0',
     upgrades: [{ id: 'u0', cost: 10, modifiers: [] }],
-    goals: [{ type: 'timed', durationSec: 30 }],
+    goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     nativeModifiers: [],
     clicksEnabled: true,
     highlightEnabled: false,
@@ -80,6 +80,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     initialMeta: {},
     generators: [],
     flavor: {
+      displayName: 'Test',
       themeClass: 'theme-test',
       scoreLabel: 'Score',
       showClickStats: false,
@@ -218,6 +219,7 @@ describe('validateModeDefinition — negative tests', () => {
  *  caches start fresh for these tests. */
 function makeFlavor(): ModeFlavor {
   return {
+    displayName: 'Test',
     themeClass: 'theme-test',
     scoreLabel: 'Score',
     showClickStats: false,

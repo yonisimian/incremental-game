@@ -133,7 +133,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   }
 
   it('rejects the trophy under timed goal (filtered out of map)', () => {
-    const timedGoal = { type: 'timed', durationSec: 30 } as const
+    const timedGoal = { type: 'timed', label: '⏱ Timed', durationSec: 30 } as const
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(clickerDef, timedGoal).map((u) => [u.id, u]),
     )
@@ -141,7 +141,11 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   })
 
   it('accepts the trophy under buy-upgrade goal when affordable', () => {
-    const buyUpgradeGoal = { type: 'buy-upgrade', safetyCapSec: 600 } as const
+    const buyUpgradeGoal = {
+      type: 'buy-upgrade',
+      label: '🏆 Race to Buy',
+      safetyCapSec: 600,
+    } as const
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
@@ -149,7 +153,11 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   })
 
   it('rejects the trophy under buy-upgrade goal when too expensive', () => {
-    const buyUpgradeGoal = { type: 'buy-upgrade', safetyCapSec: 600 } as const
+    const buyUpgradeGoal = {
+      type: 'buy-upgrade',
+      label: '🏆 Race to Buy',
+      safetyCapSec: 600,
+    } as const
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(clickerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )

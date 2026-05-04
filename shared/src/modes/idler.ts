@@ -121,6 +121,7 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
 // ─── Flavor ──────────────────────────────────────────────────────────
 
 const idlerFlavor: ModeFlavor = {
+  displayName: 'Idler',
   themeClass: 'theme-medieval',
   scoreLabel: 'Total',
   showClickStats: false,
@@ -167,12 +168,13 @@ export const idlerMode: ModeDefinition = {
   generators: idlerGenerators,
   flavor: idlerFlavor,
   goals: [
-    { type: 'timed', durationSec: IDLER_ROUND_DURATION_SEC },
+    { type: 'timed', label: '⏱ Timed', durationSec: IDLER_ROUND_DURATION_SEC },
     {
       type: 'target-score',
+      label: '🎯 Race to Score',
       target: IDLER_TARGET_SCORE,
       safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
     },
-    { type: 'buy-upgrade', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
+    { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
   ],
 }

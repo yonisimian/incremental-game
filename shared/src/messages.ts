@@ -17,26 +17,54 @@ export interface ActionBatchMessage {
   actions: PlayerAction[]
 }
 
-/** Sent by client to select a game mode and goal (enters matchmaking). */
-export interface ModeSelectMessage {
-  type: 'MODE_SELECT'
-  mode: GameMode
-  goal: Goal
+/** Sent by client to enter the quick-match queue. */
+export interface QuickMatchMessage {
+  type: 'QUICK_MATCH'
   /** Player's chosen display name (may be empty). */
   name: string
 }
 
-/** Sent by client to voluntarily quit the current match. */
+/** Sent by client to create a new room. */
+export interface RoomCreateMessage {
+  type: 'ROOM_CREATE'
+  /** Player's chosen display name (may be empty). */
+  name: string
+}
+
+/** Sent by client to join an existing room by code. */
+export interface RoomJoinMessage {
+  type: 'ROOM_JOIN'
+  /** 6-character room code (case-insensitive). */
+  code: string
+  /** Player's chosen display name (may be empty). */
+  name: string
+}
+
+/** Sent by the room creator to change settings. */
+export interface RoomUpdateMessage {
+  type: 'ROOM_UPDATE'
+  mode?: GameMode
+  goal?: Goal
+}
+
+/** Sent by client to voluntarily quit the current match, room, or queue. */
 export interface QuitMessage {
   type: 'QUIT'
 }
 
-/** Sent by client while in queue to request a bot opponent instead. */
+/** Sent by client while in queue or room to request a bot opponent. */
 export interface BotRequestMessage {
   type: 'BOT_REQUEST'
 }
 
-export type ClientMessage = ActionBatchMessage | ModeSelectMessage | QuitMessage | BotRequestMessage
+export type ClientMessage =
+  | ActionBatchMessage
+  | QuickMatchMessage
+  | RoomCreateMessage
+  | RoomJoinMessage
+  | RoomUpdateMessage
+  | QuitMessage
+  | BotRequestMessage
 
 // ─── Server → Client ────────────────────────────────────────────────
 
@@ -87,4 +115,82 @@ export interface RoundEndMessage {
   }
 }
 
-export type ServerMessage = StateUpdateMessage | RoundStartMessage | RoundEndMessage
+// ─── Room Messages (Server → Client) ────────────────────────────────
+
+/** Room settings payload. */
+export interface RoomSettings {
+  mode: GameMode
+  goal: Goal
+}
+
+/** Confirms room creation, provides the code and initial player list. */
+export interface RoomCreatedMessage {
+  type: 'ROOM_CREATED'
+  code: string
+  settings: RoomSettings
+  /** Display names of players in the room. */
+  players: string[]
+}
+
+/** Confirms join, provides current room state (players = display names). */
+export interface RoomJoinedMessage {
+  type: 'ROOM_JOINED'
+  code: string
+  settings: RoomSettings
+  /** Display names of players in the room. */
+  players: string[]
+}
+
+/** Broadcast updated settings to all room members. */
+export interface RoomUpdatedMessage {
+  type: 'ROOM_UPDATED'
+  settings: RoomSettings
+}
+
+/** Notify room members that a player joined. */
+export interface RoomPlayerJoinedMessage {
+  type: 'ROOM_PLAYER_JOINED'
+  name: string
+}
+
+/** Notify remaining player that the other left. */
+export interface RoomPlayerLeftMessage {
+  type: 'ROOM_PLAYER_LEFT'
+  /** Display name of the player who left. */
+  name: string
+  /** True if the remaining player is now the room creator. */
+  promoted: boolean
+}
+
+/** Room was destroyed (e.g., TTL expiry). Player is returned to lobby. */
+export interface RoomClosedMessage {
+  type: 'ROOM_CLOSED'
+  reason: 'expired'
+}
+
+/** Error response for room/join/create operations. */
+export type RoomErrorReason = 'full' | 'not_found' | 'already_in_room' | 'room_limit'
+
+export interface RoomErrorMessage {
+  type: 'ROOM_ERROR'
+  reason: RoomErrorReason
+}
+
+/** Periodic server diagnostics (active rooms, etc.). */
+export interface ServerStatusMessage {
+  type: 'SERVER_STATUS'
+  activeRooms: number
+}
+
+export type ServerMessage =
+  | StateUpdateMessage
+  | RoundStartMessage
+  | RoundEndMessage
+  | RoomCreatedMessage
+  | RoomJoinedMessage
+  | RoomUpdatedMessage
+  | RoomPlayerJoinedMessage
+  | RoomPlayerLeftMessage
+  | RoomClosedMessage
+  | RoomErrorMessage
+  | ServerStatusMessage

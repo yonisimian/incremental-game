@@ -100,7 +100,11 @@ describe('Match', () => {
     it('includes round config in ROUND_START', () => {
       startMatch()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
-      expect(msg.config.goal).toEqual({ type: 'timed', durationSec: ROUND_DURATION_SEC })
+      expect(msg.config.goal).toEqual({
+        type: 'timed',
+        label: '⏱ Timed',
+        durationSec: ROUND_DURATION_SEC,
+      })
       expect(msg.config.upgrades.length).toBeGreaterThan(0)
       expect(msg.matchId).toBeDefined()
       expect(msg.serverTime).toBeGreaterThan(0)
@@ -532,7 +536,12 @@ describe('Match', () => {
 
   // ── Target-score goal ──────────────────────────────────────────────
   describe('target-score goal', () => {
-    const targetGoal: Goal = { type: 'target-score', target: 50, safetyCapSec: 300 }
+    const targetGoal: Goal = {
+      type: 'target-score',
+      label: '🎯 Race to Score',
+      target: 50,
+      safetyCapSec: 300,
+    }
 
     function createTargetMatch() {
       return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', targetGoal)
@@ -618,7 +627,12 @@ describe('Match', () => {
     })
 
     it('passive income can trigger target-score end', () => {
-      const lowTargetGoal: Goal = { type: 'target-score', target: 5, safetyCapSec: 300 }
+      const lowTargetGoal: Goal = {
+        type: 'target-score',
+        label: '🎯 Race to Score',
+        target: 5,
+        safetyCapSec: 300,
+      }
       const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', lowTargetGoal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)

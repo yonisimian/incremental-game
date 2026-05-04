@@ -2,7 +2,10 @@ import type {
   ActionBatchMessage,
   GameMode,
   Goal,
-  ModeSelectMessage,
+  QuickMatchMessage,
+  RoomCreateMessage,
+  RoomJoinMessage,
+  RoomUpdateMessage,
   PlayerAction,
   ServerMessage,
 } from '@game/shared'
@@ -92,12 +95,35 @@ export function queueAction(action: PlayerAction): void {
   pendingActions.push(action)
 }
 
-/** Send a mode + goal selection message to the server (enters matchmaking). Returns false if not connected. */
-export function sendModeSelect(mode: GameMode, goal: Goal, name: string): boolean {
+/** Enter the quick-match queue. Returns false if not connected. */
+export function sendQuickMatch(name: string): boolean {
   if (ws?.readyState !== WebSocket.OPEN) return false
-  const msg: ModeSelectMessage = { type: 'MODE_SELECT', mode, goal, name }
+  const msg: QuickMatchMessage = { type: 'QUICK_MATCH', name }
   ws.send(JSON.stringify(msg))
   return true
+}
+
+/** Create a new room. Returns false if not connected. */
+export function sendRoomCreate(name: string): boolean {
+  if (ws?.readyState !== WebSocket.OPEN) return false
+  const msg: RoomCreateMessage = { type: 'ROOM_CREATE', name }
+  ws.send(JSON.stringify(msg))
+  return true
+}
+
+/** Join an existing room by code. Returns false if not connected. */
+export function sendRoomJoin(code: string, name: string): boolean {
+  if (ws?.readyState !== WebSocket.OPEN) return false
+  const msg: RoomJoinMessage = { type: 'ROOM_JOIN', code, name }
+  ws.send(JSON.stringify(msg))
+  return true
+}
+
+/** Send a room settings update (creator only). */
+export function sendRoomUpdate(update: { mode?: GameMode; goal?: Goal }): void {
+  if (ws?.readyState !== WebSocket.OPEN) return
+  const msg: RoomUpdateMessage = { type: 'ROOM_UPDATE', ...update }
+  ws.send(JSON.stringify(msg))
 }
 
 /** Send a quit message to voluntarily leave the current match. */

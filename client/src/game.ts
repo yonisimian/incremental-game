@@ -2,6 +2,8 @@ import {
   type GameMode,
   type Goal,
   type PlayerState,
+  type RoomSettings,
+  type RoomErrorReason,
   type RoundEndMessage,
   type RoundStartMessage,
   type ServerMessage,
@@ -20,7 +22,10 @@ import {
   getSeq,
   queueAction,
   resetSeq,
-  sendModeSelect,
+  sendQuickMatch,
+  sendRoomCreate,
+  sendRoomJoin,
+  sendRoomUpdate,
   sendQuit,
   sendBotRequest,
 } from './network.js'
@@ -39,7 +44,8 @@ import {
 
 export type Screen =
   | 'lobby' // connected, choosing game mode
-  | 'waiting' // in queue, looking for opponent
+  | 'room' // in a room, waiting for opponent / adjusting settings
+  | 'waiting' // in quick-match queue, looking for opponent
   | 'countdown' // matched, counting down 3-2-1
   | 'playing' // active round
   | 'ended' // round finished, showing results
@@ -68,6 +74,18 @@ export interface GameState {
   playerName: string
   /** Opponent's display name. */
   opponentName: string
+  /** Room code (when in a room). */
+  roomCode: string | null
+  /** Room settings (when in a room). */
+  roomSettings: RoomSettings | null
+  /** Display names of players in the room. */
+  roomPlayers: string[]
+  /** Whether the local player is the room creator. */
+  isRoomCreator: boolean
+  /** Latest server-reported active room count. */
+  serverActiveRooms: number
+  /** Last room error reason (shown as toast, cleared on next action). */
+  roomError: RoomErrorReason | null
 }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
@@ -104,10 +122,17 @@ const state: GameState = {
   endData: null,
   playerName: '',
   opponentName: '',
+  roomCode: null,
+  roomSettings: null,
+  roomPlayers: [],
+  isRoomCreator: false,
+  serverActiveRooms: 0,
+  roomError: null,
 }
 
 const pendingBatches: PendingBatch[] = []
 let onChange: StateChangeHandler = () => {}
+let onRoomJoined: (() => void) | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 /** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
@@ -118,6 +143,14 @@ let lastFiredMilestoneTier = 0
 /** Subscribe to state changes. */
 export function setStateChangeHandler(handler: StateChangeHandler): void {
   onChange = handler
+}
+
+/**
+ * Register a callback fired when a room join resolves (success or error).
+ * Used by main.ts to clear the ?room= URL param after the server responds.
+ */
+export function setRoomJoinedCallback(cb: () => void): void {
+  onRoomJoined = cb
 }
 
 /** Get the current game state (read-only snapshot). */
@@ -156,17 +189,95 @@ export function handleServerMessage(msg: ServerMessage): void {
     case 'ROUND_END':
       handleRoundEnd(msg)
       break
+    case 'ROOM_CREATED':
+      state.screen = 'room'
+      state.roomCode = msg.code
+      state.roomSettings = msg.settings
+      state.roomPlayers = msg.players
+      state.isRoomCreator = true
+      state.roomError = null
+      notify()
+      break
+    case 'ROOM_JOINED':
+      state.screen = 'room'
+      state.roomCode = msg.code
+      state.roomSettings = msg.settings
+      state.roomPlayers = msg.players
+      state.isRoomCreator = false
+      state.roomError = null
+      onRoomJoined?.()
+      notify()
+      break
+    case 'ROOM_UPDATED':
+      state.roomSettings = msg.settings
+      notify()
+      break
+    case 'ROOM_PLAYER_JOINED':
+      state.roomPlayers.push(msg.name)
+      notify()
+      break
+    case 'ROOM_PLAYER_LEFT': {
+      // Remove the player who left by name (correct for any room size).
+      const idx = state.roomPlayers.indexOf(msg.name)
+      if (idx !== -1) state.roomPlayers.splice(idx, 1)
+      if (msg.promoted) {
+        state.isRoomCreator = true
+      }
+      notify()
+      break
+    }
+    case 'ROOM_CLOSED':
+      resetRoom()
+      state.screen = 'lobby'
+      notify()
+      break
+    case 'ROOM_ERROR':
+      state.roomError = msg.reason
+      // If the player was trying to join/create, stay on lobby
+      if (state.screen !== 'room') {
+        state.screen = 'lobby'
+      }
+      onRoomJoined?.()
+      notify()
+      break
+    case 'SERVER_STATUS':
+      state.serverActiveRooms = msg.activeRooms
+      // Don't trigger a full render for diagnostics — the perf overlay
+      // reads state.serverActiveRooms directly.
+      break
   }
 }
 
-/** Select a game mode and goal, then enter matchmaking. */
-export function selectMode(mode: GameMode, goal: Goal): void {
+/** Enter the quick-match queue. */
+export function quickMatch(): void {
   if (state.screen !== 'lobby') return
-  if (!sendModeSelect(mode, goal, state.playerName)) return // not connected — stay on lobby
-  state.mode = mode
-  state.goal = goal
+  if (!sendQuickMatch(state.playerName)) return // not connected
+  state.roomError = null
   state.screen = 'waiting'
   notify()
+}
+
+/** Create a new room. */
+export function createRoom(): void {
+  if (state.screen !== 'lobby') return
+  if (!sendRoomCreate(state.playerName)) return // not connected
+  state.roomError = null
+  // Screen will change to 'room' when ROOM_CREATED arrives
+}
+
+/** Join an existing room by code. */
+export function joinRoom(code: string): void {
+  if (state.screen !== 'lobby') return
+  if (!sendRoomJoin(code, state.playerName)) return // not connected
+  state.roomError = null
+  // Screen will change to 'room' when ROOM_JOINED arrives
+}
+
+/** Update room settings (creator only). */
+export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): void {
+  if (state.screen !== 'room') return
+  if (!state.isRoomCreator) return
+  sendRoomUpdate(update)
 }
 
 /** Record a click action (optimistic). Clicker mode only. */
@@ -259,16 +370,17 @@ export function doBuyGenerator(generatorId: string): void {
   notify()
 }
 
-/** Cancel matchmaking queue and return to lobby. */
+/** Cancel matchmaking queue or leave the room and return to lobby. */
 export function cancelQueue(): void {
-  if (state.screen !== 'waiting') return
+  if (state.screen !== 'waiting' && state.screen !== 'room') return
   sendQuit()
+  resetRoom()
   resetForMatch()
 }
 
-/** Request a bot opponent while waiting in queue. */
+/** Request a bot opponent while waiting in queue or in a room. */
 export function requestBot(): void {
-  if (state.screen !== 'waiting') return
+  if (state.screen !== 'waiting' && state.screen !== 'room') return
   sendBotRequest()
 }
 
@@ -294,10 +406,20 @@ export function resetForMatch(): void {
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   state.opponentName = ''
+  resetRoom()
   pendingBatches.length = 0
   resetSeq()
   stopCountdown()
   notify()
+}
+
+/** Clear room-related state. */
+function resetRoom(): void {
+  state.roomCode = null
+  state.roomSettings = null
+  state.roomPlayers = []
+  state.isRoomCreator = false
+  state.roomError = null
 }
 
 /** Fire milestone shockwave if current score has crossed a new milestone tier. */

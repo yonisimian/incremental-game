@@ -3,16 +3,35 @@ import { randomUUID } from 'node:crypto'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
+  SERVER_STATUS_INTERVAL_MS,
   getAvailableUpgrades,
   getModeDefinition,
-  getDefaultGoal,
+  AVAILABLE_MODES,
 } from '@game/shared'
-import type { ClientMessage, GameMode, Goal } from '@game/shared'
-import { addToQueue, removeFromQueue } from './matchmaking.js'
+import type { ClientMessage, GameMode, Goal, ServerStatusMessage } from '@game/shared'
+import {
+  addToQuickQueue,
+  removeFromQuickQueue,
+  getQueuedPlayer,
+  createRoom,
+  joinRoom,
+  leaveRoom,
+  updateRoomSettings,
+  removeFromAll,
+  getRoomCount,
+  getRoomByPlayerId,
+} from './matchmaking.js'
+import type { Room } from './matchmaking.js'
 import { Match } from './match.js'
 import { createBot } from './bot.js'
 
 const PORT = Number(process.env.PORT) || 10000
+
+// ─── Helper: valid modes ─────────────────────────────────────────────
+
+function isValidMode(mode: unknown): mode is GameMode {
+  return typeof mode === 'string' && (AVAILABLE_MODES as readonly string[]).includes(mode)
+}
 
 // ─── HTTP Server (health check) ─────────────────────────────────────
 
@@ -36,7 +55,33 @@ interface PlayerData {
 
 const wsData = new Map<WebSocket, PlayerData>()
 const playerMatches = new Map<string, Match>()
-const queuedPlayers = new Map<string, { ws: WebSocket; mode: GameMode; goal: Goal; name: string }>()
+
+/** Sanitize a display name from untrusted input. */
+function sanitizeName(raw: unknown): string {
+  return typeof raw === 'string'
+    ? raw
+        .trim()
+        .replace(/\p{Cc}/gu, '')
+        .slice(0, 16)
+    : ''
+}
+
+/** Roll random settings for quick-match. */
+function rollRandomSettings(): { mode: GameMode; goal: Goal } {
+  const mode = AVAILABLE_MODES[Math.floor(Math.random() * AVAILABLE_MODES.length)]
+  const modeDef = getModeDefinition(mode)
+  const goal = modeDef.goals[Math.floor(Math.random() * modeDef.goals.length)]
+  return { mode, goal }
+}
+
+/** Callback when a room's TTL expires — notify remaining players. */
+function onRoomExpire(room: Room): void {
+  for (const p of room.players) {
+    if (p.ws?.readyState === WebSocket.OPEN) {
+      p.ws.send(JSON.stringify({ type: 'ROOM_CLOSED', reason: 'expired' }))
+    }
+  }
+}
 
 wss.on('connection', (ws: WebSocket) => {
   const playerId = randomUUID()
@@ -60,7 +105,6 @@ wss.on('connection', (ws: WebSocket) => {
       return
     }
 
-    // Not in a match — check for MODE_SELECT
     let msg: ClientMessage
     try {
       msg = JSON.parse(text) as ClientMessage
@@ -68,55 +112,189 @@ wss.on('connection', (ws: WebSocket) => {
       return
     }
 
+    // ── QUIT ─────────────────────────────────────────────────────
     if (msg.type === 'QUIT') {
-      removeFromQueue(data.id)
-      queuedPlayers.delete(data.id)
+      removeFromQuickQueue(data.id)
+      const result = leaveRoom(data.id)
+      if (result && !result.destroyed) {
+        // Notify the remaining player
+        for (const p of result.room.players) {
+          if (p.ws?.readyState === WebSocket.OPEN) {
+            p.ws.send(
+              JSON.stringify({
+                type: 'ROOM_PLAYER_LEFT',
+                name: result.leaverName,
+                promoted: result.promoted,
+              }),
+            )
+          }
+        }
+      }
       return
     }
 
-    if (msg.type === 'MODE_SELECT') {
-      // Runtime validation — mode comes from untrusted client input
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (msg.mode !== 'clicker' && msg.mode !== 'idler') return
-      if (queuedPlayers.has(data.id)) return
+    // ── QUICK_MATCH ──────────────────────────────────────────────
+    if (msg.type === 'QUICK_MATCH') {
+      if (getQueuedPlayer(data.id)) return // already in queue
+      if (getRoomByPlayerId(data.id)) return // already in a room
 
-      // Validate and extract goal from the message
-      const goal = parseGoal(msg.goal, msg.mode)
-      const name =
-        typeof msg.name === 'string'
-          ? msg.name
-              .trim()
-              .replace(/\p{Cc}/gu, '')
-              .slice(0, 16)
-          : ''
-
-      queuedPlayers.set(data.id, { ws, mode: msg.mode, goal, name })
-      const match = addToQueue({ id: data.id, ws, name }, msg.mode, goal)
-      if (match) {
+      const name = sanitizeName(msg.name)
+      const pair = addToQuickQueue({ id: data.id, ws, name })
+      if (pair) {
+        const { mode, goal } = rollRandomSettings()
+        const match = new Match(
+          { id: pair[0].id, ws: pair[0].ws!, name: pair[0].name },
+          { id: pair[1].id, ws: pair[1].ws!, name: pair[1].name },
+          mode,
+          goal,
+        )
         startMatch(match)
       }
       return
     }
 
-    if (msg.type === 'BOT_REQUEST') {
-      const entry = queuedPlayers.get(data.id)
-      if (!entry) return // not in queue — ignore
+    // ── ROOM_CREATE ──────────────────────────────────────────────
+    if (msg.type === 'ROOM_CREATE') {
+      if (getQueuedPlayer(data.id)) return // already in queue
+      if (getRoomByPlayerId(data.id)) return // already in a room
 
-      removeFromQueue(data.id)
-      queuedPlayers.delete(data.id)
-
-      const botId = `bot-${randomUUID()}`
-      const modeDef = getModeDefinition(entry.mode)
-      const availableUpgrades = getAvailableUpgrades(modeDef, entry.goal)
-      const bot = createBot(entry.mode, modeDef, availableUpgrades)
-      const match = new Match(
-        { id: data.id, ws, name: entry.name },
-        { id: botId, ws: null, name: 'Bot' },
-        entry.mode,
-        entry.goal,
-        bot,
+      const name = sanitizeName(msg.name)
+      const result = createRoom({ id: data.id, ws, name }, onRoomExpire)
+      if (!result.ok) {
+        ws.send(JSON.stringify({ type: 'ROOM_ERROR', reason: result.reason }))
+        return
+      }
+      ws.send(
+        JSON.stringify({
+          type: 'ROOM_CREATED',
+          code: result.room.code,
+          settings: { mode: result.room.mode, goal: result.room.goal },
+          players: result.room.players.map((p) => p.name),
+        }),
       )
-      startMatch(match)
+      return
+    }
+
+    // ── ROOM_JOIN ────────────────────────────────────────────────
+    if (msg.type === 'ROOM_JOIN') {
+      if (getQueuedPlayer(data.id)) return // already in queue
+      if (getRoomByPlayerId(data.id)) return // already in a room
+
+      const name = sanitizeName(msg.name)
+      const code = typeof msg.code === 'string' ? msg.code.toUpperCase().trim() : ''
+      if (!code) return
+
+      const result = joinRoom({ id: data.id, ws, name }, code)
+      if (!result.ok) {
+        ws.send(JSON.stringify({ type: 'ROOM_ERROR', reason: result.reason }))
+        return
+      }
+
+      if (result.matchReady) {
+        // Room is full — start match (creator = player 1)
+        const p1 = result.room.players[0]
+        const p2 = result.room.players[1]
+        const match = new Match(
+          { id: p1.id, ws: p1.ws!, name: p1.name },
+          { id: p2.id, ws: p2.ws!, name: p2.name },
+          result.room.mode,
+          result.room.goal,
+        )
+        startMatch(match)
+      } else {
+        // Confirm join to the joiner
+        ws.send(
+          JSON.stringify({
+            type: 'ROOM_JOINED',
+            code: result.room.code,
+            settings: { mode: result.room.mode, goal: result.room.goal },
+            players: result.room.players.map((p) => p.name),
+          }),
+        )
+        // Notify existing players that someone joined
+        for (const p of result.room.players) {
+          if (p.id !== data.id && p.ws?.readyState === WebSocket.OPEN) {
+            p.ws.send(
+              JSON.stringify({
+                type: 'ROOM_PLAYER_JOINED',
+                name,
+              }),
+            )
+          }
+        }
+      }
+      return
+    }
+
+    // ── ROOM_UPDATE ──────────────────────────────────────────────
+    if (msg.type === 'ROOM_UPDATE') {
+      const result = updateRoomSettings(data.id, {
+        mode: isValidMode(msg.mode) ? msg.mode : undefined,
+        goal: msg.goal,
+      })
+      if (!result.ok) return
+
+      // Broadcast updated settings to all room members
+      const room = getRoomByPlayerId(data.id)
+      if (room) {
+        for (const p of room.players) {
+          if (p.ws?.readyState === WebSocket.OPEN) {
+            p.ws.send(
+              JSON.stringify({
+                type: 'ROOM_UPDATED',
+                settings: result.settings,
+              }),
+            )
+          }
+        }
+      }
+      return
+    }
+
+    // ── BOT_REQUEST ──────────────────────────────────────────────
+    if (msg.type === 'BOT_REQUEST') {
+      // Try quick-match queue first
+      const queueEntry = getQueuedPlayer(data.id)
+      if (queueEntry) {
+        removeFromQuickQueue(data.id)
+        const { mode, goal } = rollRandomSettings()
+        const botId = `bot-${randomUUID()}`
+        const modeDef = getModeDefinition(mode)
+        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
+        const bot = createBot(mode, modeDef, availableUpgrades)
+        const match = new Match(
+          { id: data.id, ws, name: queueEntry.name },
+          { id: botId, ws: null, name: 'Bot' },
+          mode,
+          goal,
+          bot,
+        )
+        startMatch(match)
+        return
+      }
+
+      // Try room (only if creator and alone)
+      const room = getRoomByPlayerId(data.id)
+      if (room?.creatorId === data.id && room.players.length === 1) {
+        const playerName = room.players[0].name
+        const { mode, goal } = room
+
+        // Destroy the room first
+        leaveRoom(data.id)
+
+        const botId = `bot-${randomUUID()}`
+        const modeDef = getModeDefinition(mode)
+        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
+        const bot = createBot(mode, modeDef, availableUpgrades)
+        const match = new Match(
+          { id: data.id, ws, name: playerName },
+          { id: botId, ws: null, name: 'Bot' },
+          mode,
+          goal,
+          bot,
+        )
+        startMatch(match)
+      }
     }
   })
 
@@ -127,9 +305,22 @@ wss.on('connection', (ws: WebSocket) => {
     if (m) {
       m.handleDisconnect(data.id)
     } else {
-      removeFromQueue(data.id)
+      const result = removeFromAll(data.id)
+      if (result && !result.destroyed) {
+        // Notify the remaining player
+        for (const p of result.room.players) {
+          if (p.ws?.readyState === WebSocket.OPEN) {
+            p.ws.send(
+              JSON.stringify({
+                type: 'ROOM_PLAYER_LEFT',
+                name: result.leaverName,
+                promoted: result.promoted,
+              }),
+            )
+          }
+        }
+      }
     }
-    queuedPlayers.delete(data.id)
     wsData.delete(ws)
   })
 })
@@ -139,7 +330,6 @@ wss.on('connection', (ws: WebSocket) => {
 /** Register a match, wire up cleanup, and start it. */
 function startMatch(match: Match): void {
   for (const pid of match.getPlayerIds()) {
-    queuedPlayers.delete(pid)
     playerMatches.set(pid, match)
   }
   match.onEnd(() => {
@@ -150,36 +340,37 @@ function startMatch(match: Match): void {
   match.start()
 }
 
-/**
- * Validate and normalize the goal from an untrusted client message.
- * Only accepts goals that exactly match a predefined entry in MODE_CONFIGS.
- * Falls back to the mode's default goal if the payload is invalid.
- */
-function parseGoal(raw: unknown, mode: GameMode): Goal {
-  if (raw && typeof raw === 'object' && 'type' in raw) {
-    const obj = raw as Record<string, unknown>
-    const predefined = getModeDefinition(mode).goals.find((g) => g.type === obj.type)
-    if (predefined) return predefined
-  }
-  // Fallback — ignored bad payload, use default goal for the selected mode
-  return getDefaultGoal(mode)
-}
-
 // ─── Heartbeat ───────────────────────────────────────────────────────
 
 const heartbeat = setInterval(() => {
-  for (const [ws, data] of [...wsData]) {
-    if (!data.isAlive) {
+  for (const [ws, pdata] of [...wsData]) {
+    if (!pdata.isAlive) {
       ws.terminate()
       continue
     }
-    data.isAlive = false
+    pdata.isAlive = false
     ws.ping()
   }
 }, HEARTBEAT_INTERVAL_MS)
 
+// ─── Server Status Broadcast ─────────────────────────────────────────
+
+const statusBroadcast = setInterval(() => {
+  const msg: ServerStatusMessage = {
+    type: 'SERVER_STATUS',
+    activeRooms: getRoomCount(),
+  }
+  const payload = JSON.stringify(msg)
+  for (const [client] of wsData) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload)
+    }
+  }
+}, SERVER_STATUS_INTERVAL_MS)
+
 wss.on('close', () => {
   clearInterval(heartbeat)
+  clearInterval(statusBroadcast)
 })
 
 // ─── Start ───────────────────────────────────────────────────────────
