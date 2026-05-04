@@ -132,7 +132,7 @@
 
 - [ ] Clicker button gets clipped from above when expanded on each click
 - [ ] Screen bottom is cropped on Tal's device
-- [ ] Bot never buys the trophy in idler race-to-buy goal
+- [x] Bot never buys the trophy in idler race-to-buy goal
 - [x] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
 - [x] Game stays on 0:00 for ~5 seconds before showing the end screen
 - [ ] "Cancel" / "Leave" button is too far above the title on waiting/room screens — move closer

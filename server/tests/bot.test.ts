@@ -206,6 +206,49 @@ describe('Bot', () => {
       const actions = bot.decide(state)
       expect(actions).toHaveLength(0)
     })
+
+    it('appends trophy prereqs to plan under buy-upgrade goal', () => {
+      const upgWithTrophy = [
+        ...idlerUpgrades,
+        {
+          id: 'u4' as const,
+          cost: 50,
+          costCurrency: 'r0' as const,
+          prerequisites: ['u1', 'u0', 'u2'],
+          modifiers: [],
+        },
+        {
+          id: 'u5' as const,
+          cost: 1000,
+          costCurrency: 'r0' as const,
+          goalType: 'buy-upgrade' as const,
+          prerequisites: ['u4'],
+          modifiers: [],
+        },
+      ]
+      const bot = new IdlerBot(upgWithTrophy)
+      const state = {
+        score: 0,
+        resources: { r0: 9999, r1: 9999 },
+        generators: {},
+        meta: { highlight: 'r0' as const },
+        upgrades: { u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
+      }
+
+      // Run through all plan steps (u0, u1, u2, u4, u5 = 5 steps)
+      const buyIds: string[] = []
+      for (let i = 0; i < 10; i++) {
+        const actions = bot.decide(state)
+        for (const a of actions) {
+          if (a.type === 'buy') buyIds.push(a.upgradeId)
+        }
+      }
+
+      expect(buyIds).toContain('u4')
+      expect(buyIds).toContain('u5')
+      // Trophy prereqs must come before trophy
+      expect(buyIds.indexOf('u4')).toBeLessThan(buyIds.indexOf('u5'))
+    })
   })
 
   describe('createBot', () => {
