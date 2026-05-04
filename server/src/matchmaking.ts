@@ -107,17 +107,15 @@ export type CreateRoomResult =
 
 /**
  * Create a new room. The creator becomes the first player.
- * Default settings: idler + buy-upgrade (race to buy).
+ * Default settings: clicker + timed.
  */
 export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void): CreateRoomResult {
   if (playerRooms.has(player.id)) return { ok: false, reason: 'already_in_room' }
   if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
 
   const code = generateRoomCode()
-  const defaultMode: GameMode = 'idler'
-  const defaultGoal =
-    getModeDefinition(defaultMode).goals.find((g) => g.type === 'buy-upgrade') ??
-    getDefaultGoal(defaultMode)
+  const defaultMode: GameMode = 'clicker'
+  const defaultGoal = getDefaultGoal(defaultMode)
 
   const room: Room = {
     code,
