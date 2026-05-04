@@ -138,4 +138,4 @@
 - [ ] "Cancel" / "Leave" button is too far above the title on waiting/room screens — move closer
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
 - [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
-- [ ] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
+- [x] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
