@@ -36,7 +36,7 @@ export function setText(id: string, text: string): void {
 }
 
 export function formatTime(seconds: number): string {
-  const s = Math.max(0, Math.ceil(seconds))
+  const s = Math.max(0, Math.floor(seconds))
   const min = Math.floor(s / 60)
   const sec = s % 60
   return `${min}:${sec.toString().padStart(2, '0')}`
