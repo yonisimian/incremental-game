@@ -36,6 +36,7 @@ const clickerGenerators: readonly GeneratorDefinition[] = [
 // ─── Flavor ──────────────────────────────────────────────────────────
 
 const clickerFlavor: ModeFlavor = {
+  displayName: 'Clicker',
   themeClass: 'theme-clicker',
   scoreLabel: 'Score',
   showClickStats: true,
@@ -93,12 +94,13 @@ export const clickerMode: ModeDefinition = {
   generators: clickerGenerators,
   flavor: clickerFlavor,
   goals: [
-    { type: 'timed', durationSec: ROUND_DURATION_SEC },
+    { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC },
     {
       type: 'target-score',
+      label: '🎯 Race to Score',
       target: CLICKER_TARGET_SCORE,
       safetyCapSec: TARGET_SCORE_SAFETY_CAP_SEC,
     },
-    { type: 'buy-upgrade', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
+    { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
   ],
 }

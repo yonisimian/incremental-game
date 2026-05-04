@@ -4,7 +4,7 @@ import { COUNTDOWN_SEC, getModeDefinition, ROUND_DURATION_SEC } from '@game/shar
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
-// Mock network.ts — game.ts imports getSeq, queueAction, resetSeq, sendModeSelect from it.
+// Mock network.ts — game.ts imports getSeq, queueAction, resetSeq, send* from it.
 vi.mock('../src/network.js', () => {
   let seq = 0
   return {
@@ -13,7 +13,10 @@ vi.mock('../src/network.js', () => {
     resetSeq: vi.fn(() => {
       seq = 0
     }),
-    sendModeSelect: vi.fn(() => true),
+    sendQuickMatch: vi.fn(() => true),
+    sendRoomCreate: vi.fn(() => true),
+    sendRoomJoin: vi.fn(() => true),
+    sendRoomUpdate: vi.fn(),
     sendQuit: vi.fn(),
     sendBotRequest: vi.fn(),
   }
@@ -28,7 +31,7 @@ async function loadGame(): Promise<GameModule> {
   return await import('../src/game.js')
 }
 
-const defaultTimedGoal: Goal = { type: 'timed', durationSec: ROUND_DURATION_SEC }
+const defaultTimedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
 
 const clickerDef = getModeDefinition('clicker')
 const idlerDef = getModeDefinition('idler')
@@ -127,27 +130,25 @@ describe('game.ts', () => {
     })
   })
 
-  // ── selectMode → waiting ─────────────────────────────────────────
+  // ── quickMatch → waiting ─────────────────────────────────────────
 
-  describe('selectMode', () => {
+  describe('quickMatch', () => {
     it('transitions from lobby to waiting', () => {
-      game.selectMode('clicker', defaultTimedGoal)
+      game.quickMatch()
       expect(game.getState().screen).toBe('waiting')
-      expect(game.getState().mode).toBe('clicker')
     })
 
     it('is a no-op outside lobby', () => {
-      game.selectMode('clicker', defaultTimedGoal)
-      game.selectMode('idler', defaultTimedGoal) // already on waiting screen
-      expect(game.getState().mode).toBe('clicker')
+      game.quickMatch()
+      game.quickMatch() // already on waiting screen
+      expect(game.getState().screen).toBe('waiting')
     })
 
     it('stays on lobby when WebSocket is not connected', async () => {
-      const { sendModeSelect } = await import('../src/network.js')
-      vi.mocked(sendModeSelect).mockReturnValueOnce(false) // simulate disconnected
-      game.selectMode('clicker', defaultTimedGoal)
+      const { sendQuickMatch } = await import('../src/network.js')
+      vi.mocked(sendQuickMatch).mockReturnValueOnce(false) // simulate disconnected
+      game.quickMatch()
       expect(game.getState().screen).toBe('lobby')
-      expect(game.getState().mode).toBeNull()
     })
   })
 
@@ -502,7 +503,7 @@ describe('game.ts', () => {
 
   describe('cancelQueue', () => {
     it('transitions from waiting to lobby', async () => {
-      game.selectMode('clicker', defaultTimedGoal)
+      game.quickMatch()
       expect(game.getState().screen).toBe('waiting')
       game.cancelQueue()
       expect(game.getState().screen).toBe('lobby')

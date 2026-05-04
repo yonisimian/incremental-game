@@ -1,14 +1,17 @@
 /**
- * Dev-mode performance overlay.
+ * Diagnostics overlay (F6).
  *
- * Shows three metrics in a small fixed badge:
+ * Shows metrics in a small fixed badge:
  *  - **FPS** — browser paint rate (via requestAnimationFrame)
  *  - **Renders/s** — how often the UI render() is called per second
  *  - **Render time** — average duration of each render() call (ms)
+ *  - **Active rooms** — from periodic SERVER_STATUS messages
  *
- * Toggle with **F6**. Only active when `import.meta.env.DEV` is true
- * (Vite tree-shakes the entire module in production builds).
+ * Toggle with **F6**. Available in both dev and production builds.
  */
+
+import { MAX_ROOMS } from '@game/shared'
+import { getState } from '../game.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -86,7 +89,12 @@ function createOverlay(): HTMLDivElement {
 function updateText(): void {
   if (!overlay) return
   const renderMs = avgRenderMs < 0.01 ? '<0.01' : avgRenderMs.toFixed(2)
-  overlay.textContent = `FPS ${fps}  |  Renders/s ${rendersPerSec}  |  Render ${renderMs}ms`
+  const rooms = getState().serverActiveRooms
+  const lines = [
+    `FPS ${fps}  |  Renders/s ${rendersPerSec}  |  Render ${renderMs}ms`,
+    `Active rooms: ${rooms} / ${MAX_ROOMS}`,
+  ]
+  overlay.textContent = lines.join('\n')
 }
 
 // ─── Toggle ──────────────────────────────────────────────────────────

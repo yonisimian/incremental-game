@@ -77,8 +77,8 @@ describe('getAvailableUpgrades', () => {
   }
   const fakeMode = { upgrades: [untagged, trophy] } as unknown as ModeDefinition
 
-  const timedGoal: Goal = { type: 'timed', durationSec: 30 }
-  const buyUpgradeGoal: Goal = { type: 'buy-upgrade', safetyCapSec: 600 }
+  const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: 30 }
+  const buyUpgradeGoal: Goal = { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: 600 }
 
   it('includes untagged upgrades regardless of goal', () => {
     expect(getAvailableUpgrades(fakeMode, timedGoal)).toContain(untagged)

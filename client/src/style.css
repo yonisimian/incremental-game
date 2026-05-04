@@ -273,6 +273,288 @@ body {
   border-color: var(--text-dim);
 }
 
+/* ─── New Lobby ────────────────────────────────────────────────────── */
+
+.lobby-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lobby-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+
+.lobby-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.lobby-btn:active {
+  transform: translateY(0);
+}
+
+.lobby-btn.primary:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.lobby-btn .btn-icon {
+  font-size: 1.5rem;
+}
+
+.lobby-btn .btn-label {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.lobby-btn .btn-desc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.join-room-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.room-code-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  text-align: center;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  outline: none;
+  font-family: monospace;
+}
+
+.room-code-input:focus {
+  border-color: var(--accent);
+}
+
+.room-code-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.lobby-btn.small {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lobby-error {
+  color: #f87171;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+/* ─── Room Screen ──────────────────────────────────────────────────── */
+
+.room-screen h1 {
+  font-size: 2rem;
+}
+
+.room-screen .quit-btn {
+  align-self: flex-start;
+}
+
+.room-code-display {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.room-code-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.room-code {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-family: monospace;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.copy-btn,
+.share-btn {
+  position: relative;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: border-color 0.15s;
+}
+
+.copy-btn:hover,
+.share-btn:hover {
+  border-color: var(--accent);
+}
+
+/* Custom fast tooltips (native title= has ~400ms browser delay) */
+.copy-btn::after,
+.share-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s 0.1s;
+}
+
+.copy-btn:hover::after,
+.share-btn:hover::after {
+  opacity: 1;
+}
+
+.room-players {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.player-slot {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.player-slot.filled {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.player-slot.empty {
+  color: var(--text-dim);
+  border-style: dashed;
+}
+
+.player-slot-vs {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.room-settings {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.setting-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.setting-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mode-chips,
+.goal-chips {
+  width: 100%;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mode-chip,
+.goal-chip {
+  flex-grow: 1;
+  padding: 0.4rem 0.8rem;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition:
+    border-color 0.15s,
+    transform 0.1s;
+}
+
+.mode-chip:hover,
+.goal-chip:hover {
+  border-color: var(--accent);
+}
+
+.mode-chip.selected,
+.goal-chip.selected {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+}
+
 /* ─── Target-Score HUD ─────────────────────────────────────────────── */
 
 .target-progress {

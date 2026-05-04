@@ -51,3 +51,14 @@ export const HEARTBEAT_TIMEOUT_MS = 10_000
 
 /** Grace period for reconnection before forfeit (ms). */
 export const RECONNECT_GRACE_MS = 10_000
+
+// ─── Rooms ───────────────────────────────────────────────────────────
+
+/** Maximum number of active rooms the server will host simultaneously. */
+export const MAX_ROOMS = 20
+
+/** Time-to-live for non-full rooms before auto-expiry (ms). 10 minutes. */
+export const ROOM_TTL_MS = 10 * 60 * 1000
+
+/** How often the server broadcasts SERVER_STATUS to all clients (ms). */
+export const SERVER_STATUS_INTERVAL_MS = 5_000

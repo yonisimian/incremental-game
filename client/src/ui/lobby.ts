@@ -1,10 +1,12 @@
-import type { GameMode } from '@game/shared'
-import { getModeDefinition } from '@game/shared'
-import { selectMode, getState, setPlayerName } from '../game.js'
+import { quickMatch, createRoom, joinRoom, getState, setPlayerName } from '../game.js'
 import { app, escapeAttr } from './helpers.js'
 
 export function renderLobbyScreen(): void {
-  const currentName = getState().playerName
+  const { playerName, roomError } = getState()
+
+  const errorHtml = roomError
+    ? `<p class="lobby-error" id="lobby-error">${errorMessage(roomError)}</p>`
+    : ''
 
   app.innerHTML = `
     <div class="screen lobby-screen">
@@ -16,24 +18,32 @@ export function renderLobbyScreen(): void {
         placeholder="Enter your name"
         maxlength="16"
         autocomplete="off"
-        value="${escapeAttr(currentName)}"
+        value="${escapeAttr(playerName)}"
       />
-      <p class="status-text">Choose a game mode</p>
-      <div class="mode-buttons" id="mode-buttons">
-        <button class="mode-btn" data-mode="clicker">
-          <span class="mode-name">Clicker</span>
-          <span class="mode-desc">Click fast, buy upgrades, outscore your opponent</span>
+      ${errorHtml}
+      <div class="lobby-actions">
+        <button class="lobby-btn primary" id="quick-match-btn">
+          <span class="btn-icon">⚡</span>
+          <span class="btn-label">Quick Match</span>
+          <span class="btn-desc">Random mode &amp; goal — instant pairing</span>
         </button>
-        <button class="mode-btn" data-mode="idler">
-          <span class="mode-name">Idler</span>
-          <span class="mode-desc">Passive income only — pure upgrade strategy</span>
-        </button>
-        <button class="mode-btn tbd" disabled>
-          <span class="mode-name">TBD</span>
-          <span class="mode-desc">Coming soon…</span>
+        <button class="lobby-btn" id="create-room-btn">
+          <span class="btn-icon">🏠</span>
+          <span class="btn-label">Create Room</span>
+          <span class="btn-desc">Choose your settings, invite a friend</span>
         </button>
       </div>
-      <div class="goal-picker hidden" id="goal-picker"></div>
+      <div class="join-room-row">
+        <input
+          class="room-code-input"
+          id="room-code-input"
+          type="text"
+          placeholder="Room code"
+          maxlength="6"
+          autocomplete="off"
+        />
+        <button class="lobby-btn small" id="join-room-btn">Join</button>
+      </div>
     </div>
   `
 
@@ -41,79 +51,49 @@ export function renderLobbyScreen(): void {
     setPlayerName((e.target as HTMLInputElement).value)
   })
 
-  document.querySelectorAll<HTMLButtonElement>('.mode-btn:not(:disabled)').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const mode = btn.dataset.mode as GameMode | undefined
-      if (mode === 'clicker' || mode === 'idler') showGoalPicker(mode)
-    })
+  document.getElementById('quick-match-btn')!.addEventListener('click', (e) => {
+    ;(e.currentTarget as HTMLButtonElement).disabled = true
+    quickMatch()
+  })
+
+  document.getElementById('create-room-btn')!.addEventListener('click', (e) => {
+    ;(e.currentTarget as HTMLButtonElement).disabled = true
+    createRoom()
+  })
+
+  const codeInput = document.getElementById('room-code-input') as HTMLInputElement
+  const joinBtn = document.getElementById('join-room-btn')!
+
+  // Auto-uppercase and filter to valid chars
+  codeInput.addEventListener('input', () => {
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, '')
+  })
+
+  joinBtn.addEventListener('click', () => {
+    const code = codeInput.value.trim()
+    if (code.length === 6) joinRoom(code)
+  })
+
+  // Allow Enter key to join
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const code = codeInput.value.trim()
+      if (code.length === 6) joinRoom(code)
+    }
   })
 }
 
-/** Replace mode buttons with just the selected one, then show goal cards. */
-function showGoalPicker(mode: GameMode): void {
-  const config = getModeDefinition(mode)
-  const buttonsContainer = document.getElementById('mode-buttons')!
-  const picker = document.getElementById('goal-picker')!
-
-  // Keep only the selected button (instant swap)
-  const selectedBtn = buttonsContainer.querySelector<HTMLButtonElement>(`[data-mode="${mode}"]`)
-  if (selectedBtn) {
-    selectedBtn.classList.add('selected')
-    buttonsContainer.innerHTML = selectedBtn.outerHTML
+function errorMessage(reason: string): string {
+  switch (reason) {
+    case 'full':
+      return 'Room is full'
+    case 'not_found':
+      return 'Room not found — it may have expired'
+    case 'already_in_room':
+      return 'You are already in a room'
+    case 'room_limit':
+      return 'Server is busy — try again later'
+    default:
+      return 'Something went wrong'
   }
-
-  // Build goal cards
-  const cards = config.goals
-    .map((goal) => {
-      if (goal.type === 'timed') {
-        return `
-          <button class="goal-card" data-goal-type="timed">
-            <span class="goal-icon">⏱</span>
-            <span class="goal-name">Timed</span>
-            <span class="goal-detail">${goal.durationSec}s</span>
-          </button>
-        `
-      }
-      if (goal.type === 'target-score') {
-        return `
-          <button class="goal-card" data-goal-type="target-score">
-            <span class="goal-icon">🎯</span>
-            <span class="goal-name">Race to ${goal.target}</span>
-            <span class="goal-detail">First to ${goal.target} wins</span>
-          </button>
-        `
-      }
-      return `
-        <button class="goal-card" data-goal-type="buy-upgrade">
-          <span class="goal-icon">🏆</span>
-          <span class="goal-name">Race to Buy</span>
-          <span class="goal-detail">First to buy the trophy</span>
-        </button>
-      `
-    })
-    .join('')
-
-  picker.innerHTML = `
-    <p class="status-text">Choose a goal</p>
-    <div class="goal-cards">${cards}</div>
-    <button class="back-btn" id="goal-back-btn">← Back</button>
-  `
-
-  // Show picker immediately (single DOM reflow, no rAF delay)
-  picker.classList.remove('hidden')
-  picker.classList.add('fade-in')
-
-  // Goal card click handlers
-  picker.querySelectorAll<HTMLButtonElement>('.goal-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const goalType = card.dataset.goalType
-      const goal = config.goals.find((g) => g.type === goalType)
-      if (goal) selectMode(mode, goal)
-    })
-  })
-
-  // Back button
-  document.getElementById('goal-back-btn')!.addEventListener('click', () => {
-    renderLobbyScreen()
-  })
 }

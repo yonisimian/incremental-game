@@ -19,7 +19,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
   return {
     screen: 'playing',
     mode: 'idler',
-    goal: { type: 'timed', durationSec: ROUND_DURATION_SEC },
+    goal: { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC },
     player: {
       score: 0,
       resources: { r0: 100, r1: 100 },
@@ -42,6 +42,12 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     endData: null,
     playerName: '',
     opponentName: '',
+    roomCode: null,
+    roomSettings: null,
+    roomPlayers: [],
+    isRoomCreator: false,
+    serverActiveRooms: 0,
+    roomError: null,
   }
 }
 
@@ -127,6 +133,7 @@ describe('canBuy', () => {
 
 describe('formatUpgradesPurchased', () => {
   const testFlavor: ModeFlavor = {
+    displayName: 'Test',
     themeClass: 'theme-test',
     scoreLabel: 'Score',
     showClickStats: false,

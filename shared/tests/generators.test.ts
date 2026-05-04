@@ -32,7 +32,7 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
     resources: ['r0'],
     scoreResource: 'r0',
     upgrades: [],
-    goals: [{ type: 'timed', durationSec: 30 }],
+    goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: false,
@@ -40,6 +40,7 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
     initialMeta: {},
     generators,
     flavor: {
+      displayName: 'Test',
       themeClass: 'test',
       scoreLabel: 'Score',
       showClickStats: false,

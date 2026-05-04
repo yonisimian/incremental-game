@@ -308,7 +308,12 @@ describe('Bot', () => {
 
     it('bot match ends via target-score goal', () => {
       const target = 5
-      const goal: Goal = { type: 'target-score', target, safetyCapSec: 300 }
+      const goal: Goal = {
+        type: 'target-score',
+        label: '🎯 Race to Score',
+        target,
+        safetyCapSec: 300,
+      }
       const m = createBotMatch('clicker', undefined, goal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000) // enter playing

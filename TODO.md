@@ -33,6 +33,7 @@
 - [ ] Per-panel hotkeys (generators: 1/2/3 for tiers; upgrade-tree: 1/2/3 for upgrades)
 - [ ] Hotkey for "quit"
 - [ ] Hotkey for "back"
+- [ ] Hotkey for "Leave" button (room / waiting screens)
 - [ ] Hotkeys for generators
 
 ### Match Flow
@@ -97,6 +98,7 @@
 - [ ] End-game screen: show counts of generators + tree upgrades purchased (or show no statistics at all?)
 - [x] User name (lobby input, localStorage persistence)
 - [x] Remove support of "focused" elements (i.e. pressing "tab" shouldn't highlight random buttons)
+- [ ] Verbose player-name feedback in rooms: show who joined, who left, and display names on the waiting screen
 
 ## Presentation
 
@@ -133,5 +135,7 @@
 - [ ] Bot never buys the trophy in idler race-to-buy goal
 - [x] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
 - [ ] Game stays on 0:00 for ~5 seconds before showing the end screen
+- [ ] "Cancel" / "Leave" button is too far above the title on waiting/room screens — move closer
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
 - [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
+- [ ] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
