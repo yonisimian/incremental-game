@@ -65,12 +65,28 @@ A real-time head-to-head incremental game playable on any device via the browser
 
    ```text
    Client → Server:
-     ACTION_BATCH  { actions: [{ type, timestamp, payload }], seq }
+     ACTION_BATCH   { actions, seq }                 ← batched player actions
+     QUICK_MATCH    { name }                          ← enter quick-match queue
+     ROOM_CREATE    { name }                          ← create a private room
+     ROOM_JOIN      { code, name }                    ← join room by 6-char code
+     ROOM_UPDATE    { mode?, goal? }                  ← creator changes settings
+     QUIT           {}                                ← leave match / room / queue
+     BOT_REQUEST    {}                                ← request a bot opponent
 
    Server → Client:
-     STATE_UPDATE  { tick, ackSeq, player: { score, resources, upgrades, generators, meta }, opponent: { ... }, timeLeft }
-     ROUND_START   { matchId, config, serverTime }
-     ROUND_END     { winner, finalScores, stats }  // winner: 'player' | 'opponent' | 'draw'
+     STATE_UPDATE   { tick, ackSeq, player, opponent, timeLeft }
+     ROUND_START    { matchId, config, opponentName, serverTime }
+     ROUND_END      { winner, reason, finalScores, stats }
+
+   Server → Client (room lifecycle):
+     ROOM_CREATED       { code, settings, players }   ← confirms creation
+     ROOM_JOINED        { code, settings, players }   ← confirms join
+     ROOM_UPDATED       { settings }                  ← settings changed
+     ROOM_PLAYER_JOINED { name }                      ← someone entered
+     ROOM_PLAYER_LEFT   { name, promoted }            ← someone left
+     ROOM_CLOSED        { reason }                    ← room expired / TTL
+     ROOM_ERROR         { reason }                    ← full / not_found / etc.
+     SERVER_STATUS      { activeRooms }               ← periodic diagnostics
 
    ackSeq: the highest client ACTION_BATCH seq the server has processed.
    The client re-applies any local actions with seq > ackSeq on top of the
@@ -111,10 +127,16 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 
 ```text
 1. LOBBY
-   └─► Player opens the app, enters matchmaking queue
+   Player enters a name and chooses one of three paths:
+   ├─► Quick Match  → joins a server queue, paired with the first available opponent
+   ├─► Create Room  → creates a private room, receives a 6-char invite code
+   └─► Join Room    → enters a code to join an existing room
 
-2. MATCHMAKING
-   └─► Server pairs two players, creates a match
+2. ROOM (private rooms only)
+   ├─► Creator can change mode & goal; changes broadcast to the other player
+   ├─► Either player can request a bot opponent
+   ├─► Room has a TTL (10 min); expires automatically if the match never starts
+   └─► Match starts when two players are present
 
 3. COUNTDOWN
    └─► 3-2-1 countdown synced to server clock
@@ -463,7 +485,7 @@ incremental-game/
 │   └── src/
 │       ├── index.ts             ← barrel export
 │       ├── messages.ts          ← WebSocket message type definitions
-│       ├── game-config.ts       ← round length, tick interval, heartbeat constants
+│       ├── game-config.ts       ← round length, tick interval, heartbeat, room limits
 │       ├── types.ts             ← PlayerState, UpgradeDefinition, GeneratorDefinition, etc.
 │       ├── flavor.ts            ← WeakMap-cached flavor lookup helpers (icons, names, descriptions)
 │       ├── generators.ts        ← generator cost/affordability helpers
@@ -475,7 +497,7 @@ incremental-game/
 │           ├── types.ts         ← ModeDefinition, ModeFlavor, ResourceFlavor, UpgradeFlavor, GeneratorFlavor
 │           ├── clicker.ts       ← clicker mode (abstract IDs, mechanics, clickerFlavor)
 │           ├── idler.ts         ← idler mode (abstract IDs, mechanics, idlerFlavor, dynamic modifiers)
-│           └── index.ts         ← getModeDefinition, validateModeDefinition, collectModifiers, re-exports
+│           └── index.ts         ← AVAILABLE_MODES, getModeDefinition, getGoalLabel, collectModifiers, re-exports
 │
 ├── client/                      ← Vite vanilla-ts project
 │   ├── package.json
@@ -500,9 +522,10 @@ incremental-game/
 │           │   ├── play-panel.ts       ← click button (clicker) / currency cards (idler)
 │           │   ├── generators-panel.ts ← generator purchase cards
 │           │   └── upgrade-tree-panel.ts ← pan/zoom tree viewport
-│           ├── lobby.ts         ← lobby / mode selection screen
+│           ├── lobby.ts         ← lobby: Quick Match / Create Room / Join Room
+│           ├── perf-overlay.ts  ← performance + server-status overlay (F6)
 │           ├── playing.ts       ← playing screen render + in-place updates
-│           ├── screens.ts       ← waking, waiting, countdown screens
+│           ├── screens.ts       ← waking, waiting, countdown, room screens
 │           ├── end.ts           ← end-of-round results screen
 │           └── vfx/
 │               ├── index.ts     ← barrel + click popup, ripple, pulse, combo, flash
@@ -515,7 +538,7 @@ incremental-game/
     └── src/
         ├── main.ts              ← HTTP server + WebSocket server setup
         ├── match.ts             ← match lifecycle: countdown, tick, scoring
-        ├── matchmaking.ts       ← queue + pairing logic
+        ├── matchmaking.ts       ← quick-match queue, room CRUD, TTL management
         ├── bot.ts               ← AI bot opponent logic
         └── validation.ts        ← anti-cheat: rate limiting, purchase checks
 ```
@@ -577,9 +600,10 @@ incremental-game/
    - WebSocket upgrade on path `/ws`
    - Bind to `process.env.PORT || 10000`
 2. Implement heartbeat (ping every 30s, terminate on no pong)
-3. Implement basic matchmaking in `server/src/matchmaking.ts`:
-   - When a player connects, add to queue
-   - When 2 players are queued, create a match
+3. Implement matchmaking in `server/src/matchmaking.ts`:
+   - Quick-match queue: when 2 players are queued, create a match
+   - Room CRUD: create room (6-char code), join by code, update settings
+   - Room TTL: auto-expire after 10 minutes of inactivity
 4. Implement match lifecycle in `server/src/match.ts`:
    - Countdown (3-2-1)
    - Game tick loop (setInterval every 250ms for passive income)
