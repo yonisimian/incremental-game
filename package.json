@@ -52,7 +52,7 @@
   },
   "packageManager": "pnpm@10.28.1",
   "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
+    "pre-commit": "npx lint-staged && npx knip --include exports,types"
   },
   "lint-staged": {
     "*.{ts,js,json,md,css,html}": "prettier --write",

@@ -7,7 +7,7 @@ export function createMockWs(): WebSocket {
 }
 
 /** All messages sent to a mock WebSocket, parsed from JSON. */
-export function sent(ws: WebSocket): ServerMessage[] {
+function sent(ws: WebSocket): ServerMessage[] {
   return (ws.send as ReturnType<typeof vi.fn>).mock.calls.map(
     ([raw]: string[]) => JSON.parse(raw) as ServerMessage,
   )

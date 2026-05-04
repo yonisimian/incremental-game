@@ -17,7 +17,7 @@ export interface PanZoomState {
   zoom: number
 }
 
-export interface PanZoomOptions {
+interface PanZoomOptions {
   /** Default 0.5. */
   readonly minZoom?: number
   /** Default 2.5. */

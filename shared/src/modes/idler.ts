@@ -9,7 +9,7 @@ import {
 } from '../game-config.js'
 
 /** Get the currently highlighted resource for idler mode. */
-export function getHighlight(state: Readonly<PlayerState>): string {
+function getHighlight(state: Readonly<PlayerState>): string {
   return (state.meta.highlight as string | undefined) ?? 'r0'
 }
 
@@ -19,7 +19,7 @@ export function getHighlight(state: Readonly<PlayerState>): string {
  * Emit dynamic modifiers based on runtime player state.
  * The highlight mechanic: highlighted resource gets ×2 (or ×4 with u0 / sharpened-axes).
  */
-export function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
+function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   const highlight = getHighlight(state)
   const sharpenedAxes = state.upgrades.u0 > 0
   return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]

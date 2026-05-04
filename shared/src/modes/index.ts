@@ -76,15 +76,6 @@ export function getAvailableUpgrades(
   return mode.upgrades.filter((u) => !u.goalType || u.goalType === goal?.type)
 }
 
-/** Human-readable label for a goal type. Looks up the label from the mode registry, falling back to the raw type string. */
-export function getGoalLabel(goalType: string): string {
-  for (const mode of Object.values(MODE_REGISTRY)) {
-    const goal = mode.goals.find((g) => g.type === goalType)
-    if (goal) return goal.label
-  }
-  return goalType
-}
-
 // ─── Initial State ───────────────────────────────────────────────────
 
 /** Create a fresh player state for a given mode. */

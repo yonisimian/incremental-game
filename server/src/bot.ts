@@ -3,7 +3,7 @@ import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@
 // ─── Types ───────────────────────────────────────────────────────
 
 /** A single bot decision. */
-export type BotAction =
+type BotAction =
   | { type: 'click' }
   | { type: 'buy'; upgradeId: string }
   | { type: 'set_highlight'; highlight: string }

@@ -44,14 +44,6 @@ export const MAX_CPS = 20
 /** Ping interval for WebSocket keepalive (ms). */
 export const HEARTBEAT_INTERVAL_MS = 30_000
 
-/** Time to wait for pong before terminating connection (ms). */
-export const HEARTBEAT_TIMEOUT_MS = 10_000
-
-// ─── Reconnection ────────────────────────────────────────────────────
-
-/** Grace period for reconnection before forfeit (ms). */
-export const RECONNECT_GRACE_MS = 10_000
-
 // ─── Rooms ───────────────────────────────────────────────────────────
 
 /** Maximum number of active rooms the server will host simultaneously. */
