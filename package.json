@@ -10,7 +10,6 @@
     "dev:server": "pnpm --filter server dev",
     "dev:shared": "pnpm --filter @game/shared dev",
     "build": "corepack enable && pnpm install && pnpm --filter @game/shared build && pnpm --filter client build && pnpm --filter server build",
-    "sim:idler": "pnpm --filter @game/shared build && tsx scripts/simulate-idler.ts",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r exec vitest run --coverage",
     "typecheck": "pnpm --filter @game/shared build && tsc --noEmit -p shared/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p client/tsconfig.json",

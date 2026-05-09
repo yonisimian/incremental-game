@@ -54,6 +54,9 @@ importers:
       '@game/shared':
         specifier: workspace:*
         version: link:../shared
+      uplot:
+        specifier: ^1.6.32
+        version: 1.6.32
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ~4.1.5
@@ -1926,6 +1929,9 @@ packages:
   unicorn-magic@0.4.0:
     resolution: {integrity: sha512-wH590V9VNgYH9g3lH9wWjTrUoKsjLF6sGLjhR4sH1LWpLmCOH0Zf7PukhDA8BiS7KHe4oPNkcTHqYkj7SOGUOw==}
     engines: {node: '>=20'}
+
+  uplot@1.6.32:
+    resolution: {integrity: sha512-KIMVnG68zvu5XXUbC4LQEPnhwOxBuLyW1AHtpm6IKTXImkbLgkMy+jabjLgSLMasNuGGzQm/ep3tOkyTxpiQIw==}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -3822,6 +3828,8 @@ snapshots:
   undici-types@7.19.2: {}
 
   unicorn-magic@0.4.0: {}
+
+  uplot@1.6.32: {}
 
   uri-js@4.4.1:
     dependencies:

@@ -17,6 +17,7 @@
     "vitest": "~4.1.5"
   },
   "dependencies": {
-    "@game/shared": "workspace:*"
+    "@game/shared": "workspace:*",
+    "uplot": "^1.6.32"
   }
 }

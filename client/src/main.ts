@@ -7,6 +7,7 @@ import {
   setRoomJoinedCallback,
 } from './game.js'
 import { render, handleConnectionChange } from './ui/index.js'
+import { initDevRecorder } from './dev-recorder.js'
 
 // ─── URL room-code handling ──────────────────────────────────────────
 
@@ -39,6 +40,9 @@ setConnectionStateHandler((connState) => {
     })
   }
 })
+
+// Activate dev recorder if ?dev or localStorage flag is set
+initDevRecorder()
 
 // Go!
 void connect()
