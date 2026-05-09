@@ -1,0 +1,301 @@
+/* ─── Dev Panel Styles ─────────────────────────────────────────────── */
+
+:root {
+  --dev-bg: #1a1a2e;
+  --dev-surface: #16213e;
+  --dev-border: #334;
+  --dev-text: #e0e0e0;
+  --dev-accent: #4fc3f7;
+  --dev-muted: #888;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#dev-app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────── */
+
+.dev-header h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--dev-accent);
+}
+
+/* ─── Tabs ────────────────────────────────────────────────────────── */
+
+.dev-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.dev-tab {
+  padding: 6px 18px;
+  border: 1px solid var(--dev-border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: var(--dev-surface);
+  color: var(--dev-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.dev-tab:hover {
+  color: var(--dev-text);
+}
+
+.dev-tab.active {
+  background: var(--dev-bg);
+  color: var(--dev-accent);
+  border-color: var(--dev-accent);
+  border-bottom: 1px solid var(--dev-bg);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ─── Controls bar ────────────────────────────────────────────────── */
+
+.dev-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.dev-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dev-muted);
+}
+
+.dev-controls select {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.dev-controls button,
+.dev-strategies-header button {
+  background: var(--dev-accent);
+  color: #111;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.dev-controls button:hover,
+.dev-strategies-header button:hover {
+  opacity: 0.85;
+}
+
+.dev-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Strategies ──────────────────────────────────────────────────── */
+
+.dev-strategies {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.dev-strategies-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dev-strategies-header h2 {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 16px;
+}
+
+.strategy-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.strategy-item:hover {
+  color: #fff;
+}
+
+/* ─── Charts ──────────────────────────────────────────────────────── */
+
+.dev-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.dev-charts > div {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 0; /* prevent flex overflow */
+  overflow: hidden; /* clip any residual overshoot */
+}
+
+/* uPlot overrides for dark theme */
+.dev-charts .u-legend {
+  font-size: 11px;
+}
+
+.dev-charts .u-legend th {
+  color: var(--dev-muted);
+}
+
+/* ─── Summary table ───────────────────────────────────────────────── */
+
+.dev-summary {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.dev-summary h2 {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.dev-summary table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dev-summary th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--dev-border);
+  color: var(--dev-muted);
+  font-weight: 500;
+}
+
+.dev-summary td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.dev-summary tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dev-summary .timeline {
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--dev-muted);
+}
+
+/* ─── Live mode ───────────────────────────────────────────────────── */
+
+.dev-live-info {
+  margin-bottom: 12px;
+}
+
+.live-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.live-status code {
+  background: rgba(79, 195, 247, 0.15);
+  color: var(--dev-accent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.live-dot.waiting {
+  background: var(--dev-muted);
+}
+
+.live-dot.recording {
+  background: #e53935;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.live-dot.ended {
+  background: #4caf50;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

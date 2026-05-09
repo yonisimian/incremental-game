@@ -40,6 +40,7 @@ import {
   resetCombo,
   shockwave,
 } from './ui/vfx/index.js'
+import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -405,6 +406,7 @@ export function requestBot(): void {
 export function quitMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
   sendQuit()
+  recorderRoundEnd(state.player.score)
   resetForMatch()
 }
 
@@ -469,6 +471,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   resetSeq()
   notify()
 
+  recorderRoundStart(msg.config.mode, state.timeLeft)
   startCountdown()
 }
 
@@ -528,6 +531,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   state.player = reconciled
+  recorderTick(reconciled, state.timeLeft)
   notify()
 }
 
@@ -542,6 +546,7 @@ function handleRoundEnd(msg: RoundEndMessage): void {
   state.opponent.score = msg.finalScores.opponent
   pendingBatches.length = 0
   stopCountdown()
+  recorderRoundEnd(msg.finalScores.player)
   notify()
 }
 

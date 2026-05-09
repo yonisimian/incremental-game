@@ -117,6 +117,32 @@
 - [ ] Vibration
 - [ ] Themes
 
+## Dev Panel (`/dev.html`)
+
+### Simulation
+
+- [ ] Simulate purchasing generators (not only upgrades)
+- [ ] Replace strategy checkboxes with auto-simulate-all: run every strategy, show top 5 by final score
+- [ ] Function-based strategies: allow "buy whichever is affordable first" / conditional logic
+
+### Charts & UX
+
+- [ ] "Hide all series" button — toggle all uPlot series off in one click so you can isolate a single one
+- [ ] Show value tooltip on graph hover (crosshair with numeric readout at the hovered point)
+- [ ] Use `uPlot.setData()` for live chart updates instead of destroy + recreate
+
+### Statistics
+
+- [ ] Purchase timeline table: at each second show which purchase was made and its description
+- [ ] Generator breakdown: show all generators' levels, effects, and income share (% of total income per generator)
+
+### Architecture
+
+- [ ] Extract `canPurchase()` to `@game/shared` — simulator currently duplicates prerequisite / one-shot checks
+- [ ] Split `ui.ts` into smaller modules (layout, render-sim, render-live, csv)
+- [ ] Derive `UPGRADE_ABBR` from mode definition instead of manual lookup table
+- [ ] Import/export game settings (mode definitions, constants) via JSON so balance tweaks can be shared/versioned outside code
+
 ## Analytics
 
 - [ ] In-game: for each generator, show percentage of its value-per-tick relative to total
@@ -133,6 +159,7 @@
 - [ ] Add a README.md
 - [ ] Add a MANUAL.md with game instructions
 - [ ] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
+- [ ] Bundle size reporting: log bundle sizes on every build; warn or block push if game bundle exceeds a configured limit
 
 ## Known Bugs
 
