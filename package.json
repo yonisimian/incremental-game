@@ -54,7 +54,7 @@
     "pre-commit": "npx lint-staged && npx knip --include exports,types"
   },
   "lint-staged": {
-    "*.{ts,js,json,md,css,html}": "prettier --write",
+    "*.{ts,js,json,jsonc,yml,yaml,md,css,html}": "prettier --write",
     "*.ts": "eslint --fix",
     "*.md": "markdownlint-cli2 --fix"
   }
