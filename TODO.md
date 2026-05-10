@@ -159,7 +159,7 @@
 - [ ] Add a README.md
 - [ ] Add a MANUAL.md with game instructions
 - [ ] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
-- [ ] Bundle size reporting: log bundle sizes on every build; warn or block push if game bundle exceeds a configured limit
+- [x] Bundle size reporting: log bundle sizes on every build; warn or block push if game bundle exceeds a configured limit
 
 ## Known Bugs
 
