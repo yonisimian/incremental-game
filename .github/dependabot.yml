@@ -6,7 +6,7 @@ updates:
       interval: monthly
     groups:
       all-dependencies:
-        patterns: ["*"]
+        patterns: ['*']
 
   - package-ecosystem: github-actions
     directory: /

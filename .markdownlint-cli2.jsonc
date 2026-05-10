@@ -15,7 +15,7 @@
     // Table column spacing style is too strict for planning docs
     "MD060": false,
     // Ordered lists broken by code blocks lose continuity — allow explicit numbering
-    "MD029": false
+    "MD029": false,
   },
-  "ignores": ["**/node_modules", "**/dist", "**/CHANGELOG.md"]
+  "ignores": ["**/node_modules", "**/dist", "**/CHANGELOG.md"],
 }
