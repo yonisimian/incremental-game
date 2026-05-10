@@ -1,5 +1,7 @@
 # incremenTal
 
+![bundle size](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/yonisimian/3f6aeb44042280380d0663cac6268198/raw/bundle-badge.json)
+
 A real-time head-to-head incremental game playable in the browser. Two players compete simultaneously, making strategic decisions about resource accumulation and upgrades within a shared time-limited round.
 
 **Tech:** TypeScript · Vite · WebSocket · pnpm monorepo
@@ -29,25 +31,25 @@ docs/     Design documents and references
 
 ## Scripts
 
-| Command              | Description                       |
-| -------------------- | --------------------------------- |
-| **Development**      |                                   |
-| `pnpm dev`           | Start client + server in dev mode |
-| `pnpm dev:client`    | Start client only                 |
-| `pnpm dev:server`    | Start server only                 |
-| **Build & Test**     |                                   |
-| `pnpm build`         | Production build (all packages)   |
-| `pnpm test`          | Run all tests                     |
-| `pnpm test:coverage` | Run tests with coverage report    |
-| `pnpm typecheck`     | Type checking across all packages |
-| **Code Quality**     |                                   |
-| `pnpm lint`          | ESLint                            |
-| `pnpm lint:md`       | Markdown lint                     |
-| `pnpm lint:exports`  | Knip — unused exports             |
-| `pnpm format`        | Prettier (write)                  |
-| `pnpm format:check`  | Prettier (check only)             |
-| **Utilities**        |                                   |
-| `pnpm sim:idler`     | Run the idler balance simulation  |
+| Command              | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| **Development**      |                                                |
+| `pnpm dev`           | Start client + server in dev mode              |
+| `pnpm dev:client`    | Start client only                              |
+| `pnpm dev:server`    | Start server only                              |
+| **Build & Test**     |                                                |
+| `pnpm build`         | Production build (all packages)                |
+| `pnpm test`          | Run all tests                                  |
+| `pnpm test:coverage` | Run tests with coverage report                 |
+| `pnpm typecheck`     | Type checking across all packages              |
+| **Code Quality**     |                                                |
+| `pnpm lint`          | ESLint                                         |
+| `pnpm lint:md`       | Markdown lint                                  |
+| `pnpm lint:exports`  | Knip — unused exports                          |
+| `pnpm format`        | Prettier (write)                               |
+| `pnpm format:check`  | Prettier (check only)                          |
+| **Dev Panel**        |                                                |
+| `/dev.html`          | Balance analysis panel (run `pnpm dev:client`) |
 
 ## Documentation
 
