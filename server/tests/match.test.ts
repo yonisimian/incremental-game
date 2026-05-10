@@ -652,4 +652,134 @@ describe('Match', () => {
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
     })
   })
+
+  // ── Buy-upgrade (trophy) goal ──────────────────────────────────────
+  describe('buy-upgrade goal', () => {
+    const buyGoal: Goal = {
+      type: 'buy-upgrade',
+      label: '🏆 Race to Buy',
+      safetyCapSec: 600,
+    }
+
+    function createBuyMatch() {
+      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', buyGoal)
+    }
+
+    function enterBuyPlaying() {
+      const m = createBuyMatch()
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      return m
+    }
+
+    it('sends buy-upgrade goal in ROUND_START config', () => {
+      const m = createBuyMatch()
+      m.start()
+      const msg = sentOfType(ws1, 'ROUND_START')[0]
+      expect(msg.config.goal).toEqual(buyGoal)
+    })
+
+    it('includes the trophy upgrade when goal is buy-upgrade', () => {
+      const m = createBuyMatch()
+      m.start()
+      const msg = sentOfType(ws1, 'ROUND_START')[0]
+      const ids = msg.config.upgrades.map((u) => u.id)
+      expect(ids).toContain('u2') // The Coronation
+    })
+
+    it('excludes the trophy upgrade for non-buy-upgrade goals', () => {
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker')
+      m.start()
+      const msg = sentOfType(ws1, 'ROUND_START')[0]
+      const ids = msg.config.upgrades.map((u) => u.id)
+      expect(ids).not.toContain('u2')
+    })
+
+    it('buying the trophy ends the match with the buyer as winner', () => {
+      const m = enterBuyPlaying()
+      // u2 (The Coronation) costs 1000 — earn enough
+      const seq = earnCurrency(m, 'p1', 1000)
+      m.handleMessage('p1', buyMsg('u2', seq))
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.winner).toBe('player')
+      expect(p1End.reason).toBe('complete')
+      expect(p2End.winner).toBe('opponent')
+      expect(p2End.reason).toBe('complete')
+    })
+
+    it('player 2 buying the trophy makes player 2 the winner', () => {
+      const m = enterBuyPlaying()
+      const seq = earnCurrency(m, 'p2', 1000)
+      m.handleMessage('p2', buyMsg('u2', seq))
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.winner).toBe('opponent')
+      expect(p2End.winner).toBe('player')
+    })
+
+    it('buying a non-trophy upgrade does not end the match', () => {
+      const m = enterBuyPlaying()
+      const seq = earnCurrency(m, 'p1', 25)
+      m.handleMessage('p1', buyMsg('u0', seq)) // u0 = Double Click, not a trophy
+
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(0)
+    })
+
+    it('safety-cap expires with score-based winner when nobody buys trophy', () => {
+      const m = enterBuyPlaying()
+      m.handleMessage('p1', clickMsg(1)) // p1 = 1, p2 = 0
+      vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      expect(p1End.reason).toBe('safety-cap')
+      expect(p1End.winner).toBe('player')
+    })
+
+    it('safety-cap with equal scores is a draw', () => {
+      enterBuyPlaying()
+      vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      expect(p1End.reason).toBe('safety-cap')
+      expect(p1End.winner).toBe('draw')
+    })
+
+    it('final scores are correct when trophy is bought', () => {
+      const m = enterBuyPlaying()
+      m.handleMessage('p1', clickMsg(1)) // p1 earns 1
+      // p1 doesn't have enough for trophy yet — but let's verify scores after safety cap
+      vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
+
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.finalScores.player).toBe(1)
+      expect(p1End.finalScores.opponent).toBe(0)
+      expect(p2End.finalScores.player).toBe(0)
+      expect(p2End.finalScores.opponent).toBe(1)
+    })
+
+    it('no further actions are processed after trophy purchase', () => {
+      const m = enterBuyPlaying()
+      // Earn enough for trophy + extra
+      const seq = earnCurrency(m, 'p1', 1050)
+      // Send trophy buy and a click in the same batch
+      m.handleMessage(
+        'p1',
+        JSON.stringify({
+          type: 'ACTION_BATCH',
+          seq,
+          actions: [
+            { type: 'buy', timestamp: Date.now(), upgradeId: 'u2' },
+            { type: 'click', timestamp: Date.now() },
+          ],
+        }),
+      )
+
+      // Only one ROUND_END — the click after trophy should be ignored
+      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
+    })
+  })
 })

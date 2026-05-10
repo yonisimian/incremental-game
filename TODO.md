@@ -40,6 +40,7 @@
 
 - [ ] Quick-match option (random game mode + game goal)
 - [ ] CPS encourager mechanism (see Trello)
+- [x] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
 
 ## Progression Systems
 
@@ -158,7 +159,6 @@
 - [x] Set up Dependabot for monthly automated dependency PRs
 - [x] Add a README.md
 - [ ] Add a MANUAL.md with game instructions
-- [ ] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
 - [x] Bundle size reporting: log bundle sizes on every build; warn or block push if game bundle exceeds a configured limit
 
 ## Known Bugs
