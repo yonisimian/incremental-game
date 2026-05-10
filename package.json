@@ -30,16 +30,16 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "concurrently": "^9.2.1",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
-    "knip": "~6.7.0",
-    "lint-staged": "^16.4.0",
+    "knip": "~6.12.2",
+    "lint-staged": "^17.0.4",
     "markdownlint-cli2": "^0.22.1",
     "prettier": "^3.8.3",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.21.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.59.0"
+    "typescript-eslint": "^8.59.2"
   },
   "contributors": [
     "yonisimian",
