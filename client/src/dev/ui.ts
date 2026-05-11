@@ -8,7 +8,7 @@ import { IDLER_STRATEGIES, UPGRADE_ABBR } from './strategies.js'
 import type { Strategy } from './strategies.js'
 import { simulate } from './simulate.js'
 import type { SimResult } from './simulate.js'
-import { renderChart } from './chart.js'
+import { renderChart, updateChart } from './chart.js'
 import type { ChartMarker } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
@@ -376,6 +376,9 @@ function renderLiveStatus(container: HTMLDivElement, state: Readonly<LiveState>)
 /** Throttle interval for live chart re-renders (ms). */
 const LIVE_RENDER_INTERVAL_MS = 500
 let lastLiveRenderTime = 0
+/** Cached resource chart containers to avoid DOM teardown on each update. */
+let liveResourceDivs = new Map<string, { income: HTMLDivElement; balance: HTMLDivElement }>()
+let liveResourceMode: string | null = null
 
 function renderLiveCharts(
   state: Readonly<LiveState>,
@@ -395,31 +398,40 @@ function renderLiveCharts(
   const xData = result.snapshots.map((s) => s.timeSec)
 
   // Score chart
-  renderChart(scoreContainer, 'Score', xData, [
+  updateChart(scoreContainer, 'Score', xData, [
     { label: 'Live', data: result.snapshots.map((s) => s.score) },
   ])
 
-  // Per-resource charts
-  resourceContainer.innerHTML = ''
+  // Per-resource charts — create containers once, then reuse via updateChart
+  if (liveResourceMode !== state.mode) {
+    liveResourceMode = state.mode
+    liveResourceDivs = new Map()
+    resourceContainer.innerHTML = ''
+    for (const resKey of modeDef.resources) {
+      const incDiv = document.createElement('div')
+      const balDiv = document.createElement('div')
+      resourceContainer.appendChild(incDiv)
+      resourceContainer.appendChild(balDiv)
+      liveResourceDivs.set(resKey, { income: incDiv, balance: balDiv })
+    }
+  }
+
   for (const resKey of modeDef.resources) {
     const resFlavor = modeDef.flavor.resources.find((r) => r.key === resKey)
     const resName = resFlavor?.displayName ?? resKey
+    const divs = liveResourceDivs.get(resKey)!
 
-    const incDiv = document.createElement('div')
-    resourceContainer.appendChild(incDiv)
-    renderChart(incDiv, `${resName} Income/sec`, xData, [
+    updateChart(divs.income, `${resName} Income/sec`, xData, [
       { label: 'Live', data: result.snapshots.map((s) => s.incomePerSec[resKey] ?? 0) },
     ])
 
-    const balDiv = document.createElement('div')
-    resourceContainer.appendChild(balDiv)
-    renderChart(balDiv, `${resName} Balance`, xData, [
+    updateChart(divs.balance, `${resName} Balance`, xData, [
       { label: 'Live', data: result.snapshots.map((s) => s.resources[resKey] ?? 0) },
     ])
   }
 
   // Score income chart
-  renderChart(incomeContainer, 'Score Income/sec', xData, [
+  updateChart(incomeContainer, 'Score Income/sec', xData, [
     {
       label: 'Live',
       data: result.snapshots.map((s) => s.incomePerSec[modeDef.scoreResource] ?? 0),

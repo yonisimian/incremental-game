@@ -35,6 +35,7 @@
 - [ ] Hotkey for "back"
 - [ ] Hotkey for "Leave" button (room / waiting screens)
 - [ ] Hotkeys for generators
+- [ ] Hotkeys for panels (game / generators / upgrade tree)
 
 ### Match Flow
 
@@ -128,9 +129,9 @@
 
 ### Charts & UX
 
-- [ ] "Hide all series" button — toggle all uPlot series off in one click so you can isolate a single one
-- [ ] Show value tooltip on graph hover (crosshair with numeric readout at the hovered point)
-- [ ] Use `uPlot.setData()` for live chart updates instead of destroy + recreate
+- [x] "Hide all series" button — toggle all uPlot series off in one click so you can isolate a single one
+- [x] Show value tooltip on graph hover (crosshair with numeric readout at the hovered point)
+- [x] Use `uPlot.setData()` for live chart updates instead of destroy + recreate
 
 ### Statistics
 

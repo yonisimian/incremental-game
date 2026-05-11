@@ -48,6 +48,41 @@ export interface ChartSeries {
 const instances = new WeakMap<HTMLElement, uPlot>()
 
 /**
+ * Attach a "Hide all / Show all" button inside the chart's legend area.
+ * Clicking it toggles every series off (so you can isolate one via the legend)
+ * or back on if all are already hidden.
+ */
+function attachToggleAllButton(wrapper: HTMLElement, chart: uPlot, seriesCount: number): void {
+  const btn = document.createElement('button')
+  btn.className = 'chart-toggle-all'
+  btn.textContent = 'Hide All'
+
+  const syncLabel = () => {
+    const anyVisible = chart.series.slice(1).some((s) => s.show)
+    btn.textContent = anyVisible ? 'Hide All' : 'Show All'
+  }
+
+  btn.addEventListener('click', () => {
+    const anyVisible = chart.series.slice(1).some((s) => s.show)
+    for (let i = 1; i <= seriesCount; i++) {
+      chart.setSeries(i, { show: !anyVisible })
+    }
+    syncLabel()
+  })
+
+  // Keep label in sync when individual series are toggled via legend
+  chart.hooks.setSeries!.push(syncLabel)
+
+  // Place the button after the legend table
+  const legend = wrapper.querySelector('.u-legend')
+  if (legend) {
+    legend.insertAdjacentElement('afterend', btn)
+  } else {
+    wrapper.appendChild(btn)
+  }
+}
+
+/**
  * Render a uPlot chart into `container`.
  * Destroys any previous chart in the same container.
  */
@@ -72,11 +107,17 @@ export function renderChart(
 
   // Build uPlot series config: first entry is x-axis descriptor
   const uSeries: uPlot.Series[] = [
-    { label: 'Time (s)' },
+    {
+      label: 'Time (s)',
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime despite types
+      value: (_u, v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)}s`),
+    },
     ...series.map((s, i) => ({
       label: s.label,
       stroke: PALETTE[i % PALETTE.length],
       width: 2,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime despite types
+      value: (_u: uPlot, v: number) => (v === null || v === undefined ? '—' : v.toFixed(2)),
     })),
   ]
 
@@ -95,6 +136,15 @@ export function renderChart(
     series: uSeries,
     scales: {
       x: { time: false },
+      y: {
+        range: (_u, min, max) => {
+          // Degenerate range: all hidden → Infinity, or all values equal (e.g. all 0)
+          if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+            return [min === Infinity ? 0 : min - 1, max === -Infinity ? 1 : max + 1]
+          }
+          return [min, max]
+        },
+      },
     },
     axes: [
       {
@@ -111,6 +161,7 @@ export function renderChart(
       },
     ],
     hooks: {
+      setSeries: [],
       draw: [
         (u: uPlot) => {
           if (allMarkers.length === 0) return
@@ -119,17 +170,13 @@ export function renderChart(
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
           ctx.lineWidth = 1
           ctx.setLineDash([4, 4])
-          ctx.font = '10px sans-serif'
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-          ctx.textAlign = 'center'
 
           // Deduplicate markers at same x position (multiple strategies may buy at same time)
-          const seen = new Set<string>()
+          const seen = new Set<number>()
           for (const m of allMarkers) {
             const px = u.valToPos(m.x, 'x', true)
-            const key = `${m.x}:${m.label}`
-            if (seen.has(key)) continue
-            seen.add(key)
+            if (seen.has(m.x)) continue
+            seen.add(m.x)
 
             // Only draw if within the visible plot area
             if (px >= u.bbox.left && px <= u.bbox.left + u.bbox.width) {
@@ -137,18 +184,149 @@ export function renderChart(
               ctx.moveTo(px, u.bbox.top)
               ctx.lineTo(px, u.bbox.top + u.bbox.height)
               ctx.stroke()
-              ctx.fillText(m.label, px, u.bbox.top - 4)
             }
           }
 
           ctx.restore()
         },
       ],
+      setCursor: [
+        (u: uPlot) => {
+          let tip = u.over.querySelector<HTMLDivElement>('.chart-tooltip')
+          if (!tip) {
+            tip = document.createElement('div')
+            tip.className = 'chart-tooltip'
+            u.over.appendChild(tip)
+          }
+          const idx = u.cursor.idx
+          const left = u.cursor.left ?? -1
+          const top = u.cursor.top ?? -1
+          if (idx === null || idx === undefined || left < 0 || top < 0) {
+            tip.style.display = 'none'
+            return
+          }
+
+          // Find the nearest visible series to the cursor y position
+          const dpr = devicePixelRatio || 1
+          let bestDist = Infinity
+          let bestLabel = ''
+          let bestVal = 0
+          for (let i = 1; i < u.series.length; i++) {
+            const s = u.series[i]
+            if (!s.show) continue
+            const val = u.data[i][idx]
+            if (val === null || val === undefined) continue
+            // valToPos with true returns canvas pixels; cursor.top is CSS pixels
+            const py = (u.valToPos(val, 'y', true) - u.bbox.top) / dpr
+            const dist = Math.abs(py - top)
+            if (dist < bestDist) {
+              bestDist = dist
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- label can be undefined
+              bestLabel = (s.label as string) ?? ''
+              bestVal = val
+            }
+          }
+
+          if (bestDist === Infinity) {
+            tip.style.display = 'none'
+            return
+          }
+          tip.textContent = `${bestLabel}: ${bestVal.toFixed(1)}`
+          tip.style.display = 'block'
+          tip.style.left = `${left + 4}px`
+          tip.style.top = `${top - 24}px`
+        },
+      ],
     },
-    cursor: { drag: { x: true, y: true } },
+    cursor: {
+      drag: { x: true, y: true },
+      y: true,
+      focus: { prox: 20 },
+    },
     legend: { show: true },
   }
 
   const chart = new uPlot(opts, uData, container)
   instances.set(container, chart)
+
+  // Double-click legend entry to solo/unsolo a series
+  const legendEntries = container.querySelectorAll<HTMLElement>('.u-legend .u-series')
+  legendEntries.forEach((el, seriesIdx) => {
+    if (seriesIdx === 0) return // skip x-axis entry
+    el.addEventListener('dblclick', (e) => {
+      e.preventDefault()
+      // Check if this series is already the only visible one
+      const visibleIndices = chart.series
+        .slice(1)
+        .map((s, i) => (s.show ? i + 1 : -1))
+        .filter((i) => i > 0)
+      const alreadySoloed = visibleIndices.length === 1 && visibleIndices[0] === seriesIdx
+
+      for (let i = 1; i < chart.series.length; i++) {
+        chart.setSeries(i, { show: alreadySoloed || i === seriesIdx })
+      }
+    })
+  })
+
+  // Click on plot area to toggle the nearest series
+  let downX = 0
+  let downY = 0
+  chart.over.addEventListener('mousedown', (e) => {
+    downX = e.clientX
+    downY = e.clientY
+  })
+  chart.over.addEventListener('click', (e) => {
+    // Ignore drag-to-zoom (mouse moved more than 4px)
+    if (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4) return
+
+    const idx = chart.cursor.idx
+    if (idx === null || idx === undefined) return
+    const rect = chart.over.getBoundingClientRect()
+    const cursorY = e.clientY - rect.top
+
+    const dpr = devicePixelRatio || 1
+    let bestDist = Infinity
+    let bestIdx = -1
+    for (let i = 1; i < chart.series.length; i++) {
+      const s = chart.series[i]
+      if (!s.show) continue
+      const val = chart.data[i][idx]
+      if (val === null || val === undefined) continue
+      // valToPos with true returns canvas pixels; cursorY is CSS pixels
+      const py = (chart.valToPos(val, 'y', true) - chart.bbox.top) / dpr
+      const dist = Math.abs(py - cursorY)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIdx = i
+      }
+    }
+    if (bestIdx > 0 && bestDist < 30) {
+      chart.setSeries(bestIdx, { show: false })
+    }
+  })
+
+  if (series.length > 1) {
+    attachToggleAllButton(container, chart, series.length)
+  }
+}
+
+/**
+ * Update an existing chart's data in-place via `setData()`.
+ * Falls back to a full `renderChart()` if the chart doesn't exist yet
+ * or if the series count changed.
+ */
+export function updateChart(
+  container: HTMLElement,
+  title: string,
+  xData: number[],
+  series: ChartSeries[],
+): void {
+  const existing = instances.get(container)
+  // series count + 1 for x-axis
+  if (existing?.series.length === series.length + 1) {
+    const uData: uPlot.AlignedData = [xData, ...series.map((s) => s.data)]
+    existing.setData(uData)
+    return
+  }
+  renderChart(container, title, xData, series)
 }

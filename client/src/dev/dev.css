@@ -188,12 +188,81 @@ body {
   border-radius: 6px;
   padding: 12px;
   min-width: 0; /* prevent flex overflow */
-  overflow: hidden; /* clip any residual overshoot */
+  overflow-x: auto; /* horizontal scroll when chart overflows on small screens */
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dev-border) transparent;
+}
+
+.dev-charts > div::-webkit-scrollbar {
+  height: 6px;
+}
+
+.dev-charts > div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dev-charts > div::-webkit-scrollbar-thumb {
+  background: var(--dev-border);
+  border-radius: 3px;
+}
+
+.dev-charts > div::-webkit-scrollbar-thumb:hover {
+  background: var(--dev-muted);
 }
 
 /* uPlot overrides for dark theme */
 .dev-charts .u-legend {
   font-size: 11px;
+}
+
+/* Dim unfocused series in legend only when a series is actively focused */
+.dev-charts .u-legend .u-series > * {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.dev-charts .u-legend:has(.u-focus) .u-series:not(.u-focus) > * {
+  opacity: 0.4;
+}
+
+/* Strike-through + dim legend labels for hidden series */
+.dev-charts .u-series.u-off > * {
+  opacity: 0.3 !important;
+  text-decoration: line-through;
+}
+
+/* Floating tooltip near cursor */
+.chart-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #eee;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ─── Chart toggle button ─────────────────────────────────────────── */
+
+.chart-toggle-all {
+  display: block;
+  margin: 6px auto 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--dev-border);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.chart-toggle-all:hover {
+  opacity: 0.8;
 }
 
 .dev-charts .u-legend th {
