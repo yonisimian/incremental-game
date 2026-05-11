@@ -190,6 +190,25 @@ body {
   min-width: 0; /* prevent flex overflow */
   overflow-x: auto; /* horizontal scroll when chart overflows on small screens */
   overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dev-border) transparent;
+}
+
+.dev-charts > div::-webkit-scrollbar {
+  height: 6px;
+}
+
+.dev-charts > div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dev-charts > div::-webkit-scrollbar-thumb {
+  background: var(--dev-border);
+  border-radius: 3px;
+}
+
+.dev-charts > div::-webkit-scrollbar-thumb:hover {
+  background: var(--dev-muted);
 }
 
 /* uPlot overrides for dark theme */
