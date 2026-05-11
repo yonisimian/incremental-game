@@ -208,6 +208,7 @@ export function renderChart(
           }
 
           // Find the nearest visible series to the cursor y position
+          const dpr = devicePixelRatio || 1
           let bestDist = Infinity
           let bestLabel = ''
           let bestVal = 0
@@ -217,7 +218,8 @@ export function renderChart(
             const val = u.data[i][idx]
             // eslint-disable-next-line eqeqeq -- data can be null/undefined
             if (val == null) continue
-            const py = u.valToPos(val, 'y', true) - u.bbox.top
+            // valToPos with true returns canvas pixels; cursor.top is CSS pixels
+            const py = (u.valToPos(val, 'y', true) - u.bbox.top) / dpr
             const dist = Math.abs(py - top)
             if (dist < bestDist) {
               bestDist = dist
@@ -266,6 +268,7 @@ export function renderChart(
     const rect = chart.over.getBoundingClientRect()
     const cursorY = e.clientY - rect.top
 
+    const dpr = devicePixelRatio || 1
     let bestDist = Infinity
     let bestIdx = -1
     for (let i = 1; i < chart.series.length; i++) {
@@ -274,7 +277,8 @@ export function renderChart(
       const val = chart.data[i][idx]
       // eslint-disable-next-line eqeqeq -- data can be null/undefined
       if (val == null) continue
-      const py = chart.valToPos(val, 'y', true) - chart.bbox.top
+      // valToPos with true returns canvas pixels; cursorY is CSS pixels
+      const py = (chart.valToPos(val, 'y', true) - chart.bbox.top) / dpr
       const dist = Math.abs(py - cursorY)
       if (dist < bestDist) {
         bestDist = dist
