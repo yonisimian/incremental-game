@@ -188,7 +188,8 @@ body {
   border-radius: 6px;
   padding: 12px;
   min-width: 0; /* prevent flex overflow */
-  overflow: hidden; /* clip any residual overshoot */
+  overflow-x: auto; /* horizontal scroll when chart overflows on small screens */
+  overflow-y: hidden;
 }
 
 /* uPlot overrides for dark theme */
