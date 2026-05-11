@@ -33,16 +33,25 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 30,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: 200, y: 0 },
+    position: { x: 0, y: 0 },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
   },
   {
     id: 'u1', // Heavy Logging
-    cost: 25,
+    cost: 10,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: 0, y: 0 },
+    position: { x: 200, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
+  },
+  {
+    id: 'u11', // Heavy Logging
+    cost: 50,
+    costCurrency: 'r0',
+    category: 'tree',
+    position: { x: 200, y: 200 },
+    prerequisites: ['u1'],
+    modifiers: [{ stage: 'multiplicative', field: 'r0', value: 2 }],
   },
   {
     id: 'u2', // Royal Brewery
@@ -57,7 +66,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 10,
     costCurrency: 'r1',
     category: 'tree',
-    position: { x: 500, y: 200 },
+    position: { x: 400, y: 100 },
     prerequisites: ['u2'],
     repeatable: true,
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }], // scaled by count
@@ -68,9 +77,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     category: 'tree',
     position: { x: 200, y: 400 },
-    prerequisites: ['u1', 'u0', 'u2'],
+    prerequisites: ['u11', 'u3'],
     modifiers: [
-      { stage: 'multiplicative', field: 'r0', value: 1.25 },
+      { stage: 'multiplicative', field: 'r0', value: 2.5 },
       { stage: 'multiplicative', field: 'r1', value: 1.25 },
     ],
   },
@@ -78,7 +87,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
     id: 'u5', // Royal Throne
-    cost: 1000,
+    cost: 4000,
     costCurrency: 'r0',
     goalType: 'buy-upgrade',
     category: 'tree',
@@ -135,6 +144,7 @@ const idlerFlavor: ModeFlavor = {
   upgrades: [
     { id: 'u0', name: '🪓 Sharpened Axes', description: 'Highlight boost → 4× (from 2×)' },
     { id: 'u1', name: '🌲 Heavy Logging', description: '+5 base 🪵/sec' },
+    { id: 'u11', name: '🌲 Heavy Logging 2', description: '×2 base 🪵/sec' },
     { id: 'u2', name: '👑 Royal Brewery', description: '+5 base 🍺/sec' },
     { id: 'u3', name: '👷 Master Craftsmen', description: '+5 base 🪵/sec (stackable)' },
     { id: 'u4', name: '⚙️ Industrial Era', description: 'All production ×1.25' },
