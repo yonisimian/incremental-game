@@ -251,6 +251,25 @@ export function renderChart(
   const chart = new uPlot(opts, uData, container)
   instances.set(container, chart)
 
+  // Double-click legend entry to solo/unsolo a series
+  const legendEntries = container.querySelectorAll<HTMLElement>('.u-legend .u-series')
+  legendEntries.forEach((el, seriesIdx) => {
+    if (seriesIdx === 0) return // skip x-axis entry
+    el.addEventListener('dblclick', (e) => {
+      e.preventDefault()
+      // Check if this series is already the only visible one
+      const visibleIndices = chart.series
+        .slice(1)
+        .map((s, i) => (s.show ? i + 1 : -1))
+        .filter((i) => i > 0)
+      const alreadySoloed = visibleIndices.length === 1 && visibleIndices[0] === seriesIdx
+
+      for (let i = 1; i < chart.series.length; i++) {
+        chart.setSeries(i, { show: alreadySoloed || i === seriesIdx })
+      }
+    })
+  })
+
   // Click on plot area to toggle the nearest series
   let downX = 0
   let downY = 0
