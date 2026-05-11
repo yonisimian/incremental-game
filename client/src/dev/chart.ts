@@ -138,8 +138,10 @@ export function renderChart(
       x: { time: false },
       y: {
         range: (_u, min, max) => {
-          // Keep y-axis visible even when all series are hidden
-          if (min === Infinity) return [0, 1]
+          // Degenerate range: all hidden → Infinity, or all values equal (e.g. all 0)
+          if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+            return [min === Infinity ? 0 : min - 1, max === -Infinity ? 1 : max + 1]
+          }
           return [min, max]
         },
       },
