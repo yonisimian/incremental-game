@@ -247,6 +247,43 @@ export function renderChart(
   const chart = new uPlot(opts, uData, container)
   instances.set(container, chart)
 
+  // Click on plot area to toggle the nearest series
+  let downX = 0
+  let downY = 0
+  chart.over.addEventListener('mousedown', (e) => {
+    downX = e.clientX
+    downY = e.clientY
+  })
+  chart.over.addEventListener('click', (e) => {
+    // Ignore drag-to-zoom (mouse moved more than 4px)
+    if (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4) return
+
+    const idx = chart.cursor.idx
+    // eslint-disable-next-line eqeqeq -- cursor idx can be null/undefined at runtime
+    if (idx == null) return
+    const rect = chart.over.getBoundingClientRect()
+    const cursorY = e.clientY - rect.top
+
+    let bestDist = Infinity
+    let bestIdx = -1
+    for (let i = 1; i < chart.series.length; i++) {
+      const s = chart.series[i]
+      if (!s.show) continue
+      const val = chart.data[i][idx]
+      // eslint-disable-next-line eqeqeq -- data can be null/undefined
+      if (val == null) continue
+      const py = chart.valToPos(val, 'y', true) - chart.bbox.top
+      const dist = Math.abs(py - cursorY)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIdx = i
+      }
+    }
+    if (bestIdx > 0 && bestDist < 30) {
+      chart.setSeries(bestIdx, { show: false })
+    }
+  })
+
   if (series.length > 1) {
     attachToggleAllButton(container, chart, series.length)
   }
