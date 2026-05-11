@@ -109,15 +109,15 @@ export function renderChart(
   const uSeries: uPlot.Series[] = [
     {
       label: 'Time (s)',
-      // eslint-disable-next-line eqeqeq, @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime
-      value: (_u, v) => (v == null ? '—' : `${v.toFixed(1)}s`),
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime despite types
+      value: (_u, v) => (v === null || v === undefined ? '—' : `${v.toFixed(1)}s`),
     },
     ...series.map((s, i) => ({
       label: s.label,
       stroke: PALETTE[i % PALETTE.length],
       width: 2,
-      // eslint-disable-next-line eqeqeq, @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime
-      value: (_u: uPlot, v: number) => (v == null ? '—' : v.toFixed(2)),
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime despite types
+      value: (_u: uPlot, v: number) => (v === null || v === undefined ? '—' : v.toFixed(2)),
     })),
   ]
 
@@ -201,8 +201,7 @@ export function renderChart(
           const idx = u.cursor.idx
           const left = u.cursor.left ?? -1
           const top = u.cursor.top ?? -1
-          // eslint-disable-next-line eqeqeq -- cursor values can be null/undefined at runtime
-          if (idx == null || left < 0 || top < 0) {
+          if (idx === null || idx === undefined || left < 0 || top < 0) {
             tip.style.display = 'none'
             return
           }
@@ -216,8 +215,7 @@ export function renderChart(
             const s = u.series[i]
             if (!s.show) continue
             const val = u.data[i][idx]
-            // eslint-disable-next-line eqeqeq -- data can be null/undefined
-            if (val == null) continue
+            if (val === null || val === undefined) continue
             // valToPos with true returns canvas pixels; cursor.top is CSS pixels
             const py = (u.valToPos(val, 'y', true) - u.bbox.top) / dpr
             const dist = Math.abs(py - top)
@@ -282,8 +280,7 @@ export function renderChart(
     if (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4) return
 
     const idx = chart.cursor.idx
-    // eslint-disable-next-line eqeqeq -- cursor idx can be null/undefined at runtime
-    if (idx == null) return
+    if (idx === null || idx === undefined) return
     const rect = chart.over.getBoundingClientRect()
     const cursorY = e.clientY - rect.top
 
@@ -294,8 +291,7 @@ export function renderChart(
       const s = chart.series[i]
       if (!s.show) continue
       const val = chart.data[i][idx]
-      // eslint-disable-next-line eqeqeq -- data can be null/undefined
-      if (val == null) continue
+      if (val === null || val === undefined) continue
       // valToPos with true returns canvas pixels; cursorY is CSS pixels
       const py = (chart.valToPos(val, 'y', true) - chart.bbox.top) / dpr
       const dist = Math.abs(py - cursorY)
