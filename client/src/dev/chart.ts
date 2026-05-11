@@ -102,7 +102,7 @@ export function renderChart(
   const uSeries: uPlot.Series[] = [
     {
       label: 'Time (s)',
-      value: (_u, v) => `${(v).toFixed(1)}s`,
+      value: (_u, v) => `${v.toFixed(1)}s`,
     },
     ...series.map((s, i) => ({
       label: s.label,
@@ -193,4 +193,25 @@ export function renderChart(
   if (series.length > 1) {
     attachToggleAllButton(container, chart, series.length)
   }
+}
+
+/**
+ * Update an existing chart's data in-place via `setData()`.
+ * Falls back to a full `renderChart()` if the chart doesn't exist yet
+ * or if the series count changed.
+ */
+export function updateChart(
+  container: HTMLElement,
+  title: string,
+  xData: number[],
+  series: ChartSeries[],
+): void {
+  const existing = instances.get(container)
+  // series count + 1 for x-axis
+  if (existing?.series.length === series.length + 1) {
+    const uData: uPlot.AlignedData = [xData, ...series.map((s) => s.data)]
+    existing.setData(uData)
+    return
+  }
+  renderChart(container, title, xData, series)
 }
