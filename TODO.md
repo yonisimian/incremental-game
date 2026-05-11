@@ -35,6 +35,7 @@
 - [ ] Hotkey for "back"
 - [ ] Hotkey for "Leave" button (room / waiting screens)
 - [ ] Hotkeys for generators
+- [ ] Hotkeys for panels (game / generators / upgrade tree)
 
 ### Match Flow
 
