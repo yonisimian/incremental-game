@@ -197,6 +197,11 @@ body {
   font-size: 11px;
 }
 
+/* Dim unfocused series in legend when hovering near a line */
+.dev-charts .u-series:not(.u-focus) > * {
+  opacity: 0.4;
+}
+
 /* ─── Chart toggle button ─────────────────────────────────────────── */
 
 .chart-toggle-all {

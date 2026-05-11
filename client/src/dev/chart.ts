@@ -100,11 +100,15 @@ export function renderChart(
 
   // Build uPlot series config: first entry is x-axis descriptor
   const uSeries: uPlot.Series[] = [
-    { label: 'Time (s)' },
+    {
+      label: 'Time (s)',
+      value: (_u, v) => `${(v).toFixed(1)}s`,
+    },
     ...series.map((s, i) => ({
       label: s.label,
       stroke: PALETTE[i % PALETTE.length],
       width: 2,
+      value: (_u: uPlot, v: number) => v.toFixed(2),
     })),
   ]
 
@@ -175,7 +179,11 @@ export function renderChart(
         },
       ],
     },
-    cursor: { drag: { x: true, y: true } },
+    cursor: {
+      drag: { x: true, y: true },
+      y: true, // show horizontal crosshair line at cursor
+      focus: { prox: 20 }, // highlight the nearest series within 20px
+    },
     legend: { show: true },
   }
 
