@@ -124,6 +124,7 @@
 ### Simulation
 
 - [ ] Simulate purchasing generators (not only upgrades)
+- [ ] Allow custom simulations defined via UI
 - [ ] Replace strategy checkboxes with auto-simulate-all: run every strategy, show top 5 by final score
 - [ ] Function-based strategies: allow "buy whichever is affordable first" / conditional logic
 
@@ -135,8 +136,8 @@
 
 ### Statistics
 
-- [ ] Purchase timeline table: at each second show which purchase was made and its description
-- [ ] Generator breakdown: show all generators' levels, effects, and income share (% of total income per generator)
+- [x] Purchase timeline table: at each second show which purchase was made and its description
+- [x] Generator breakdown: show all generators' levels, effects, and income share (% of total income per generator)
 
 ### Architecture
 
