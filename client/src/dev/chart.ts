@@ -57,19 +57,26 @@ function attachToggleAllButton(wrapper: HTMLElement, chart: uPlot, seriesCount: 
   btn.className = 'chart-toggle-all'
   btn.textContent = 'Hide All'
 
+  const syncLabel = () => {
+    const anyVisible = chart.series.slice(1).some((s) => s.show)
+    btn.textContent = anyVisible ? 'Hide All' : 'Show All'
+  }
+
   btn.addEventListener('click', () => {
-    // If ANY series is visible → hide all; if all hidden → show all
     const anyVisible = chart.series.slice(1).some((s) => s.show)
     for (let i = 1; i <= seriesCount; i++) {
       chart.setSeries(i, { show: !anyVisible })
     }
-    btn.textContent = anyVisible ? 'Show All' : 'Hide All'
+    syncLabel()
   })
 
-  // Place the button inside the legend table's container
+  // Keep label in sync when individual series are toggled via legend
+  chart.hooks.setSeries!.push(syncLabel)
+
+  // Place the button after the legend table
   const legend = wrapper.querySelector('.u-legend')
   if (legend) {
-    legend.appendChild(btn)
+    legend.insertAdjacentElement('afterend', btn)
   } else {
     wrapper.appendChild(btn)
   }
@@ -102,13 +109,15 @@ export function renderChart(
   const uSeries: uPlot.Series[] = [
     {
       label: 'Time (s)',
-      value: (_u, v) => `${v.toFixed(1)}s`,
+      // eslint-disable-next-line eqeqeq, @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime
+      value: (_u, v) => (v == null ? '—' : `${v.toFixed(1)}s`),
     },
     ...series.map((s, i) => ({
       label: s.label,
       stroke: PALETTE[i % PALETTE.length],
       width: 2,
-      value: (_u: uPlot, v: number) => v.toFixed(2),
+      // eslint-disable-next-line eqeqeq, @typescript-eslint/no-unnecessary-condition -- uPlot passes null/undefined at runtime
+      value: (_u: uPlot, v: number) => (v == null ? '—' : v.toFixed(2)),
     })),
   ]
 
@@ -150,6 +159,7 @@ export function renderChart(
       },
     ],
     hooks: {
+      setSeries: [],
       draw: [
         (u: uPlot) => {
           if (allMarkers.length === 0) return
@@ -178,11 +188,58 @@ export function renderChart(
           ctx.restore()
         },
       ],
+      setCursor: [
+        (u: uPlot) => {
+          let tip = u.over.querySelector<HTMLDivElement>('.chart-tooltip')
+          if (!tip) {
+            tip = document.createElement('div')
+            tip.className = 'chart-tooltip'
+            u.over.appendChild(tip)
+          }
+          const idx = u.cursor.idx
+          const left = u.cursor.left ?? -1
+          const top = u.cursor.top ?? -1
+          // eslint-disable-next-line eqeqeq -- cursor values can be null/undefined at runtime
+          if (idx == null || left < 0 || top < 0) {
+            tip.style.display = 'none'
+            return
+          }
+
+          // Find the nearest visible series to the cursor y position
+          let bestDist = Infinity
+          let bestLabel = ''
+          let bestVal = 0
+          for (let i = 1; i < u.series.length; i++) {
+            const s = u.series[i]
+            if (!s.show) continue
+            const val = u.data[i][idx]
+            // eslint-disable-next-line eqeqeq -- data can be null/undefined
+            if (val == null) continue
+            const py = u.valToPos(val, 'y', true) - u.bbox.top
+            const dist = Math.abs(py - top)
+            if (dist < bestDist) {
+              bestDist = dist
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- label can be undefined
+              bestLabel = (s.label as string) ?? ''
+              bestVal = val
+            }
+          }
+
+          if (bestDist === Infinity) {
+            tip.style.display = 'none'
+            return
+          }
+          tip.textContent = `${bestLabel}: ${bestVal.toFixed(1)}`
+          tip.style.display = 'block'
+          tip.style.left = `${left + 4}px`
+          tip.style.top = `${top - 24}px`
+        },
+      ],
     },
     cursor: {
       drag: { x: true, y: true },
-      y: true, // show horizontal crosshair line at cursor
-      focus: { prox: 20 }, // highlight the nearest series within 20px
+      y: true,
+      focus: { prox: 20 },
     },
     legend: { show: true },
   }

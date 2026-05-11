@@ -197,9 +197,33 @@ body {
   font-size: 11px;
 }
 
-/* Dim unfocused series in legend when hovering near a line */
-.dev-charts .u-series:not(.u-focus) > * {
+/* Dim unfocused series in legend only when a series is actively focused */
+.dev-charts .u-legend .u-series > * {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.dev-charts .u-legend:has(.u-focus) .u-series:not(.u-focus) > * {
   opacity: 0.4;
+}
+
+/* Strike-through + dim legend labels for hidden series */
+.dev-charts .u-series.u-off > * {
+  opacity: 0.3 !important;
+  text-decoration: line-through;
+}
+
+/* Floating tooltip near cursor */
+.chart-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #eee;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 /* ─── Chart toggle button ─────────────────────────────────────────── */
