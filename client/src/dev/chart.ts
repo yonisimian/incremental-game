@@ -154,17 +154,13 @@ export function renderChart(
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
           ctx.lineWidth = 1
           ctx.setLineDash([4, 4])
-          ctx.font = '10px sans-serif'
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-          ctx.textAlign = 'center'
 
           // Deduplicate markers at same x position (multiple strategies may buy at same time)
-          const seen = new Set<string>()
+          const seen = new Set<number>()
           for (const m of allMarkers) {
             const px = u.valToPos(m.x, 'x', true)
-            const key = `${m.x}:${m.label}`
-            if (seen.has(key)) continue
-            seen.add(key)
+            if (seen.has(m.x)) continue
+            seen.add(m.x)
 
             // Only draw if within the visible plot area
             if (px >= u.bbox.left && px <= u.bbox.left + u.bbox.width) {
@@ -172,7 +168,6 @@ export function renderChart(
               ctx.moveTo(px, u.bbox.top)
               ctx.lineTo(px, u.bbox.top + u.bbox.height)
               ctx.stroke()
-              ctx.fillText(m.label, px, u.bbox.top - 4)
             }
           }
 
