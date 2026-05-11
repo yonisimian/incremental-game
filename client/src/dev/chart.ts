@@ -48,6 +48,34 @@ export interface ChartSeries {
 const instances = new WeakMap<HTMLElement, uPlot>()
 
 /**
+ * Attach a "Hide all / Show all" button inside the chart's legend area.
+ * Clicking it toggles every series off (so you can isolate one via the legend)
+ * or back on if all are already hidden.
+ */
+function attachToggleAllButton(wrapper: HTMLElement, chart: uPlot, seriesCount: number): void {
+  const btn = document.createElement('button')
+  btn.className = 'chart-toggle-all'
+  btn.textContent = 'Hide All'
+
+  btn.addEventListener('click', () => {
+    // If ANY series is visible → hide all; if all hidden → show all
+    const anyVisible = chart.series.slice(1).some((s) => s.show)
+    for (let i = 1; i <= seriesCount; i++) {
+      chart.setSeries(i, { show: !anyVisible })
+    }
+    btn.textContent = anyVisible ? 'Show All' : 'Hide All'
+  })
+
+  // Place the button inside the legend table's container
+  const legend = wrapper.querySelector('.u-legend')
+  if (legend) {
+    legend.appendChild(btn)
+  } else {
+    wrapper.appendChild(btn)
+  }
+}
+
+/**
  * Render a uPlot chart into `container`.
  * Destroys any previous chart in the same container.
  */
@@ -95,6 +123,13 @@ export function renderChart(
     series: uSeries,
     scales: {
       x: { time: false },
+      y: {
+        range: (_u, min, max) => {
+          // Keep y-axis visible even when all series are hidden
+          if (min === Infinity) return [0, 1]
+          return [min, max]
+        },
+      },
     },
     axes: [
       {
@@ -151,4 +186,8 @@ export function renderChart(
 
   const chart = new uPlot(opts, uData, container)
   instances.set(container, chart)
+
+  if (series.length > 1) {
+    attachToggleAllButton(container, chart, series.length)
+  }
 }

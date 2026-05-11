@@ -196,6 +196,26 @@ body {
   font-size: 11px;
 }
 
+/* ─── Chart toggle button ─────────────────────────────────────────── */
+
+.chart-toggle-all {
+  display: block;
+  margin: 6px auto 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--dev-border);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.chart-toggle-all:hover {
+  opacity: 0.8;
+}
+
 .dev-charts .u-legend th {
   color: var(--dev-muted);
 }
