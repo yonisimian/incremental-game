@@ -26,14 +26,14 @@ function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   mods.push({ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 })
 
   // u8: provide a small multiplicative bonus to Wood based on hoarded Wood
-  if ((state.upgrades.u8 ?? 0) > 0) {
-    const bonus = Math.floor((state.resources.r0 ?? 0) / 10) * 0.01
+  if (state.upgrades.u8 > 0) {
+    const bonus = Math.floor(state.resources.r0 / 10) * 0.01
     if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r0', value: 1 + bonus })
   }
 
   // u9: provide a small multiplicative bonus to Ale based on hoarded Ale
-  if ((state.upgrades.u9 ?? 0) > 0) {
-    const bonus = Math.floor((state.resources.r1 ?? 0) / 10) * 0.01
+  if (state.upgrades.u9 > 0) {
+    const bonus = Math.floor(state.resources.r1 / 10) * 0.01
     if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r1', value: 1 + bonus })
   }
 
@@ -196,8 +196,16 @@ const idlerFlavor: ModeFlavor = {
       description: '+4 woodcutter output per owned Woodcutter',
     },
     { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
-    { id: 'u8', name: '💰 Resource Hoarders', description: 'More Wood in bank → small production bonus' },
-    { id: 'u9', name: '🧊 Cellar Masters', description: 'More Ale in bank → small production bonus' },
+    {
+      id: 'u8',
+      name: '💰 Resource Hoarders',
+      description: 'More Wood in bank → small production bonus',
+    },
+    {
+      id: 'u9',
+      name: '🧊 Cellar Masters',
+      description: 'More Ale in bank → small production bonus',
+    },
     {
       id: 'u5',
       name: '👑 Royal Throne',
