@@ -191,10 +191,33 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   const def = mode.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
+  const currentLevel = state.upgrades[upgradeId] ?? 0
+
+  // Validate purchase against maxLevel / repeatable semantics
+  if (def.maxLevel !== undefined) {
+    if (currentLevel >= def.maxLevel) return
+  } else if (!def.repeatable) {
+    // one-shot upgrade
+    if (currentLevel >= 1) return
+  }
+
   // Deduct from correct resource
   const costResource = def.costCurrency ?? mode.scoreResource
   state.resources[costResource] = (state.resources[costResource] ?? 0) - def.cost
 
-  // Grant upgrade
-  state.upgrades[upgradeId] = (state.upgrades[upgradeId] ?? 0) + 1
+  // Grant upgrade (increment level)
+  state.upgrades[upgradeId] = currentLevel + 1
+}
+
+/**
+ * Normalize upgrade counts in a loaded `PlayerState` to respect `maxLevel`.
+ * Useful for migration when loading older save files.
+ */
+export function normalizeUpgrades(state: PlayerState, mode: ModeDefinition): void {
+  for (const u of mode.upgrades) {
+    const max = u.maxLevel
+    if (max === undefined) continue
+    const cur = state.upgrades[u.id] ?? 0
+    if (cur > max) state.upgrades[u.id] = max
+  }
 }

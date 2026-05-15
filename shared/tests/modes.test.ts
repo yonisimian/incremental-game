@@ -6,6 +6,7 @@ import {
   createInitialState,
   collectModifiers,
   applyPurchase,
+  normalizeUpgrades,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -255,6 +256,52 @@ describe('collectModifiers', () => {
         (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative' && m.value === 1.25,
       ),
     ).toBe(true)
+  })
+
+  it('supports finite repeatable upgrades up to maxLevel and blocks further purchases', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // Add a finite upgrade definition for testing
+    const fin: UpgradeDefinition = {
+      id: 'uF1',
+      cost: 5,
+      costCurrency: 'r0',
+      repeatable: true,
+      maxLevel: 3,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    // Give resources and buy three times
+    state.resources.r0 = 100
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+
+    // Fourth purchase should be blocked
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+  })
+
+  it('normalizes loaded state upgrades down to maxLevel when too large', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    const fin: UpgradeDefinition = {
+      id: 'uF2',
+      cost: 5,
+      costCurrency: 'r0',
+      repeatable: true,
+      maxLevel: 2,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    // Simulate loading an old save with an overly large count
+    state.upgrades.uF2 = 10
+    // normalize
+    normalizeUpgrades(state, testMode)
+    expect(state.upgrades.uF2).toBe(2)
   })
 })
 

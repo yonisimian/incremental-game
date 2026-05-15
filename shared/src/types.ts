@@ -20,6 +20,8 @@ export interface UpgradeDefinition {
   readonly costCurrency?: string
   /** If true, the upgrade can be purchased multiple times. */
   readonly repeatable?: boolean
+  /** If present and > 0, the upgrade can be purchased up to this many times. */
+  readonly maxLevel?: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
