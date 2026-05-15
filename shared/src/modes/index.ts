@@ -142,7 +142,20 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
 
   // Dynamic (state-derived) modifiers — mode-specific hook
   if (mode.collectDynamic) {
-    modifiers.push(...mode.collectDynamic(state))
+    for (const mod of mode.collectDynamic(state)) {
+      if (generatorIds.has(mod.field)) {
+        const genState = generatorModifiers.get(mod.field)
+        if (!genState) continue
+
+        if (mod.stage === 'additive') {
+          genState.additive += mod.value
+        } else if (mod.stage === 'multiplicative') {
+          genState.multiplicative *= mod.value
+        }
+      } else {
+        modifiers.push(mod)
+      }
+    }
   }
 
   // Generator modifiers

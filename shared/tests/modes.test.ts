@@ -208,9 +208,9 @@ describe('collectModifiers', () => {
     const mods = collectModifiers(state, def)
 
     // floor(120/10)*0.01 = 0.12 → multiplicative 1.12 on r0
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'multiplicative' && m.value === 1.12)).toBe(
-      true,
-    )
+    expect(
+      mods.some((m) => m.field === 'r0' && m.stage === 'multiplicative' && m.value === 1.12),
+    ).toBe(true)
   })
 
   it('applies u9 banked-ale bonus as multiplicative modifier', () => {
@@ -221,9 +221,40 @@ describe('collectModifiers', () => {
     const mods = collectModifiers(state, def)
 
     // floor(50/10)*0.01 = 0.05 → multiplicative 1.05 on r1
-    expect(mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05)).toBe(
-      true,
-    )
+    expect(
+      mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05),
+    ).toBe(true)
+  })
+
+  it('applies u10 dominant harvesters to the lowest-tier top generator', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g0 = 3
+    state.generators.g1 = 3
+    state.generators.g2 = 1
+    state.generators.g3 = 0
+    state.upgrades.u10 = 1
+    const mods = collectModifiers(state, def)
+
+    // g0 should win the tie and produce 3 × 2 = 6 wood per second.
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 6)).toBe(true)
+  })
+
+  it('applies u11 balanced engineering as a global bonus when generator counts are balanced', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g0 = 3
+    state.generators.g1 = 3
+    state.generators.g2 = 3
+    state.generators.g3 = 3
+    state.upgrades.u11 = 1
+    const mods = collectModifiers(state, def)
+
+    expect(
+      mods.some(
+        (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative' && m.value === 1.25,
+      ),
+    ).toBe(true)
   })
 })
 
