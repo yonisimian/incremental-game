@@ -177,6 +177,19 @@ describe('collectModifiers', () => {
     expect(mcMod).toBeDefined()
   })
 
+  it('applies generator-targeted upgrades to generator output', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g0 = 2
+    state.upgrades.u6 = 1
+    const mods = collectModifiers(state, def)
+
+    // Woodcutter base output: 1 × 2 = 2. u6 adds +4 per Woodcutter, so +8 total, effective 10.
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 10)).toBe(
+      true,
+    )
+  })
+
   it('calls collectDynamic for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)

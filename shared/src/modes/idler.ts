@@ -74,6 +74,24 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
       { stage: 'multiplicative', field: 'r1', value: 1.25 },
     ],
   },
+  {
+    id: 'u6', // Skilled Foremen
+    cost: 60,
+    costCurrency: 'r0',
+    category: 'tree',
+    position: { x: 0, y: 500 },
+    prerequisites: ['u1'],
+    modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
+  },
+  {
+    id: 'u7', // Yeast Cultivators
+    cost: 60,
+    costCurrency: 'r1',
+    category: 'tree',
+    position: { x: 400, y: 500 },
+    prerequisites: ['u2'],
+    modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
+  },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
@@ -96,7 +114,7 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     baseCost: 10,
     costScaling: 1.15,
     costCurrency: 'r0',
-    production: { resource: 'r0', rate: 0.2 },
+    production: { resource: 'r0', rate: 1 },
   },
   {
     id: 'g1', // Brewer
@@ -138,6 +156,12 @@ const idlerFlavor: ModeFlavor = {
     { id: 'u2', name: '👑 Royal Brewery', description: '+5 base 🍺/sec' },
     { id: 'u3', name: '👷 Master Craftsmen', description: '+5 base 🪵/sec (stackable)' },
     { id: 'u4', name: '⚙️ Industrial Era', description: 'All production ×1.25' },
+    {
+      id: 'u6',
+      name: '👥 Skilled Foremen',
+      description: '+4 woodcutter output per owned Woodcutter',
+    },
+    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
     {
       id: 'u5',
       name: '👑 Royal Throne',
