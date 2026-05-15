@@ -21,8 +21,23 @@ function getHighlight(state: Readonly<PlayerState>): string {
  */
 function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   const highlight = getHighlight(state)
+  const mods: Modifier[] = []
   const sharpenedAxes = state.upgrades.u0 > 0
-  return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]
+  mods.push({ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 })
+
+  // u8: provide a small multiplicative bonus to Wood based on hoarded Wood
+  if ((state.upgrades.u8 ?? 0) > 0) {
+    const bonus = Math.floor((state.resources.r0 ?? 0) / 10) * 0.01
+    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r0', value: 1 + bonus })
+  }
+
+  // u9: provide a small multiplicative bonus to Ale based on hoarded Ale
+  if ((state.upgrades.u9 ?? 0) > 0) {
+    const bonus = Math.floor((state.resources.r1 ?? 0) / 10) * 0.01
+    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r1', value: 1 + bonus })
+  }
+
+  return mods
 }
 
 // ─── Upgrades ────────────────────────────────────────────────────────
@@ -91,6 +106,25 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     position: { x: 400, y: 500 },
     prerequisites: ['u2'],
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
+  },
+
+  {
+    id: 'u8', // Resource Hoarders
+    cost: 40,
+    costCurrency: 'r0',
+    category: 'tree',
+    position: { x: -200, y: 500 },
+    prerequisites: ['u1'],
+    modifiers: [], // dynamic: bonus based on banked r0 (handled in collectIdlerDynamic)
+  },
+  {
+    id: 'u9', // Cellar Masters
+    cost: 40,
+    costCurrency: 'r1',
+    category: 'tree',
+    position: { x: 600, y: 500 },
+    prerequisites: ['u2'],
+    modifiers: [], // dynamic: bonus based on banked r1 (handled in collectIdlerDynamic)
   },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
@@ -162,6 +196,8 @@ const idlerFlavor: ModeFlavor = {
       description: '+4 woodcutter output per owned Woodcutter',
     },
     { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
+    { id: 'u8', name: '💰 Resource Hoarders', description: 'More Wood in bank → small production bonus' },
+    { id: 'u9', name: '🧊 Cellar Masters', description: 'More Ale in bank → small production bonus' },
     {
       id: 'u5',
       name: '👑 Royal Throne',
