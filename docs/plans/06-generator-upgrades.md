@@ -1,4 +1,4 @@
-## Plan: Add generator-affecting upgrades to Idler
+# Plan: Add generator-affecting upgrades to Idler
 
 TL;DR: Extend the shared modifier collection so upgrades can target generator IDs, then add new Idler upgrades that modify generator output instead of only base income.
 

@@ -81,6 +81,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 0, y: 500 },
     prerequisites: ['u1'],
+    // +4 wood/sec per owned Woodcutter (generator-targeted additive)
     modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
   },
   {
@@ -90,6 +91,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 400, y: 500 },
     prerequisites: ['u2'],
+    // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
   },
 
@@ -159,9 +161,9 @@ const idlerFlavor: ModeFlavor = {
     {
       id: 'u6',
       name: '👥 Skilled Foremen',
-      description: '+4 woodcutter output per owned Woodcutter',
+      description: 'Each Woodcutter produces +4 additional 🪵/sec',
     },
-    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
+    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'All Brewers produce ×2 🍺' },
     {
       id: 'u5',
       name: '👑 Royal Throne',
