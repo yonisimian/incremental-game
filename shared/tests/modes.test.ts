@@ -232,7 +232,7 @@ describe('collectModifiers', () => {
     state.upgrades.u8 = 1
     const mods = collectModifiers(state, def)
 
-    // floor(120/10)*0.01 = 0.12 → multiplicative 1.12 on r0
+    // 120 * 0.001 = 0.12 → multiplicative 1.12 on r0
     expect(
       mods.some((m) => m.field === 'r0' && m.stage === 'multiplicative' && m.value === 1.12),
     ).toBe(true)
@@ -245,7 +245,7 @@ describe('collectModifiers', () => {
     state.upgrades.u9 = 1
     const mods = collectModifiers(state, def)
 
-    // floor(50/10)*0.01 = 0.05 → multiplicative 1.05 on r1
+    // 50 * 0.001 = 0.05 → multiplicative 1.05 on r1
     expect(
       mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05),
     ).toBe(true)

@@ -99,7 +99,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 40,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: -200, y: 500 },
+    position: { x: 100, y: 600 },
     prerequisites: ['u1'],
     modifiers: [],
     dynamicModifier: (state) => {
@@ -112,7 +112,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 40,
     costCurrency: 'r1',
     category: 'tree',
-    position: { x: 600, y: 500 },
+    position: { x: 300, y: 600 },
     prerequisites: ['u2'],
     modifiers: [],
     dynamicModifier: (state) => {
@@ -128,7 +128,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     goalType: 'buy-upgrade',
     category: 'tree',
-    position: { x: 200, y: 600 },
+    position: { x: 200, y: 700 },
     prerequisites: ['u4'],
     modifiers: [],
   },

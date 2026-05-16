@@ -40,6 +40,12 @@ export interface UpgradeDefinition {
    * condition). Untagged upgrades are always available.
    */
   readonly goalType?: Goal['type']
+  /**
+   * A state-derived modifier emitted when this upgrade is owned.
+   * Use for bonuses that depend on runtime state (e.g., banked resources).
+   * Must be a pure function of PlayerState — no side effects.
+   */
+  readonly dynamicModifier?: (state: Readonly<PlayerState>) => Modifier | null
 }
 
 /** Static definition of a generator building (repeatable, scaling cost). */

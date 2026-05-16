@@ -55,11 +55,11 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400), foremen(0,500), yeast(400,500), hoarders(-200,500), cellar(600,500)
-    expect(bounds.minX).toBe(-200)
-    expect(bounds.maxX).toBe(600)
+    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400), foremen(0,500), yeast(400,500), hoarders(100,600), cellar(300,600)
+    expect(bounds.minX).toBe(0)
+    expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(500)
+    expect(bounds.maxY).toBe(600)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
