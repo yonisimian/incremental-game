@@ -1,4 +1,5 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
+import { isMaxed } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ export class ClickerBot implements BotStrategy {
       const affordable = this.upgrades
         .filter((u) => {
           const currentLevel = state.upgrades[u.id] ?? 0
-          if (u.maxLevel !== undefined && currentLevel >= u.maxLevel) return false
+          if (isMaxed(u, currentLevel)) return false
           const costResource = u.costCurrency ?? this.scoreResource
           return (state.resources[costResource] ?? 0) >= u.cost
         })

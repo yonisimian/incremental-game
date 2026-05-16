@@ -89,6 +89,14 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
   }
 }
 
+// ─── Purchase Helpers ─────────────────────────────────────────────────
+
+/** Whether an upgrade has reached its purchase limit. */
+export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean {
+  const limit = upgrade.purchaseLimit ?? 1
+  return limit > 0 && ownedCount >= limit
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**
@@ -190,28 +198,26 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   const def = mode.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
-  const currentLevel = state.upgrades[upgradeId] ?? 0
-
-  // Validate purchase against maxLevel semantics.
-  if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) return
+  const owned = state.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return
 
   // Deduct from correct resource
   const costResource = def.costCurrency ?? mode.scoreResource
   state.resources[costResource] = (state.resources[costResource] ?? 0) - def.cost
 
-  // Grant upgrade (increment level)
-  state.upgrades[upgradeId] = currentLevel + 1
+  // Grant upgrade
+  state.upgrades[upgradeId] = owned + 1
 }
 
 /**
- * Normalize upgrade counts in a loaded `PlayerState` to respect `maxLevel`.
+ * Normalize upgrade counts in a loaded `PlayerState` to respect `purchaseLimit`.
  * Useful for migration when loading older save files.
  */
 export function normalizeUpgrades(state: PlayerState, mode: ModeDefinition): void {
   for (const u of mode.upgrades) {
-    const max = u.maxLevel
-    if (max === undefined) continue
+    const limit = u.purchaseLimit ?? 1
+    if (limit <= 0) continue // unlimited
     const cur = state.upgrades[u.id] ?? 0
-    if (cur > max) state.upgrades[u.id] = max
+    if (cur > limit) state.upgrades[u.id] = limit
   }
 }

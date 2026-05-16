@@ -321,14 +321,14 @@ describe('applyPurchase', () => {
     expect(state.resources.r1).toBe(0)
   })
 
-  it('blocks purchase when maxLevel is reached', () => {
+  it('blocks purchase when purchaseLimit is reached', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF1',
       cost: 5,
       costCurrency: 'r0',
-      maxLevel: 3,
+      purchaseLimit: 3,
       modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
@@ -344,14 +344,14 @@ describe('applyPurchase', () => {
     expect(state.upgrades.uF1).toBe(3)
   })
 
-  it('normalizes loaded state upgrades down to maxLevel', () => {
+  it('normalizes loaded state upgrades down to purchaseLimit', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF2',
       cost: 5,
       costCurrency: 'r0',
-      maxLevel: 2,
+      purchaseLimit: 2,
       modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition

@@ -18,8 +18,11 @@ export interface UpgradeDefinition {
   readonly cost: number
   /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
   readonly costCurrency?: string
-  /** If present and > 0, the upgrade can be purchased up to this many times. Undefined means unlimited purchases. */
-  readonly maxLevel?: number
+  /**
+   * Maximum number of times this upgrade can be purchased.
+   * Defaults to 1 (one-shot). Set to 0 for unlimited purchases.
+   */
+  readonly purchaseLimit?: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */

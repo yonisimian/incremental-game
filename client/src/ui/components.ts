@@ -12,6 +12,7 @@ import {
   getResourceIcon,
   getUpgradeName,
   getUpgradeDescription,
+  isMaxed,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -62,8 +63,8 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const disabled = owned || !affordable
       const hotkey = i + 1
       const levelLabel =
-        u.maxLevel !== undefined && owned > 0
-          ? `<span class="upgrade-level">${owned}/${u.maxLevel}</span>`
+        (u.purchaseLimit ?? 1) > 1 && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
           : ''
       return `
         <button
@@ -106,7 +107,7 @@ interface UpgradeTreeRender {
  *
  * State-class derivation per node (top-down, first match wins):
  *   `.locked`         — !isUnlocked  (overrides everything)
- *   `.owned`          — isUnlocked + capped at maxLevel
+ *   `.owned`          — isUnlocked + reached purchaseLimit
  *   `.too-expensive`  — isUnlocked + !canAfford + not(capped)
  *   (none)            — buyable
  *
@@ -185,7 +186,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const owned = state.player.upgrades[u.id] ?? 0
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
-      const maxed = u.maxLevel !== undefined && owned >= u.maxLevel
+      const maxed = isMaxed(u, owned)
 
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
@@ -197,11 +198,11 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const disabled = !buyable
 
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
-      const countLabel = u.maxLevel === undefined && owned > 0 ? ` (×${owned})` : ''
+      const countLabel = (u.purchaseLimit ?? 1) === 0 && owned > 0 ? ` (×${owned})` : ''
       const costLabel = maxed ? '✓' : `${u.cost} ${emoji}${countLabel}`
       const levelLabel =
-        u.maxLevel !== undefined && owned > 0
-          ? `<span class="upgrade-level">${owned}/${u.maxLevel}</span>`
+        (u.purchaseLimit ?? 1) > 1 && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
           : ''
 
       return `

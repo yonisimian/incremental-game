@@ -18,6 +18,7 @@ import {
   computeClickIncome as pipelineClickIncome,
   canAffordGenerator,
   applyGeneratorPurchase,
+  isMaxed,
 } from '@game/shared'
 import {
   getSeq,
@@ -349,7 +350,7 @@ export function doBuy(upgradeId: string): void {
   if (!def) return
 
   const currentLevel = state.player.upgrades[upgradeId] ?? 0
-  if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) return
+  if (isMaxed(def, currentLevel)) return
 
   // All prerequisites must be owned
   for (const pid of def.prerequisites ?? []) {
@@ -502,7 +503,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       if (!def) continue
 
       const currentLevel = reconciled.upgrades[uid] ?? 0
-      if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) continue
+      if (isMaxed(def, currentLevel)) continue
 
       // Skip if any prerequisite isn't owned in the reconciled state
       if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue

@@ -14,6 +14,7 @@ import {
   computePassiveRates,
   createInitialState,
   getModeDefinition,
+  isMaxed,
 } from '@game/shared'
 import type { Strategy, StrategyAction } from './strategies.js'
 
@@ -48,7 +49,7 @@ function canAfford(state: PlayerState, action: StrategyAction, modeDef: ModeDefi
     if (!def) return false
 
     const currentLevel = state.upgrades[action.upgradeId] ?? 0
-    if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) return false
+    if (isMaxed(def, currentLevel)) return false
 
     // Check prerequisites
     if (def.prerequisites?.some((pid) => (state.upgrades[pid] ?? 0) <= 0)) return false
