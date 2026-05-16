@@ -112,24 +112,19 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     const owned = state.upgrades[upgrade.id] ?? 0
     if (owned <= 0) continue
 
-    const emitModifier = (mod: Modifier, count: number) => {
+    for (const mod of upgrade.modifiers) {
       if (generatorIds.has(mod.field)) {
-        const genState = generatorModifiers.get(mod.field)
-        if (!genState) return
-
+        // Generator-targeted modifier: accumulate for later application.
+        // Additive value is per-generator-unit (multiplied by owned count below).
+        const genState = generatorModifiers.get(mod.field)!
         if (mod.stage === 'additive') {
-          genState.additive += mod.value * count
+          genState.additive += mod.value * owned
         } else if (mod.stage === 'multiplicative') {
-          genState.multiplicative *= mod.value ** count
+          genState.multiplicative *= mod.value ** owned
         }
       } else {
-        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * count })
+        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * owned })
       }
-    }
-
-    // Emit modifiers once per owned level.
-    for (const mod of upgrade.modifiers) {
-      emitModifier(mod, owned)
     }
   }
 
@@ -137,29 +132,40 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   if (mode.collectDynamic) {
     for (const mod of mode.collectDynamic(state)) {
       if (generatorIds.has(mod.field)) {
-        const genState = generatorModifiers.get(mod.field)
-        if (!genState) continue
-
-        if (mod.stage === 'additive') {
-          genState.additive += mod.value
-        } else if (mod.stage === 'multiplicative') {
-          genState.multiplicative *= mod.value
-        }
+        const genState = generatorModifiers.get(mod.field)!
+        if (mod.stage === 'additive') genState.additive += mod.value
+        else if (mod.stage === 'multiplicative') genState.multiplicative *= mod.value
       } else {
         modifiers.push(mod)
       }
     }
   }
 
-  // Generator modifiers
+  // Upgrade-level dynamic modifiers — per-upgrade state-derived bonuses
+  for (const upgrade of mode.upgrades) {
+    if (!upgrade.dynamicModifier || (state.upgrades[upgrade.id] ?? 0) <= 0) continue
+    const mod = upgrade.dynamicModifier(state)
+    if (!mod) continue
+    if (generatorIds.has(mod.field)) {
+      const genState = generatorModifiers.get(mod.field)!
+      if (mod.stage === 'additive') genState.additive += mod.value
+      else if (mod.stage === 'multiplicative') genState.multiplicative *= mod.value
+    } else {
+      modifiers.push(mod)
+    }
+  }
+
+  // Generator modifiers — apply accumulated generator-targeted bonuses.
+  // additive: extra rate per generator unit (total bonus = additive × owned).
+  // multiplicative: factor applied to the generator's total output.
   for (const gen of mode.generators) {
     const owned = state.generators[gen.id] ?? 0
     if (owned <= 0) continue
 
-    const genState = generatorModifiers.get(gen.id)
+    const genState = generatorModifiers.get(gen.id)!
     const baseRate = gen.production.rate * owned
-    const additiveBonus = (genState?.additive ?? 0) * owned
-    const effectiveRate = (baseRate + additiveBonus) * (genState?.multiplicative ?? 1)
+    const additiveBonus = genState.additive * owned
+    const effectiveRate = (baseRate + additiveBonus) * genState.multiplicative
 
     modifiers.push({
       stage: 'additive',

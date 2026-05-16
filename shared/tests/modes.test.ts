@@ -167,7 +167,7 @@ describe('collectModifiers', () => {
     expect(additiveClickIncome).toHaveLength(0)
   })
 
-  it('scales repeatable upgrade modifiers by count', () => {
+  it('scales unlimited upgrade modifiers by owned count', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
@@ -191,6 +191,31 @@ describe('collectModifiers', () => {
     )
   })
 
+  it('applies multiplicative generator-targeted upgrades', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g1 = 3
+    state.upgrades.u7 = 1
+    const mods = collectModifiers(state, def)
+
+    // Brewer base rate: 0.2 × 3 = 0.6. u7 ×2 → effective 1.2.
+    const brewerMod = mods.find(
+      (m) => m.field === 'r1' && m.stage === 'additive' && Math.abs(m.value - 1.2) < 0.001,
+    )
+    expect(brewerMod).toBeDefined()
+  })
+
+  it('generator-targeted upgrades have no effect without owned generators', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.upgrades.u6 = 1 // owns upgrade but no generators
+    const mods = collectModifiers(state, def)
+
+    // No generator output modifier should appear for r0 from generators
+    // (only native +1 r0/sec and u6 should not produce any g0 output)
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value > 1)).toBe(false)
+  })
+
   it('calls collectDynamic for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
@@ -208,7 +233,7 @@ describe('collectModifiers', () => {
     state.upgrades.u8 = 1
     const mods = collectModifiers(state, def)
 
-    // floor(120/10)*0.01 = 0.12 → multiplicative 1.12 on r0
+    // 120 * 0.001 = 0.12 → multiplicative 1.12 on r0
     expect(
       mods.some((m) => m.field === 'r0' && m.stage === 'multiplicative' && m.value === 1.12),
     ).toBe(true)
@@ -221,27 +246,26 @@ describe('collectModifiers', () => {
     state.upgrades.u9 = 1
     const mods = collectModifiers(state, def)
 
-    // floor(50/10)*0.01 = 0.05 → multiplicative 1.05 on r1
+    // 50 * 0.001 = 0.05 → multiplicative 1.05 on r1
     expect(
       mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05),
     ).toBe(true)
   })
 
-  it('applies u10 dominant harvesters to the lowest-tier top generator', () => {
+  it('applies u10 dominant harvesters ×2 to the top generator (lowest-tier wins ties)', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     state.generators.g0 = 3
     state.generators.g1 = 3
     state.generators.g2 = 1
-    state.generators.g3 = 0
     state.upgrades.u10 = 1
     const mods = collectModifiers(state, def)
 
-    // g0 should win the tie and produce 3 × 2 = 6 wood per second.
+    // g0 wins tie (lowest-tier), base rate 1.0 × 3 × 2 = 6
     expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 6)).toBe(true)
   })
 
-  it('applies u11 balanced engineering as a global bonus when generator counts are balanced', () => {
+  it('applies u11 balanced engineering as global bonus when generators are balanced', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     state.generators.g0 = 3
@@ -251,55 +275,12 @@ describe('collectModifiers', () => {
     state.upgrades.u11 = 1
     const mods = collectModifiers(state, def)
 
+    // Perfectly balanced → balanceRatio = 1 → bonus = 1.25
     expect(
       mods.some(
         (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative' && m.value === 1.25,
       ),
     ).toBe(true)
-  })
-
-  it('supports finite repeatable upgrades up to maxLevel and blocks further purchases', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    // Add a finite upgrade definition for testing
-    const fin: UpgradeDefinition = {
-      id: 'uF1',
-      cost: 5,
-      costCurrency: 'r0',
-      maxLevel: 3,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
-    }
-    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
-
-    // Give resources and buy three times
-    state.resources.r0 = 100
-    applyPurchase(state, 'uF1', testMode)
-    applyPurchase(state, 'uF1', testMode)
-    applyPurchase(state, 'uF1', testMode)
-    expect(state.upgrades.uF1).toBe(3)
-
-    // Fourth purchase should be blocked
-    applyPurchase(state, 'uF1', testMode)
-    expect(state.upgrades.uF1).toBe(3)
-  })
-
-  it('normalizes loaded state upgrades down to maxLevel when too large', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    const fin: UpgradeDefinition = {
-      id: 'uF2',
-      cost: 5,
-      costCurrency: 'r0',
-      maxLevel: 2,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
-    }
-    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
-
-    // Simulate loading an old save with an overly large count
-    state.upgrades.uF2 = 10
-    // normalize
-    normalizeUpgrades(state, testMode)
-    expect(state.upgrades.uF2).toBe(2)
   })
 })
 
@@ -328,7 +309,7 @@ describe('applyPurchase', () => {
     expect(state.upgrades.u0).toBe(1)
   })
 
-  it('increments count for repeatable upgrades', () => {
+  it('increments count for unlimited upgrades', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r1 = 30
@@ -338,6 +319,46 @@ describe('applyPurchase', () => {
     applyPurchase(state, 'u3', def)
     expect(state.upgrades.u3).toBe(3)
     expect(state.resources.r1).toBe(0)
+  })
+
+  it('blocks purchase when maxLevel is reached', () => {
+    const def = getModeDefinition('idler')
+    const state = makeState(def)
+    const fin: UpgradeDefinition = {
+      id: 'uF1',
+      cost: 5,
+      costCurrency: 'r0',
+      maxLevel: 3,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    state.resources.r0 = 100
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+
+    // Fourth purchase should be blocked
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+  })
+
+  it('normalizes loaded state upgrades down to maxLevel', () => {
+    const def = getModeDefinition('idler')
+    const state = makeState(def)
+    const fin: UpgradeDefinition = {
+      id: 'uF2',
+      cost: 5,
+      costCurrency: 'r0',
+      maxLevel: 2,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    state.upgrades.uF2 = 10
+    normalizeUpgrades(state, testMode)
+    expect(state.upgrades.uF2).toBe(2)
   })
 
   it('does nothing for unknown upgrade ID', () => {
