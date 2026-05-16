@@ -74,11 +74,13 @@ export const clickerMode: ModeDefinition = {
     {
       id: 'u0', // Double Click
       cost: 25,
+      maxLevel: 1,
       modifiers: [{ stage: 'additive', field: 'clickIncome', value: 1 }],
     },
     {
       id: 'u1', // Multiplier
       cost: 100,
+      maxLevel: 1,
       modifiers: [
         { stage: 'multiplicative', field: 'clickIncome', value: 2 },
         { stage: 'multiplicative', field: 'r0', value: 2 },
@@ -87,6 +89,7 @@ export const clickerMode: ModeDefinition = {
     {
       id: 'u2', // The Coronation
       cost: 1000,
+      maxLevel: 1,
       goalType: 'buy-upgrade',
       modifiers: [],
     },

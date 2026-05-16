@@ -127,16 +127,9 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
       }
     }
 
-    if (upgrade.repeatable) {
-      // Repeatable: scale modifier values by the owned count
-      for (const mod of upgrade.modifiers) {
-        emitModifier(mod, owned)
-      }
-    } else {
-      // One-shot upgrade: emit modifiers as-is
-      for (const mod of upgrade.modifiers) {
-        emitModifier(mod, 1)
-      }
+    // Emit modifiers once per owned level.
+    for (const mod of upgrade.modifiers) {
+      emitModifier(mod, owned)
     }
   }
 
@@ -193,13 +186,8 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
 
   const currentLevel = state.upgrades[upgradeId] ?? 0
 
-  // Validate purchase against maxLevel / repeatable semantics
-  if (def.maxLevel !== undefined) {
-    if (currentLevel >= def.maxLevel) return
-  } else if (!def.repeatable) {
-    // one-shot upgrade
-    if (currentLevel >= 1) return
-  }
+  // Validate purchase against maxLevel semantics.
+  if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) return
 
   // Deduct from correct resource
   const costResource = def.costCurrency ?? mode.scoreResource

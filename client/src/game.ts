@@ -348,8 +348,8 @@ export function doBuy(upgradeId: string): void {
   const def = state.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
-  // One-shot upgrades can only be purchased once
-  if (!def.repeatable && (state.player.upgrades[upgradeId] ?? 0) > 0) return
+  const currentLevel = state.player.upgrades[upgradeId] ?? 0
+  if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) return
 
   // All prerequisites must be owned
   for (const pid of def.prerequisites ?? []) {
@@ -501,8 +501,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       const def = state.upgrades.find((u) => u.id === uid)
       if (!def) continue
 
-      // One-shot upgrades can only be applied once
-      if (!def.repeatable && (reconciled.upgrades[uid] ?? 0) > 0) continue
+      const currentLevel = reconciled.upgrades[uid] ?? 0
+      if (def.maxLevel !== undefined && currentLevel >= def.maxLevel) continue
 
       // Skip if any prerequisite isn't owned in the reconciled state
       if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue

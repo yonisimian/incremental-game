@@ -2,239 +2,277 @@
 
 ## Goal
 
-Add support for finite-level (bounded repeatable) upgrades to the upgrade system so an upgrade can be purchased up to a configured maximum number of times (e.g. 3, 5, 7), while keeping existing single-purchase and infinite-repeatable upgrades unchanged.
+Add support for finite-level upgrades in the upgrade system using only `maxLevel` semantics. This simplifies upgrade type handling, eliminates redundant or conflicting states, and makes behavior fully derived from whether `maxLevel` is defined.
 
 ## Summary
 
-This plan introduces a minimal, backward-compatible model for finite repeatable upgrades. The first implementation uses the same cost per level, no cost-scaling and no balance changes. The design covers data model changes, purchase validation, persistence, UI display, tests, and migration/compatibility concerns.
+This plan replaces the previous `repeatable` / `maxLevel` hybrid model with a single, clean `maxLevel`-based design. The first implementation keeps same cost per level, linear level scaling, and no additional balance changes. Existing save data remains compatible because upgrade ownership is already stored as numeric levels.
 
 ---
 
 ## Requirements (restated)
 
-- Support finite repeatable upgrades with a configurable `maxLevel`.
-- Level purchases use the same cost for every level initially.
-- Preserve existing semantics for single-purchase upgrades and infinite (repeatable) upgrades.
-- Provide clear UI feedback for current level and when an upgrade is fully completed.
-- Tests covering model, purchases, persistence, and UI rendering.
+- Use `maxLevel` as the sole upgrade kind discriminator.
+- `maxLevel: 1` = single purchase.
+- `maxLevel: N` = finite repeatable purchase capped at `N` levels.
+- `maxLevel` undefined = infinite repeatable purchase.
+- Same cost per level initially.
+- Modifiers are applied once per purchased level.
+- Preserve existing save compatibility with numeric upgrade levels.
+- Provide clear UI feedback for level progress and capped upgrades.
 
 ---
 
 ## High-level design
 
-Introduce three mutually-distinguishable upgrade kinds:
+Upgrade kind is entirely derived from `maxLevel`:
 
-- Single-purchase: existing behavior (buy once).
-- Infinite repeatable: existing `repeatable` behavior (no max level).
-- Finite repeatable: new behavior with `maxLevel` where purchases stop when `currentLevel === maxLevel`.
+- Single-purchase: `maxLevel: 1`
+- Finite repeatable: `maxLevel: 3`, `5`, `7`, etc.
+- Infinite repeatable: `maxLevel` omitted
 
-Data model changes are intentionally small: extend `UpgradeDefinition` metadata and `PlayerState.upgrades` usage to track current levels where needed.
+Purchase behavior:
+
+- If `maxLevel` is defined, purchases are allowed only while `currentLevel < maxLevel`.
+- If `maxLevel` is undefined, purchases are allowed indefinitely.
+
+Modifier behavior:
+
+- Each purchased level applies the upgrade modifiers once.
+- Current level scaling is linear, and every level uses the same cost.
 
 ---
 
 ## Data model / API changes
 
-Proposed minimal additions to the upgrade types in `shared/src/types.ts` or wherever `UpgradeDefinition` is declared:
+Update `UpgradeDefinition` in `shared/src/types.ts`:
 
-- In `UpgradeDefinition` (optional fields):
-  - `maxLevel?: number` — when present and > 0 indicates finite repeatable upgrade (max allowed purchases).
-  - `repeatable?: boolean` — existing field kept for backward compatibility; `repeatable && !maxLevel` => infinite repeatable.
+- Remove `repeatable` from the model entirely.
+- Add `maxLevel?: number`.
 
-- In `PlayerState.upgrades` (no breaking change):
-  - Current implementation maps upgrade IDs to numeric counts already (e.g. `{ u1: 0 }`). Keep this and interpret the number uniformly as `currentLevel`:
-    - Single-purchase upgrade: `currentLevel` is 0 or 1.
-    - Infinite repeatable: `currentLevel` is the number of purchases.
-    - Finite repeatable: `currentLevel` is number of purchases (0..maxLevel).
+Continue using `PlayerState.upgrades: Record<string, number>` to track `currentLevel`.
 
-Type sketch (conceptual):
+Interpretation:
 
-- `interface UpgradeDefinition { id: string; cost: number; costCurrency?: string; repeatable?: boolean; maxLevel?: number; modifiers: Modifier[]; ... }
-- `PlayerState.upgrades: Record<string, number>` — unchanged.
+- `0` means unowned.
+- `1` means purchased once.
+- `n` means purchased `n` times.
+
+This is backward-compatible with current saves because existing numeric upgrade counts already encode level.
+
+Example type:
+
+```ts
+interface UpgradeDefinition {
+  id: string
+  cost: number
+  costCurrency?: string
+  maxLevel?: number
+  modifiers: readonly Modifier[]
+  category?: UpgradeCategory
+  prerequisites?: readonly string[]
+  position?: UpgradePosition
+  goalType?: Goal['type']
+}
+```
 
 Notes:
 
-- No new runtime shape for `PlayerState` is necessary; the existing numeric value is suitable as `currentLevel`.
-- Prefer `maxLevel` over an `infiniteRepeatable` boolean; `repeatable: true` plus missing `maxLevel` remains infinite.
+- `maxLevel: 1` explicitly represents single-purchase upgrades.
+- `maxLevel` undefined represents infinite repeatable upgrades.
+- `maxLevel: N` with `N > 1` represents finite repeatable upgrades.
 
 ---
 
 ## Purchase validation logic
 
-Centralize purchase validation in `shared/src/modes/index.ts` or `shared/src/index.ts` (the module responsible for `applyPurchase` and game rules).
-
-Rules:
+Use `maxLevel` as the sole decision point for purchase eligibility:
 
 1. Lookup `UpgradeDefinition` for `upgradeId`.
 2. Let `currentLevel = state.upgrades[upgradeId] ?? 0`.
-3. If the upgrade has `maxLevel` defined:
-   - If `currentLevel >= maxLevel` → disallow purchase (already at cap).
-   - Else allow purchase (increment `currentLevel` by 1).
-4. Else if `upgrade.repeatable` is true and no `maxLevel` → allow unlimited purchases (current behavior).
-5. Else (no `repeatable` and no `maxLevel`) → treat as single-purchase: allow only if `currentLevel === 0`.
+3. If `maxLevel` is defined:
+   - Allow purchase only when `currentLevel < maxLevel`.
+   - If `currentLevel >= maxLevel`, disallow purchase.
+4. If `maxLevel` is undefined:
+   - Allow purchase indefinitely.
+
+Expected behavior:
+
+- `maxLevel: 1` acts as a one-shot upgrade.
+- `maxLevel: N` acts as a finite upgrade capped at `N` levels.
+- `maxLevel` undefined acts as an infinite repeatable upgrade.
 
 Implementation notes:
 
-- Keep `applyPurchase(state, upgradeId, mode)` semantics identical in terms of cost deduction and failure modes. Only alter the upgrade-count increment logic to honor `maxLevel`.
-- Ensure purchases are atomic (cost deduction then increment); tests should exercise rollback semantics whenever a purchase would be illegal.
+- `applyPurchase(state, upgradeId, mode)` should deduct cost and increment `currentLevel` only if valid.
+- If purchase cannot proceed, state must remain unchanged and the caller should receive a failure result.
+- Keep logic atomic and easy to test.
 
-Edge cases:
+---
 
-- `maxLevel === 1` is equivalent to a single-purchase upgrade. Either representation is allowed but prefer single-purchase upgrades to be declared without `repeatable`/`maxLevel` for clarity.
+## Modifier behavior
+
+- Modifiers are applied once per purchased level.
+- Level scaling is currently linear: owning `n` levels applies `n` copies of the upgrade modifiers.
+- All levels currently use the same cost.
+
+Example:
+
+A finite upgrade with `modifiers: [{ stage: 'additive', field: 'r0', value: 2 }]` and `currentLevel = 3` contributes `+6` total.
 
 ---
 
 ## State persistence
 
-- No changes needed to the serialized save format: the upgrade counts are already numeric per `PlayerState.upgrades` and continue to represent `currentLevel`.
-- On loading older saves, existing numeric counts remain valid.
-- On loading newer saves with upgrades that define `maxLevel`, ensure UI clamps and treats any existing `currentLevel > maxLevel` as `maxLevel` (migration step). Prefer to log/warn if such mismatch occurs.
+No save format change is required.
 
-Migration step (load path):
+- `PlayerState.upgrades` remains a numeric record.
+- Loaded numeric counts represent `currentLevel`.
+- When `maxLevel` is defined, clamp loaded counts to at most `maxLevel`.
 
-- When reading a saved `PlayerState`, for every `upgradeId` in `state.upgrades`:
-  - If `mode.upgrades` contains an upgrade with `maxLevel` and `state.upgrades[upgradeId] > maxLevel`, set `state.upgrades[upgradeId] = maxLevel`.
-  - Persist the normalized value back into memory (and optionally save file on next autosave).
+Migration step:
+
+- During load, for each upgrade in `state.upgrades`, if the active mode defines `maxLevel` and the saved count exceeds it, set `state.upgrades[upgradeId] = maxLevel`.
 
 ---
 
 ## UI display behavior
 
-Client changes primarily in `client/src/ui/components.ts` (or wherever upgrade buttons are rendered) and the upgrade-tree rendering code:
+Update client upgrade rendering to derive behavior from `maxLevel` only:
 
-- Each upgrade node should show `currentLevel / maxLevel` when `maxLevel` is present.
-  - Example: "Level 2/5" badge or a small progress fraction overlay.
-- When `currentLevel === maxLevel`, node appears visually completed:
-  - Use existing `.owned` semantics for single-purchase, or add a `.completed` class for finite-complete states. `.completed` can reuse `.owned` styling for simplicity.
-  - Disable the purchase action and show tooltip "Fully upgraded".
-- For infinite repeatable upgrades (repeatable && !maxLevel), show current level if > 0 (e.g., `×3` or `Lv.3`), but keep buy action enabled.
-- Ensure keyboard shortcuts / buy-all operations respect `maxLevel` caps.
+- If `maxLevel` is defined, show progress as `currentLevel / maxLevel`.
+- If `currentLevel === maxLevel`, render the upgrade as completed and disable purchase.
+- If `maxLevel` is undefined, keep purchases enabled indefinitely and optionally show current level when helpful.
+- Do not rely on a deprecated `repeatable` flag in the UI.
 
-UI guidelines:
+Completed state:
 
-- Minimize layout churn: add a small level badge next to upgrade cost/name, not a full layout change.
-- Accessibility: include `aria-label` text that reads current level and max (e.g., "Resource Hoarders level 2 of 5").
+- Finite upgrades at cap should appear completed, either via `.owned` styling or a new `.completed` class.
+- Tooltip/ARIA text should communicate the upgrade is fully upgraded.
 
 ---
 
 ## Level tracking and rendering
 
-- Continue using `state.upgrades[id]` as `currentLevel`.
-- Rendering logic reads `currentLevel` and `def.maxLevel` if present.
-- Render states:
-  - `currentLevel === 0`: normal unlocked/locked state applies.
-  - `0 < currentLevel < maxLevel`: show progress badge and enable purchase (if resources available).
-  - `currentLevel === maxLevel`: show completed appearance and disable purchase control.
+- Maintain `state.upgrades[id]` as `currentLevel`.
+- Rendering logic branches on `def.maxLevel`:
+  - `maxLevel: 1` → single-purchase style.
+  - `maxLevel: N` → finite progress style.
+  - `maxLevel` undefined → infinite style.
+- Disable purchase when `currentLevel >= maxLevel` for defined caps.
 
 ---
 
 ## Compatibility with existing upgrades
 
-- Existing single-purchase upgrades — declared without `repeatable` and `maxLevel` — remain unchanged.
-- Existing infinite repeatable upgrades — declared with `repeatable: true` and no `maxLevel` — remain unchanged.
-- If maintainers prefer, convert legacy single-purchase upgrades to `maxLevel: 1` explicitly; not required.
+- Existing single-purchase upgrades are still valid if treated as `maxLevel: 1` conceptually.
+- Existing infinite repeatable upgrades are still valid by leaving `maxLevel` undefined.
+- Existing save data remains compatible because it stores numeric upgrade levels.
+
+Legacy definitions may be migrated to explicit `maxLevel` values in a future cleanup, but that is not required for compatibility.
 
 ---
 
 ## Testing strategy
 
-Add unit and integration tests in `shared/tests` and `client/tests` as follows:
-
 Shared tests (`shared/tests/modes.test.ts`):
 
-- Purchase validation:
-  - Single-purchase cannot be bought twice.
-  - Infinite repeatable increments with each purchase.
-  - Finite repeatable increments up to `maxLevel`, then blocks further purchases.
-- State mutation:
-  - Costs deducted properly for each purchase.
-  - `currentLevel` clamps to `maxLevel` when loading a legacy save with larger counts.
-- Modifier effects:
-  - Finite upgrades whose modifiers scale with `currentLevel` (repeatable semantics) should produce expected modifier sums.
+- Single purchase:
+  - `maxLevel: 1` can be purchased once; second purchase fails.
+- Finite repeatable:
+  - `maxLevel: N` increments from 0 to `N` and rejects further purchases.
+- Infinite repeatable:
+  - no `maxLevel` increments indefinitely.
+- Modifier scaling:
+  - owning `n` levels applies modifiers `n` times.
+- Persistence normalization:
+  - loaded `currentLevel` above `maxLevel` is clamped.
 
 Client tests (`client/tests/components.test.ts`):
 
-- Rendering badge for finite upgrades.
-- `.completed` (or `.owned`) class is applied when `currentLevel === maxLevel`.
-- Buy button is disabled for completed upgrades.
+- Progress badge rendering for finite upgrades.
+- Completed styling when `currentLevel === maxLevel`.
+- Infinite upgrades remain buyable after many levels.
 
 Integration tests:
 
-- Simulate buying levels until `maxLevel` and assert UI and `PlayerState` consistency.
+- Simulate repeated purchases across single, finite, and infinite upgrades and verify state/UI.
 
 ---
 
 ## Example upgrade definitions
 
-- Single purchase (existing):
+- Single purchase:
 
 ```ts
-{ id: 'u1', cost: 25, costCurrency: 'r0', modifiers: [{ stage: 'additive', field: 'r0', value: 5 }] }
+{ id: 'u1', cost: 25, costCurrency: 'r0', maxLevel: 1, modifiers: [{ stage: 'additive', field: 'r0', value: 5 }] }
 ```
 
-- Infinite repeatable (existing):
+- Finite repeatable:
 
 ```ts
-{ id: 'u3', cost: 10, costCurrency: 'r1', repeatable: true, modifiers: [{ stage: 'additive', field: 'r0', value: 5 }] }
+{ id: 'uF1', cost: 20, costCurrency: 'r0', maxLevel: 5, modifiers: [{ stage: 'additive', field: 'r0', value: 2 }] }
 ```
 
-- Finite repeatable (new):
+- Infinite repeatable:
 
 ```ts
-{ id: 'uF1', cost: 20, costCurrency: 'r0', repeatable: true, maxLevel: 5, modifiers: [{ stage: 'additive', field: 'r0', value: 2 }] }
+{ id: 'u3', cost: 10, costCurrency: 'r1', modifiers: [{ stage: 'additive', field: 'r0', value: 5 }] }
 ```
 
-Notes: `repeatable: true` + `maxLevel` indicates finite repeatable. The code should accept `maxLevel` without `repeatable: true` and treat the presence of `maxLevel` as an implicit repeatable definition (implementation may accept both for clarity).
+Notes: `maxLevel` undefined means infinite purchases are allowed.
 
 ---
 
 ## Implementation notes — shared game logic
 
-1. `applyPurchase(state, upgradeId, mode)` (in `shared/src/modes/index.ts`) changes:
-   - After deducting cost, increment `state.upgrades[upgradeId]` only if allowed by `maxLevel`.
-   - Return success/failure status for callers (client UI) to surface errors.
-2. `collectModifiers` should already treat `upgrade.repeatable` by scaling modifiers by `currentLevel`. For finite repeatable upgrades, the `currentLevel` semantic remains the same and no change to modifier application is required.
-3. On state load, clamp `state.upgrades[upgradeId]` to `maxLevel` when defined.
+1. Remove `repeatable` from `UpgradeDefinition` and support only `maxLevel?: number`.
+2. Update purchase validation in `applyPurchase` to use `maxLevel` only.
+3. Keep `state.upgrades[upgradeId]` numeric and increment by 1 on successful purchase.
+4. Clamp loaded counts to `maxLevel` on load.
+5. Continue applying modifiers linearly per level.
 
 ---
 
 ## Implementation notes — client rendering & upgrade tree UI
 
-1. Upgrade button component (e.g., `renderUpgradeButton`) reads `def.maxLevel` and `currentLevel`.
-2. Show a small level badge when `def.maxLevel` is present: `Lv. {currentLevel}/{maxLevel}`.
-3. When `currentLevel === maxLevel`, render as completed and disable the buy handler.
-4. `buy-all` and `buy-cheapest` helpers must respect `maxLevel` and avoid overbuying.
+1. Upgrade rendering should derive status from `def.maxLevel` and `currentLevel`.
+2. Show `Lv. {currentLevel}/{maxLevel}` only when `maxLevel` is defined.
+3. When capped, disable the buy button and show completed appearance.
+4. For infinite upgrades, show current level when helpful, but do not cap purchases.
+5. Ensure buy-all / auto-buy helpers respect `maxLevel`.
 
 ---
 
 ## Save / Load compatibility
 
 - No schema change required for saves; `state.upgrades` remains numeric.
-- On load, clamp values to `maxLevel` and optionally autosave to update save file.
+- On load, clamp values to `maxLevel` where defined.
 
 ---
 
 ## Example test cases (concise)
 
-- Buying finite to cap:
-  - Given `uF1.maxLevel = 3` and resources sufficient, call `applyPurchase` three times: `currentLevel` becomes 3 and fourth purchase fails.
-- UI shows `Lv.3/3` and is disabled.
-- Legacy save with `currentLevel = 10` and `maxLevel = 5` becomes `5` on load.
+- `maxLevel: 1`: purchase once, second purchase fails.
+- `maxLevel: 5`: purchase five times, sixth purchase fails.
+- `maxLevel` undefined: purchase indefinitely.
+- `currentLevel` greater than `maxLevel` on load is reduced to `maxLevel`.
 
 ---
 
 ## Future considerations
 
-- Cost scaling per level (e.g., linear, exponential) — can be added later with `costScaling` or per-level `costs: number[]`.
-- Per-level modifiers: support `modifiersByLevel` or allow modifiers to be interpreted as per-level when `repeatable`.
-- Prestige interactions: how finite upgrades reset on prestige; define policy and tests.
-- UI progress bar / animations for multi-level purchases.
+- Cost scaling per level (e.g., linear, exponential).
+- Per-level modifiers or per-level modifier definitions.
+- Prestige interactions for finite upgrade progress.
+- UI progress bars and purchase animations.
 
 ---
 
 ## Implementation steps (suggested priorities)
 
-1. Update `UpgradeDefinition` typeset to include `maxLevel?: number`.
-2. Modify `applyPurchase` to respect `maxLevel` (as described above).
-3. Add load-time clamping logic in `createInitialState` or the load handler.
-4. Update `client` upgrade rendering to display `currentLevel / maxLevel` and `.completed` state.
-5. Add tests in `shared/tests` and `client/tests` and run the full suite.
+1. Remove `repeatable` from `UpgradeDefinition` and add `maxLevel?: number`.
+2. Update purchase logic to use `maxLevel` only.
+3. Add load-time clamping to enforce `maxLevel`.
+4. Update client UI to render `currentLevel / maxLevel` and completed state.
+5. Add tests for single, finite, and infinite upgrade behavior and run the full suite.

@@ -49,7 +49,8 @@ export class ClickerBot implements BotStrategy {
     if (this.purchaseCooldown >= this.nextPurchaseDelay) {
       const affordable = this.upgrades
         .filter((u) => {
-          if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
+          const currentLevel = state.upgrades[u.id] ?? 0
+          if (u.maxLevel !== undefined && currentLevel >= u.maxLevel) return false
           const costResource = u.costCurrency ?? this.scoreResource
           return (state.resources[costResource] ?? 0) >= u.cost
         })

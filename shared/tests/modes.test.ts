@@ -266,7 +266,6 @@ describe('collectModifiers', () => {
       id: 'uF1',
       cost: 5,
       costCurrency: 'r0',
-      repeatable: true,
       maxLevel: 3,
       modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
     }
@@ -291,7 +290,6 @@ describe('collectModifiers', () => {
       id: 'uF2',
       cost: 5,
       costCurrency: 'r0',
-      repeatable: true,
       maxLevel: 2,
       modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
     }
