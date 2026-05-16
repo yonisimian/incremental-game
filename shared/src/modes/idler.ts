@@ -125,7 +125,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 80,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: 100, y: 400 },
+    position: { x: 700, y: 200 },
     modifiers: [],
     dynamicModifier: (state) => {
       const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
@@ -146,7 +146,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: 80,
     costCurrency: 'r1',
     category: 'tree',
-    position: { x: 300, y: 400 },
+    position: { x: 700, y: 325 },
     modifiers: [],
     dynamicModifier: (state) => {
       const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
