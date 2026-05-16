@@ -102,18 +102,30 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   modifiers.push(...mode.nativeModifiers)
 
   // Upgrade modifiers
+  const generatorIds = new Set(mode.generators.map((g) => g.id))
+  const generatorModifiers = new Map<string, { additive: number; multiplicative: number }>()
+  for (const gen of mode.generators) {
+    generatorModifiers.set(gen.id, { additive: 0, multiplicative: 1 })
+  }
+
   for (const upgrade of mode.upgrades) {
     const owned = state.upgrades[upgrade.id] ?? 0
     if (owned <= 0) continue
 
-    if (upgrade.repeatable) {
-      // Repeatable: scale modifier values by the owned count
-      for (const mod of upgrade.modifiers) {
-        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * owned })
+    const count = upgrade.repeatable ? owned : 1
+    for (const mod of upgrade.modifiers) {
+      if (generatorIds.has(mod.field)) {
+        // Generator-targeted modifier: accumulate for later application.
+        // Additive value is per-generator-unit (multiplied by owned count below).
+        const genState = generatorModifiers.get(mod.field)!
+        if (mod.stage === 'additive') {
+          genState.additive += mod.value * count
+        } else if (mod.stage === 'multiplicative') {
+          genState.multiplicative *= mod.value ** count
+        }
+      } else {
+        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * count })
       }
-    } else {
-      // One-shot upgrade: emit modifiers as-is
-      modifiers.push(...upgrade.modifiers)
     }
   }
 
@@ -122,14 +134,22 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     modifiers.push(...mode.collectDynamic(state))
   }
 
-  // Generator modifiers
+  // Generator modifiers — apply accumulated generator-targeted bonuses.
+  // additive: extra rate per generator unit (total bonus = additive × owned).
+  // multiplicative: factor applied to the generator's total output.
   for (const gen of mode.generators) {
     const owned = state.generators[gen.id] ?? 0
     if (owned <= 0) continue
+
+    const genState = generatorModifiers.get(gen.id)!
+    const baseRate = gen.production.rate * owned
+    const additiveBonus = genState.additive * owned
+    const effectiveRate = (baseRate + additiveBonus) * genState.multiplicative
+
     modifiers.push({
       stage: 'additive',
       field: gen.production.resource,
-      value: gen.production.rate * owned,
+      value: effectiveRate,
     })
   }
 
