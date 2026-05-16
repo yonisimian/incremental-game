@@ -10,6 +10,7 @@ function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinit
   return {
     id: 'test-upgrade',
     cost: 10,
+    purchaseLimit: 1,
     modifiers: [],
     ...overrides,
   }
@@ -120,7 +121,7 @@ describe('canBuy', () => {
   })
 
   it('returns true for unlimited upgrades already owned (with funds)', () => {
-    const u = makeUpgrade({ cost: 10, costCurrency: 'r0', purchaseLimit: 0 })
+    const u = makeUpgrade({ cost: 10, costCurrency: 'r0', purchaseLimit: Infinity })
     const state = makeState({
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 3 },

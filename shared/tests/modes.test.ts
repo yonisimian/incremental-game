@@ -68,11 +68,13 @@ describe('getAvailableUpgrades', () => {
   const untagged: UpgradeDefinition = {
     id: 'untagged',
     cost: 10,
+    purchaseLimit: 1,
     modifiers: [],
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
     cost: 100,
+    purchaseLimit: 1,
     modifiers: [],
     goalType: 'buy-upgrade',
   }

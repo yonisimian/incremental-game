@@ -29,7 +29,7 @@ describe('Bot', () => {
   // ── Bot Strategy Unit Tests ────────────────────────────────────
 
   describe('ClickerBot', () => {
-    const bot = new ClickerBot([{ id: 'u0', cost: 10, modifiers: [] }], 'r0')
+    const bot = new ClickerBot([{ id: 'u0', cost: 10, purchaseLimit: 1, modifiers: [] }], 'r0')
 
     it('produces click actions each tick', () => {
       const state = {
@@ -50,8 +50,8 @@ describe('Bot', () => {
     it('buys cheapest affordable upgrade after cooldown', () => {
       const bot = new ClickerBot(
         [
-          { id: 'u0', cost: 10, modifiers: [] },
-          { id: 'u1', cost: 25, modifiers: [] },
+          { id: 'u0', cost: 10, purchaseLimit: 1, modifiers: [] },
+          { id: 'u1', cost: 25, purchaseLimit: 1, modifiers: [] },
         ],
         'r0',
       )
@@ -96,8 +96,8 @@ describe('Bot', () => {
     it('only clicks when all upgrades are already owned', () => {
       const bot = new ClickerBot(
         [
-          { id: 'u0', cost: 10, modifiers: [] },
-          { id: 'u1', cost: 25, modifiers: [] },
+          { id: 'u0', cost: 10, purchaseLimit: 1, modifiers: [] },
+          { id: 'u1', cost: 25, purchaseLimit: 1, modifiers: [] },
         ],
         'r0',
       )
@@ -125,18 +125,21 @@ describe('Bot', () => {
         id: 'u0' as const,
         cost: 30,
         costCurrency: 'r0' as const,
+        purchaseLimit: 1,
         modifiers: [],
       },
       {
         id: 'u1' as const,
         cost: 25,
         costCurrency: 'r0' as const,
+        purchaseLimit: 1,
         modifiers: [],
       },
       {
         id: 'u2' as const,
         cost: 25,
         costCurrency: 'r1' as const,
+        purchaseLimit: 1,
         modifiers: [],
       },
     ]
@@ -214,6 +217,7 @@ describe('Bot', () => {
           id: 'u4' as const,
           cost: 50,
           costCurrency: 'r0' as const,
+          purchaseLimit: 1,
           prerequisites: ['u1', 'u0', 'u2'],
           modifiers: [],
         },
@@ -221,6 +225,7 @@ describe('Bot', () => {
           id: 'u5' as const,
           cost: 1000,
           costCurrency: 'r0' as const,
+          purchaseLimit: 1,
           goalType: 'buy-upgrade' as const,
           prerequisites: ['u4'],
           modifiers: [],

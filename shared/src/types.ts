@@ -20,9 +20,9 @@ export interface UpgradeDefinition {
   readonly costCurrency?: string
   /**
    * Maximum number of times this upgrade can be purchased.
-   * Defaults to 1 (one-shot). Set to 0 for unlimited purchases.
+   * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.
    */
-  readonly purchaseLimit?: number
+  readonly purchaseLimit: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */

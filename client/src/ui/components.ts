@@ -12,7 +12,6 @@ import {
   getResourceIcon,
   getUpgradeName,
   getUpgradeDescription,
-  getPurchaseLimit,
   isMaxed,
   isUnlimited,
 } from '@game/shared'
@@ -64,9 +63,10 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const affordable = canAfford(state, u)
       const disabled = owned || !affordable
       const hotkey = i + 1
-      const limit = getPurchaseLimit(u)
       const levelLabel =
-        limit > 1 && owned > 0 ? `<span class="upgrade-level">${owned}/${limit}</span>` : ''
+        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
+          : ''
       return `
         <button
           class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
@@ -199,11 +199,12 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const disabled = !buyable
 
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
-      const limit = getPurchaseLimit(u)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
       const costLabel = maxed ? '✓' : `${u.cost} ${emoji}${countLabel}`
       const levelLabel =
-        limit > 1 && owned > 0 ? `<span class="upgrade-level">${owned}/${limit}</span>` : ''
+        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
+          : ''
 
       return `
         <button
