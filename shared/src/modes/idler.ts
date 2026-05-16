@@ -21,23 +21,8 @@ function getHighlight(state: Readonly<PlayerState>): string {
  */
 function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   const highlight = getHighlight(state)
-  const mods: Modifier[] = []
   const sharpenedAxes = state.upgrades.u0 > 0
-  mods.push({ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 })
-
-  // u8: multiplicative bonus to Wood based on banked Wood (+1% per 10 banked)
-  if (state.upgrades.u8 > 0) {
-    const bonus = Math.floor(state.resources.r0 / 10) * 0.01
-    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r0', value: 1 + bonus })
-  }
-
-  // u9: multiplicative bonus to Ale based on banked Ale (+1% per 10 banked)
-  if (state.upgrades.u9 > 0) {
-    const bonus = Math.floor(state.resources.r1 / 10) * 0.01
-    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r1', value: 1 + bonus })
-  }
-
-  return mods
+  return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]
 }
 
 // ─── Upgrades ────────────────────────────────────────────────────────
@@ -116,7 +101,11 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: -200, y: 500 },
     prerequisites: ['u1'],
-    modifiers: [], // dynamic: bonus based on banked r0 (handled in collectIdlerDynamic)
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = state.resources.r0 * 0.001
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r0', value: 1 + bonus } : null
+    },
   },
   {
     id: 'u9', // Cellar Masters
@@ -125,7 +114,11 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 600, y: 500 },
     prerequisites: ['u2'],
-    modifiers: [], // dynamic: bonus based on banked r1 (handled in collectIdlerDynamic)
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = state.resources.r1 * 0.001
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r1', value: 1 + bonus } : null
+    },
   },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
@@ -200,12 +193,12 @@ const idlerFlavor: ModeFlavor = {
     {
       id: 'u8',
       name: '💰 Resource Hoarders',
-      description: '+1% 🪵 production per 10 banked 🪵',
+      description: '+0.1% 🪵 production per banked 🪵',
     },
     {
       id: 'u9',
       name: '🧊 Cellar Masters',
-      description: '+1% 🍺 production per 10 banked 🍺',
+      description: '+0.1% 🍺 production per banked 🍺',
     },
     {
       id: 'u5',
