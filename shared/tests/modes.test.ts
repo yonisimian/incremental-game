@@ -250,6 +250,37 @@ describe('collectModifiers', () => {
       mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05),
     ).toBe(true)
   })
+
+  it('applies u10 dominant harvesters ×2 to the top generator (lowest-tier wins ties)', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g0 = 3
+    state.generators.g1 = 3
+    state.generators.g2 = 1
+    state.upgrades.u10 = 1
+    const mods = collectModifiers(state, def)
+
+    // g0 wins tie (lowest-tier), base rate 1.0 × 3 × 2 = 6
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 6)).toBe(true)
+  })
+
+  it('applies u11 balanced engineering as global bonus when generators are balanced', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g0 = 3
+    state.generators.g1 = 3
+    state.generators.g2 = 3
+    state.generators.g3 = 3
+    state.upgrades.u11 = 1
+    const mods = collectModifiers(state, def)
+
+    // Perfectly balanced → balanceRatio = 1 → bonus = 1.25
+    expect(
+      mods.some(
+        (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative' && m.value === 1.25,
+      ),
+    ).toBe(true)
+  })
 })
 
 // ─── applyPurchase ───────────────────────────────────────────────────
