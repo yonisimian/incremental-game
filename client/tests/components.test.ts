@@ -55,11 +55,11 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400), foremen(0,500), yeast(400,500)
+    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400), foremen(0,500), yeast(400,500), hoarders(100,600), cellar(300,600)
     expect(bounds.minX).toBe(0)
     expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(500)
+    expect(bounds.maxY).toBe(600)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
@@ -96,8 +96,10 @@ describe('renderUpgradeTree', () => {
     // 3 edges: industrial-era ← heavy-logging, industrial-era ← sharpened-axes, industrial-era ← royal-brewery
     // 1 edge: skilled-foremen ← heavy-logging
     // 1 edge: yeast-cultivators ← royal-brewery
+    // 1 edge: resource-hoarders ← heavy-logging
+    // 1 edge: cellar-masters ← royal-brewery
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
-    expect(lineCount).toBe(6)
+    expect(lineCount).toBe(8)
   })
 
   it('marks line as `unlocked` only when child node is unlocked', () => {
@@ -115,19 +117,21 @@ describe('renderUpgradeTree', () => {
       }),
     )
     const unlockedCount = (partial.edgesSvg.match(/class="unlocked"/g) ?? []).length
-    expect(unlockedCount).toBe(2)
+    expect(unlockedCount).toBe(3)
   })
 
   it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState())
-    // u3, u4, u6, u7 have prereqs → all locked
+    // u3, u4, u6, u7, u8, u9 have prereqs → all locked
     expect(nodes).toMatch(/data-upgrade="u3"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u4"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u6"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u7"[^>]*\sdisabled\b/)
+    expect(nodes).toMatch(/data-upgrade="u8"[^>]*\sdisabled\b/)
+    expect(nodes).toMatch(/data-upgrade="u9"[^>]*\sdisabled\b/)
     // .locked class is applied to those nodes
     const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
-    expect(lockedCount).toBe(4)
+    expect(lockedCount).toBe(6)
   })
 
   it('marks one-shot owned upgrades with `.owned` class and disables them', () => {
