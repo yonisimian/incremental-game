@@ -3,4 +3,3 @@ dist/
 coverage/
 .env
 *.local
-PLAN-*.md

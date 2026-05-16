@@ -190,6 +190,31 @@ describe('collectModifiers', () => {
     )
   })
 
+  it('applies multiplicative generator-targeted upgrades', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.generators.g1 = 3
+    state.upgrades.u7 = 1
+    const mods = collectModifiers(state, def)
+
+    // Brewer base rate: 0.2 × 3 = 0.6. u7 ×2 → effective 1.2.
+    const brewerMod = mods.find(
+      (m) => m.field === 'r1' && m.stage === 'additive' && Math.abs(m.value - 1.2) < 0.001,
+    )
+    expect(brewerMod).toBeDefined()
+  })
+
+  it('generator-targeted upgrades have no effect without owned generators', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.upgrades.u6 = 1 // owns upgrade but no generators
+    const mods = collectModifiers(state, def)
+
+    // No generator output modifier should appear for r0 from generators
+    // (only native +1 r0/sec and u6 should not produce any g0 output)
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value > 1)).toBe(false)
+  })
+
   it('calls collectDynamic for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)

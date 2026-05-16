@@ -96,6 +96,8 @@ describe('renderUpgradeTree', () => {
     // 3 edges: industrial-era ← heavy-logging, industrial-era ← sharpened-axes, industrial-era ← royal-brewery
     // 1 edge: skilled-foremen ← heavy-logging
     // 1 edge: yeast-cultivators ← royal-brewery
+    // 1 edge: resource-hoarders ← heavy-logging
+    // 1 edge: cellar-masters ← royal-brewery
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
     expect(lineCount).toBe(8)
   })

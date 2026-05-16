@@ -25,13 +25,13 @@ function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   const sharpenedAxes = state.upgrades.u0 > 0
   mods.push({ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 })
 
-  // u8: provide a small multiplicative bonus to Wood based on hoarded Wood
+  // u8: multiplicative bonus to Wood based on banked Wood (+1% per 10 banked)
   if (state.upgrades.u8 > 0) {
     const bonus = Math.floor(state.resources.r0 / 10) * 0.01
     if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r0', value: 1 + bonus })
   }
 
-  // u9: provide a small multiplicative bonus to Ale based on hoarded Ale
+  // u9: multiplicative bonus to Ale based on banked Ale (+1% per 10 banked)
   if (state.upgrades.u9 > 0) {
     const bonus = Math.floor(state.resources.r1 / 10) * 0.01
     if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r1', value: 1 + bonus })
@@ -96,6 +96,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 0, y: 500 },
     prerequisites: ['u1'],
+    // +4 wood/sec per owned Woodcutter (generator-targeted additive)
     modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
   },
   {
@@ -105,9 +106,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 400, y: 500 },
     prerequisites: ['u2'],
+    // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
   },
-
   {
     id: 'u8', // Resource Hoarders
     cost: 40,
@@ -193,18 +194,18 @@ const idlerFlavor: ModeFlavor = {
     {
       id: 'u6',
       name: '👥 Skilled Foremen',
-      description: '+4 woodcutter output per owned Woodcutter',
+      description: 'Each Woodcutter produces +4 additional 🪵/sec',
     },
-    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
+    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'All Brewers produce ×2 🍺' },
     {
       id: 'u8',
       name: '💰 Resource Hoarders',
-      description: 'More Wood in bank → small production bonus',
+      description: '+1% 🪵 production per 10 banked 🪵',
     },
     {
       id: 'u9',
       name: '🧊 Cellar Masters',
-      description: 'More Ale in bank → small production bonus',
+      description: '+1% 🍺 production per 10 banked 🍺',
     },
     {
       id: 'u5',
