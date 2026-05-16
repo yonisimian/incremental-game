@@ -120,6 +120,45 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
       return bonus > 0 ? { stage: 'multiplicative', field: 'r1', value: 1 + bonus } : null
     },
   },
+  {
+    id: 'u10', // Dominant Harvesters
+    cost: 80,
+    costCurrency: 'r0',
+    category: 'tree',
+    position: { x: 700, y: 200 },
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
+      let winner: (typeof generatorIds)[number] = 'g0'
+      let maxCount = state.generators[winner] ?? 0
+      for (const id of generatorIds) {
+        const count = state.generators[id] ?? 0
+        if (count > maxCount) {
+          maxCount = count
+          winner = id
+        }
+      }
+      return maxCount > 0 ? { stage: 'multiplicative', field: winner, value: 2 } : null
+    },
+  },
+  {
+    id: 'u11', // Balanced Engineering
+    cost: 80,
+    costCurrency: 'r1',
+    category: 'tree',
+    position: { x: 700, y: 325 },
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
+      const counts = generatorIds.map((id) => state.generators[id] ?? 0)
+      const avg = counts.reduce((sum, c) => sum + c, 0) / counts.length
+      if (avg <= 0) return null
+      const deviation = counts.reduce((sum, c) => sum + Math.abs(c - avg), 0) / counts.length
+      const balanceRatio = Math.max(0, 1 - deviation / avg)
+      const bonus = 1 + balanceRatio * 0.25
+      return { stage: 'multiplicative', field: 'globalMultiplier', value: bonus }
+    },
+  },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
@@ -199,6 +238,16 @@ const idlerFlavor: ModeFlavor = {
       id: 'u9',
       name: '🧊 Cellar Masters',
       description: '+0.1% 🍺 production per banked 🍺',
+    },
+    {
+      id: 'u10',
+      name: '🌾 Dominant Harvesters',
+      description: 'Your most-owned generator gets ×2 output',
+    },
+    {
+      id: 'u11',
+      name: '⚖️ Balanced Engineering',
+      description: 'Up to +25% all production when all 4 generator counts are even',
     },
     {
       id: 'u5',
