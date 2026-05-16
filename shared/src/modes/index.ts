@@ -91,9 +91,21 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
 
 // ─── Purchase Helpers ─────────────────────────────────────────────────
 
+const DEFAULT_PURCHASE_LIMIT = 1
+
+/** Resolved purchase limit for an upgrade (never undefined). */
+export function getPurchaseLimit(upgrade: UpgradeDefinition): number {
+  return upgrade.purchaseLimit ?? DEFAULT_PURCHASE_LIMIT
+}
+
+/** Whether an upgrade can be purchased infinitely. */
+export function isUnlimited(upgrade: UpgradeDefinition): boolean {
+  return getPurchaseLimit(upgrade) === 0
+}
+
 /** Whether an upgrade has reached its purchase limit. */
 export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean {
-  const limit = upgrade.purchaseLimit ?? 1
+  const limit = getPurchaseLimit(upgrade)
   return limit > 0 && ownedCount >= limit
 }
 
@@ -215,8 +227,8 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
  */
 export function normalizeUpgrades(state: PlayerState, mode: ModeDefinition): void {
   for (const u of mode.upgrades) {
-    const limit = u.purchaseLimit ?? 1
-    if (limit <= 0) continue // unlimited
+    if (isUnlimited(u)) continue
+    const limit = getPurchaseLimit(u)
     const cur = state.upgrades[u.id] ?? 0
     if (cur > limit) state.upgrades[u.id] = limit
   }
