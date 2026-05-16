@@ -1,4 +1,5 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
+import { isMaxed } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -49,7 +50,8 @@ export class ClickerBot implements BotStrategy {
     if (this.purchaseCooldown >= this.nextPurchaseDelay) {
       const affordable = this.upgrades
         .filter((u) => {
-          if (!u.repeatable && (state.upgrades[u.id] ?? 0) > 0) return false
+          const owned = state.upgrades[u.id] ?? 0
+          if (isMaxed(u, owned)) return false
           const costResource = u.costCurrency ?? this.scoreResource
           return (state.resources[costResource] ?? 0) >= u.cost
         })

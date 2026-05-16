@@ -32,6 +32,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u0', // Sharpened Axes
     cost: 30,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 200, y: 0 },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
@@ -40,6 +41,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u1', // Heavy Logging
     cost: 25,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 0, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
@@ -48,6 +50,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u2', // Royal Brewery
     cost: 25,
     costCurrency: 'r1',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 400, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r1', value: 5 }],
@@ -56,16 +59,17 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u3', // Master Craftsmen
     cost: 10,
     costCurrency: 'r1',
+    purchaseLimit: Infinity,
     category: 'tree',
     position: { x: 500, y: 200 },
     prerequisites: ['u2'],
-    repeatable: true,
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }], // scaled by count
   },
   {
     id: 'u4', // Industrial Era
     cost: 50,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 200, y: 400 },
     prerequisites: ['u1', 'u0', 'u2'],
@@ -78,6 +82,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u6', // Skilled Foremen
     cost: 60,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 0, y: 500 },
     prerequisites: ['u1'],
@@ -88,6 +93,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u7', // Yeast Cultivators
     cost: 60,
     costCurrency: 'r1',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 400, y: 500 },
     prerequisites: ['u2'],
@@ -98,6 +104,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u8', // Resource Hoarders
     cost: 40,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 100, y: 600 },
     prerequisites: ['u1'],
@@ -111,6 +118,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u9', // Cellar Masters
     cost: 40,
     costCurrency: 'r1',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 300, y: 600 },
     prerequisites: ['u2'],
@@ -124,6 +132,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u10', // Dominant Harvesters
     cost: 80,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 700, y: 200 },
     modifiers: [],
@@ -145,6 +154,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u11', // Balanced Engineering
     cost: 80,
     costCurrency: 'r1',
+    purchaseLimit: 1,
     category: 'tree',
     position: { x: 700, y: 325 },
     modifiers: [],
@@ -165,6 +175,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u5', // Royal Throne
     cost: 1000,
     costCurrency: 'r0',
+    purchaseLimit: 1,
     goalType: 'buy-upgrade',
     category: 'tree',
     position: { x: 200, y: 700 },

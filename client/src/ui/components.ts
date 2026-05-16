@@ -12,6 +12,8 @@ import {
   getResourceIcon,
   getUpgradeName,
   getUpgradeDescription,
+  isMaxed,
+  isUnlimited,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -61,6 +63,10 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const affordable = canAfford(state, u)
       const disabled = owned || !affordable
       const hotkey = i + 1
+      const levelLabel =
+        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
+          : ''
       return `
         <button
           class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
@@ -68,6 +74,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
+          ${levelLabel}
           <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon(flavor, modeDef.scoreResource)}${u.cost}`}</span>
           <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
           <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
@@ -101,8 +108,8 @@ interface UpgradeTreeRender {
  *
  * State-class derivation per node (top-down, first match wins):
  *   `.locked`         — !isUnlocked  (overrides everything)
- *   `.owned`          — isUnlocked + owned > 0 + !repeatable
- *   `.too-expensive`  — isUnlocked + !canAfford + not(owned + !repeatable)
+ *   `.owned`          — isUnlocked + reached purchaseLimit
+ *   `.too-expensive`  — isUnlocked + !canAfford + not(capped)
  *   (none)            — buyable
  *
  * `disabled` attr is set whenever the node isn't currently buyable. Hotkey
@@ -180,20 +187,24 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const owned = state.player.upgrades[u.id] ?? 0
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
-      const ownedOneShot = owned > 0 && !u.repeatable
+      const maxed = isMaxed(u, owned)
 
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
-      else if (ownedOneShot) stateClass = 'owned'
+      else if (maxed) stateClass = 'owned'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const buyable = unlocked && affordable && !ownedOneShot
+      const buyable = unlocked && affordable && !maxed
       const disabled = !buyable
 
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
-      const count = u.repeatable ? owned : 0
-      const costLabel = ownedOneShot ? '✓' : `${u.cost} ${emoji}${count > 0 ? ` (×${count})` : ''}`
+      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+      const costLabel = maxed ? '✓' : `${u.cost} ${emoji}${countLabel}`
+      const levelLabel =
+        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
+          : ''
 
       return `
         <button
@@ -203,6 +214,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
+          ${levelLabel}
           <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
         </button>

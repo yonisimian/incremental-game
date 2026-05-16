@@ -206,9 +206,9 @@ describe('simulate — prerequisite enforcement', () => {
   })
 })
 
-// ─── Repeatable upgrade (u3) ─────────────────────────────────────────
+// ─── Unlimited upgrade (u3) ──────────────────────────────────────────
 
-describe('simulate — repeatable upgrade stacking', () => {
+describe('simulate — unlimited upgrade stacking', () => {
   // Buy u2 first (prereq), then buy u3 twice. Each u3 adds +5 r0/s.
   const result = simulate(
     { name: 'RB→MC×2', actions: [hl('r1'), buy('u2'), buy('u3'), buy('u3'), hl('r0')] },

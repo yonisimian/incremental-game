@@ -10,6 +10,7 @@ function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinit
   return {
     id: 'test-upgrade',
     cost: 10,
+    purchaseLimit: 1,
     modifiers: [],
     ...overrides,
   }
@@ -82,7 +83,7 @@ describe('isUnlocked', () => {
     expect(isUnlocked(state, u)).toBe(false)
   })
 
-  it('returns true when prerequisite is owned multiple times (repeatable parent)', () => {
+  it('returns true when prerequisite is owned multiple times (unlimited parent)', () => {
     const u = makeUpgrade({ prerequisites: ['stackable-parent'] })
     const state = makeState({ upgrades: { 'stackable-parent': 5 } })
     expect(isUnlocked(state, u)).toBe(true)
@@ -119,8 +120,8 @@ describe('canBuy', () => {
     expect(canBuy(state, u)).toBe(false)
   })
 
-  it('returns true for repeatable upgrade already owned (with funds)', () => {
-    const u = makeUpgrade({ cost: 10, costCurrency: 'r0', repeatable: true })
+  it('returns true for unlimited upgrades already owned (with funds)', () => {
+    const u = makeUpgrade({ cost: 10, costCurrency: 'r0', purchaseLimit: Infinity })
     const state = makeState({
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 3 },
