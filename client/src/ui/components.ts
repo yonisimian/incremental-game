@@ -61,6 +61,10 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const affordable = canAfford(state, u)
       const disabled = owned || !affordable
       const hotkey = i + 1
+      const levelLabel =
+        u.maxLevel !== undefined && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.maxLevel}</span>`
+          : ''
       return `
         <button
           class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
@@ -68,6 +72,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
+          ${levelLabel}
           <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon(flavor, modeDef.scoreResource)}${u.cost}`}</span>
           <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
           <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
@@ -194,6 +199,10 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const countLabel = u.maxLevel === undefined && owned > 0 ? ` (×${owned})` : ''
       const costLabel = maxed ? '✓' : `${u.cost} ${emoji}${countLabel}`
+      const levelLabel =
+        u.maxLevel !== undefined && owned > 0
+          ? `<span class="upgrade-level">${owned}/${u.maxLevel}</span>`
+          : ''
 
       return `
         <button
@@ -203,6 +212,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
           ${disabled ? 'disabled' : ''}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
+          ${levelLabel}
           <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
         </button>
