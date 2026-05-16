@@ -14,6 +14,7 @@ import {
   computePassiveRates,
   createInitialState,
   getModeDefinition,
+  isMaxed,
 } from '@game/shared'
 import type { Strategy, StrategyAction } from './strategies.js'
 
@@ -47,8 +48,8 @@ function canAfford(state: PlayerState, action: StrategyAction, modeDef: ModeDefi
     const def = modeDef.upgrades.find((u) => u.id === action.upgradeId)
     if (!def) return false
 
-    // One-shot upgrades can only be purchased once
-    if (!def.repeatable && (state.upgrades[action.upgradeId] ?? 0) > 0) return false
+    const owned = state.upgrades[action.upgradeId] ?? 0
+    if (isMaxed(def, owned)) return false
 
     // Check prerequisites
     if (def.prerequisites?.some((pid) => (state.upgrades[pid] ?? 0) <= 0)) return false

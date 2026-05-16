@@ -666,7 +666,7 @@ describe('game.ts', () => {
       expect(game.getState().player.resources.r1).toBe(0)
     })
 
-    it('allows buying repeatable upgrades multiple times', () => {
+    it('allows buying unlimited upgrades multiple times', () => {
       enterIdlerPlaying(game)
       giveR1(game, 30)
       game.doBuy('u3') // prereq: u2
@@ -696,7 +696,7 @@ describe('game.ts', () => {
       expect(game.getState().player.upgrades.u0).toBe(0)
     })
 
-    it('rejects repeatable buy when insufficient funds', () => {
+    it('rejects unlimited buy when insufficient funds', () => {
       enterIdlerPlaying(game)
       // Give u2 prereq + some r1
       game.handleServerMessage(

@@ -1,4 +1,4 @@
-import { MAX_CPS, canAffordGenerator } from '@game/shared'
+import { MAX_CPS, canAffordGenerator, isMaxed } from '@game/shared'
 import type {
   GeneratorDefinition,
   ModeDefinition,
@@ -29,7 +29,7 @@ export function isValidClick(recentTimestamps: number[]): boolean {
 /**
  * Validate a purchase action.
  * Returns true if the player can afford the upgrade, doesn't already own it
- * (or can re-buy it if repeatable), and all prerequisites are owned.
+ * beyond its max level, and all prerequisites are owned.
  */
 export function isValidPurchase(
   state: PlayerState,
@@ -40,8 +40,8 @@ export function isValidPurchase(
   const def = upgradeMap.get(upgradeId)
   if (!def) return false
 
-  // One-shot upgrades can only be purchased once
-  if (!def.repeatable && (state.upgrades[upgradeId] ?? 0) > 0) return false
+  const owned = state.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return false
 
   // All prerequisites must be owned (count > 0)
   for (const pid of def.prerequisites ?? []) {

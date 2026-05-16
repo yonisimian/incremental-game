@@ -6,6 +6,7 @@ import {
   createInitialState,
   collectModifiers,
   applyPurchase,
+  normalizeUpgrades,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -67,11 +68,13 @@ describe('getAvailableUpgrades', () => {
   const untagged: UpgradeDefinition = {
     id: 'untagged',
     cost: 10,
+    purchaseLimit: 1,
     modifiers: [],
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
     cost: 100,
+    purchaseLimit: 1,
     modifiers: [],
     goalType: 'buy-upgrade',
   }
@@ -166,7 +169,7 @@ describe('collectModifiers', () => {
     expect(additiveClickIncome).toHaveLength(0)
   })
 
-  it('scales repeatable upgrade modifiers by count', () => {
+  it('scales unlimited upgrade modifiers by owned count', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
@@ -308,7 +311,7 @@ describe('applyPurchase', () => {
     expect(state.upgrades.u0).toBe(1)
   })
 
-  it('increments count for repeatable upgrades', () => {
+  it('increments count for unlimited upgrades', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r1 = 30
@@ -318,6 +321,46 @@ describe('applyPurchase', () => {
     applyPurchase(state, 'u3', def)
     expect(state.upgrades.u3).toBe(3)
     expect(state.resources.r1).toBe(0)
+  })
+
+  it('blocks purchase when purchaseLimit is reached', () => {
+    const def = getModeDefinition('idler')
+    const state = makeState(def)
+    const fin: UpgradeDefinition = {
+      id: 'uF1',
+      cost: 5,
+      costCurrency: 'r0',
+      purchaseLimit: 3,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    state.resources.r0 = 100
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+
+    // Fourth purchase should be blocked
+    applyPurchase(state, 'uF1', testMode)
+    expect(state.upgrades.uF1).toBe(3)
+  })
+
+  it('normalizes loaded state upgrades down to purchaseLimit', () => {
+    const def = getModeDefinition('idler')
+    const state = makeState(def)
+    const fin: UpgradeDefinition = {
+      id: 'uF2',
+      cost: 5,
+      costCurrency: 'r0',
+      purchaseLimit: 2,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+    }
+    const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
+
+    state.upgrades.uF2 = 10
+    normalizeUpgrades(state, testMode)
+    expect(state.upgrades.uF2).toBe(2)
   })
 
   it('does nothing for unknown upgrade ID', () => {

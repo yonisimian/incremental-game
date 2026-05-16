@@ -18,6 +18,7 @@ import {
   computeClickIncome as pipelineClickIncome,
   canAffordGenerator,
   applyGeneratorPurchase,
+  isMaxed,
 } from '@game/shared'
 import {
   getSeq,
@@ -348,8 +349,8 @@ export function doBuy(upgradeId: string): void {
   const def = state.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
-  // One-shot upgrades can only be purchased once
-  if (!def.repeatable && (state.player.upgrades[upgradeId] ?? 0) > 0) return
+  const owned = state.player.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return
 
   // All prerequisites must be owned
   for (const pid of def.prerequisites ?? []) {
@@ -501,8 +502,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       const def = state.upgrades.find((u) => u.id === uid)
       if (!def) continue
 
-      // One-shot upgrades can only be applied once
-      if (!def.repeatable && (reconciled.upgrades[uid] ?? 0) > 0) continue
+      const owned = reconciled.upgrades[uid] ?? 0
+      if (isMaxed(def, owned)) continue
 
       // Skip if any prerequisite isn't owned in the reconciled state
       if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue
@@ -601,7 +602,7 @@ function stopCountdown(): void {
 
 // ─── Private: helpers ────────────────────────────────────────────────
 
-/** Mark an upgrade as owned. Repeatable upgrades increment count; one-shot set to 1. */
+/** Increment the owned count of an upgrade. */
 function grantUpgrade(player: PlayerState, uid: string): void {
   player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
 }

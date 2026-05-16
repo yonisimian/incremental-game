@@ -1,5 +1,5 @@
 import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/shared'
-import { getModeDefinition, getUpgradeName } from '@game/shared'
+import { getModeDefinition, getUpgradeName, isMaxed } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 
@@ -80,7 +80,7 @@ export function formatScore(score: number, state: Readonly<GameState>): string {
 /** Can the player afford this upgrade (and is it still purchasable)? */
 export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
   const owned = state.player.upgrades[u.id] ?? 0
-  if (!u.repeatable && owned > 0) return false
+  if (isMaxed(u, owned)) return false
   if (!state.mode) return false
   const modeDef = getModeDefinition(state.mode)
   const costResource = u.costCurrency ?? modeDef.scoreResource

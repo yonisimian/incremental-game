@@ -18,8 +18,11 @@ export interface UpgradeDefinition {
   readonly cost: number
   /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
   readonly costCurrency?: string
-  /** If true, the upgrade can be purchased multiple times. */
-  readonly repeatable?: boolean
+  /**
+   * Maximum number of times this upgrade can be purchased.
+   * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.
+   */
+  readonly purchaseLimit: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
@@ -69,7 +72,7 @@ export interface PlayerState {
   score: number
   /** Spendable resources, keyed by resource name. */
   resources: Record<string, number>
-  /** Owned upgrades. 0 = not owned, 1 = one-shot owned, n = repeatable buy count. */
+  /** Owned upgrades. 0 = not owned, 1 = one-shot owned, n = purchase count. */
   upgrades: Record<string, number>
   /** Owned generators, keyed by generator ID. */
   generators: Record<string, number>

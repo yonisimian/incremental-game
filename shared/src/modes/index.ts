@@ -89,6 +89,18 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
   }
 }
 
+// ─── Purchase Helpers ─────────────────────────────────────────────────
+
+/** Whether an upgrade can be purchased infinitely. */
+export function isUnlimited(upgrade: UpgradeDefinition): boolean {
+  return upgrade.purchaseLimit === Infinity
+}
+
+/** Whether an upgrade has reached its purchase limit. */
+export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean {
+  return ownedCount >= upgrade.purchaseLimit
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**
@@ -112,19 +124,18 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     const owned = state.upgrades[upgrade.id] ?? 0
     if (owned <= 0) continue
 
-    const count = upgrade.repeatable ? owned : 1
     for (const mod of upgrade.modifiers) {
       if (generatorIds.has(mod.field)) {
         // Generator-targeted modifier: accumulate for later application.
         // Additive value is per-generator-unit (multiplied by owned count below).
         const genState = generatorModifiers.get(mod.field)!
         if (mod.stage === 'additive') {
-          genState.additive += mod.value * count
+          genState.additive += mod.value * owned
         } else if (mod.stage === 'multiplicative') {
-          genState.multiplicative *= mod.value ** count
+          genState.multiplicative *= mod.value ** owned
         }
       } else {
-        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * count })
+        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * owned })
       }
     }
   }
@@ -191,10 +202,25 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   const def = mode.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
+  const owned = state.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return
+
   // Deduct from correct resource
   const costResource = def.costCurrency ?? mode.scoreResource
   state.resources[costResource] = (state.resources[costResource] ?? 0) - def.cost
 
   // Grant upgrade
-  state.upgrades[upgradeId] = (state.upgrades[upgradeId] ?? 0) + 1
+  state.upgrades[upgradeId] = owned + 1
+}
+
+/**
+ * Normalize upgrade counts in a loaded `PlayerState` to respect `purchaseLimit`.
+ * Useful for migration when loading older save files.
+ */
+export function normalizeUpgrades(state: PlayerState, mode: ModeDefinition): void {
+  for (const u of mode.upgrades) {
+    if (isUnlimited(u)) continue
+    const cur = state.upgrades[u.id] ?? 0
+    if (cur > u.purchaseLimit) state.upgrades[u.id] = u.purchaseLimit
+  }
 }
