@@ -48,8 +48,8 @@ function canAfford(state: PlayerState, action: StrategyAction, modeDef: ModeDefi
     const def = modeDef.upgrades.find((u) => u.id === action.upgradeId)
     if (!def) return false
 
-    const currentLevel = state.upgrades[action.upgradeId] ?? 0
-    if (isMaxed(def, currentLevel)) return false
+    const owned = state.upgrades[action.upgradeId] ?? 0
+    if (isMaxed(def, owned)) return false
 
     // Check prerequisites
     if (def.prerequisites?.some((pid) => (state.upgrades[pid] ?? 0) <= 0)) return false

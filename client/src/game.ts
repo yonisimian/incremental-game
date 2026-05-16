@@ -349,8 +349,8 @@ export function doBuy(upgradeId: string): void {
   const def = state.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
-  const currentLevel = state.player.upgrades[upgradeId] ?? 0
-  if (isMaxed(def, currentLevel)) return
+  const owned = state.player.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return
 
   // All prerequisites must be owned
   for (const pid of def.prerequisites ?? []) {
@@ -502,8 +502,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       const def = state.upgrades.find((u) => u.id === uid)
       if (!def) continue
 
-      const currentLevel = reconciled.upgrades[uid] ?? 0
-      if (isMaxed(def, currentLevel)) continue
+      const owned = reconciled.upgrades[uid] ?? 0
+      if (isMaxed(def, owned)) continue
 
       // Skip if any prerequisite isn't owned in the reconciled state
       if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue
@@ -602,7 +602,7 @@ function stopCountdown(): void {
 
 // ─── Private: helpers ────────────────────────────────────────────────
 
-/** Mark an upgrade as owned. Repeatable upgrades increment count; one-shot set to 1. */
+/** Increment the owned count of an upgrade. */
 function grantUpgrade(player: PlayerState, uid: string): void {
   player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
 }

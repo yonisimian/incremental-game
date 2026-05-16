@@ -40,8 +40,8 @@ export function isValidPurchase(
   const def = upgradeMap.get(upgradeId)
   if (!def) return false
 
-  const currentLevel = state.upgrades[upgradeId] ?? 0
-  if (isMaxed(def, currentLevel)) return false
+  const owned = state.upgrades[upgradeId] ?? 0
+  if (isMaxed(def, owned)) return false
 
   // All prerequisites must be owned (count > 0)
   for (const pid of def.prerequisites ?? []) {
