@@ -247,7 +247,7 @@ const idlerFlavor: ModeFlavor = {
     {
       id: 'u11',
       name: '⚖️ Balanced Engineering',
-      description: 'Up to +25% all production when generator counts are balanced',
+      description: 'Up to +25% all production when all 4 generator counts are even',
     },
     {
       id: 'u5',
