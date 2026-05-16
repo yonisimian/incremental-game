@@ -134,6 +134,13 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     modifiers.push(...mode.collectDynamic(state))
   }
 
+  // Upgrade-level dynamic modifiers — per-upgrade state-derived bonuses
+  for (const upgrade of mode.upgrades) {
+    if (!upgrade.dynamicModifier || (state.upgrades[upgrade.id] ?? 0) <= 0) continue
+    const mod = upgrade.dynamicModifier(state)
+    if (mod) modifiers.push(mod)
+  }
+
   // Generator modifiers — apply accumulated generator-targeted bonuses.
   // additive: extra rate per generator unit (total bonus = additive × owned).
   // multiplicative: factor applied to the generator's total output.

@@ -94,6 +94,32 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
   },
+  {
+    id: 'u8', // Resource Hoarders
+    cost: 40,
+    costCurrency: 'r0',
+    category: 'tree',
+    position: { x: 100, y: 600 },
+    prerequisites: ['u1'],
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = Math.min(state.resources.r0 * 0.001, 1)
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r0', value: 1 + bonus } : null
+    },
+  },
+  {
+    id: 'u9', // Cellar Masters
+    cost: 40,
+    costCurrency: 'r1',
+    category: 'tree',
+    position: { x: 300, y: 600 },
+    prerequisites: ['u2'],
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = Math.min(state.resources.r1 * 0.001, 1)
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r1', value: 1 + bonus } : null
+    },
+  },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
@@ -102,7 +128,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     goalType: 'buy-upgrade',
     category: 'tree',
-    position: { x: 200, y: 600 },
+    position: { x: 200, y: 700 },
     prerequisites: ['u4'],
     modifiers: [],
   },
@@ -164,6 +190,16 @@ const idlerFlavor: ModeFlavor = {
       description: 'Each Woodcutter produces +4 additional 🪵/sec',
     },
     { id: 'u7', name: '🍺 Yeast Cultivators', description: 'All Brewers produce ×2 🍺' },
+    {
+      id: 'u8',
+      name: '💰 Resource Hoarders',
+      description: '+0.1% 🪵 production per banked 🪵',
+    },
+    {
+      id: 'u9',
+      name: '🧊 Cellar Masters',
+      description: '+0.1% 🍺 production per banked 🍺',
+    },
     {
       id: 'u5',
       name: '👑 Royal Throne',
