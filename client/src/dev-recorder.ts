@@ -29,6 +29,10 @@ export interface LiveSnapshot {
   resources: Record<string, number>
   /** Passive income rates per resource. */
   incomePerSec: Record<string, number>
+  /** Owned upgrade counts (keyed by upgrade id). */
+  upgrades: Record<string, number>
+  /** Owned generator counts (keyed by generator id). */
+  generators: Record<string, number>
   /** Current game mode. */
   mode: GameMode
   /** Round duration. */
@@ -110,6 +114,8 @@ export function recorderTick(player: Readonly<PlayerState>, timeLeft: number): v
     score: player.score,
     resources: { ...player.resources },
     incomePerSec: rates,
+    upgrades: { ...player.upgrades },
+    generators: { ...player.generators },
     mode: currentMode,
     roundDurationSec: currentRoundDurationSec,
   }

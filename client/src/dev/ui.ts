@@ -3,7 +3,13 @@
  */
 
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, AVAILABLE_MODES } from '@game/shared'
+import {
+  getModeDefinition,
+  AVAILABLE_MODES,
+  getUpgradeName,
+  getUpgradeDescription,
+  getGeneratorName,
+} from '@game/shared'
 import { IDLER_STRATEGIES, UPGRADE_ABBR } from './strategies.js'
 import type { Strategy } from './strategies.js'
 import { simulate } from './simulate.js'
@@ -43,12 +49,17 @@ export function initDevPanel(root: HTMLElement): void {
   const incomeChart = root.querySelector<HTMLDivElement>('#chart-income')!
   const resourceCharts = root.querySelector<HTMLDivElement>('#chart-resources')!
   const summaryBody = root.querySelector<HTMLTableSectionElement>('#summary-body')!
+  const statsSection = root.querySelector<HTMLElement>('.dev-statistics')!
+  const statsStrategySelect = root.querySelector<HTMLSelectElement>('#stats-strategy-select')!
+  const statsContent = root.querySelector<HTMLDivElement>('#stats-content')!
 
   // ── Live pane elements ──
   const liveStatus = root.querySelector<HTMLDivElement>('#live-status')!
   const liveScoreChart = root.querySelector<HTMLDivElement>('#live-chart-score')!
   const liveIncomeChart = root.querySelector<HTMLDivElement>('#live-chart-income')!
   const liveResourceCharts = root.querySelector<HTMLDivElement>('#live-chart-resources')!
+  const liveStatsSection = root.querySelector<HTMLElement>('#live-statistics')!
+  const liveStatsContent = root.querySelector<HTMLDivElement>('#live-stats-content')!
 
   // ── Tab switching ──
   function switchTab(tab: 'simulation' | 'live'): void {
@@ -60,6 +71,7 @@ export function initDevPanel(root: HTMLElement): void {
       startLiveListener((state) => {
         renderLiveStatus(liveStatus, state)
         renderLiveCharts(state, liveScoreChart, liveIncomeChart, liveResourceCharts)
+        renderLiveStatistics(state, liveStatsSection, liveStatsContent)
       })
       // Render existing state (if any) now that the pane is visible
       const current = getLiveState()
@@ -117,10 +129,26 @@ export function initDevPanel(root: HTMLElement): void {
     requestAnimationFrame(() => {
       lastResults = checked.map((s) => simulate(s, mode))
       renderResults(lastResults, mode, scoreChart, incomeChart, resourceCharts, summaryBody)
+
+      // Show statistics section and populate strategy selector
+      statsSection.classList.remove('hidden')
+      statsStrategySelect.innerHTML = lastResults
+        .map((r, i) => `<option value="${i}">${r.name}</option>`)
+        .join('')
+      renderStatistics(lastResults[0], mode, statsContent)
+
       runBtn.disabled = false
       runBtn.textContent = '▶ Run'
       csvBtn.disabled = false
     })
+  })
+
+  statsStrategySelect.addEventListener('change', () => {
+    const idx = Number(statsStrategySelect.value)
+    const mode = modeSelect.value as GameMode
+    if (lastResults[idx]) {
+      renderStatistics(lastResults[idx], mode, statsContent)
+    }
   })
 }
 
@@ -170,6 +198,14 @@ function buildLayout(): string {
           <tbody id="summary-body"></tbody>
         </table>
       </section>
+      <section class="dev-statistics hidden">
+        <h2>Statistics</h2>
+        <label>
+          Strategy:
+          <select id="stats-strategy-select"></select>
+        </label>
+        <div id="stats-content"></div>
+      </section>
     </div>
     <div id="pane-live" class="hidden">
       <section class="dev-live-info">
@@ -182,6 +218,10 @@ function buildLayout(): string {
         <div id="live-chart-score"></div>
         <div id="live-chart-income"></div>
         <div id="live-chart-resources"></div>
+      </section>
+      <section class="dev-statistics hidden" id="live-statistics">
+        <h2>Statistics</h2>
+        <div id="live-stats-content"></div>
       </section>
     </div>
   `
@@ -304,6 +344,166 @@ function renderResults(
     .join('')
 }
 
+// ─── Statistics ──────────────────────────────────────────────────────
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function renderStatistics(result: SimResult, mode: GameMode, container: HTMLDivElement): void {
+  const modeDef = getModeDefinition(mode)
+  const { finalState, purchaseLog } = result
+
+  // ── Purchase timeline table ──
+  let timelineHtml = `<h3>Purchase Timeline</h3>`
+  if (purchaseLog.length === 0) {
+    timelineHtml += `<p class="stats-empty">No purchases made.</p>`
+  } else {
+    timelineHtml += `<table class="stats-table"><thead><tr>
+      <th>#</th><th>Time</th><th>Purchase</th><th>Description</th>
+    </tr></thead><tbody>`
+    timelineHtml += purchaseLog
+      .map((p, i) => {
+        const isGenerator = modeDef.generators.some((g) => g.id === p.id)
+        const name = isGenerator
+          ? escapeHtml(getGeneratorName(modeDef.flavor, p.id))
+          : escapeHtml(getUpgradeName(modeDef.flavor, p.id))
+        const desc = isGenerator ? '' : escapeHtml(getUpgradeDescription(modeDef.flavor, p.id))
+        return `<tr>
+          <td>${i + 1}</td>
+          <td>${p.timeSec.toFixed(1)}s</td>
+          <td>${name}</td>
+          <td>${desc || '—'}</td>
+        </tr>`
+      })
+      .join('')
+    timelineHtml += `</tbody></table>`
+  }
+
+  // ── Income breakdown (upgrades + generators) ──
+  let breakdownHtml = `<h3>Income Breakdown (End State)</h3>`
+  const rows: { name: string; resource: string; rate: string; pct: string }[] = []
+
+  // Native (base) income
+  for (const mod of modeDef.nativeModifiers) {
+    if (
+      mod.stage === 'additive' &&
+      mod.field !== 'clickIncome' &&
+      mod.field !== 'globalMultiplier'
+    ) {
+      const resFlavor = modeDef.flavor.resources.find((r) => r.key === mod.field)
+      rows.push({
+        name: 'Base income',
+        resource: resFlavor?.displayName ?? mod.field,
+        rate: `${mod.value.toFixed(2)}/s`,
+        pct: '', // computed below
+      })
+    }
+  }
+
+  // Upgrade contributions
+  for (const upgrade of modeDef.upgrades) {
+    const owned = finalState.upgrades[upgrade.id] ?? 0
+    if (owned <= 0) continue
+    for (const mod of upgrade.modifiers) {
+      if (mod.field === 'clickIncome' || mod.field === 'globalMultiplier') continue
+      const effectiveValue = upgrade.repeatable ? mod.value * owned : mod.value
+      const resFlavor = modeDef.flavor.resources.find((r) => r.key === mod.field)
+      const upgradeName = escapeHtml(getUpgradeName(modeDef.flavor, upgrade.id))
+      const countSuffix = owned > 1 ? ` ×${owned}` : ''
+      rows.push({
+        name: `${upgradeName}${countSuffix}`,
+        resource: resFlavor?.displayName ?? mod.field,
+        rate:
+          mod.stage === 'additive'
+            ? `+${effectiveValue.toFixed(2)}/s`
+            : `×${effectiveValue.toFixed(2)}`,
+        pct: '',
+      })
+    }
+  }
+
+  // Generator contributions
+  for (const gen of modeDef.generators) {
+    const owned = finalState.generators[gen.id] ?? 0
+    if (owned <= 0) continue
+    const resFlavor = modeDef.flavor.resources.find((r) => r.key === gen.production.resource)
+    const genName = escapeHtml(getGeneratorName(modeDef.flavor, gen.id))
+    rows.push({
+      name: `${genName} ×${owned}`,
+      resource: resFlavor?.displayName ?? gen.production.resource,
+      rate: `+${(gen.production.rate * owned).toFixed(2)}/s`,
+      pct: '',
+    })
+  }
+
+  // Compute % share from final income snapshot.
+  // NOTE: share is relative to the post-multiplier total income; when global
+  // multipliers are active the additive shares won't sum to 100%.
+  const finalSnap = result.snapshots.at(-1)
+  if (finalSnap) {
+    for (const row of rows) {
+      if (row.rate.startsWith('+')) {
+        const resKey =
+          modeDef.flavor.resources.find((r) => r.displayName === row.resource)?.key ?? row.resource
+        const totalIncome = finalSnap.incomePerSec[resKey] ?? 0
+        if (totalIncome > 0) {
+          const rawRate = parseFloat(row.rate.slice(1))
+          row.pct = `${((rawRate / totalIncome) * 100).toFixed(0)}%`
+        }
+      }
+    }
+  }
+
+  if (rows.length === 0) {
+    breakdownHtml += `<p class="stats-empty">No income sources.</p>`
+  } else {
+    breakdownHtml += `<table class="stats-table"><thead><tr>
+      <th>Source</th><th>Resource</th><th>Rate</th><th>Share</th>
+    </tr></thead><tbody>`
+    breakdownHtml += rows
+      .map(
+        (r) => `<tr>
+          <td>${r.name}</td>
+          <td>${r.resource}</td>
+          <td>${r.rate}</td>
+          <td>${r.pct || '—'}</td>
+        </tr>`,
+      )
+      .join('')
+    breakdownHtml += `</tbody></table>`
+  }
+
+  container.innerHTML = timelineHtml + breakdownHtml
+}
+
+let lastLiveStatsRenderTime = 0
+
+function renderLiveStatistics(
+  state: Readonly<LiveState>,
+  section: HTMLElement,
+  container: HTMLDivElement,
+): void {
+  if (!state.mode || state.snapshots.length === 0) {
+    section.classList.add('hidden')
+    return
+  }
+  // Throttle to match live chart cadence
+  const now = Date.now()
+  if (state.status === 'recording' && now - lastLiveStatsRenderTime < LIVE_RENDER_INTERVAL_MS)
+    return
+  lastLiveStatsRenderTime = now
+
+  section.classList.remove('hidden')
+  const result = liveStateToSimResult(state)
+  if (!result) return
+  renderStatistics(result, state.mode, container)
+}
+
 // ─── CSV export ──────────────────────────────────────────────────────
 
 function exportCsv(results: SimResult[]): void {
@@ -394,7 +594,7 @@ function renderLiveCharts(
   const result = liveStateToSimResult(state)
   if (!result || !state.mode) return
 
-  const modeDef = getModeDefinition(state.mode as GameMode)
+  const modeDef = getModeDefinition(state.mode)
   const xData = result.snapshots.map((s) => s.timeSec)
 
   // Score chart

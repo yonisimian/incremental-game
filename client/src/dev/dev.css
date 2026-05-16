@@ -313,6 +313,75 @@ body {
   color: var(--dev-muted);
 }
 
+/* ─── Statistics ──────────────────────────────────────────────────── */
+
+.dev-statistics {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.dev-statistics h2 {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.dev-statistics h3 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 16px 0 6px;
+  color: var(--dev-accent);
+}
+
+.dev-statistics h3:first-child {
+  margin-top: 8px;
+}
+
+.dev-statistics label {
+  font-size: 13px;
+}
+
+.dev-statistics select {
+  margin-left: 6px;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stats-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--dev-border);
+  color: var(--dev-muted);
+  font-weight: 500;
+}
+
+.stats-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.stats-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.stats-empty {
+  color: var(--dev-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 /* ─── Live mode ───────────────────────────────────────────────────── */
 
 .dev-live-info {

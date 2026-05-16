@@ -33,6 +33,8 @@ export interface SimResult {
   snapshots: TickSnapshot[]
   finalScore: number
   purchaseLog: { id: string; timeSec: number }[]
+  /** Final player state at end of simulation (for statistics breakdown). */
+  finalState: Readonly<PlayerState>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -132,5 +134,6 @@ export function simulate(strategy: Strategy, mode: GameMode): SimResult {
     snapshots,
     finalScore: Math.round(state.score * 100) / 100,
     purchaseLog,
+    finalState: structuredClone(state),
   }
 }
