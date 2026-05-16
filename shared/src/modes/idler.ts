@@ -21,52 +21,8 @@ function getHighlight(state: Readonly<PlayerState>): string {
  */
 function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
   const highlight = getHighlight(state)
-  const mods: Modifier[] = []
   const sharpenedAxes = state.upgrades.u0 > 0
-  mods.push({ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 })
-
-  // u8: provide a small multiplicative bonus to Wood based on hoarded Wood
-  if (state.upgrades.u8 > 0) {
-    const bonus = Math.floor(state.resources.r0 / 10) * 0.01
-    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r0', value: 1 + bonus })
-  }
-
-  // u9: provide a small multiplicative bonus to Ale based on hoarded Ale
-  if (state.upgrades.u9 > 0) {
-    const bonus = Math.floor(state.resources.r1 / 10) * 0.01
-    if (bonus > 0) mods.push({ stage: 'multiplicative', field: 'r1', value: 1 + bonus })
-  }
-
-  // u10: Dominant Harvesters — apply ×2 to one top generator (lowest-tier wins ties)
-  if (state.upgrades.u10 > 0) {
-    const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
-    let winner: (typeof generatorIds)[number] = 'g0'
-    let maxCount = state.generators[winner] ?? 0
-    for (const id of generatorIds) {
-      const count = state.generators[id] ?? 0
-      if (count > maxCount) {
-        maxCount = count
-        winner = id
-      }
-    }
-    if (maxCount > 0) mods.push({ stage: 'multiplicative', field: winner, value: 2 })
-  }
-
-  // u11: Balanced Engineering — global bonus from generator count balance
-  if (state.upgrades.u11 > 0) {
-    const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
-    const counts = generatorIds.map((id) => state.generators[id] ?? 0)
-    const avg = counts.reduce((sum, count) => sum + count, 0) / counts.length
-    if (avg > 0) {
-      const deviation =
-        counts.reduce((sum, count) => sum + Math.abs(count - avg), 0) / counts.length
-      const balanceRatio = Math.max(0, 1 - deviation / avg)
-      const globalBonus = 1 + balanceRatio * 0.25
-      mods.push({ stage: 'multiplicative', field: 'globalMultiplier', value: globalBonus })
-    }
-  }
-
-  return mods
+  return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]
 }
 
 // ─── Upgrades ────────────────────────────────────────────────────────
@@ -125,6 +81,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 0, y: 500 },
     prerequisites: ['u1'],
+    // +4 wood/sec per owned Woodcutter (generator-targeted additive)
     modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
   },
   {
@@ -134,34 +91,55 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     category: 'tree',
     position: { x: 400, y: 500 },
     prerequisites: ['u2'],
+    // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
   },
-
   {
     id: 'u8', // Resource Hoarders
     cost: 40,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: 150, y: 500 },
+    position: { x: 100, y: 600 },
     prerequisites: ['u1'],
-    modifiers: [], // dynamic: bonus based on banked r0 (handled in collectIdlerDynamic)
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = Math.min(state.resources.r0 * 0.001, 1)
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r0', value: 1 + bonus } : null
+    },
   },
   {
     id: 'u9', // Cellar Masters
     cost: 40,
     costCurrency: 'r1',
     category: 'tree',
-    position: { x: 350, y: 500 },
+    position: { x: 300, y: 600 },
     prerequisites: ['u2'],
-    modifiers: [], // dynamic: bonus based on banked r1 (handled in collectIdlerDynamic)
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const bonus = Math.min(state.resources.r1 * 0.001, 1)
+      return bonus > 0 ? { stage: 'multiplicative', field: 'r1', value: 1 + bonus } : null
+    },
   },
   {
     id: 'u10', // Dominant Harvesters
     cost: 80,
     costCurrency: 'r0',
     category: 'tree',
-    position: { x: 200, y: 400 },
-    modifiers: [], // dynamic: chooses one top generator for ×2
+    position: { x: 100, y: 400 },
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
+      let winner: (typeof generatorIds)[number] = 'g0'
+      let maxCount = state.generators[winner] ?? 0
+      for (const id of generatorIds) {
+        const count = state.generators[id] ?? 0
+        if (count > maxCount) {
+          maxCount = count
+          winner = id
+        }
+      }
+      return maxCount > 0 ? { stage: 'multiplicative', field: winner, value: 2 } : null
+    },
   },
   {
     id: 'u11', // Balanced Engineering
@@ -169,7 +147,17 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r1',
     category: 'tree',
     position: { x: 300, y: 400 },
-    modifiers: [], // dynamic: global bonus from generator balance
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
+      const counts = generatorIds.map((id) => state.generators[id] ?? 0)
+      const avg = counts.reduce((sum, c) => sum + c, 0) / counts.length
+      if (avg <= 0) return null
+      const deviation = counts.reduce((sum, c) => sum + Math.abs(c - avg), 0) / counts.length
+      const balanceRatio = Math.max(0, 1 - deviation / avg)
+      const bonus = 1 + balanceRatio * 0.25
+      return { stage: 'multiplicative', field: 'globalMultiplier', value: bonus }
+    },
   },
 
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
@@ -179,7 +167,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     goalType: 'buy-upgrade',
     category: 'tree',
-    position: { x: 200, y: 600 },
+    position: { x: 200, y: 700 },
     prerequisites: ['u4'],
     modifiers: [],
   },
@@ -238,28 +226,28 @@ const idlerFlavor: ModeFlavor = {
     {
       id: 'u6',
       name: '👥 Skilled Foremen',
-      description: '+4 woodcutter output per owned Woodcutter',
+      description: 'Each Woodcutter produces +4 additional 🪵/sec',
     },
-    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'Brewers produce 100% more Ale' },
+    { id: 'u7', name: '🍺 Yeast Cultivators', description: 'All Brewers produce ×2 🍺' },
     {
       id: 'u8',
       name: '💰 Resource Hoarders',
-      description: 'More Wood in bank → small production bonus',
+      description: '+0.1% 🪵 production per banked 🪵',
     },
     {
       id: 'u9',
       name: '🧊 Cellar Masters',
-      description: 'More Ale in bank → small production bonus',
+      description: '+0.1% 🍺 production per banked 🍺',
     },
     {
       id: 'u10',
       name: '🌾 Dominant Harvesters',
-      description: 'The strongest generator gains ×2 output (lower-tier wins ties).',
+      description: 'Your most-owned generator gets ×2 output',
     },
     {
       id: 'u11',
       name: '⚖️ Balanced Engineering',
-      description: 'All production gets a bonus when generator counts are balanced.',
+      description: 'Up to +25% all production when generator counts are balanced',
     },
     {
       id: 'u5',

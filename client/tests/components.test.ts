@@ -55,11 +55,12 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400), foremen(0,500), yeast(400,500)
+    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200), industrial(200,400),
+    // dominant(100,400), balanced(300,400), foremen(0,500), yeast(400,500), hoarders(100,600), cellar(300,600)
     expect(bounds.minX).toBe(0)
     expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(500)
+    expect(bounds.maxY).toBe(600)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
@@ -96,6 +97,8 @@ describe('renderUpgradeTree', () => {
     // 3 edges: industrial-era ← heavy-logging, industrial-era ← sharpened-axes, industrial-era ← royal-brewery
     // 1 edge: skilled-foremen ← heavy-logging
     // 1 edge: yeast-cultivators ← royal-brewery
+    // 1 edge: resource-hoarders ← heavy-logging
+    // 1 edge: cellar-masters ← royal-brewery
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
     expect(lineCount).toBe(8)
   })
