@@ -103,7 +103,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     prerequisites: ['u1'],
     modifiers: [],
     dynamicModifier: (state) => {
-      const bonus = state.resources.r0 * 0.001
+      const bonus = Math.min(state.resources.r0 * 0.001, 1)
       return bonus > 0 ? { stage: 'multiplicative', field: 'r0', value: 1 + bonus } : null
     },
   },
@@ -116,7 +116,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     prerequisites: ['u2'],
     modifiers: [],
     dynamicModifier: (state) => {
-      const bonus = state.resources.r1 * 0.001
+      const bonus = Math.min(state.resources.r1 * 0.001, 1)
       return bonus > 0 ? { stage: 'multiplicative', field: 'r1', value: 1 + bonus } : null
     },
   },
