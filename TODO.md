@@ -13,6 +13,7 @@
 - [ ] Map Control / Expansion (e.g. Lumberjacking, Harventure)
 - [ ] Map Exploration (e.g. Digseum, Idle Chapel)
 - [ ] Compound (e.g. Dwarf Eats Mountain, Rock Island, The Gnope Apolog)
+- [ ] Pantheon Worship (e.g. Idle Wizard)
 
 ### Goals
 
@@ -39,7 +40,7 @@
 
 ### Match Flow
 
-- [ ] Quick-match option (random game mode + game goal)
+- [x] Quick-match option (random game mode + game goal)
 - [ ] CPS encourager mechanism (see Trello)
 - [x] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
 
@@ -50,11 +51,12 @@
 - [ ] Visual feedback on generator purchase
 - [ ] "Buy Max" button for generators (possibly unlocked via an upgrade)
 - [ ] Bot: teach bot to buy generators
-- [ ] Unit tests for generator cost/purchase logic
+- [x] Unit tests for generator cost/purchase logic
 
 ### Upgrade Tree
 
-- [ ] Support mixed AND/OR prerequisites per edge (currently AND-only)
+- [ ] Support mixed AND/OR prerequisites per edge (currently AND-only). Possible impl: replace the list (AND semantics) with "or"/"and" operators to express the predicate
+- [ ] Upgrades that only unlock after purchasing a certain amount of the parent upgrade
 - [ ] Visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned
 - [ ] Replace hand-placed (x, y) with a layout system
 - [ ] Startup-time cycle detection on prereq graph
@@ -96,6 +98,8 @@
 
 ## UX
 
+- [ ] Configurable number viewing mode (at least: name `123k`, scientific `1.23e5`, engineering `123e3`)
+- [ ] Configurable digit grouping (e.g. `123,456` / `123.456` / none)
 - [ ] Confirmation panel ("are you sure you wanna quit?")
 - [ ] End-game screen: show counts of generators + tree upgrades purchased (or show no statistics at all?)
 - [x] User name (lobby input, localStorage persistence)
