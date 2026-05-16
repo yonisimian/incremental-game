@@ -82,7 +82,7 @@ describe('isUnlocked', () => {
     expect(isUnlocked(state, u)).toBe(false)
   })
 
-  it('returns true when prerequisite is owned multiple times (repeatable parent)', () => {
+  it('returns true when prerequisite is owned multiple times (unlimited parent)', () => {
     const u = makeUpgrade({ prerequisites: ['stackable-parent'] })
     const state = makeState({ upgrades: { 'stackable-parent': 5 } })
     expect(isUnlocked(state, u)).toBe(true)

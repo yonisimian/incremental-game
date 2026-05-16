@@ -1,5 +1,10 @@
 # Finite Upgrade Level — Design & Implementation Plan
 
+> **Note**: The implementation evolved from this plan. `maxLevel` was renamed to
+> `purchaseLimit` with inverted default semantics: `0` = unlimited, `1` (default) = one-shot,
+> `N > 1` = finite. The `repeatable` field was removed entirely. Helper functions
+> `isMaxed()`, `getPurchaseLimit()`, and `isUnlimited()` centralize the logic.
+
 ## Goal
 
 Add support for finite-level upgrades in the upgrade system using only `maxLevel` semantics. This simplifies upgrade type handling, eliminates redundant or conflicting states, and makes behavior fully derived from whether `maxLevel` is defined.
