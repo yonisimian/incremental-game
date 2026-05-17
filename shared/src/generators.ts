@@ -6,6 +6,45 @@ export function getGeneratorCost(def: GeneratorDefinition, owned: number): numbe
   return Math.floor(def.baseCost * def.costScaling ** owned)
 }
 
+/** Compute the total cost to buy `quantity` additional copies. */
+export function getGeneratorBulkCost(
+  def: GeneratorDefinition,
+  owned: number,
+  quantity: number,
+): number {
+  if (quantity <= 0) return 0
+  let total = 0
+  for (let i = 0; i < quantity; i += 1) {
+    total += getGeneratorCost(def, owned + i)
+  }
+  return total
+}
+
+/** How many copies can the player afford right now? */
+export function getMaxAffordableGeneratorCount(
+  state: Readonly<PlayerState>,
+  def: GeneratorDefinition,
+): number {
+  const budget = state.resources[def.costCurrency] ?? 0
+  if (budget <= 0) return 0
+
+  const owned = state.generators[def.id] ?? 0
+  if (def.costScaling === 1) {
+    return Math.floor(budget / def.baseCost)
+  }
+
+  let affordable = 0
+  let remaining = budget
+  while (true) {
+    const cost = getGeneratorCost(def, owned + affordable)
+    if (cost > remaining) break
+    remaining -= cost
+    affordable += 1
+  }
+
+  return affordable
+}
+
 /** Can the player afford the next copy of this generator? */
 export function canAffordGenerator(
   state: Readonly<PlayerState>,
