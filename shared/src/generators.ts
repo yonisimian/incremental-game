@@ -35,6 +35,7 @@ export function getMaxAffordableGeneratorCount(
 
   let affordable = 0
   let remaining = budget
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     const cost = getGeneratorCost(def, owned + affordable)
     if (cost > remaining) break

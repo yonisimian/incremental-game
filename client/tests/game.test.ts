@@ -301,7 +301,7 @@ describe('game.ts', () => {
 
       game.doBuyGeneratorMax('g0')
       const s = game.getState()
-      const count = s.player.generators.g0 ?? 0
+      const count = s.player.generators.g0
 
       expect(count).toBeGreaterThan(0)
       expect(s.player.resources.r0).toBeLessThan(100)
