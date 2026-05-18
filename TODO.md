@@ -23,7 +23,7 @@
 
 ### Player Count
 
-- [ ] Single player
+- [ ] Single player + Leaderboard
 - [x] 1 vs 1
 - [x] 1 vs bot
 - [ ] Group vs group
@@ -32,11 +32,10 @@
 ### Controls & Input
 
 - [ ] Per-panel hotkeys (generators: 1/2/3 for tiers; upgrade-tree: 1/2/3 for upgrades)
-- [ ] Hotkey for "quit"
-- [ ] Hotkey for "back"
-- [ ] Hotkey for "Leave" button (room / waiting screens)
-- [ ] Hotkeys for generators
-- [ ] Hotkeys for panels (game / generators / upgrade tree)
+- [x] Hotkey for "quit" (Escape on playing/countdown)
+- [x] Hotkey for "back" (Escape on waiting/room)
+- [x] Hotkey for "Leave" button (room / waiting screens) — merged with "back" via Escape
+- [x] Hotkeys for panels (Ctrl+1…0 direct, Ctrl+←/→ prev/next)
 
 ### Match Flow
 
@@ -66,10 +65,11 @@
 - [ ] Choice upgrades (locks sibling upgrades when bought)
 - Specific upgrades — generator:
   - [ ] Time Mul: multiply generators by a factor entangled with time since purchase
-  - [ ] Add power to generator(s) (more points per tick)
+  - [x] Add power to generator(s) (more points per tick)
   - [ ] Increase tick speed (…per generator?)
   - [ ] Lower tier support: each N tier-1 entities add power to tier-2 generators
 - Specific upgrades — idler:
+  - [ ] Unlock highlighting (start with 0 idle production?)
   - [ ] Highlight battery charge: highlight "nothing" to charge a battery that amplifies highlighting power
   - [ ] Highlight battery diminish: lower drain rate
   - [ ] Highlight battery recharge: faster charging rate
@@ -159,6 +159,12 @@
 - [ ] Heartbeat timeout: terminate connections that don't respond to ping within a timeout
 - [ ] Reconnect grace period: give disconnected players ~10 s to rejoin before forfeiting
 
+## Testing
+
+- [ ] Integration tests: keyboard hotkeys (Escape quit/back, Ctrl+N panels, Space click, Tab highlight)
+- [ ] E2E tests (Playwright): full match flow — lobby → queue → match → quit/end → lobby
+- [ ] E2E tests (Playwright): panel switching via hotkeys in a live match
+
 ## Infrastructure
 
 - [x] Set up Dependabot for monthly automated dependency PRs
@@ -169,7 +175,7 @@
 ## Known Bugs
 
 - [ ] Clicker button gets clipped from above when expanded on each click
-- [ ] Screen bottom is cropped on Tal's device
+- [x] Screen bottom is cropped on Tal's device
 - [x] Bot never buys the trophy in idler race-to-buy goal
 - [x] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
 - [x] Game stays on 0:00 for ~5 seconds before showing the end screen
@@ -177,3 +183,4 @@
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
 - [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
 - [x] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
+- [ ] "Ctrl + N" Hotkeys (switching panels) don't work on MacOS since Cmd + N is reserved for "New Window"
