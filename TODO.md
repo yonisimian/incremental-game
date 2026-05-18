@@ -32,11 +32,10 @@
 ### Controls & Input
 
 - [ ] Per-panel hotkeys (generators: 1/2/3 for tiers; upgrade-tree: 1/2/3 for upgrades)
-- [ ] Hotkey for "quit"
-- [ ] Hotkey for "back"
-- [ ] Hotkey for "Leave" button (room / waiting screens)
-- [ ] Hotkeys for generators
-- [ ] Hotkeys for panels (game / generators / upgrade tree)
+- [x] Hotkey for "quit" (Escape on playing/countdown)
+- [x] Hotkey for "back" (Escape on waiting/room)
+- [x] Hotkey for "Leave" button (room / waiting screens) — merged with "back" via Escape
+- [x] Hotkeys for panels (Ctrl+1…0 direct, Ctrl+←/→ prev/next)
 
 ### Match Flow
 
@@ -160,6 +159,12 @@
 - [ ] Heartbeat timeout: terminate connections that don't respond to ping within a timeout
 - [ ] Reconnect grace period: give disconnected players ~10 s to rejoin before forfeiting
 
+## Testing
+
+- [ ] Integration tests: keyboard hotkeys (Escape quit/back, Ctrl+N panels, Space click, Tab highlight)
+- [ ] E2E tests (Playwright): full match flow — lobby → queue → match → quit/end → lobby
+- [ ] E2E tests (Playwright): panel switching via hotkeys in a live match
+
 ## Infrastructure
 
 - [x] Set up Dependabot for monthly automated dependency PRs
@@ -178,3 +183,4 @@
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
 - [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
 - [x] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
+- [ ] "Ctrl + N" Hotkeys (switching panels) don't work on MacOS since Cmd + N is reserved for "New Window"

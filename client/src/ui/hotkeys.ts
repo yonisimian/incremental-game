@@ -1,5 +1,6 @@
-import { doClick, doBuy, setHighlight, getState } from '../game.js'
+import { doClick, doBuy, setHighlight, getState, cancelQueue, quitMatch } from '../game.js'
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
+import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { type UpgradeCategory, getModeDefinition } from '@game/shared'
 
 /**
@@ -21,17 +22,54 @@ export function initHotkeys(): void {
 
   document.addEventListener('keydown', (e) => {
     const state = getState()
-    if (state.screen !== 'playing' || !state.mode) return
-
-    const modeDef = getModeDefinition(state.mode)
 
     // Don't intercept keystrokes while typing in an input
     const target = e.target as HTMLElement
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       return
 
-    // Don't intercept browser shortcuts (Ctrl+R reload, Ctrl+W close, Ctrl+1 switch tab, etc.)
-    if (e.ctrlKey || e.metaKey || e.altKey) return
+    // ── Escape — context-sensitive quit/back (screen-agnostic) ──
+    if (e.key === 'Escape') {
+      if (state.screen === 'playing' || state.screen === 'countdown') {
+        quitMatch()
+      } else if (state.screen === 'waiting' || state.screen === 'room') {
+        cancelQueue()
+      }
+      return
+    }
+
+    // Everything below requires the playing screen
+    if (state.screen !== 'playing' || !state.mode) return
+
+    const modeDef = getModeDefinition(state.mode)
+
+    // ── Ctrl + digit/arrow — panel switching ──
+    // Only intercept Ctrl (not Cmd/Meta on Mac — let macOS shortcuts pass through)
+    if (e.ctrlKey && !e.metaKey) {
+      // Ctrl+1…9 → panels 0…8, Ctrl+0 → panel 9
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault()
+        const index = e.key === '0' ? 9 : Number(e.key) - 1
+        switchToPanel(index)
+        return
+      }
+      // Ctrl+ArrowLeft/Right → prev/next panel
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        switchToPanelRelative(-1)
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        switchToPanelRelative(1)
+        return
+      }
+      // Don't intercept other Ctrl shortcuts (Ctrl+R, Ctrl+W, etc.)
+      return
+    }
+
+    // Don't intercept Meta/Alt combos
+    if (e.metaKey || e.altKey) return
 
     // Let the tab grid handle its own keyboard events (Space activates tab, arrows navigate)
     const inTabGrid = target.closest('#tab-grid') !== null

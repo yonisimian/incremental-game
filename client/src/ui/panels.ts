@@ -141,6 +141,20 @@ function findLastPanel(): number {
   return -1
 }
 
+/** Switch to a specific panel slot (0-indexed). No-ops if locked or already active. */
+export function switchToPanel(index: number): void {
+  if (index < 0 || index >= TOTAL_SLOTS) return
+  if (!panels[index] || index === activeIndex) return
+  switchToTab(index)
+}
+
+/** Switch to the next (+1) or previous (-1) active panel. */
+export function switchToPanelRelative(step: 1 | -1): void {
+  const target = findNextPanel(activeIndex + step, step)
+  if (target === -1) return
+  switchToTab(target)
+}
+
 /** Bind tab-switching via click + arrow-key navigation on #tab-grid. */
 export function bindTabEvents(): void {
   const grid = document.getElementById('tab-grid')
