@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { ModeDefinition } from '../src/modes/types.js'
-import { getGeneratorCost, canAffordGenerator, applyGeneratorPurchase } from '../src/generators.js'
+import {
+  getGeneratorCost,
+  getGeneratorBulkCost,
+  getMaxAffordableGeneratorCount,
+  canAffordGenerator,
+  applyGeneratorPurchase,
+} from '../src/generators.js'
 import type { GeneratorDefinition, PlayerState } from '../src/types.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -80,6 +86,40 @@ describe('getGeneratorCost', () => {
     expect(getGeneratorCost(def, 0)).toBe(25)
     expect(getGeneratorCost(def, 5)).toBe(25)
     expect(getGeneratorCost(def, 100)).toBe(25)
+  })
+})
+
+describe('getGeneratorBulkCost', () => {
+  it('sums the cost of the next N purchases', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    expect(getGeneratorBulkCost(def, 0, 3)).toBe(10 + 20 + 40)
+    expect(getGeneratorBulkCost(def, 2, 2)).toBe(40 + 80)
+  })
+
+  it('returns 0 for zero quantity', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1.5 })
+    expect(getGeneratorBulkCost(def, 0, 0)).toBe(0)
+  })
+})
+
+describe('getMaxAffordableGeneratorCount', () => {
+  it('returns 0 when the player cannot afford the next copy', () => {
+    const def = makeDef({ baseCost: 50 })
+    const state = makeState({ resources: { r0: 25 }, generators: {} })
+    expect(getMaxAffordableGeneratorCount(state, def)).toBe(0)
+  })
+
+  it('computes maximum count for constant-cost generators', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1 })
+    const state = makeState({ resources: { r0: 45 }, generators: {} })
+    expect(getMaxAffordableGeneratorCount(state, def)).toBe(4)
+  })
+
+  it('computes maximum count for scaling generators', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    const state = makeState({ resources: { r0: 100 }, generators: {} })
+    // costs: 10, 20, 40, 80 → can buy 3 copies for 70
+    expect(getMaxAffordableGeneratorCount(state, def)).toBe(3)
   })
 })
 
