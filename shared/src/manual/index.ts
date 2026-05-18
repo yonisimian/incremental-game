@@ -8,3 +8,4 @@
 export { HOTKEYS, type HotkeyEntry } from './hotkeys.js'
 export { SCREENS, type ScreenEntry } from './screens.js'
 export { CONCEPTS, type ConceptEntry } from './concepts.js'
+export { PANELS, type PanelEntry } from './panels.js'

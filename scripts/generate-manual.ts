@@ -10,7 +10,14 @@
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { HOTKEYS, SCREENS, CONCEPTS, AVAILABLE_MODES, getModeDefinition } from '@game/shared'
+import {
+  HOTKEYS,
+  SCREENS,
+  CONCEPTS,
+  PANELS,
+  AVAILABLE_MODES,
+  getModeDefinition,
+} from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -39,6 +46,13 @@ function renderScreens(): string {
   const lines: string[] = [heading(2, 'Screens'), '']
   const rows = SCREENS.map((s) => [s.name, s.description])
   lines.push(table(['Screen', 'Description'], rows), '')
+  return lines.join('\n')
+}
+
+function renderPanels(): string {
+  const lines: string[] = [heading(2, 'Panels'), '']
+  const rows = PANELS.map((p) => [`${p.icon} ${p.name}`, p.description])
+  lines.push(table(['Panel', 'Description'], rows), '')
   return lines.join('\n')
 }
 
@@ -112,6 +126,7 @@ function generate(): string {
     '',
     renderConcepts(),
     renderScreens(),
+    renderPanels(),
     renderModes(),
     renderHotkeys(),
   ]

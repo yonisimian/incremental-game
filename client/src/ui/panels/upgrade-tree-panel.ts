@@ -63,7 +63,6 @@ function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): strin
 export const upgradeTreePanel: Panel = {
   label: 'Upgrades',
   icon: '🌳',
-  help: 'Skill tree — purchase upgrades to boost income, unlock multipliers, and win.',
 
   render(container, state) {
     // 1. Snapshot the previous incarnation's pan/zoom BEFORE tearing it down.

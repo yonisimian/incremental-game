@@ -70,7 +70,6 @@ function renderIdlerContent(state: Readonly<GameState>): string {
 export const playPanel: Panel = {
   label: 'Play',
   icon: '🎮',
-  help: 'Main gameplay — click for income (Clicker) or manage resource highlighting (Idler).',
 
   render(container, state) {
     prevUpgradeHtml = ''

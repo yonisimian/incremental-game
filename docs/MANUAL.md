@@ -46,6 +46,14 @@ In Clicker mode, each click earns income. Press **Space** or click the big butto
 | Playing   | The active game — earn resources, buy upgrades and generators, and outscore your opponent before time runs out or the goal is reached. |
 | End       | Round over — see scores, winner, and return to the lobby.                                                                              |
 
+## Panels
+
+| Panel         | Description                                                                         |
+| ------------- | ----------------------------------------------------------------------------------- |
+| 🎮 Play       | Main gameplay — click for income (Clicker) or manage resource highlighting (Idler). |
+| 🏭 Generators | Buy generators for passive income — each copy produces resources every second.      |
+| 🌳 Upgrades   | Skill tree — purchase upgrades to boost income, unlock multipliers, and win.        |
+
 ## Game Modes
 
 ### Clicker Mode
