@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Lint CSS classes
+        run: pnpm lint:css
+
       - name: Format check
         run: pnpm format:check
 
