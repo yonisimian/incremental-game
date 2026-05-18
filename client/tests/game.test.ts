@@ -272,6 +272,43 @@ describe('game.ts', () => {
     })
   })
 
+  describe('doBuyGeneratorMax', () => {
+    it('buys the maximum affordable generators and queues actions', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r0: 100 },
+            upgrades: { ...defaultUpgrades },
+            generators: {},
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            upgrades: { ...defaultUpgrades },
+            generators: {},
+            meta: {},
+          },
+          timeLeft: 55,
+        }),
+      )
+
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doBuyGeneratorMax('g0')
+      const s = game.getState()
+      const count = s.player.generators.g0
+
+      expect(count).toBeGreaterThan(0)
+      expect(s.player.resources.r0).toBeLessThan(100)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(count)
+    })
+  })
+
   // ── Upgrade effects on click income ──────────────────────────────
 
   describe('upgrade effects on clicks', () => {

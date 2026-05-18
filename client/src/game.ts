@@ -17,6 +17,7 @@ import {
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
   canAffordGenerator,
+  getMaxAffordableGeneratorCount,
   applyGeneratorPurchase,
   isMaxed,
 } from '@game/shared'
@@ -386,6 +387,26 @@ export function doBuyGenerator(generatorId: string): void {
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
   trackPendingGeneratorPurchase(generatorId)
+  notify()
+}
+
+/** Attempt to purchase the maximum affordable copies of a generator. */
+export function doBuyGeneratorMax(generatorId: string): void {
+  if (state.screen !== 'playing' || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  const def = modeDef.generators.find((g) => g.id === generatorId)
+  if (!def) return
+
+  const quantity = getMaxAffordableGeneratorCount(state.player, def)
+  if (quantity <= 0) return
+
+  for (let i = 0; i < quantity; i += 1) {
+    if (!canAffordGenerator(state.player, def)) break
+    applyGeneratorPurchase(state.player, generatorId, modeDef)
+    queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
+    trackPendingGeneratorPurchase(generatorId)
+  }
+
   notify()
 }
 
