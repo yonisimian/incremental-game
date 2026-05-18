@@ -23,7 +23,7 @@
 
 ### Player Count
 
-- [ ] Single player
+- [ ] Single player + Leaderboard
 - [x] 1 vs 1
 - [x] 1 vs bot
 - [ ] Group vs group
@@ -66,10 +66,11 @@
 - [ ] Choice upgrades (locks sibling upgrades when bought)
 - Specific upgrades — generator:
   - [ ] Time Mul: multiply generators by a factor entangled with time since purchase
-  - [ ] Add power to generator(s) (more points per tick)
+  - [x] Add power to generator(s) (more points per tick)
   - [ ] Increase tick speed (…per generator?)
   - [ ] Lower tier support: each N tier-1 entities add power to tier-2 generators
 - Specific upgrades — idler:
+  - [ ] Unlock highlighting (start with 0 idle production?)
   - [ ] Highlight battery charge: highlight "nothing" to charge a battery that amplifies highlighting power
   - [ ] Highlight battery diminish: lower drain rate
   - [ ] Highlight battery recharge: faster charging rate
@@ -169,7 +170,7 @@
 ## Known Bugs
 
 - [ ] Clicker button gets clipped from above when expanded on each click
-- [ ] Screen bottom is cropped on Tal's device
+- [x] Screen bottom is cropped on Tal's device
 - [x] Bot never buys the trophy in idler race-to-buy goal
 - [x] Bot clicks too fast in clicker mode — unbeatable even at 20 CPS
 - [x] Game stays on 0:00 for ~5 seconds before showing the end screen
