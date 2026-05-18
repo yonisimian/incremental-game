@@ -32,36 +32,25 @@ function renderGeneratorCard(
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
+  const costIcon = getResourceIcon(flavor, def.costCurrency)
   return `
-    <article class="generator-card ${!affordable ? 'too-expensive' : ''}" data-generator="${def.id}">
+    <article class="generator-card${!affordable ? ' too-expensive' : ''}" data-generator="${def.id}">
       <div class="generator-summary">
         <span class="generator-icon">${getGeneratorIcon(flavor, def.id)}</span>
         <span class="generator-info">
           <span class="generator-name">${getGeneratorName(flavor, def.id)}</span>
           <span class="generator-rate">+${rateStr} ${prodIcon}/s</span>
         </span>
-        <span class="generator-meta">
-          <span class="generator-cost">${getResourceIcon(flavor, def.costCurrency)}${nextCost}</span>
-          <span class="generator-count">×${owned}</span>
-        </span>
+        <span class="generator-count">×${owned}</span>
       </div>
       <div class="generator-actions">
-        <button
-          class="generator-buy-button"
-          data-action="buy"
-          ${!affordable ? 'disabled' : ''}
-        >
-          Buy
+        <button class="generator-buy-btn" data-action="buy" ${!affordable ? 'disabled' : ''}>
+          Buy 1 — ${costIcon}${nextCost}
         </button>
-        <button
-          class="generator-buy-max-button"
-          data-action="buy-max"
-          ${maxAffordable <= 0 ? 'disabled' : ''}
-        >
-          Buy Max${maxAffordable > 1 ? ` ×${maxAffordable}` : ''}
+        <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
+          Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? bulkCost : '—'}
         </button>
       </div>
-      ${maxAffordable > 0 ? `<div class="generator-buy-max-summary">Total ${getResourceIcon(flavor, def.costCurrency)}${bulkCost}</div>` : ''}
     </article>
   `
 }
@@ -108,18 +97,17 @@ export const generatorsPanel: Panel = {
     if (!list || list.dataset.delegated) return
     list.dataset.delegated = 'true'
     list.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement
-      const buyButton = target.closest<HTMLButtonElement>('.generator-buy-button')
-      const buyMaxButton = target.closest<HTMLButtonElement>('.generator-buy-max-button')
-      const card = target.closest<HTMLElement>('.generator-card')
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.generator-buy-btn')
+      if (!btn || btn.disabled) return
+      const card = btn.closest<HTMLElement>('.generator-card')
       if (!card) return
       const gid = card.dataset.generator
       if (!gid) return
 
-      if (buyButton && !buyButton.disabled) {
-        doBuyGenerator(gid)
-      } else if (buyMaxButton && !buyMaxButton.disabled) {
+      if (btn.dataset.action === 'buy-max') {
         doBuyGeneratorMax(gid)
+      } else {
+        doBuyGenerator(gid)
       }
     })
   },

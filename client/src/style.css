@@ -1043,28 +1043,28 @@ body {
 
 .generator-card {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   width: 100%;
   padding: 0.6rem 1rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  cursor: pointer;
   text-align: left;
   transition:
     border-color 0.15s,
     opacity 0.15s;
 }
 
-.generator-card:not(:disabled):hover {
-  border-color: var(--accent);
+.generator-card.too-expensive {
+  opacity: 0.5;
 }
 
-.generator-card:disabled {
-  cursor: default;
-  opacity: 0.5;
+.generator-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .generator-icon {
@@ -1088,22 +1088,47 @@ body {
   color: var(--text-dim);
 }
 
-.generator-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+.generator-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
-.generator-cost {
-  font-weight: 700;
-  color: var(--gold);
+.generator-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.generator-count {
-  font-size: 0.75rem;
-  color: var(--text-dim);
+.generator-buy-btn {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-alt, var(--surface));
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.generator-buy-btn:not(:disabled):hover {
+  border-color: var(--accent);
+  background: var(--accent-dim, var(--surface));
+}
+
+.generator-buy-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.generator-buy-btn.buy-max {
+  background: var(--accent-dim, var(--surface));
 }
 
 /* ─── End Screen ───────────────────────────────────────────────────── */
