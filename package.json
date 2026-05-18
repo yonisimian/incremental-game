@@ -22,6 +22,8 @@
     "format:check": "prettier --check .",
     "deps:check": "pnpm outdated -r",
     "deps:update": "pnpm update -r",
+    "generate:manual": "pnpm --filter @game/shared build && tsx scripts/generate-manual.ts",
+    "check:manual": "pnpm generate:manual && git diff --exit-code docs/MANUAL.md",
     "prepare": "simple-git-hooks"
   },
   "dependencies": {

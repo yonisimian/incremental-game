@@ -18,6 +18,8 @@ export interface Panel {
   readonly label: string
   /** Tab icon (emoji). */
   readonly icon: string
+  /** One-line description for the player manual (what this panel does). */
+  readonly help: string
   /** Render full panel HTML into the container. Called on tab switch. */
   render(container: HTMLElement, state: Readonly<GameState>): void
   /** In-place update while this panel is active. Called on every state change. */

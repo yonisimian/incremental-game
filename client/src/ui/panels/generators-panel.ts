@@ -74,6 +74,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
 export const generatorsPanel: Panel = {
   label: 'Generators',
   icon: '🏭',
+  help: 'Buy generators for passive income — each copy produces resources every second.',
 
   render(container, state) {
     prevHtml = ''

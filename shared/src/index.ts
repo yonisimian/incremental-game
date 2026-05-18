@@ -15,3 +15,4 @@ export type {
   UpgradeFlavor,
   GeneratorFlavor,
 } from './modes/types.js'
+export * from './manual/index.js'
