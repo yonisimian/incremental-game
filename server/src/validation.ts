@@ -3,6 +3,7 @@ import {
   canAffordGenerator,
   isMaxed,
   isPrerequisiteSatisfied,
+  isChoiceGroupAvailable,
   getUpgradeNextCost,
 } from '@game/shared'
 import type {
@@ -51,6 +52,9 @@ export function isValidPurchase(
 
   // All prerequisites must be satisfied
   if (!isPrerequisiteSatisfied(def.prerequisites, state)) return false
+
+  // Only one choice from a mutual-exclusion group may be selected.
+  if (!isChoiceGroupAvailable(def, state, Array.from(upgradeMap.values()))) return false
 
   // Check the correct resource balance
   const costResource = def.costCurrency ?? mode.scoreResource

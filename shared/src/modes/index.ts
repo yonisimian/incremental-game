@@ -4,6 +4,7 @@ import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
+import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 
   // Prerequisite expression validation
   validateUpgradePrerequisites(def.upgrades)
+  validateUpgradeChoiceGroups(def.upgrades)
 
   // highlightEnabled ↔ initialMeta consistency
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
