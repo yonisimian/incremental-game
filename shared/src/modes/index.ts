@@ -4,6 +4,7 @@ import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
+import { getUpgradeNextCost } from '../upgrade-costs.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
 
@@ -211,7 +212,8 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
 
   // Deduct from correct resource
   const costResource = def.costCurrency ?? mode.scoreResource
-  state.resources[costResource] = (state.resources[costResource] ?? 0) - def.cost
+  const nextCost = getUpgradeNextCost(def, owned)
+  state.resources[costResource] = (state.resources[costResource] ?? 0) - nextCost
 
   // Grant upgrade
   state.upgrades[upgradeId] = owned + 1
