@@ -216,6 +216,35 @@ describe('isValidPurchase — prerequisites', () => {
     expect(isValidPurchase(state, 'u3', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
+  it('accepts an OR-style prerequisite when at least one branch is owned', () => {
+    const custom: UpgradeDefinition[] = [
+      { id: 'a', cost: 1, purchaseLimit: 1, modifiers: [] },
+      { id: 'b', cost: 1, purchaseLimit: 1, modifiers: [] },
+      {
+        id: 'c',
+        cost: 1,
+        purchaseLimit: 1,
+        modifiers: [],
+        prerequisites: {
+          type: 'any',
+          items: [
+            { type: 'upgrade', id: 'a' },
+            { type: 'upgrade', id: 'b' },
+          ],
+        },
+      },
+    ]
+    const map = new Map(custom.map((u) => [u.id, u]))
+    const state: PlayerState = {
+      score: 0,
+      resources: { r0: 9999 },
+      upgrades: { a: 1, b: 0, c: 0 },
+      generators: {},
+      meta: {},
+    }
+    expect(isValidPurchase(state, 'c', map, clickerDef)).toBe(true)
+  })
+
   it('accepts root-level upgrades (no prerequisites) immediately', () => {
     const state = makeIdlerState()
     expect(isValidPurchase(state, 'u1', idlerUpgradeMap, idlerDef)).toBe(true)

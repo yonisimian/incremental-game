@@ -1,5 +1,13 @@
 import type { Modifier } from './modifiers/types.js'
 
+/** Recursive prerequisite expression with AND / OR semantics. */
+export type PrerequisiteExpression =
+  | { readonly type: 'all'; readonly items: readonly PrerequisiteExpression[] }
+  | { readonly type: 'any'; readonly items: readonly PrerequisiteExpression[] }
+  | { readonly type: 'upgrade'; readonly id: string }
+
+export type UpgradePrerequisites = PrerequisiteExpression
+
 /** Available game modes. */
 export type GameMode = 'clicker' | 'idler'
 
@@ -28,10 +36,10 @@ export interface UpgradeDefinition {
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
   readonly category?: UpgradeCategory
   /**
-   * IDs of upgrades that must be owned (count > 0) before this one is buyable.
-   * AND-semantics: every listed upgrade must be owned. Empty/missing = always unlocked.
+   * Which upgrades must be owned before this one is buyable.
+   * Supports legacy AND-only arrays and recursive `all` / `any` expressions.
    */
-  readonly prerequisites?: readonly string[]
+  readonly prerequisites?: UpgradePrerequisites
   /**
    * Hand-placed position on the tree canvas. Required for `category: 'tree'`
    * upgrades; ignored for play-panel upgrades.

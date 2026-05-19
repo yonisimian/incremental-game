@@ -20,6 +20,7 @@ import {
   getMaxAffordableGeneratorCount,
   applyGeneratorPurchase,
   isMaxed,
+  isPrerequisiteSatisfied,
 } from '@game/shared'
 import {
   getSeq,
@@ -353,10 +354,7 @@ export function doBuy(upgradeId: string): void {
   const owned = state.player.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return
 
-  // All prerequisites must be owned
-  for (const pid of def.prerequisites ?? []) {
-    if ((state.player.upgrades[pid] ?? 0) <= 0) return
-  }
+  if (!isPrerequisiteSatisfied(def.prerequisites, state.player)) return
 
   // Check correct resource balance
   const modeDef = getModeDefinition(state.mode)
@@ -526,8 +524,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       const owned = reconciled.upgrades[uid] ?? 0
       if (isMaxed(def, owned)) continue
 
-      // Skip if any prerequisite isn't owned in the reconciled state
-      if ((def.prerequisites ?? []).some((pid) => (reconciled.upgrades[pid] ?? 0) <= 0)) continue
+      // Skip if this purchase is not unlocked in the reconciled state
+      if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) continue
 
       // Check correct resource and apply
       if (!modeDef) continue

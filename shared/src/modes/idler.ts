@@ -62,7 +62,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: Infinity,
     category: 'tree',
     position: { x: 500, y: 200 },
-    prerequisites: ['u2'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }], // scaled by count
   },
   {
@@ -72,7 +72,14 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 200, y: 400 },
-    prerequisites: ['u1', 'u0', 'u2'],
+    prerequisites: {
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'u1' },
+        { type: 'upgrade', id: 'u0' },
+        { type: 'upgrade', id: 'u2' },
+      ],
+    },
     modifiers: [
       { stage: 'multiplicative', field: 'r0', value: 1.25 },
       { stage: 'multiplicative', field: 'r1', value: 1.25 },
@@ -85,7 +92,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 0, y: 500 },
-    prerequisites: ['u1'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] },
     // +4 wood/sec per owned Woodcutter (generator-targeted additive)
     modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
   },
@@ -96,7 +103,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 400, y: 500 },
-    prerequisites: ['u2'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
     // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
   },
@@ -107,7 +114,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 100, y: 600 },
-    prerequisites: ['u1'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] },
     modifiers: [],
     dynamicModifier: (state) => {
       const bonus = Math.min(state.resources.r0 * 0.001, 1)
@@ -121,7 +128,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 300, y: 600 },
-    prerequisites: ['u2'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
     modifiers: [],
     dynamicModifier: (state) => {
       const bonus = Math.min(state.resources.r1 * 0.001, 1)
@@ -179,7 +186,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     goalType: 'buy-upgrade',
     category: 'tree',
     position: { x: 200, y: 700 },
-    prerequisites: ['u4'],
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u4' }] },
     modifiers: [],
   },
 ]
