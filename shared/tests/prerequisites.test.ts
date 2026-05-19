@@ -19,6 +19,11 @@ const ownedState: PlayerState = {
   upgrades: { u0: 1, u1: 0, u2: 1 },
 }
 
+const levelTwoState: PlayerState = {
+  ...baseState,
+  upgrades: { u0: 2, u1: 0, u2: 1 },
+}
+
 describe('isPrerequisiteSatisfied', () => {
   it('accepts no prerequisites', () => {
     expect(isPrerequisiteSatisfied(undefined, baseState)).toBe(true)
@@ -78,6 +83,15 @@ describe('isPrerequisiteSatisfied', () => {
     ).toBe(false)
   })
 
+  it('supports upgrade minLevel requirements', () => {
+    expect(isPrerequisiteSatisfied({ type: 'upgrade', id: 'u0', minLevel: 2 }, levelTwoState)).toBe(
+      true,
+    )
+    expect(isPrerequisiteSatisfied({ type: 'upgrade', id: 'u0', minLevel: 2 }, ownedState)).toBe(
+      false,
+    )
+  })
+
   it('supports nested AND/OR expressions', () => {
     const expr = {
       type: 'any' as const,
@@ -113,6 +127,12 @@ describe('formatPrerequisiteExpression', () => {
     }
     expect(formatPrerequisiteExpression(expr)).toBe('u1 or (u0 and u2)')
   })
+
+  it('renders minLevel requirements', () => {
+    expect(formatPrerequisiteExpression({ type: 'upgrade', id: 'u0', minLevel: 3 })).toBe(
+      'u0 (level 3+)',
+    )
+  })
 })
 
 describe('validateUpgradePrerequisites', () => {
@@ -130,13 +150,13 @@ describe('validateUpgradePrerequisites', () => {
   }
 
   it('accepts valid nested prerequisite graphs', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0'),
         makeUpgrade('u1', { type: 'any', items: [{ type: 'upgrade', id: 'u0' }] }),
         makeUpgrade('u2', { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] }),
-      ]); },
-    ).not.toThrow()
+      ])
+    }).not.toThrow()
   })
 
   it('rejects unknown upgrade references', () => {
@@ -150,9 +170,33 @@ describe('validateUpgradePrerequisites', () => {
     ).toThrow(/unknown prerequisite/)
   })
 
-  it('rejects direct cycles', () => {
+  it('rejects invalid minLevel values', () => {
     expect(() =>
       { validateUpgradePrerequisites([
+        makeUpgrade('u0', {
+          type: 'all',
+          items: [{ type: 'upgrade', id: 'u1', minLevel: 0 }],
+        }),
+        makeUpgrade('u1'),
+      ]); },
+    ).toThrow(/invalid minLevel/)
+  })
+
+  it('rejects minLevel values higher than the referenced upgrade max level', () => {
+    expect(() =>
+      { validateUpgradePrerequisites([
+        makeUpgrade('u0', {
+          type: 'all',
+          items: [{ type: 'upgrade', id: 'u1', minLevel: 2 }],
+        }),
+        makeUpgrade('u1'),
+      ]); },
+    ).toThrow(/greater than max level/)
+  })
+
+  it('rejects direct cycles', () => {
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1' }],
@@ -161,13 +205,13 @@ describe('validateUpgradePrerequisites', () => {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u0' }],
         }),
-      ]); },
-    ).toThrow(/circular dependency detected/)
+      ])
+    }).toThrow(/circular dependency detected/)
   })
 
   it('rejects empty all/any expressions', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([makeUpgrade('u0', { type: 'any', items: [] })]); },
-    ).toThrow(/empty 'any' prerequisite group/)
+    expect(() => {
+      validateUpgradePrerequisites([makeUpgrade('u0', { type: 'any', items: [] })])
+    }).toThrow(/empty 'any' prerequisite group/)
   })
 })

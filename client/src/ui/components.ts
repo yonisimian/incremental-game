@@ -1,6 +1,7 @@
 import type { GameState } from '../game.js'
 import {
   canAfford,
+  escapeAttr,
   isUnlocked,
   formatTime,
   formatScore,
@@ -15,6 +16,7 @@ import {
   getUpgradeDescription,
   isMaxed,
   isUnlimited,
+  formatPrerequisiteExpression,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -61,8 +63,11 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
   return state.upgrades
     .map((u, i) => {
       const owned = state.player.upgrades[u.id]
+      const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
       const disabled = owned || !affordable
+      const lockTitle = !unlocked ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}` : ''
+      const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
       const hotkey = i + 1
       const levelLabel =
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
@@ -73,6 +78,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
+          ${titleAttr}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
           ${levelLabel}
@@ -189,6 +195,8 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
+      const lockTitle = !unlocked ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}` : ''
+      const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
 
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
@@ -213,6 +221,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
           data-upgrade="${u.id}"
           style="left: ${u.position.x}px; top: ${u.position.y}px"
           ${disabled ? 'disabled' : ''}
+          ${titleAttr}
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
           ${levelLabel}

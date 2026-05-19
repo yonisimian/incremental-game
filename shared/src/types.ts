@@ -4,7 +4,11 @@ import type { Modifier } from './modifiers/types.js'
 export type PrerequisiteExpression =
   | { readonly type: 'all'; readonly items: readonly PrerequisiteExpression[] }
   | { readonly type: 'any'; readonly items: readonly PrerequisiteExpression[] }
-  | { readonly type: 'upgrade'; readonly id: string }
+  | {
+      readonly type: 'upgrade'
+      readonly id: string
+      readonly minLevel?: number
+    }
 
 export type UpgradePrerequisites = PrerequisiteExpression
 
