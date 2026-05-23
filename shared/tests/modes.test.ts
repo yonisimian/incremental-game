@@ -391,6 +391,19 @@ describe('time-based multiplier (u12)', () => {
     expect(purchasedAt.u12).toBe(5)
   })
 
+  it('repeated purchase does not overwrite purchasedAt', () => {
+    const { def, state } = setupIdler()
+    state.resources.r1 = 100
+    state.upgrades.u2 = 1 // prereq for u3
+    state.meta.gameSec = 2
+    applyPurchase(state, 'u3', def) // first buy at gameSec=2
+    state.meta.gameSec = 10
+    applyPurchase(state, 'u3', def) // second buy at gameSec=10
+    const purchasedAt = state.meta.purchasedAt as Record<string, number>
+    expect(purchasedAt.u3).toBe(2) // still original timestamp
+    expect(state.upgrades.u3).toBe(2)
+  })
+
   it('dynamicModifier returns null when upgrade is not owned', () => {
     const { def, state } = setupIdler()
     const u12 = def.upgrades.find((u) => u.id === 'u12')!

@@ -34,11 +34,11 @@ In a 35-second timed round it reaches ≈ 1.58× if bought immediately.
 ### Implementation Notes
 
 - Use game time / simulation time instead of wall-clock time.
-- Store the purchase timestamp in `state.meta` (e.g. `meta['time_mult_t0'] = gameSec`).
-- Write `state.meta.gameSec = timeSec` each tick in the game loop so `dynamicModifier` can read it.
-- Use the existing `dynamicModifier` hook on `UpgradeDefinition` to compute the multiplier from `state.meta`.
-- Apply the multiplier globally to all generator production (stage: `'multiplicative'`, field: per-generator or `'global'`).
-- The multiplier should remain deterministic for multiplayer simulations.
+- `applyPassiveTick` accumulates `state.meta.gameSec` each tick.
+- `applyPurchase` auto-records `state.meta.purchasedAt[upgradeId] = gameSec` on first buy.
+- `dynamicModifier` reads elapsed time from `state.meta.purchasedAt.u12` and `state.meta.gameSec`.
+- Apply the multiplier globally to all generator production (stage: `'multiplicative'`, field: `'globalMultiplier'`).
+- The multiplier remains deterministic for multiplayer simulations.
 
 ### Future Considerations
 
