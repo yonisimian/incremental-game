@@ -34,7 +34,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 200, y: 0 },
+    position: { x: 0, y: 0 },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
   },
   {
@@ -43,7 +43,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 0, y: 0 },
+    position: { x: 200, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
   },
   {
@@ -56,28 +56,17 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     modifiers: [{ stage: 'additive', field: 'r1', value: 5 }],
   },
   {
-    id: 'u3', // Master Craftsmen
-    cost: 10,
-    costCurrency: 'r1',
-    purchaseLimit: Infinity,
-    category: 'tree',
-    position: { x: 500, y: 200 },
-    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
-    modifiers: [{ stage: 'additive', field: 'r0', value: 5 }], // scaled by count
-  },
-  {
     id: 'u4', // Industrial Era
     cost: 50,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 200, y: 400 },
+    position: { x: 300, y: 300 },
     prerequisites: {
-      type: 'all',
+      type: 'any',
       items: [
-        { type: 'upgrade', id: 'u1' },
-        { type: 'upgrade', id: 'u0' },
-        { type: 'upgrade', id: 'u2' },
+        { type: 'upgrade', id: 'u6' },
+        { type: 'upgrade', id: 'u7' },
       ],
     },
     modifiers: [
@@ -91,7 +80,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 0, y: 500 },
+    position: { x: 200, y: 150 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] },
     // +4 wood/sec per owned Woodcutter (generator-targeted additive)
     modifiers: [{ stage: 'additive', field: 'g0', value: 4 }],
@@ -102,7 +91,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r1',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 400, y: 500 },
+    position: { x: 400, y: 150 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
     // ×2 total Brewer output (generator-targeted multiplicative)
     modifiers: [{ stage: 'multiplicative', field: 'g1', value: 2 }],
@@ -113,8 +102,8 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 100, y: 600 },
-    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] },
+    position: { x: 100, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u6' }] },
     modifiers: [],
     dynamicModifier: (state) => {
       const bonus = Math.min(state.resources.r0 * 0.001, 1)
@@ -127,8 +116,8 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r1',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 300, y: 600 },
-    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u2' }] },
+    position: { x: 500, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u7' }] },
     modifiers: [],
     dynamicModifier: (state) => {
       const bonus = Math.min(state.resources.r1 * 0.001, 1)
@@ -141,7 +130,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 700, y: 200 },
+    position: { x: 200, y: 450 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u4' }] },
+    choiceGroup: 'generator-count',
     modifiers: [],
     dynamicModifier: (state) => {
       const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
@@ -163,7 +154,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r1',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 700, y: 325 },
+    position: { x: 400, y: 450 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u4' }] },
+    choiceGroup: 'generator-count',
     modifiers: [],
     dynamicModifier: (state) => {
       const generatorIds = ['g0', 'g1', 'g2', 'g3'] as const
@@ -183,7 +176,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 500, y: 600 },
+    position: { x: 0, y: 150 },
     modifiers: [],
     dynamicModifier: (state) => {
       const purchasedAt = state.meta.purchasedAt as Record<string, number> | undefined
@@ -204,8 +197,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
     category: 'tree',
-    position: { x: 200, y: 700 },
-    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'u4' }] },
+    position: { x: 600, y: 0 },
     modifiers: [],
   },
 ]
@@ -258,7 +250,6 @@ const idlerFlavor: ModeFlavor = {
     { id: 'u0', name: '🪓 Sharpened Axes', description: 'Highlight boost → 4× (from 2×)' },
     { id: 'u1', name: '🌲 Heavy Logging', description: '+5 base 🪵/sec' },
     { id: 'u2', name: '👑 Royal Brewery', description: '+5 base 🍺/sec' },
-    { id: 'u3', name: '👷 Master Craftsmen', description: '+5 base 🪵/sec (stackable)' },
     { id: 'u4', name: '⚙️ Industrial Era', description: 'All production ×1.25' },
     {
       id: 'u6',

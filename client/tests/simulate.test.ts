@@ -193,11 +193,11 @@ describe('simulate — cross-resource cost', () => {
 // ─── Prerequisite enforcement ────────────────────────────────────────
 
 describe('simulate — prerequisite enforcement', () => {
-  // u3 (Master Craftsmen) requires u2 (Royal Brewery).
-  // Trying to buy u3 without u2 should get stuck — never purchases.
-  const result = simulate({ name: 'MC without RB', actions: [hl('r1'), buy('u3')] }, 'idler')
+  // u6 (Skilled Foremen) requires u1 (Heavy Logging).
+  // Trying to buy u6 without u1 should get stuck — never purchases.
+  const result = simulate({ name: 'u6 without u1', actions: [hl('r0'), buy('u6')] }, 'idler')
 
-  it('cannot buy u3 without owning prerequisite u2', () => {
+  it('cannot buy u6 without owning prerequisite u1', () => {
     expect(result.purchaseLog).toHaveLength(0)
   })
 
@@ -206,38 +206,19 @@ describe('simulate — prerequisite enforcement', () => {
   })
 })
 
-// ─── Unlimited upgrade (u3) ──────────────────────────────────────────
+// ─── Prerequisite chain (u1 → u6) ───────────────────────────────────
 
-describe('simulate — unlimited upgrade stacking', () => {
-  // Buy u2 first (prereq), then buy u3 twice. Each u3 adds +5 r0/s.
-  const result = simulate(
-    { name: 'RB→MC×2', actions: [hl('r1'), buy('u2'), buy('u3'), buy('u3'), hl('r0')] },
-    'idler',
-  )
+describe('simulate — prerequisite chain', () => {
+  // Buy u1 first (prereq for u6), then buy u6.
+  const result = simulate({ name: 'u1→u6', actions: [hl('r0'), buy('u1'), buy('u6')] }, 'idler')
 
-  it('records both u3 purchases', () => {
-    const mcPurchases = result.purchaseLog.filter((p) => p.id === 'u3')
-    expect(mcPurchases).toHaveLength(2)
+  it('records u6 purchase after u1', () => {
+    const u6Purchases = result.purchaseLog.filter((p) => p.id === 'u6')
+    expect(u6Purchases).toHaveLength(1)
   })
 
-  it('each u3 purchase increases r0 income', () => {
-    const mcIndices = result.snapshots
-      .map((s, i) => (s.event.includes('buy:u3') ? i : -1))
-      .filter((i) => i !== -1)
-    expect(mcIndices).toHaveLength(2)
-
-    // After first MC, r0 income should be higher
-    const rateBeforeFirst = result.snapshots[mcIndices[0] - 1].incomePerSec.r0
-    const rateAfterFirst = result.snapshots[mcIndices[0]].incomePerSec.r0
-    expect(rateAfterFirst).toBeGreaterThan(rateBeforeFirst)
-
-    // After second MC, r0 income should increase again
-    const rateAfterSecond = result.snapshots[mcIndices[1]].incomePerSec.r0
-    expect(rateAfterSecond).toBeGreaterThan(rateAfterFirst)
-  })
-
-  it('score is higher than RB-only strategy', () => {
-    const rbOnly = simulate({ name: 'RB only', actions: [hl('r1'), buy('u2'), hl('r0')] }, 'idler')
-    expect(result.finalScore).toBeGreaterThan(rbOnly.finalScore)
+  it('score is at least as high as u1-only strategy', () => {
+    const u1Only = simulate({ name: 'u1 only', actions: [hl('r0'), buy('u1')] }, 'idler')
+    expect(result.finalScore).toBeGreaterThanOrEqual(u1Only.finalScore)
   })
 })

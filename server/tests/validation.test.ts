@@ -215,31 +215,29 @@ describe('isValidPurchase — prerequisites', () => {
     expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('rejects u4 when only one of three prerequisites is owned (AND-semantics)', () => {
+  it('rejects u4 when neither u6 nor u7 is owned (OR-semantics)', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        u1: 1, // royal-brewery and sharpened-axes still unowned
+        u1: 1, // u6's prereq owned, but u6 itself not
       },
     })
     expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
-  it('accepts u4 when all three prerequisites are owned', () => {
+  it('accepts u4 when at least one of u6 or u7 is owned', () => {
     const state = makeIdlerState({
       upgrades: {
         ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        u1: 1,
-        u2: 1,
-        u0: 1,
+        u6: 1,
       },
     })
     expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(true)
   })
 
-  it('rejects u3 when u2 is unowned', () => {
+  it('rejects u6 when u1 is unowned', () => {
     const state = makeIdlerState()
-    expect(isValidPurchase(state, 'u3', idlerUpgradeMap, idlerDef)).toBe(false)
+    expect(isValidPurchase(state, 'u6', idlerUpgradeMap, idlerDef)).toBe(false)
   })
 
   it('accepts an OR-style prerequisite when at least one branch is owned', () => {

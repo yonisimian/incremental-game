@@ -170,14 +170,22 @@ describe('collectModifiers', () => {
   })
 
   it('scales unlimited upgrade modifiers by owned count', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
-    state.upgrades.u3 = 3
-    const mods = collectModifiers(state, def)
-    // u3 (master-craftsmen): +5 base r0/sec × 3 = +15
-    const mcMod = mods.find((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 15)
-    expect(mcMod).toBeDefined()
+    const unlimitedUpgrade: UpgradeDefinition = {
+      id: 'uUnlim',
+      cost: 10,
+      costCurrency: 'r0',
+      purchaseLimit: Infinity,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
+    }
+    const customDef: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      upgrades: [...getModeDefinition('idler').upgrades, unlimitedUpgrade],
+    }
+    const state = createInitialState(customDef)
+    state.upgrades.uUnlim = 3
+    const mods = collectModifiers(state, customDef)
+    const scaledMod = mods.find((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 15)
+    expect(scaledMod).toBeDefined()
   })
 
   it('applies generator-targeted upgrades to generator output', () => {
@@ -312,14 +320,23 @@ describe('applyPurchase', () => {
   })
 
   it('increments count for unlimited upgrades', () => {
-    const def = getModeDefinition('idler')
-    const state = makeState(def)
+    const unlimitedUpgrade: UpgradeDefinition = {
+      id: 'uUnlim',
+      cost: 10,
+      costCurrency: 'r1',
+      purchaseLimit: Infinity,
+      modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
+    }
+    const customDef: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      upgrades: [...getModeDefinition('idler').upgrades, unlimitedUpgrade],
+    }
+    const state = makeState(customDef)
     state.resources.r1 = 30
-    state.upgrades.u2 = 1 // prereq for u3 (master-craftsmen)
-    applyPurchase(state, 'u3', def) // costs 10 r1
-    applyPurchase(state, 'u3', def)
-    applyPurchase(state, 'u3', def)
-    expect(state.upgrades.u3).toBe(3)
+    applyPurchase(state, 'uUnlim', customDef)
+    applyPurchase(state, 'uUnlim', customDef)
+    applyPurchase(state, 'uUnlim', customDef)
+    expect(state.upgrades.uUnlim).toBe(3)
     expect(state.resources.r1).toBe(0)
   })
 
@@ -392,16 +409,26 @@ describe('time-based multiplier (u12)', () => {
   })
 
   it('repeated purchase does not overwrite purchasedAt', () => {
-    const { def, state } = setupIdler()
-    state.resources.r1 = 100
-    state.upgrades.u2 = 1 // prereq for u3
+    const unlimitedUpgrade: UpgradeDefinition = {
+      id: 'uRepeat',
+      cost: 10,
+      costCurrency: 'r0',
+      purchaseLimit: Infinity,
+      modifiers: [],
+    }
+    const customDef: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      upgrades: [...getModeDefinition('idler').upgrades, unlimitedUpgrade],
+    }
+    const state = createInitialState(customDef)
+    state.resources.r0 = 100
     state.meta.gameSec = 2
-    applyPurchase(state, 'u3', def) // first buy at gameSec=2
+    applyPurchase(state, 'uRepeat', customDef) // first buy at gameSec=2
     state.meta.gameSec = 10
-    applyPurchase(state, 'u3', def) // second buy at gameSec=10
+    applyPurchase(state, 'uRepeat', customDef) // second buy at gameSec=10
     const purchasedAt = state.meta.purchasedAt as Record<string, number>
-    expect(purchasedAt.u3).toBe(2) // still original timestamp
-    expect(state.upgrades.u3).toBe(2)
+    expect(purchasedAt.uRepeat).toBe(2) // still original timestamp
+    expect(state.upgrades.uRepeat).toBe(2)
   })
 
   it('dynamicModifier returns null when upgrade is not owned', () => {
