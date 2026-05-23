@@ -80,11 +80,13 @@ interface TargetEnvelope {
   goalType: 'timed' | 'target-score' | 'buy-upgrade'
   /** Ordered checkpoints. */
   checkpoints: Checkpoint[]
-  /** Minimum number of strategies that must be viable at every checkpoint. */
+  /**
+   * Minimum number of strategies that must be viable at the **final** checkpoint.
+   * (Earlier checkpoints are informational — a slow-start strategy that catches
+   * up by the end is still considered viable.)
+   */
   minViableStrategies: number
-  /** Maximum allowed ratio between maxScore and minScore at any checkpoint (envelope width). */
-  maxBandRatio: number
-  /** Maximum allowed ratio between best and worst *viable* strategy scores (strategy parity). */
+  /** Maximum allowed ratio between best and worst *viable* strategy scores at the final checkpoint. */
   maxStrategySpread: number
 }
 ```
@@ -115,16 +117,15 @@ const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
     { timeSec: 35, minScore: 250, maxScore: 600, phase: 'Sprint (final)' },
   ],
   minViableStrategies: 3,
-  maxBandRatio: 2.5,
   maxStrategySpread: 1.15,
 }
 ```
 
-> **Checkpoint placement:** Each checkpoint is placed at the **midpoint** of its
-> phase's time window. The envelope band width at that checkpoint accounts for
-> the fact that different strategies may enter the phase early or late within the
-> window. The pacing skeleton (Layer 1) is the design intent; checkpoints are
-> derived measurement points.
+> **Checkpoint placement:** Checkpoints don't need to align 1:1 with phase
+> boundaries. Place them at moments where you have a clear expectation of
+> where score _should_ be. The pacing skeleton (Layer 1) is the design intent;
+> checkpoints are derived measurement points that sample the trajectory at
+> key moments.
 
 > **For non-timed goal types:** The checkpoint model inverts. For `target-score`
 > goals, the score axis is fixed (the target) and the variable is time-to-reach.
@@ -191,15 +192,24 @@ timing depends on player skill:
 
 The envelope must accommodate this variance. Strategies in the simulator assume
 perfect highlight timing — real players will score **10-20% below** sim results.
-Account for this when setting `minScore` bounds:
 
-```text
-minScore_real ≈ minScore_sim × 0.8
+**Convention:** Checkpoint `minScore`/`maxScore` values are set against **sim
+results** (perfect play). The validation function applies a skill discount
+internally when checking real-player viability:
+
+```typescript
+// In validateEnvelope():
+const SKILL_DISCOUNT = 0.8 // real players score ~80% of sim
+const adjustedMin = checkpoint.minScore * SKILL_DISCOUNT
+// A strategy is "real-player viable" if its sim score ≥ adjustedMin
 ```
 
-When validating the envelope, run each strategy at both "perfect timing" and
-"delayed timing" (add a 2s delay before each `set_highlight` action). Both
-variants should remain within the envelope for the strategy to be truly viable.
+This keeps the envelope values grounded in measurable sim output while
+acknowledging that real players will perform worse.
+
+**Dual validation:** Run each strategy at both "perfect timing" and "delayed
+timing" (add a 2s delay before each `set_highlight` action). Both variants
+should remain within the envelope for the strategy to be truly viable.
 
 ### Layer 6 — Violation Classification
 
@@ -212,9 +222,10 @@ When a strategy falls outside the envelope:
 | Within band      | Viable            | No action needed                                          |
 
 **CI behavior:** Envelope validation should **fail the build** if fewer than
-`minViableStrategies` land within the band, or if `maxStrategySpread` is
-exceeded. Strategies above `maxScore` produce a **warning annotation** on the
-PR (not a hard failure) since they may indicate intentional high-risk paths.
+`minViableStrategies` land within the band at the final checkpoint, or if
+`maxStrategySpread` is exceeded. Strategies above `maxScore` at any checkpoint
+produce a **warning annotation** on the PR (not a hard failure) since they may
+indicate intentional high-risk paths.
 
 ---
 
@@ -237,8 +248,11 @@ simulation results against it. Show results in the dev panel.
      // For each checkpoint:
      //   - Find the score of each strategy at that timeSec
      //   - Count how many fall within [minScore, maxScore]
+     //   - Apply SKILL_DISCOUNT to minScore for real-player viability
+     // At the final checkpoint:
+     //   - Verify ≥ minViableStrategies are within the band
      //   - Check spread ratio between best and worst viable
-     // Return per-checkpoint pass/fail + overall verdict
+     // Return per-checkpoint status + overall pass/fail verdict
    }
    ```
 
@@ -362,10 +376,12 @@ Running the existing strategies against a hypothetical envelope reveals issues:
 2. **First meaningful purchase is too late.** At ~10-25s into a 35s round,
    Phase 2 doesn't start until the round is 30-70% over. Fix: lower first
    upgrade cost, or increase base income.
-3. **Industrial Era (×1.25) is gated behind 3 prerequisites** (u0, u1, u2 =
-   30+25+25 = 80 resources minimum). In a 35s round with ~2/sec average income,
-   that's 40s of pure income — literally impossible to reach without generators
-   or Master Craftsmen. This upgrade exists only for longer goal types.
+3. **Industrial Era (×1.25) is gated behind 3 prerequisites** (u0=30 wood,
+   u1=25 wood, u2=25 ale → 55 wood + 25 ale for prereqs, plus 50 wood for IE
+   itself = **105 wood + 25 ale total**). In a 35s round, even with highlight
+   switching, the combined farming time makes IE unreachable in timed mode
+   without generators or Master Craftsmen. This upgrade exists only for longer
+   goal types.
 4. **Master Craftsmen (u3, repeatable +5 r0/sec, costs 10 r1)** is extremely
    efficient — 10 ale for +5 wood/sec. Three purchases (30 ale) give +15/sec.
    This might be intentionally strong as a "combo" reward for investing in ale
