@@ -160,38 +160,38 @@ describe('validateUpgradePrerequisites', () => {
   })
 
   it('rejects unknown upgrade references', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1' }],
         }),
-      ]); },
-    ).toThrow(/unknown prerequisite/)
+      ])
+    }).toThrow(/unknown prerequisite/)
   })
 
   it('rejects invalid minLevel values', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1', minLevel: 0 }],
         }),
         makeUpgrade('u1'),
-      ]); },
-    ).toThrow(/invalid minLevel/)
+      ])
+    }).toThrow(/invalid minLevel/)
   })
 
   it('rejects minLevel values higher than the referenced upgrade max level', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1', minLevel: 2 }],
         }),
         makeUpgrade('u1'),
-      ]); },
-    ).toThrow(/greater than max level/)
+      ])
+    }).toThrow(/greater than max level/)
   })
 
   it('rejects direct cycles', () => {
