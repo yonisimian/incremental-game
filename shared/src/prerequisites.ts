@@ -17,8 +17,7 @@ export function isPrerequisiteSatisfied(
 
 function evaluatePrerequisiteExpression(expr: PrerequisiteExpression, state: PlayerState): boolean {
   if (expr.type === 'upgrade') {
-    const minLevel = expr.minLevel ?? 1
-    return (state.upgrades[expr.id] ?? 0) >= minLevel
+    return (state.upgrades[expr.id] ?? 0) > 0
   }
 
   if (expr.items.length === 0) {
@@ -60,10 +59,7 @@ export function formatPrerequisiteExpression(
   if (!expr) return ''
 
   const format = (node: PrerequisiteExpression): string => {
-    if (node.type === 'upgrade') {
-      const minLevel = node.minLevel ?? 1
-      return minLevel > 1 ? `${node.id} (level ${minLevel}+)` : node.id
-    }
+    if (node.type === 'upgrade') return node.id
     const delimiter = node.type === 'all' ? ' and ' : ' or '
     return node.items
       .map((item) => {
@@ -82,31 +78,17 @@ export function formatPrerequisiteExpression(
 /** Validate prerequisites for a single upgrade. */
 export function validatePrerequisiteExpression(
   prerequisites: UpgradePrerequisites | undefined,
-  upgradeById: ReadonlyMap<string, UpgradeDefinition>,
+  validUpgradeIds: ReadonlySet<string>,
   upgradeId: string,
 ): void {
   if (!prerequisites) return
 
   const validateNode = (node: PrerequisiteExpression): void => {
     if (node.type === 'upgrade') {
-      const target = upgradeById.get(node.id)
-      if (!target) {
+      if (!validUpgradeIds.has(node.id)) {
         throw new Error(
           `[prerequisites] upgrade '${upgradeId}' references unknown prerequisite '${node.id}'`,
         )
-      }
-
-      if (node.minLevel !== undefined) {
-        if (!Number.isInteger(node.minLevel) || node.minLevel < 1) {
-          throw new Error(
-            `[prerequisites] upgrade '${upgradeId}' references prerequisite '${node.id}' with invalid minLevel ${node.minLevel}`,
-          )
-        }
-        if (target.purchaseLimit !== Infinity && node.minLevel > target.purchaseLimit) {
-          throw new Error(
-            `[prerequisites] upgrade '${upgradeId}' references prerequisite '${node.id}' with minLevel ${node.minLevel} greater than max level ${target.purchaseLimit}`,
-          )
-        }
       }
       return
     }
@@ -127,10 +109,10 @@ export function validatePrerequisiteExpression(
 
 /** Validate all upgrade prerequisite definitions and detect cycles. */
 export function validateUpgradePrerequisites(upgrades: readonly UpgradeDefinition[]): void {
-  const upgradeById = new Map(upgrades.map((u) => [u.id, u]))
+  const validUpgradeIds = new Set(upgrades.map((u) => u.id))
 
   for (const upgrade of upgrades) {
-    validatePrerequisiteExpression(upgrade.prerequisites, upgradeById, upgrade.id)
+    validatePrerequisiteExpression(upgrade.prerequisites, validUpgradeIds, upgrade.id)
   }
 
   const graph = new Map<string, readonly string[]>()
