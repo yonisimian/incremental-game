@@ -75,7 +75,9 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
           ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
           : ''
       const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed
+      const isMaxed_ = owned >= u.purchaseLimit
+      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+      const costLabel = isMaxed_
         ? '✓'
         : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
 
