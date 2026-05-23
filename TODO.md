@@ -62,9 +62,9 @@
 - [ ] Generic hotkeys (buy cheapest / buy all affordable)
 - [x] Multi-purchase with fixed cost
 - [ ] Multi-purchase with dynamic cost
-- [ ] Choice upgrades (locks sibling upgrades when bought)
+- [x] Choice upgrades (locks sibling upgrades when bought)
 - Specific upgrades — generator:
-  - [ ] Time Mul: multiply generators by a factor entangled with time since purchase
+  - [x] Time Mul: multiply generators by a factor entangled with time since purchase
   - [x] Add power to generator(s) (more points per tick)
   - [ ] Increase tick speed (…per generator?)
   - [ ] Lower tier support: each N tier-1 entities add power to tier-2 generators

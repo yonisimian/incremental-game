@@ -177,6 +177,25 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     },
   },
 
+  {
+    id: 'u12', // Time-Based Multiplier
+    cost: 200,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 500, y: 600 },
+    modifiers: [],
+    dynamicModifier: (state) => {
+      const purchasedAt = state.meta.purchasedAt as Record<string, number> | undefined
+      const t0 = purchasedAt?.u12
+      const now = state.meta.gameSec as number | undefined
+      if (t0 === undefined || now === undefined) return null
+      const elapsed = now - t0
+      const multiplier = Math.min(1 + (1 / 60) * elapsed, 10)
+      return { stage: 'multiplicative', field: 'globalMultiplier', value: multiplier }
+    },
+  },
+
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
     id: 'u5', // Royal Throne
@@ -266,6 +285,11 @@ const idlerFlavor: ModeFlavor = {
       id: 'u11',
       name: '⚖️ Balanced Engineering',
       description: 'Up to +25% all production when all 4 generator counts are even',
+    },
+    {
+      id: 'u12',
+      name: '⏳ Time Investment',
+      description: 'All production grows over time (up to ×10, +1/60 per sec)',
     },
     {
       id: 'u5',

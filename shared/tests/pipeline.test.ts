@@ -179,4 +179,13 @@ describe('applyPassiveTick', () => {
     expect(state.resources.currency).toBe(5)
     expect(state.score).toBe(0)
   })
+
+  it('accumulates gameSec in state.meta', () => {
+    const state = makeState({ currency: 0 })
+    const mods: Modifier[] = [{ stage: 'additive', field: 'currency', value: 1 }]
+    applyPassiveTick(state, ['currency'], 'currency', mods, 0.1)
+    applyPassiveTick(state, ['currency'], 'currency', mods, 0.1)
+    applyPassiveTick(state, ['currency'], 'currency', mods, 0.1)
+    expect(state.meta.gameSec).toBeCloseTo(0.3)
+  })
 })

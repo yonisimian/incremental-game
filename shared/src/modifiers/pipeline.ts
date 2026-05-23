@@ -92,6 +92,10 @@ export function applyPassiveTick(
   modifiers: readonly Modifier[],
   tickSec: number,
 ): void {
+  // Track cumulative game time for time-based upgrades
+  const prevSec = (state.meta.gameSec as number | undefined) ?? 0
+  state.meta.gameSec = prevSec + tickSec
+
   const rates = computePassiveRates(modifiers, resources)
 
   for (const resource of resources) {
