@@ -280,7 +280,7 @@ describe('game.ts', () => {
           ackSeq: 0,
           player: {
             score: 0,
-            resources: { r0: 100 },
+            resources: { r1: 100 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
@@ -304,7 +304,7 @@ describe('game.ts', () => {
       const count = s.player.generators.g0
 
       expect(count).toBeGreaterThan(0)
-      expect(s.player.resources.r0).toBeLessThan(100)
+      expect(s.player.resources.r1).toBeLessThan(100)
       expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(count)
     })
   })
@@ -690,17 +690,17 @@ describe('game.ts', () => {
     it('deducts r0 for r0-cost upgrades', () => {
       enterIdlerPlaying(game)
       giveR0(game, 50)
-      game.doBuy('u0') // costs 30 r0
+      game.doBuy('u0') // costs 15 r0
       expect(game.getState().player.upgrades.u0).toBe(1)
-      expect(game.getState().player.resources.r0).toBe(20)
+      expect(game.getState().player.resources.r0).toBe(35)
     })
 
     it('deducts r1 for r1-cost tree upgrades', () => {
       enterIdlerPlaying(game)
       giveR1(game, 25)
-      game.doBuy('u2') // costs 25 r1
+      game.doBuy('u2') // costs 10 r1
       expect(game.getState().player.upgrades.u2).toBe(1)
-      expect(game.getState().player.resources.r1).toBe(0)
+      expect(game.getState().player.resources.r1).toBe(15)
     })
 
     it('rejects buying a tree upgrade when prerequisites are unowned', () => {
