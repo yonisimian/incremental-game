@@ -3,6 +3,7 @@ import type {
   GameMode,
   Goal,
   QuickMatchMessage,
+  RematchMessage,
   RoomCreateMessage,
   RoomJoinMessage,
   RoomUpdateMessage,
@@ -126,6 +127,14 @@ export function sendQuit(): void {
 export function sendBotRequest(): void {
   if (ws?.readyState !== WebSocket.OPEN) return
   ws.send(JSON.stringify({ type: 'BOT_REQUEST' }))
+}
+
+/** Request a rematch with the same opponent. Returns false if not connected. */
+export function sendRematch(name: string, matchId: string, mode: GameMode, goal: Goal): boolean {
+  if (ws?.readyState !== WebSocket.OPEN) return false
+  const msg: RematchMessage = { type: 'REMATCH', name, matchId, mode, goal }
+  ws.send(JSON.stringify(msg))
+  return true
 }
 
 /** Get the current sequence number (for optimistic reconciliation). */

@@ -30,6 +30,7 @@ import {
   queueAction,
   resetSeq,
   sendQuickMatch,
+  sendRematch,
   sendRoomCreate,
   sendRoomJoin,
   sendRoomUpdate,
@@ -261,6 +262,17 @@ export function quickMatch(): void {
   if (state.screen !== 'lobby') return
   if (!sendQuickMatch(state.playerName)) return // not connected
   state.roomError = null
+  state.screen = 'waiting'
+  notify()
+}
+
+/** Request a rematch with the same opponent from the end screen. */
+export function rematch(): void {
+  if (state.screen !== 'ended') return
+  const { mode, goal, matchId } = state
+  if (!mode || !goal || !matchId) return
+  if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
+  resetForMatch()
   state.screen = 'waiting'
   notify()
 }
