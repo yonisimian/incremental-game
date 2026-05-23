@@ -65,7 +65,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const owned = state.player.upgrades[u.id]
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
-      const disabled = owned || !affordable
+      const disabled = owned || !unlocked || !affordable
       const lockTitle = !unlocked ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}` : ''
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
       const hotkey = i + 1
