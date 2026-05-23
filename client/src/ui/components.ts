@@ -85,15 +85,10 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const costLabel = maxed
         ? '✓'
         : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
-      const stateClass = !unlocked
-        ? 'locked'
-        : maxed
-          ? 'owned'
-          : choiceBlocked
-            ? 'locked'
-            : !affordable
-              ? 'too-expensive'
-              : ''
+      let stateClass = ''
+      if (!unlocked || choiceBlocked) stateClass = 'locked'
+      else if (maxed) stateClass = 'owned'
+      else if (!affordable) stateClass = 'too-expensive'
       const disabled = !unlocked || maxed || choiceBlocked || !affordable
 
       return `
