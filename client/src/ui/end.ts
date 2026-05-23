@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { resetForMatch } from '../game.js'
+import { rematch, resetForMatch } from '../game.js'
 import { getModeDefinition } from '@game/shared'
 import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
 
@@ -43,11 +43,17 @@ export function renderEndScreen(state: Readonly<GameState>): void {
         ${flavor.showClickStats ? `<div>Peak CPS: ${end.stats.peakCps}</div>` : ''}
         <div>Upgrades: ${formatUpgradesPurchased(end.stats.upgradesPurchased, flavor)}</div>
       </div>
-      <button class="rematch-button" id="rematch-btn">Back to Lobby</button>
+      <div class="end-actions">
+        <button id="rematch-btn">Rematch</button>
+        <button id="lobby-btn">Back to Lobby</button>
+      </div>
     </div>
   `
 
   document.getElementById('rematch-btn')!.addEventListener('click', () => {
+    rematch()
+  })
+  document.getElementById('lobby-btn')!.addEventListener('click', () => {
     resetForMatch()
   })
 }

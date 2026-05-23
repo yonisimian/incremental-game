@@ -33,6 +33,13 @@ function isValidMode(mode: unknown): mode is GameMode {
   return typeof mode === 'string' && (AVAILABLE_MODES as readonly string[]).includes(mode)
 }
 
+/** Check that a goal matches one of the mode's defined goals (by type). */
+function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
+  if (!goal || typeof goal !== 'object' || !('type' in goal)) return false
+  const modeDef = getModeDefinition(mode)
+  return modeDef.goals.some((g) => g.type === (goal as { type: string }).type)
+}
+
 // ─── HTTP Server (health check) ─────────────────────────────────────
 
 const httpServer = createServer((_req, res) => {
@@ -64,6 +71,41 @@ function sanitizeName(raw: unknown): string {
         .replace(/\p{Cc}/gu, '')
         .slice(0, 16)
     : ''
+}
+
+// ─── Rematch Queue ───────────────────────────────────────────────────
+
+interface RematchEntry {
+  id: string
+  ws: WebSocket
+  name: string
+  mode: GameMode
+  goal: Goal
+}
+
+/** Rematch queue keyed by matchId — only the two original opponents can pair. */
+const rematchQueue = new Map<string, RematchEntry>()
+
+function addToRematchQueue(
+  matchId: string,
+  entry: RematchEntry,
+): [RematchEntry, RematchEntry] | null {
+  const waiting = rematchQueue.get(matchId)
+  if (waiting && waiting.id !== entry.id) {
+    rematchQueue.delete(matchId)
+    return [waiting, entry]
+  }
+  rematchQueue.set(matchId, entry)
+  return null
+}
+
+function removeFromRematchQueue(playerId: string): void {
+  for (const [key, entry] of rematchQueue) {
+    if (entry.id === playerId) {
+      rematchQueue.delete(key)
+      return
+    }
+  }
 }
 
 /** Roll random settings for quick-match. */
@@ -115,6 +157,7 @@ wss.on('connection', (ws: WebSocket) => {
     // ── QUIT ─────────────────────────────────────────────────────
     if (msg.type === 'QUIT') {
       removeFromQuickQueue(data.id)
+      removeFromRematchQueue(data.id)
       const result = leaveRoom(data.id)
       if (result && !result.destroyed) {
         // Notify the remaining player
@@ -147,6 +190,30 @@ wss.on('connection', (ws: WebSocket) => {
           { id: pair[1].id, ws: pair[1].ws!, name: pair[1].name },
           mode,
           goal,
+        )
+        startMatch(match)
+      }
+      return
+    }
+
+    // ── REMATCH ──────────────────────────────────────────────────
+    if (msg.type === 'REMATCH') {
+      if (getQueuedPlayer(data.id)) return // already in queue
+      if (getRoomByPlayerId(data.id)) return // already in a room
+      if (!isValidMode(msg.mode)) return
+      if (!isValidGoal(msg.mode, msg.goal)) return
+      if (!msg.matchId || typeof msg.matchId !== 'string') return
+
+      const name = sanitizeName(msg.name)
+      const mode = msg.mode
+      const goal = msg.goal
+      const pair = addToRematchQueue(msg.matchId, { id: data.id, ws, name, mode, goal })
+      if (pair) {
+        const match = new Match(
+          { id: pair[0].id, ws: pair[0].ws, name: pair[0].name },
+          { id: pair[1].id, ws: pair[1].ws, name: pair[1].name },
+          pair[0].mode,
+          pair[0].goal,
         )
         startMatch(match)
       }
@@ -301,6 +368,7 @@ wss.on('connection', (ws: WebSocket) => {
   // Handle disconnect
   ws.on('close', () => {
     console.info(`[disconnect] ${data.id}`)
+    removeFromRematchQueue(data.id)
     const m = playerMatches.get(data.id)
     if (m) {
       m.handleDisconnect(data.id)

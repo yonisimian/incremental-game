@@ -57,6 +57,19 @@ export interface BotRequestMessage {
   type: 'BOT_REQUEST'
 }
 
+/** Sent by client on end screen to request a rematch with the same opponent. */
+export interface RematchMessage {
+  type: 'REMATCH'
+  /** Player's display name. */
+  name: string
+  /** Match ID from the just-finished match (pairs only the same two players). */
+  matchId: string
+  /** Mode from the just-finished match. */
+  mode: GameMode
+  /** Goal from the just-finished match. */
+  goal: Goal
+}
+
 export type ClientMessage =
   | ActionBatchMessage
   | QuickMatchMessage
@@ -65,6 +78,7 @@ export type ClientMessage =
   | RoomUpdateMessage
   | QuitMessage
   | BotRequestMessage
+  | RematchMessage
 
 // ─── Server → Client ────────────────────────────────────────────────
 
