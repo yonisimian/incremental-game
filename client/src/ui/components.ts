@@ -17,6 +17,7 @@ import {
   isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
+  getUpgradeNextCost,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -73,6 +74,13 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
           ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
           : ''
+      const nextCost = getUpgradeNextCost(u, owned)
+      const maxed = isMaxed(u, owned)
+      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+      const costLabel = maxed
+        ? '✓'
+        : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
+
       return `
         <button
           class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
@@ -82,7 +90,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
         >
           <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
           ${levelLabel}
-          <span class="upgrade-cost">${owned ? '✓' : `${getResourceIcon(flavor, modeDef.scoreResource)}${u.cost}`}</span>
+          <span class="upgrade-cost">${costLabel}</span>
           <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
           <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
         </button>
@@ -209,7 +217,8 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
 
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-      const costLabel = maxed ? '✓' : `${u.cost} ${emoji}${countLabel}`
+      const nextCost = getUpgradeNextCost(u, owned)
+      const costLabel = maxed ? '✓' : `${nextCost} ${emoji}${countLabel}`
       const levelLabel =
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
           ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`

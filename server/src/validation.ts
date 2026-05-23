@@ -1,4 +1,10 @@
-import { MAX_CPS, canAffordGenerator, isMaxed, isPrerequisiteSatisfied } from '@game/shared'
+import {
+  MAX_CPS,
+  canAffordGenerator,
+  isMaxed,
+  isPrerequisiteSatisfied,
+  getUpgradeNextCost,
+} from '@game/shared'
 import type {
   GeneratorDefinition,
   ModeDefinition,
@@ -49,7 +55,8 @@ export function isValidPurchase(
   // Check the correct resource balance
   const costResource = def.costCurrency ?? mode.scoreResource
   const balance = state.resources[costResource] ?? 0
-  return balance >= def.cost
+  const nextCost = getUpgradeNextCost(def, owned)
+  return balance >= nextCost
 }
 
 /**

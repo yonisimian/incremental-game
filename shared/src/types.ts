@@ -30,6 +30,10 @@ export interface UpgradeDefinition {
   readonly cost: number
   /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
   readonly costCurrency?: string
+  /** Optional dynamic cost scaling for repeatable upgrades. */
+  readonly costScaling?:
+    | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
+    | { readonly type: 'exponential'; readonly baseCost: number; readonly factor: number }
   /**
    * Maximum number of times this upgrade can be purchased.
    * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.
