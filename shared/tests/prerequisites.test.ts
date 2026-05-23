@@ -130,29 +130,29 @@ describe('validateUpgradePrerequisites', () => {
   }
 
   it('accepts valid nested prerequisite graphs', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0'),
         makeUpgrade('u1', { type: 'any', items: [{ type: 'upgrade', id: 'u0' }] }),
         makeUpgrade('u2', { type: 'all', items: [{ type: 'upgrade', id: 'u1' }] }),
-      ]); },
-    ).not.toThrow()
+      ])
+    }).not.toThrow()
   })
 
   it('rejects unknown upgrade references', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1' }],
         }),
-      ]); },
-    ).toThrow(/unknown prerequisite/)
+      ])
+    }).toThrow(/unknown prerequisite/)
   })
 
   it('rejects direct cycles', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([
+    expect(() => {
+      validateUpgradePrerequisites([
         makeUpgrade('u0', {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u1' }],
@@ -161,13 +161,13 @@ describe('validateUpgradePrerequisites', () => {
           type: 'all',
           items: [{ type: 'upgrade', id: 'u0' }],
         }),
-      ]); },
-    ).toThrow(/circular dependency detected/)
+      ])
+    }).toThrow(/circular dependency detected/)
   })
 
   it('rejects empty all/any expressions', () => {
-    expect(() =>
-      { validateUpgradePrerequisites([makeUpgrade('u0', { type: 'any', items: [] })]); },
-    ).toThrow(/empty 'any' prerequisite group/)
+    expect(() => {
+      validateUpgradePrerequisites([makeUpgrade('u0', { type: 'any', items: [] })])
+    }).toThrow(/empty 'any' prerequisite group/)
   })
 })
