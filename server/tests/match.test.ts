@@ -431,10 +431,10 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      // Idler has more upgrades than clicker (5 non-trophy vs 2)
+      // Idler has more upgrades than clicker
       expect(ids.length).toBeGreaterThanOrEqual(4)
-      // Idler-exclusive upgrade IDs (u3, u4 only exist in idler)
-      expect(ids).toContain('u3')
+      // Idler-exclusive upgrade IDs (u4, u6 only exist in idler)
+      expect(ids).toContain('u6')
       expect(ids).toContain('u4')
     })
 

@@ -55,13 +55,15 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Current idler tree positions: heavy(0,0), royal(400,0), master(500,200),
-    // industrial(200,400), foremen(0,500), yeast(400,500), hoarders(100,600), cellar(300,600),
-    // dominant(700,200), balanced(700,325)
+    // Current idler tree positions (timed goal excludes u5):
+    // u0(0,0), u1(200,0), u2(400,0),
+    // u12(0,150), u6(200,150), u7(400,150),
+    // u8(100,300), u4(300,300), u9(500,300),
+    // u10(200,450), u11(400,450)
     expect(bounds.minX).toBe(0)
-    expect(bounds.maxX).toBe(700)
+    expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(600)
+    expect(bounds.maxY).toBe(450)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
@@ -95,12 +97,7 @@ describe('renderUpgradeTree', () => {
 
   it('emits one <line> per prereq edge in the idler tree', () => {
     const { edgesSvg } = renderUpgradeTree(makeIdlerState())
-    // 1 edge: master-craftsmen ← royal-brewery
-    // 3 edges: industrial-era ← heavy-logging, industrial-era ← sharpened-axes, industrial-era ← royal-brewery
-    // 1 edge: skilled-foremen ← heavy-logging
-    // 1 edge: yeast-cultivators ← royal-brewery
-    // 1 edge: resource-hoarders ← heavy-logging
-    // 1 edge: cellar-masters ← royal-brewery
+    // u6←u1, u7←u2, u4←u6, u4←u7, u8←u6, u9←u7, u10←u4, u11←u4
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
     expect(lineCount).toBe(8)
   })
@@ -110,31 +107,32 @@ describe('renderUpgradeTree', () => {
     const lockedTree = renderUpgradeTree(makeIdlerState())
     expect(lockedTree.edgesSvg).not.toContain('class="unlocked"')
 
-    // u2 owned → u3 edge becomes unlocked
+    // u1 owned → u6 edge (u6←u1) becomes unlocked
     const partial = renderUpgradeTree(
       makeIdlerState({
         upgrades: {
           ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-          u2: 1,
+          u1: 1,
         },
       }),
     )
     const unlockedCount = (partial.edgesSvg.match(/class="unlocked"/g) ?? []).length
-    expect(unlockedCount).toBe(3)
+    expect(unlockedCount).toBe(1)
   })
 
   it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState())
-    // u3, u4, u6, u7, u8, u9 have prereqs → all locked
-    expect(nodes).toMatch(/data-upgrade="u3"[^>]*\sdisabled\b/)
+    // u4, u6, u7, u8, u9, u10, u11 have prereqs → all locked
     expect(nodes).toMatch(/data-upgrade="u4"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u6"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u7"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u8"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u9"[^>]*\sdisabled\b/)
+    expect(nodes).toMatch(/data-upgrade="u10"[^>]*\sdisabled\b/)
+    expect(nodes).toMatch(/data-upgrade="u11"[^>]*\sdisabled\b/)
     // .locked class is applied to those nodes
     const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
-    expect(lockedCount).toBe(6)
+    expect(lockedCount).toBe(7)
   })
 
   it('marks one-shot owned upgrades with `.owned` class and disables them', () => {
