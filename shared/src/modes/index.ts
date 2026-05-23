@@ -3,6 +3,7 @@ import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js
 import type { ModeDefinition } from './types.js'
 import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
+import { validateUpgradePrerequisites } from '../prerequisites.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
 
@@ -37,6 +38,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (!def.generators.some((g) => g.id === fg.id))
       throw new Error(`[${id}] flavor references unknown generator '${fg.id}'`)
   }
+
+  // Prerequisite expression validation
+  validateUpgradePrerequisites(def.upgrades)
 
   // highlightEnabled ↔ initialMeta consistency
   if (def.highlightEnabled && !('highlight' in def.initialMeta))

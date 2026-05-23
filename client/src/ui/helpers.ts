@@ -1,5 +1,5 @@
 import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/shared'
-import { getModeDefinition, getUpgradeName, isMaxed } from '@game/shared'
+import { getModeDefinition, getUpgradeName, isMaxed, isPrerequisiteSatisfied } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 
@@ -90,10 +90,7 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
 
 /** Are this upgrade's prerequisites all owned? Empty / missing prereqs = always unlocked. */
 export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
-  for (const pid of u.prerequisites ?? []) {
-    if ((state.player.upgrades[pid] ?? 0) <= 0) return false
-  }
-  return true
+  return isPrerequisiteSatisfied(u.prerequisites, state.player)
 }
 
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */

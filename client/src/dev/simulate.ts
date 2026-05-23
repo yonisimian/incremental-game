@@ -15,6 +15,7 @@ import {
   createInitialState,
   getModeDefinition,
   isMaxed,
+  isPrerequisiteSatisfied,
 } from '@game/shared'
 import type { Strategy, StrategyAction } from './strategies.js'
 
@@ -52,7 +53,7 @@ function canAfford(state: PlayerState, action: StrategyAction, modeDef: ModeDefi
     if (isMaxed(def, owned)) return false
 
     // Check prerequisites
-    if (def.prerequisites?.some((pid) => (state.upgrades[pid] ?? 0) <= 0)) return false
+    if (!isPrerequisiteSatisfied(def.prerequisites, state)) return false
 
     const costResource = def.costCurrency ?? modeDef.scoreResource
     return (state.resources[costResource] ?? 0) >= def.cost

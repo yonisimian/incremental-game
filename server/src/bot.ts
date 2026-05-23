@@ -1,5 +1,5 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
-import { isMaxed } from '@game/shared'
+import { getPrerequisiteUpgradeIds, isMaxed } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -134,7 +134,7 @@ export class IdlerBot implements BotStrategy {
       visited.add(id)
       const def = this.upgradeMap.get(id)
       if (!def) return
-      for (const prereq of def.prerequisites ?? []) {
+      for (const prereq of getPrerequisiteUpgradeIds(def.prerequisites)) {
         visit(prereq)
       }
       result.push({ id, currency: def.costCurrency ?? 'r0' })

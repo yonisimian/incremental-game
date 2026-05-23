@@ -8,6 +8,7 @@ export * from './generators.js'
 export * from './flavor.js'
 export * from './modifiers/index.js'
 export * from './modes/index.js'
+export * from './prerequisites.js'
 export type {
   ModeDefinition,
   ModeFlavor,
