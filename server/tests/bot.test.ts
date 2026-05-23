@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal } from '@game/shared'
+import type { Goal, UpgradeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
@@ -211,7 +211,7 @@ describe('Bot', () => {
     })
 
     it('appends trophy prereqs to plan under buy-upgrade goal', () => {
-      const upgWithTrophy = [
+      const upgWithTrophy: readonly UpgradeDefinition[] = [
         ...idlerUpgrades,
         {
           id: 'u4' as const,

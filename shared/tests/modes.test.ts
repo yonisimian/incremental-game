@@ -371,3 +371,66 @@ describe('applyPurchase', () => {
     expect(state.resources.r0).toBe(999)
   })
 })
+
+// ─── Time-Based Multiplier (u12) ─────────────────────────────────────
+
+describe('time-based multiplier (u12)', () => {
+  function setupIdler() {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    return { def, state }
+  }
+
+  it('applyPurchase records purchasedAt in state.meta', () => {
+    const { def, state } = setupIdler()
+    state.resources.r0 = 300
+    state.meta.gameSec = 5
+    applyPurchase(state, 'u12', def)
+    expect(state.upgrades.u12).toBe(1)
+    const purchasedAt = state.meta.purchasedAt as Record<string, number>
+    expect(purchasedAt.u12).toBe(5)
+  })
+
+  it('dynamicModifier returns null when upgrade is not owned', () => {
+    const { def, state } = setupIdler()
+    const u12 = def.upgrades.find((u) => u.id === 'u12')!
+    expect(u12.dynamicModifier!(state)).toBeNull()
+  })
+
+  it('dynamicModifier returns multiplier based on elapsed time', () => {
+    const { def, state } = setupIdler()
+    state.upgrades.u12 = 1
+    state.meta.purchasedAt = { u12: 5 }
+    state.meta.gameSec = 35 // 30 seconds elapsed
+    const u12 = def.upgrades.find((u) => u.id === 'u12')!
+    const mod = u12.dynamicModifier!(state)
+    expect(mod).not.toBeNull()
+    // multiplier = 1 + (1/60)*30 = 1.5
+    expect(mod!.value).toBeCloseTo(1.5)
+    expect(mod!.stage).toBe('multiplicative')
+    expect(mod!.field).toBe('globalMultiplier')
+  })
+
+  it('multiplier is capped at 10', () => {
+    const { def, state } = setupIdler()
+    state.upgrades.u12 = 1
+    state.meta.purchasedAt = { u12: 0 }
+    state.meta.gameSec = 9999 // way past cap
+    const u12 = def.upgrades.find((u) => u.id === 'u12')!
+    const mod = u12.dynamicModifier!(state)
+    expect(mod!.value).toBe(10)
+  })
+
+  it('collectModifiers includes the time multiplier when owned', () => {
+    const { def, state } = setupIdler()
+    state.upgrades.u12 = 1
+    state.meta.purchasedAt = { u12: 0 }
+    state.meta.gameSec = 60 // 60s elapsed → multiplier = 1 + 1 = 2
+    const mods = collectModifiers(state, def)
+    const globalMult = mods.find(
+      (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative',
+    )
+    expect(globalMult).toBeDefined()
+    expect(globalMult!.value).toBeCloseTo(2)
+  })
+})

@@ -219,6 +219,13 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
 
   // Grant upgrade
   state.upgrades[upgradeId] = owned + 1
+
+  // Record purchase time on first buy
+  if (owned === 0) {
+    const purchasedAt = (state.meta.purchasedAt as Record<string, number> | undefined) ?? {}
+    purchasedAt[upgradeId] = (state.meta.gameSec as number | undefined) ?? 0
+    state.meta.purchasedAt = purchasedAt
+  }
 }
 
 /**
