@@ -58,8 +58,8 @@ between them within the window, not that they hit an exact second.
 ### Layer 2 — Score Checkpoints (Target Envelope)
 
 Translate the pacing skeleton into numeric checkpoints. Each checkpoint defines a
-`[minScore, maxScore]` range at a given time. Any strategy that falls within the
-range is "viable."
+`[minScore, maxScore]` range at a given time. Any strategy whose **cumulative
+score** (total score-resource ever produced) falls within the range is "viable."
 
 ```typescript
 interface Checkpoint {
@@ -82,25 +82,32 @@ interface TargetEnvelope {
   checkpoints: Checkpoint[]
   /** Minimum number of strategies that must be viable at every checkpoint. */
   minViableStrategies: number
-  /** Maximum allowed score gap between best and worst viable strategy (ratio). */
-  maxSpreadRatio: number
+  /** Maximum allowed ratio between maxScore and minScore at any checkpoint (envelope width). */
+  maxBandRatio: number
+  /** Maximum allowed ratio between best and worst *viable* strategy scores (strategy parity). */
+  maxStrategySpread: number
 }
 ```
 
-Example envelope for Idler timed mode (35s):
+Example envelope for Idler timed mode (`IDLER_ROUND_DURATION_SEC = 35`):
 
-> **Note:** These values are initial estimates. The correct workflow is:
+> **Note:** The numeric values below are **placeholders (TBD)**. The correct
+> workflow to derive real values is:
 >
 > 1. Run all 13 existing strategies through the simulator.
-> 2. Use P10/P90 of scores at each timestamp as initial envelope bounds.
+> 2. Use P10/P90 of cumulative scores at each timestamp as initial bounds.
 > 3. Tighten or shift the bounds to match the desired pacing feel.
 > 4. Re-validate — at least `minViableStrategies` must still land within bounds.
+>
+> Do NOT treat these numbers as targets until they've been calibrated against
+> actual sim output.
 
 ```typescript
 const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
   mode: 'idler',
   goalType: 'timed',
   checkpoints: [
+    // TBD — derive from sim P10/P90 once Phase A is implemented
     { timeSec: 5, minScore: 3, maxScore: 8, phase: 'Discovery' },
     { timeSec: 10, minScore: 15, maxScore: 40, phase: 'First Choice' },
     { timeSec: 15, minScore: 40, maxScore: 100, phase: 'Acceleration' },
@@ -129,25 +136,27 @@ const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
 
 Given a target envelope, work backwards to compute upgrade parameters:
 
-**Step 1: Base income sets Phase 1.** With native modifiers of +1 r0/sec,
-score at t=5 is ~5. This anchors the bottom of the envelope.
+**Step 1: Base income sets Phase 1.** With highlight ×2 on the score resource,
+income is ~2/sec. At t=5, cumulative score ≈ 10. This anchors the Discovery
+checkpoint.
 
 **Step 2: First upgrade cost ≈ income × phase-1-duration.** If the player
-earns ~1/sec and should buy their first upgrade at ~5-8s, the cost should be
-~5-8 r0. Currently Heavy Logging costs 25 r0, which means first purchase at
-~25s — this is Phase 3 territory, not Phase 2. (This is exactly the kind of
-insight the envelope gives you.)
+earns ~2/sec (highlighted) and should buy their first upgrade at ~5-10s, the
+cost should be ~10-20 r0. Currently generators cost 10 r0 (first buy at ~5s)
+and Heavy Logging costs 25 r0 (first buy at ~13s). Both land in the Phase 2
+window.
 
-**Step 3: Upgrade effect = (next-phase-income - current-income).** If Phase 2
-should produce ~4/sec (to reach ~40 score by t=10), and base is 1/sec, the
-first upgrade should add ~+3/sec.
+**Step 3: Upgrade effect = (next-phase-income - current-income).** If Phase 3
+should produce ~6-8/sec (to reach ~100 score by t=15), and Phase 2 income is
+~2-4/sec, upgrades purchased in Phase 2 should collectively add ~+3-5/sec.
 
-**Step 4: Multiplicative upgrades constrain max score.** A ×1.25 multiplier on
-~8/sec additive gives 10/sec. Time this so it becomes affordable in Phase 4.
+**Step 4: Multiplicative upgrades constrain max score.** Industrial Era (×1.25)
+on ~8/sec additive gives 10/sec. Time this so it becomes affordable in Phase 4.
+Its prerequisite chain (u0+u1+u2) acts as a natural gate.
 
 **Step 5: Generator costs follow a geometric series.** With costScaling=1.15,
 the Nth generator costs `baseCost × 1.15^N`. The player should be able to buy
-2-3 generators in Phase 3 (each one should feel meaningful but not trivially
+2-3 generators in Phase 2-3 (each one should feel meaningful but not trivially
 affordable).
 
 ### Layer 4 — Diversity Constraints
@@ -251,6 +260,10 @@ re-run the simulator until the envelope passes.
 
 This phase proves the envelope is useful _before_ investing in automation.
 
+> **Current state:** Idler does NOT pass `minViableStrategies: 3` today. Only
+> 2 strategies (All-In, SA-first) score within 15% of best. Fixing this is the
+> explicit goal of Phase A.5.
+
 ### Phase B — Parameter Sweep Tool (dev panel)
 
 **Goal:** Given a target envelope, explore the parameter space to find balanced
@@ -270,8 +283,9 @@ upgrade configurations.
      violating the envelope
 
 2. **Grid search** (practical first step): Even a coarse 5-step grid over 3
-   parameters (125 combinations × 13 strategies = 1,625 sim runs) completes in
-   <2s on modern hardware. This is sufficient for Idler.
+   parameters (125 combinations × 13 strategies = 1,625 sim runs) should be
+   fast enough for interactive use. Benchmark once implemented — if it's slow,
+   reduce grid resolution or parallelize with workers.
 
 3. **Refinement** (stretch): Narrow the grid around promising regions, or use
    simple hill-climbing on the diversity metric.
@@ -280,10 +294,15 @@ upgrade configurations.
 
 **Goal:** Prevent balance regressions from landing unnoticed.
 
-1. **Extract simulation core** from `client/src/dev/simulate.ts` into
+1. **Extract simulation engine** from `client/src/dev/simulate.ts` into
    `shared/src/simulation/` — it already uses only shared types and pure
    functions. This makes it importable from a CI script without bundling the
    client.
+
+   > **Scope note:** The `simulate()` function (engine) is generic and belongs
+   > in shared. The _strategies_ (`IDLER_STRATEGIES`) are mode-specific test
+   > fixtures — they stay alongside the mode definition or in a test directory
+   > (e.g. `shared/src/modes/idler-strategies.ts` or `shared/tests/`).
 
 2. **CI script** (`scripts/check-balance.ts`):
    - Import mode definitions, strategies, and envelopes
@@ -366,3 +385,20 @@ Running the existing strategies against a hypothetical envelope reveals issues:
    sim verification is sufficient; a parameter sweep tool pays off when there
    are more parameters than you can explore by hand.
 5. **Phase D** — Defer the dashboard until there are ≥2 modes to compare.
+
+---
+
+## New Mode Checklist
+
+When adding a new mode, follow this workflow to ensure it ships balanced:
+
+1. **Pacing skeleton** — Define phases and time windows (Layer 1).
+2. **Write ≥3 strategies** — Manually author at least 3 distinct strategies
+   covering different playstyles (e.g. rush, balanced, economy-first).
+3. **First sim run** — Run all strategies, use P10/P90 as initial envelope.
+4. **Tune constants** — Iterate on costs/effects until the envelope passes
+   (`minViableStrategies` within band, `maxStrategySpread` satisfied).
+5. **Add envelope to CI** — Register the mode's envelope in
+   `scripts/check-balance.ts` so regressions are caught automatically.
+6. **Add to dashboard** (when Phase D exists) — Register mode in the
+   balance dashboard for ongoing visibility.
