@@ -54,7 +54,7 @@
 
 ### Upgrade Tree
 
-- [ ] Support mixed AND/OR prerequisites per edge (currently AND-only). Possible impl: replace the list (AND semantics) with "or"/"and" operators to express the predicate
+- [x] Support mixed AND/OR prerequisites per edge (currently AND-only). Possible impl: replace the list (AND semantics) with "or"/"and" operators to express the predicate
 - [ ] Upgrades that only unlock after purchasing a certain amount of the parent upgrade
 - [ ] Visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned
 - [ ] Replace hand-placed (x, y) with a layout system
