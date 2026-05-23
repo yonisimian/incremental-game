@@ -19,9 +19,10 @@ systematic method that:
 Instead of a single target curve, define an **envelope** — a band of acceptable
 score trajectories over time. Good balance means:
 
-- At least N strategies land within the envelope at each checkpoint
+- At least N strategies land within the envelope at the final checkpoint
 - No single strategy dominates at every checkpoint (strategic diversity)
-- No strategy falls so far behind that it feels unplayable
+- Many paths may be weak or non-viable — that's fine, as long as enough good
+  ones exist
 
 ```text
 Score
@@ -138,8 +139,9 @@ const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
 Given a target envelope, work backwards to compute upgrade parameters:
 
 **Step 1: Base income sets Phase 1.** With highlight ×2 on the score resource,
-income is ~2/sec. At t=5, cumulative score ≈ 10. This anchors the Discovery
-checkpoint.
+income is ~2/sec. At t=5, cumulative score ≈ 10. This gives a rough anchor for
+the Discovery phase — the actual checkpoint bounds should be derived from sim
+data, not from this back-of-envelope math.
 
 **Step 2: First upgrade cost ≈ income × phase-1-duration.** If the player
 earns ~2/sec (highlighted) and should buy their first upgrade at ~5-10s, the
@@ -193,23 +195,21 @@ timing depends on player skill:
 The envelope must accommodate this variance. Strategies in the simulator assume
 perfect highlight timing — real players will score **10-20% below** sim results.
 
-**Convention:** Checkpoint `minScore`/`maxScore` values are set against **sim
-results** (perfect play). The validation function applies a skill discount
-internally when checking real-player viability:
+**Validation approach:** Rather than applying an arbitrary discount factor to
+checkpoint values, model skill variance directly by running each strategy in
+two modes:
 
-```typescript
-// In validateEnvelope():
-const SKILL_DISCOUNT = 0.8 // real players score ~80% of sim
-const adjustedMin = checkpoint.minScore * SKILL_DISCOUNT
-// A strategy is "real-player viable" if its sim score ≥ adjustedMin
-```
+1. **Perfect timing** — highlight switches instantly (what the sim does today)
+2. **Delayed timing** — add a 2s delay before each `set_highlight` action
 
-This keeps the envelope values grounded in measurable sim output while
-acknowledging that real players will perform worse.
+A strategy is considered **viable** only if _both_ variants land within
+`[minScore, maxScore]` at the final checkpoint. This models real player behavior
+concretely rather than guessing a flat penalty multiplier.
 
-**Dual validation:** Run each strategy at both "perfect timing" and "delayed
-timing" (add a 2s delay before each `set_highlight` action). Both variants
-should remain within the envelope for the strategy to be truly viable.
+> **Implication for envelope design:** Since delayed-timing scores will be
+> 10-20% lower, set `minScore` values low enough that good strategies still
+> pass in delayed mode. The workflow (run sims → use P10/P90 → set bounds)
+> should include both timing variants in the initial data collection.
 
 ### Layer 6 — Violation Classification
 
@@ -246,11 +246,12 @@ simulation results against it. Show results in the dev panel.
    ```typescript
    function validateEnvelope(envelope: TargetEnvelope, results: SimResult[]): EnvelopeReport {
      // For each checkpoint:
-     //   - Find the score of each strategy at that timeSec
-     //   - Count how many fall within [minScore, maxScore]
-     //   - Apply SKILL_DISCOUNT to minScore for real-player viability
+     //   - Find the score of each strategy at that timeSec (both timing variants)
+     //   - Classify each strategy as within/above/below the band
      // At the final checkpoint:
-     //   - Verify ≥ minViableStrategies are within the band
+     //   - A strategy is "viable" if BOTH its perfect and delayed variants
+     //     fall within [minScore, maxScore]
+     //   - Verify ≥ minViableStrategies are viable
      //   - Check spread ratio between best and worst viable
      // Return per-checkpoint status + overall pass/fail verdict
    }
