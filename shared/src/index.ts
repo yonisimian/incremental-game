@@ -11,6 +11,7 @@ export * from './modes/index.js'
 export * from './prerequisites.js'
 export * from './upgrade-groups.js'
 export * from './upgrade-costs.js'
+export * from './balance/index.js'
 export type {
   ModeDefinition,
   ModeFlavor,
