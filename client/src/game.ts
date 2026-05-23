@@ -21,6 +21,9 @@ import {
   applyGeneratorPurchase,
   isMaxed,
   isPrerequisiteSatisfied,
+  isChoiceGroupAvailable,
+  getUpgradeNextCost,
+  applyPurchase,
 } from '@game/shared'
 import {
   getSeq,
@@ -351,19 +354,21 @@ export function doBuy(upgradeId: string): void {
   const def = state.upgrades.find((u) => u.id === upgradeId)
   if (!def) return
 
+  const modeDef = getModeDefinition(state.mode)
   const owned = state.player.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return
 
   if (!isPrerequisiteSatisfied(def.prerequisites, state.player)) return
 
+  if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
+
   // Check correct resource balance
-  const modeDef = getModeDefinition(state.mode)
   const costResource = def.costCurrency ?? modeDef.scoreResource
   const balance = state.player.resources[costResource] ?? 0
-  if (balance < def.cost) return
-  state.player.resources[costResource] = balance - def.cost
+  const nextCost = getUpgradeNextCost(def, owned)
+  if (balance < nextCost) return
 
-  grantUpgrade(state.player, upgradeId)
+  applyPurchase(state.player, upgradeId, modeDef)
 
   // Visual effects
   flashPurchase(upgradeId)

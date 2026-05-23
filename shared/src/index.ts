@@ -9,6 +9,7 @@ export * from './flavor.js'
 export * from './modifiers/index.js'
 export * from './modes/index.js'
 export * from './prerequisites.js'
+export * from './upgrade-groups.js'
 export * from './upgrade-costs.js'
 export type {
   ModeDefinition,

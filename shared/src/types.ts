@@ -44,6 +44,13 @@ export interface UpgradeDefinition {
   /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
   readonly category?: UpgradeCategory
   /**
+   * Which upgrades belong to the same mutually exclusive choice group.
+   * Purchasing one choice prevents buying any other upgrade in the same group.
+   */
+  readonly choiceGroup?: string
+  /** Optional human-readable label for the choice group. */
+  readonly choiceLabel?: string
+  /**
    * Which upgrades must be owned before this one is buyable.
    * Supports legacy AND-only arrays and recursive `all` / `any` expressions.
    */
