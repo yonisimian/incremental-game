@@ -69,12 +69,13 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
-      const lockTitle = !unlocked
-        ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
-        : choiceBlocked
-          ? 'Another choice in this group has already been selected'
-          : ''
+
+      // Lock tooltip (mutually exclusive conditions)
+      let lockTitle = ''
+      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
+      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
+
       const hotkey = i + 1
       const levelLabel =
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
@@ -85,10 +86,14 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const costLabel = maxed
         ? '✓'
         : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
+
+      // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
-      if (!unlocked || choiceBlocked) stateClass = 'locked'
+      if (!unlocked) stateClass = 'locked'
       else if (maxed) stateClass = 'owned'
+      else if (choiceBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
+
       const disabled = !unlocked || maxed || choiceBlocked || !affordable
 
       return `
@@ -214,11 +219,11 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
-      const lockTitle = !unlocked
-        ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
-        : choiceBlocked
-          ? 'Another choice in this group has already been selected'
-          : ''
+
+      // Lock tooltip (mutually exclusive conditions)
+      let lockTitle = ''
+      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
+      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
 
       // State-class derivation (mutually exclusive, in priority order)
