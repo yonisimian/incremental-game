@@ -48,20 +48,20 @@
 ### Generators
 
 - [ ] Visual feedback on generator purchase
-- [ ] "Buy Max" button for generators (possibly unlocked via an upgrade)
+- [x] "Buy Max" button for generators (possibly unlocked via an upgrade)
 - [ ] Bot: teach bot to buy generators
 - [x] Unit tests for generator cost/purchase logic
 
 ### Upgrade Tree
 
 - [x] Support mixed AND/OR prerequisites per edge (currently AND-only). Possible impl: replace the list (AND semantics) with "or"/"and" operators to express the predicate
-- [ ] Upgrades that only unlock after purchasing a certain amount of the parent upgrade
+- [x] Upgrades that only unlock after purchasing a certain amount of the parent upgrade
 - [ ] Visibility tiers for locked nodes — hidden / "?" placeholder / grey-revealed / owned
 - [ ] Replace hand-placed (x, y) with a layout system
 - [ ] Startup-time cycle detection on prereq graph
 - [ ] Generic hotkeys (buy cheapest / buy all affordable)
 - [x] Multi-purchase with fixed cost
-- [ ] Multi-purchase with dynamic cost
+- [x] Multi-purchase with dynamic cost
 - [x] Choice upgrades (locks sibling upgrades when bought)
 - Specific upgrades — generator:
   - [x] Time Mul: multiply generators by a factor entangled with time since purchase
