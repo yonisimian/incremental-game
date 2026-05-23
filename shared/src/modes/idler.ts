@@ -30,7 +30,7 @@ function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
 const idlerUpgrades: readonly UpgradeDefinition[] = [
   {
     id: 'u0', // Sharpened Axes
-    cost: 30,
+    cost: 15,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -48,7 +48,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u2', // Royal Brewery
-    cost: 25,
+    cost: 10,
     costCurrency: 'r1',
     purchaseLimit: 1,
     category: 'tree',
@@ -57,7 +57,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u4', // Industrial Era
-    cost: 50,
+    cost: 600,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -76,7 +76,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u6', // Skilled Foremen
-    cost: 60,
+    cost: 200,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -87,8 +87,8 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u7', // Yeast Cultivators
-    cost: 60,
-    costCurrency: 'r1',
+    cost: 180,
+    costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 400, y: 150 },
@@ -98,7 +98,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u8', // Resource Hoarders
-    cost: 40,
+    cost: 240,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -112,7 +112,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u9', // Cellar Masters
-    cost: 40,
+    cost: 100,
     costCurrency: 'r1',
     purchaseLimit: 1,
     category: 'tree',
@@ -126,7 +126,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u10', // Dominant Harvesters
-    cost: 80,
+    cost: 600,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -150,8 +150,8 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   },
   {
     id: 'u11', // Balanced Engineering
-    cost: 80,
-    costCurrency: 'r1',
+    cost: 400,
+    costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 400, y: 450 },
@@ -172,7 +172,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
 
   {
     id: 'u12', // Time-Based Multiplier
-    cost: 200,
+    cost: 800,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
@@ -192,7 +192,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
     id: 'u5', // Royal Throne
-    cost: 1000,
+    cost: 30000,
     costCurrency: 'r0',
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
@@ -209,29 +209,29 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
     id: 'g0', // Woodcutter
     baseCost: 10,
     costScaling: 1.15,
-    costCurrency: 'r0',
-    production: { resource: 'r0', rate: 1 },
+    costCurrency: 'r1',
+    production: { resource: 'r0', rate: 0.5 },
   },
   {
     id: 'g1', // Brewer
     baseCost: 10,
     costScaling: 1.15,
     costCurrency: 'r1',
-    production: { resource: 'r1', rate: 0.2 },
+    production: { resource: 'r1', rate: 1 },
   },
   {
     id: 'g2', // Sawmill
     baseCost: 50,
-    costScaling: 1.15,
+    costScaling: 1.2,
     costCurrency: 'r1',
-    production: { resource: 'r0', rate: 1 },
+    production: { resource: 'r0', rate: 5 },
   },
   {
-    id: 'g3', // Tavern
-    baseCost: 50,
-    costScaling: 1.15,
+    id: 'g3', // Taverns
+    baseCost: 600,
+    costScaling: 1.5,
     costCurrency: 'r0',
-    production: { resource: 'r1', rate: 1 },
+    production: { resource: 'r1', rate: 10 },
   },
 ]
 

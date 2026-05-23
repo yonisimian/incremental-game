@@ -3,7 +3,13 @@
  */
 
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, AVAILABLE_MODES } from '@game/shared'
+import {
+  getModeDefinition,
+  AVAILABLE_MODES,
+  IDLER_TIMED_ENVELOPE,
+  validateEnvelope,
+} from '@game/shared'
+import type { TargetEnvelope, SimScore } from '@game/shared'
 import { IDLER_STRATEGIES, UPGRADE_ABBR } from './strategies.js'
 import type { Strategy } from './strategies.js'
 import { simulate } from './simulate.js'
@@ -22,6 +28,12 @@ let lastResults: SimResult[] = []
 const STRATEGIES: Record<string, readonly Strategy[]> = {
   idler: IDLER_STRATEGIES,
   // clicker: [] — future
+}
+
+// ─── Envelope registry per mode + goal type ──────────────────────────
+
+const ENVELOPES: Record<string, TargetEnvelope | undefined> = {
+  'idler:timed': IDLER_TIMED_ENVELOPE,
 }
 
 // ─── Init ────────────────────────────────────────────────────────────
@@ -43,6 +55,7 @@ export function initDevPanel(root: HTMLElement): void {
   const incomeChart = root.querySelector<HTMLDivElement>('#chart-income')!
   const resourceCharts = root.querySelector<HTMLDivElement>('#chart-resources')!
   const summaryBody = root.querySelector<HTMLTableSectionElement>('#summary-body')!
+  const envelopeReport = root.querySelector<HTMLDivElement>('#envelope-report')!
 
   // ── Live pane elements ──
   const liveStatus = root.querySelector<HTMLDivElement>('#live-status')!
@@ -116,7 +129,10 @@ export function initDevPanel(root: HTMLElement): void {
     // Use requestAnimationFrame to let the UI update before blocking
     requestAnimationFrame(() => {
       lastResults = checked.map((s) => simulate(s, mode))
+      const delayedResults = checked.map((s) => simulate(s, mode, { highlightDelaySec: 2 }))
+      const envelope = ENVELOPES[`${mode}:timed`]
       renderResults(lastResults, mode, scoreChart, incomeChart, resourceCharts, summaryBody)
+      renderEnvelopeReport(envelope, lastResults, delayedResults, envelopeReport)
       runBtn.disabled = false
       runBtn.textContent = '▶ Run'
       csvBtn.disabled = false
@@ -169,6 +185,10 @@ function buildLayout(): string {
           </thead>
           <tbody id="summary-body"></tbody>
         </table>
+      </section>
+      <section class="dev-envelope">
+        <h2>Envelope Report</h2>
+        <div id="envelope-report"></div>
       </section>
     </div>
     <div id="pane-live" class="hidden">
@@ -302,6 +322,90 @@ function renderResults(
       `
     })
     .join('')
+}
+
+// ─── Envelope Report ─────────────────────────────────────────────────
+
+/** Convert SimResult[] to SimScore[] for envelope validation. */
+function toSimScores(results: SimResult[], envelope: TargetEnvelope): SimScore[] {
+  return results.map((r) => ({
+    name: r.name,
+    scoresAtCheckpoints: envelope.checkpoints.map((cp) => {
+      // Find the last snapshot at-or-before the checkpoint time
+      for (let i = r.snapshots.length - 1; i >= 0; i--) {
+        if (r.snapshots[i].timeSec <= cp.timeSec + 0.001) return r.snapshots[i].score
+      }
+      return 0
+    }),
+  }))
+}
+
+function renderEnvelopeReport(
+  envelope: TargetEnvelope | undefined,
+  perfectResults: SimResult[],
+  delayedResults: SimResult[],
+  container: HTMLDivElement,
+): void {
+  if (!envelope) {
+    container.innerHTML = '<p class="envelope-none">No envelope defined for this mode/goal.</p>'
+    return
+  }
+
+  const perfectScores = toSimScores(perfectResults, envelope)
+  const delayedScores = toSimScores(delayedResults, envelope)
+  const report = validateEnvelope(envelope, perfectScores, delayedScores)
+
+  const statusIcon = report.pass ? '✅' : '❌'
+  const spreadText =
+    report.spreadRatio !== null ? report.spreadRatio.toFixed(3) : 'N/A (< 2 viable)'
+
+  let html = `
+    <div class="envelope-verdict ${report.pass ? 'pass' : 'fail'}">
+      ${statusIcon} <strong>${report.pass ? 'PASS' : 'FAIL'}</strong>
+      — ${report.viableCount}/${envelope.minViableStrategies} viable strategies required,
+      spread: ${spreadText} (max: ${envelope.maxStrategySpread})
+    </div>
+    <table class="envelope-table">
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Perfect Score</th>
+          <th>Delayed Score</th>
+          <th>Viable</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+  `
+
+  for (const s of report.strategies) {
+    const viableIcon = s.viable ? '🟢' : '🔴'
+    const lastStatus = s.checkpointStatuses.at(-1) ?? 'below'
+    const statusClass =
+      lastStatus === 'within' ? 'within' : lastStatus === 'above' ? 'above' : 'below'
+    html += `
+        <tr class="envelope-row-${statusClass}">
+          <td>${s.name}</td>
+          <td>${s.perfectScore.toFixed(1)}</td>
+          <td>${s.delayedScore.toFixed(1)}</td>
+          <td>${viableIcon}</td>
+          <td>${lastStatus}</td>
+        </tr>
+    `
+  }
+
+  html += '</tbody></table>'
+
+  if (report.exploitWarnings.length > 0) {
+    html += `
+      <div class="envelope-warnings">
+        ⚠️ <strong>Exploit warnings:</strong> ${report.exploitWarnings.join(', ')}
+        (exceeded maxScore at one or more checkpoints)
+      </div>
+    `
+  }
+
+  container.innerHTML = html
 }
 
 // ─── CSV export ──────────────────────────────────────────────────────
