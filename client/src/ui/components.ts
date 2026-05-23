@@ -94,7 +94,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
             : !affordable
               ? 'too-expensive'
               : ''
-      const disabled = maxed || choiceBlocked || !affordable
+      const disabled = !unlocked || maxed || choiceBlocked || !affordable
 
       return `
         <button
