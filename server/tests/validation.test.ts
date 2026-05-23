@@ -114,7 +114,33 @@ describe('isValidPurchase', () => {
     ).toBe(false)
   })
 })
+describe('isValidPurchase — choice groups', () => {
+  const groupUpgrades: UpgradeDefinition[] = [
+    { id: 'choice-a', cost: 10, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
+    { id: 'choice-b', cost: 10, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
+  ]
+  const groupMap = new Map(groupUpgrades.map((u) => [u.id, u]))
 
+  function makeGroupState(overrides: Partial<PlayerState> = {}): PlayerState {
+    return {
+      score: 0,
+      resources: { r0: 9999 },
+      upgrades: { 'choice-a': 0, 'choice-b': 0, ...overrides.upgrades },
+      generators: {},
+      meta: {},
+      ...overrides,
+    }
+  }
+
+  it('accepts the first choice in a group when affordable', () => {
+    expect(isValidPurchase(makeGroupState(), 'choice-a', groupMap, clickerDef)).toBe(true)
+  })
+
+  it('rejects a second choice in the same group once one is owned', () => {
+    const state = makeGroupState({ upgrades: { 'choice-a': 1, 'choice-b': 0 } })
+    expect(isValidPurchase(state, 'choice-b', groupMap, clickerDef)).toBe(false)
+  })
+})
 // ─── isValidPurchase: goal-tagged upgrades ───────────────────────────
 
 describe('isValidPurchase — goal-tagged upgrades', () => {

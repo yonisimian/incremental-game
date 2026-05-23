@@ -2,6 +2,7 @@ import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/share
 import {
   getModeDefinition,
   getUpgradeName,
+  isChoiceGroupAvailable,
   isMaxed,
   isPrerequisiteSatisfied,
   getUpgradeNextCost,
@@ -102,7 +103,13 @@ export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): bo
 
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
 export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
-  return isUnlocked(state, u) && canAfford(state, u)
+  if (!state.mode) return false
+  const modeDef = getModeDefinition(state.mode)
+  return (
+    isUnlocked(state, u) &&
+    isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
+    canAfford(state, u)
+  )
 }
 
 /** Update a progress bar element's width. */

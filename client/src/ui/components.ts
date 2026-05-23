@@ -14,6 +14,7 @@ import {
   getResourceIcon,
   getUpgradeName,
   getUpgradeDescription,
+  isChoiceGroupAvailable,
   isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
@@ -63,27 +64,41 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
   const flavor = modeDef.flavor
   return state.upgrades
     .map((u, i) => {
-      const owned = state.player.upgrades[u.id]
+      const owned = state.player.upgrades[u.id] ?? 0
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
-      const disabled = owned || !unlocked || !affordable
-      const lockTitle = !unlocked ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}` : ''
+      const maxed = isMaxed(u, owned)
+      const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
+
+      // Lock tooltip (mutually exclusive conditions)
+      let lockTitle = ''
+      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
+      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
+
       const hotkey = i + 1
       const levelLabel =
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
           ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
           : ''
-      const nextCost = getUpgradeNextCost(u, owned)
-      const maxed = isMaxed(u, owned)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+      const nextCost = getUpgradeNextCost(u, owned)
       const costLabel = maxed
         ? '✓'
         : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
 
+      // State-class derivation (mutually exclusive, in priority order)
+      let stateClass = ''
+      if (!unlocked) stateClass = 'locked'
+      else if (maxed) stateClass = 'owned'
+      else if (choiceBlocked) stateClass = 'locked'
+      else if (!affordable) stateClass = 'too-expensive'
+
+      const disabled = !unlocked || maxed || choiceBlocked || !affordable
+
       return `
         <button
-          class="upgrade-btn ${owned ? 'owned' : ''} ${!affordable && !owned ? 'too-expensive' : ''}"
+          class="upgrade-btn ${stateClass}"
           data-upgrade="${u.id}"
           ${disabled ? 'disabled' : ''}
           ${titleAttr}
@@ -203,16 +218,22 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const unlocked = isUnlocked(state, u)
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
-      const lockTitle = !unlocked ? `Requires ${formatPrerequisiteExpression(u.prerequisites)}` : ''
+      const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
+
+      // Lock tooltip (mutually exclusive conditions)
+      let lockTitle = ''
+      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
+      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
 
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
       else if (maxed) stateClass = 'owned'
+      else if (choiceBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const buyable = unlocked && affordable && !maxed
+      const buyable = unlocked && !choiceBlocked && affordable && !maxed
       const disabled = !buyable
 
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
