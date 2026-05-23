@@ -218,7 +218,14 @@ describe('Bot', () => {
           cost: 50,
           costCurrency: 'r0' as const,
           purchaseLimit: 1,
-          prerequisites: ['u1', 'u0', 'u2'],
+          prerequisites: {
+            type: 'all' as const,
+            items: [
+              { type: 'upgrade' as const, id: 'u1' },
+              { type: 'upgrade' as const, id: 'u0' },
+              { type: 'upgrade' as const, id: 'u2' },
+            ],
+          },
           modifiers: [],
         },
         {
@@ -227,7 +234,7 @@ describe('Bot', () => {
           costCurrency: 'r0' as const,
           purchaseLimit: 1,
           goalType: 'buy-upgrade' as const,
-          prerequisites: ['u4'],
+          prerequisites: { type: 'all' as const, items: [{ type: 'upgrade' as const, id: 'u4' }] },
           modifiers: [],
         },
       ]

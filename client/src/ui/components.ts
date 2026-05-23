@@ -9,6 +9,7 @@ import {
 } from './helpers.js'
 import {
   getModeDefinition,
+  getPrerequisiteUpgradeIds,
   getResourceIcon,
   getUpgradeName,
   getUpgradeDescription,
@@ -158,7 +159,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
     if (!u.position) continue
     const childUnlocked = isUnlocked(state, u)
     const cls = childUnlocked ? 'unlocked' : ''
-    for (const pid of u.prerequisites ?? []) {
+    for (const pid of getPrerequisiteUpgradeIds(u.prerequisites)) {
       const parent = positionById.get(pid)
       if (!parent) continue
       const dx = u.position.x - parent.x

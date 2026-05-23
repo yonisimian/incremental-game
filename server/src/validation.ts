@@ -1,4 +1,4 @@
-import { MAX_CPS, canAffordGenerator, isMaxed } from '@game/shared'
+import { MAX_CPS, canAffordGenerator, isMaxed, isPrerequisiteSatisfied } from '@game/shared'
 import type {
   GeneratorDefinition,
   ModeDefinition,
@@ -43,10 +43,8 @@ export function isValidPurchase(
   const owned = state.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return false
 
-  // All prerequisites must be owned (count > 0)
-  for (const pid of def.prerequisites ?? []) {
-    if ((state.upgrades[pid] ?? 0) <= 0) return false
-  }
+  // All prerequisites must be satisfied
+  if (!isPrerequisiteSatisfied(def.prerequisites, state)) return false
 
   // Check the correct resource balance
   const costResource = def.costCurrency ?? mode.scoreResource

@@ -191,7 +191,7 @@ describe('renderUpgradeTree', () => {
           modifiers: [],
           category: 'tree',
           position: { x: 50, y: 0 }, // length 50 < 2 * 60 = 120
-          prerequisites: ['src'],
+          prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'src' }] },
         },
       ],
     }

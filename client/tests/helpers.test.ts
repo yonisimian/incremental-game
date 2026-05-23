@@ -60,31 +60,100 @@ describe('isUnlocked', () => {
     expect(isUnlocked(makeState(), u)).toBe(true)
   })
 
-  it('returns true when prerequisites array is empty', () => {
-    const u = makeUpgrade({ prerequisites: [] })
-    expect(isUnlocked(makeState(), u)).toBe(true)
-  })
-
   it('returns true when all prerequisites are owned (count >= 1)', () => {
-    const u = makeUpgrade({ prerequisites: ['parent-a', 'parent-b'] })
+    const u = makeUpgrade({
+      prerequisites: {
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'parent-a' },
+          { type: 'upgrade', id: 'parent-b' },
+        ],
+      },
+    })
     const state = makeState({ upgrades: { 'parent-a': 1, 'parent-b': 1 } })
     expect(isUnlocked(state, u)).toBe(true)
   })
 
   it('returns false when any single prerequisite is unowned (AND-semantics)', () => {
-    const u = makeUpgrade({ prerequisites: ['parent-a', 'parent-b'] })
+    const u = makeUpgrade({
+      prerequisites: {
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'parent-a' },
+          { type: 'upgrade', id: 'parent-b' },
+        ],
+      },
+    })
     const state = makeState({ upgrades: { 'parent-a': 1, 'parent-b': 0 } })
     expect(isUnlocked(state, u)).toBe(false)
   })
 
+  it('returns true when any prerequisite is owned (OR-semantics)', () => {
+    const u = makeUpgrade({
+      prerequisites: {
+        type: 'any',
+        items: [
+          { type: 'upgrade', id: 'parent-a' },
+          { type: 'upgrade', id: 'parent-b' },
+        ],
+      },
+    })
+    const state = makeState({ upgrades: { 'parent-a': 1, 'parent-b': 0 } })
+    expect(isUnlocked(state, u)).toBe(true)
+  })
+
+  it('returns true when nested prerequisite expressions are satisfied', () => {
+    const u = makeUpgrade({
+      prerequisites: {
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'parent-a' },
+          {
+            type: 'any',
+            items: [
+              { type: 'upgrade', id: 'parent-b' },
+              { type: 'upgrade', id: 'parent-c' },
+            ],
+          },
+        ],
+      },
+    })
+    const state = makeState({ upgrades: { 'parent-a': 1, 'parent-b': 0, 'parent-c': 1 } })
+    expect(isUnlocked(state, u)).toBe(true)
+  })
+
+  it('returns false when nested prerequisite expressions are not satisfied', () => {
+    const u = makeUpgrade({
+      prerequisites: {
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'parent-a' },
+          {
+            type: 'any',
+            items: [
+              { type: 'upgrade', id: 'parent-b' },
+              { type: 'upgrade', id: 'parent-c' },
+            ],
+          },
+        ],
+      },
+    })
+    const state = makeState({ upgrades: { 'parent-a': 1, 'parent-b': 0, 'parent-c': 0 } })
+    expect(isUnlocked(state, u)).toBe(false)
+  })
+
   it('returns false when prerequisite key is missing entirely from upgrades map (treated as 0)', () => {
-    const u = makeUpgrade({ prerequisites: ['ghost'] })
+    const u = makeUpgrade({
+      prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ghost' }] },
+    })
     const state = makeState({ upgrades: {} })
     expect(isUnlocked(state, u)).toBe(false)
   })
 
   it('returns true when prerequisite is owned multiple times (unlimited parent)', () => {
-    const u = makeUpgrade({ prerequisites: ['stackable-parent'] })
+    const u = makeUpgrade({
+      prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'stackable-parent' }] },
+    })
     const state = makeState({ upgrades: { 'stackable-parent': 5 } })
     expect(isUnlocked(state, u)).toBe(true)
   })
@@ -100,7 +169,11 @@ describe('canBuy', () => {
   })
 
   it('returns false when locked even if affordable', () => {
-    const u = makeUpgrade({ cost: 50, costCurrency: 'r0', prerequisites: ['ghost'] })
+    const u = makeUpgrade({
+      cost: 50,
+      costCurrency: 'r0',
+      prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ghost' }] },
+    })
     const state = makeState({ resources: { r0: 9999, r1: 9999 } })
     expect(canBuy(state, u)).toBe(false)
   })
