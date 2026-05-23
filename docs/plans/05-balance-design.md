@@ -89,6 +89,13 @@ interface TargetEnvelope {
 
 Example envelope for Idler timed mode (35s):
 
+> **Note:** These values are initial estimates. The correct workflow is:
+>
+> 1. Run all 13 existing strategies through the simulator.
+> 2. Use P10/P90 of scores at each timestamp as initial envelope bounds.
+> 3. Tighten or shift the bounds to match the desired pacing feel.
+> 4. Re-validate — at least `minViableStrategies` must still land within bounds.
+
 ```typescript
 const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
   mode: 'idler',
@@ -101,9 +108,22 @@ const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
     { timeSec: 35, minScore: 250, maxScore: 600, phase: 'Sprint (final)' },
   ],
   minViableStrategies: 3,
-  maxSpreadRatio: 2.5,
+  maxBandRatio: 2.5,
+  maxStrategySpread: 1.15,
 }
 ```
+
+> **Checkpoint placement:** Each checkpoint is placed at the **midpoint** of its
+> phase's time window. The envelope band width at that checkpoint accounts for
+> the fact that different strategies may enter the phase early or late within the
+> window. The pacing skeleton (Layer 1) is the design intent; checkpoints are
+> derived measurement points.
+
+> **For non-timed goal types:** The checkpoint model inverts. For `target-score`
+> goals, the score axis is fixed (the target) and the variable is time-to-reach.
+> Define checkpoints as `{ scoreThreshold, minTimeSec, maxTimeSec }` instead.
+> For `buy-upgrade` goals, use the same time-based model but the "score" is
+> progress toward affording the trophy upgrade.
 
 ### Layer 3 — Deriving Numbers from the Envelope
 
@@ -145,6 +165,48 @@ To ensure multiple viable strategies:
 - **Resource cross-dependencies**: Idler already has this — ale-costing upgrades
   that boost wood. This forces the player to balance two economies.
 
+**Measuring diversity:** Two strategies are considered **orthogonal** if they
+share ≤50% of their purchase sequence (by action count). The "strategy diversity
+index" is the percentage of strategy pairs that are orthogonal. Target: ≥40% of
+pairs should be orthogonal, ensuring the mode isn't solved by a single path.
+
+### Layer 5 — Player-Skill Variance (Highlight Mechanic)
+
+The highlight mechanic is a ×2–×4 manual toggle that players switch between
+resources. Unlike upgrades (which the sim models deterministically), highlight
+timing depends on player skill:
+
+- **Perfect play:** Switch highlight the instant a purchase is complete (0s delay)
+- **Average play:** ~1-2s delay per switch (reading board, deciding)
+- **Novice play:** 3-5s delay, or suboptimal highlight choices
+
+The envelope must accommodate this variance. Strategies in the simulator assume
+perfect highlight timing — real players will score **10-20% below** sim results.
+Account for this when setting `minScore` bounds:
+
+```text
+minScore_real ≈ minScore_sim × 0.8
+```
+
+When validating the envelope, run each strategy at both "perfect timing" and
+"delayed timing" (add a 2s delay before each `set_highlight` action). Both
+variants should remain within the envelope for the strategy to be truly viable.
+
+### Layer 6 — Violation Classification
+
+When a strategy falls outside the envelope:
+
+| Position         | Classification    | Action                                                    |
+| ---------------- | ----------------- | --------------------------------------------------------- |
+| Above `maxScore` | Potential exploit | Nerf candidate — investigate which purchase is over-tuned |
+| Below `minScore` | Non-viable        | Buff candidate, OR accept as a "niche/challenge" path     |
+| Within band      | Viable            | No action needed                                          |
+
+**CI behavior:** Envelope validation should **fail the build** if fewer than
+`minViableStrategies` land within the band, or if `maxStrategySpread` is
+exceeded. Strategies above `maxScore` produce a **warning annotation** on the
+PR (not a hard failure) since they may indicate intentional high-risk paths.
+
 ---
 
 ## Implementation Plan
@@ -154,8 +216,7 @@ To ensure multiple viable strategies:
 **Goal:** Add a `TargetEnvelope` type and a validation function that checks
 simulation results against it. Show results in the dev panel.
 
-1. **Define `TargetEnvelope` type** in `shared/src/types.ts` or a new
-   `shared/src/balance/` module.
+1. **Define `TargetEnvelope` type** in a new `shared/src/balance/` module.
 
 2. **Define envelopes per mode** alongside the mode definition (e.g.
    `shared/src/modes/idler-envelope.ts`).
@@ -177,36 +238,76 @@ simulation results against it. Show results in the dev panel.
    - Add an "Envelope Report" section showing pass/fail per checkpoint
    - Color-code strategies: green (within envelope), yellow (close), red (outside)
 
-5. **Add envelope validation to CI** (optional, later):
+### Phase A.5 — Tune Idler Numbers (manual iteration)
+
+**Goal:** Validate the envelope concept by manually fixing the issues identified
+in the analysis section below. No new tooling — just adjust mode constants and
+re-run the simulator until the envelope passes.
+
+1. Fix generator base rates (too weak relative to upgrades)
+2. Lower first-upgrade costs to hit Phase 2 timing
+3. Verify ≥3 strategies land within the envelope
+4. Verify `maxStrategySpread ≤ 1.15` at the final checkpoint
+
+This phase proves the envelope is useful _before_ investing in automation.
+
+### Phase B — Parameter Sweep Tool (dev panel)
+
+**Goal:** Given a target envelope, explore the parameter space to find balanced
+upgrade configurations.
+
+> **Why not algebra?** With compounding purchases, dynamic modifiers, and the
+> highlight mechanic, closed-form solutions don't exist. The right approach is
+> empirical search.
+
+1. **Parameter sweep mode** in the dev panel:
+   - Define ranges for each tunable parameter (e.g. `u1.cost ∈ [10, 50]`,
+     `u1.effect ∈ [2, 8]`)
+   - Run the full strategy suite for each parameter combination
+   - Score each combination by envelope fitness (how many strategies are viable,
+     what's the spread)
+   - Display the Pareto frontier: configurations that maximize diversity without
+     violating the envelope
+
+2. **Grid search** (practical first step): Even a coarse 5-step grid over 3
+   parameters (125 combinations × 13 strategies = 1,625 sim runs) completes in
+   <2s on modern hardware. This is sufficient for Idler.
+
+3. **Refinement** (stretch): Narrow the grid around promising regions, or use
+   simple hill-climbing on the diversity metric.
+
+### Phase C — CI Integration
+
+**Goal:** Prevent balance regressions from landing unnoticed.
+
+1. **Extract simulation core** from `client/src/dev/simulate.ts` into
+   `shared/src/simulation/` — it already uses only shared types and pure
+   functions. This makes it importable from a CI script without bundling the
+   client.
+
+2. **CI script** (`scripts/check-balance.ts`):
+   - Import mode definitions, strategies, and envelopes
    - Run all strategies through the simulator
-   - Assert envelope passes
-   - Fail the build if a mode change breaks pacing
+   - Validate against the envelope
+   - Exit non-zero if `minViableStrategies` is violated or spread exceeds limit
+   - Print a summary table (strategy → final score → within/outside)
 
-### Phase B — Reverse Engineering Tool (dev panel)
+3. **Envelope definitions live in `shared/src/modes/`** alongside the mode
+   definitions they constrain (e.g. `idler-envelope.ts` next to `idler.ts`).
 
-**Goal:** Given a target envelope, suggest upgrade parameters.
+4. **Failure mode:** Hard fail if fewer than N strategies are viable. Warning
+   annotation if a strategy exceeds `maxScore` (potential exploit).
 
-1. **Add a "Derive" mode** to the dev panel that takes an envelope and
-   computes suggested costs/effects:
-   - Input: target score at each checkpoint, number of upgrades per phase
-   - Output: suggested cost and effect for each upgrade
-   - Algorithm: simple algebra from the rate equations
-
-2. **Constraint solver** (stretch goal): Given N upgrade slots and an
-   envelope, find costs/effects that maximize strategy diversity while keeping
-   all paths within bounds. This is an optimization problem — even a brute-force
-   grid search over a small parameter space would be useful.
-
-### Phase C — Balance Dashboard
+### Phase D — Balance Dashboard (deferred)
 
 **Goal:** A permanent view in the dev panel showing the health of all modes.
+Defer until there are ≥2 modes to compare.
 
 - Mode selector → runs all strategies → shows envelope report
 - Red/yellow/green status per checkpoint
-- "Strategy diversity index" — a single number showing how spread out the
-  viable strategies are (higher = more diverse = better)
-- Historical tracking (optional): store envelope results over time to see
-  if balance is improving or regressing
+- "Strategy diversity index" — percentage of orthogonal strategy pairs
+- Historical tracking via git-tracked snapshots
+  (`docs/balance-snapshots/idler-timed.json`) updated by CI on main
 
 ---
 
@@ -255,11 +356,13 @@ Running the existing strategies against a hypothetical envelope reveals issues:
 
 ## Suggested Next Steps
 
-1. **Start with Phase A** — define the envelope, add validation, overlay on charts.
-   This gives immediate value with minimal code.
-2. **Use the validation to identify current balance issues** — the analysis above
-   is manual; automating it makes it repeatable.
-3. **Iterate on Idler numbers** using the envelope as a guide — adjust costs and
-   effects until the envelope passes with ≥3 diverse strategies.
-4. **Apply the same framework** when building the next mode — start from the
-   pacing skeleton, not from the upgrades.
+1. **Phase A** — Define the envelope type, add `validateEnvelope()`, overlay on
+   the dev panel score chart. Immediate value with minimal code.
+2. **Phase A.5** — Manually tune Idler numbers using the envelope as a guide.
+   Fix the 4 issues from the analysis above. Validate with ≥3 diverse strategies.
+3. **Phase C** — Extract simulation into `shared/`, add `scripts/check-balance.ts`
+   to CI. Prevents future regressions.
+4. **Phase B** — Only when adding a new mode. For Idler, manual tuning +
+   sim verification is sufficient; a parameter sweep tool pays off when there
+   are more parameters than you can explore by hand.
+5. **Phase D** — Defer the dashboard until there are ≥2 modes to compare.
