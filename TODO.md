@@ -98,8 +98,10 @@
 
 ## UX
 
-- [ ] Configurable number viewing mode (at least: name `123k`, scientific `1.23e5`, engineering `123e3`)
-- [ ] Configurable digit grouping (e.g. `123,456` / `123.456` / none)
+- [x] Configurable number viewing mode (at least: name `123k`, scientific `1.23e5`, engineering `123e3`)
+- [x] Configurable digit grouping (e.g. `123,456` / `123.456` / none)
+- [ ] Extend NAME_SUFFIXES beyond Dc (decillion) for very large numbers
+- [ ] (?) Format `maxAffordable` count in generator "Buy ×N" buttons with `formatNumber`
 - [ ] Confirmation panel ("are you sure you wanna quit?")
 - [ ] End-game screen: show counts of generators + tree upgrades purchased (or show no statistics at all?)
 - [x] User name (lobby input, localStorage persistence)

@@ -37,6 +37,7 @@ const IGNORED_PHANTOM = new Set([
   'waiting',
   'forfeit',
   'quit',
+  'standard', // notation mode value used in conditional logic, not a CSS class
   // Known unstyled classes (structural wrappers or state handled by :disabled)
   // TODO: add CSS definitions or remove from source
   'progress-row',

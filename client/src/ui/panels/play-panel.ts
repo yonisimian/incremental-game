@@ -4,6 +4,7 @@ import { doClick, setHighlight } from '../../game.js'
 import { handledByHotkey } from '../hotkeys.js'
 import { renderClickerUpgrades } from '../components.js'
 import { setText, bindUpgradeEvents } from '../helpers.js'
+import { formatNumber } from '../format-number.js'
 import { getModeDefinition, getResourceIcon, getResourceName } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ function renderIdlerContent(state: Readonly<GameState>): string {
 
   const cards = modeDef.resources
     .map((key) => {
-      const balance = Math.floor(state.player.resources[key])
+      const balance = formatNumber(state.player.resources[key])
       const isHighlighted = highlight === key
       return `
       <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}">
@@ -100,7 +101,7 @@ export const playPanel: Panel = {
     const modeDef = getModeDefinition(state.mode!)
     if (!modeDef.clicksEnabled) {
       for (const key of modeDef.resources) {
-        setText(`${key}-balance`, String(Math.floor(state.player.resources[key])))
+        setText(`${key}-balance`, formatNumber(state.player.resources[key]))
       }
 
       const highlight = getHighlight(state)
