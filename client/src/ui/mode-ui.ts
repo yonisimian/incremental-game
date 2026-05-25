@@ -4,7 +4,6 @@ import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
 import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
-import { settingsPanel } from './panels/settings-panel.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -32,9 +31,6 @@ export function getModeUI(mode: GameMode): ModeUI {
   if (modeDef.upgrades.some((u) => u.category === 'tree')) {
     panels.push({ index: panels.length, panel: upgradeTreePanel })
   }
-
-  // Settings panel is always last
-  panels.push({ index: panels.length, panel: settingsPanel })
 
   return { panels }
 }

@@ -1,5 +1,6 @@
 import { quickMatch, createRoom, joinRoom, getState, setPlayerName } from '../game.js'
 import { app, escapeAttr } from './helpers.js'
+import { openSettings } from './settings-modal.js'
 
 export function renderLobbyScreen(): void {
   const { playerName, roomError } = getState()
@@ -10,6 +11,12 @@ export function renderLobbyScreen(): void {
 
   app.innerHTML = `
     <div class="screen lobby-screen">
+      <button class="settings-gear" id="settings-btn" aria-label="Settings">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1.08z"/>
+        </svg>
+      </button>
       <h1>incremen<span class="brand-t">T</span>al</h1>
       <input
         class="name-input"
@@ -50,6 +57,8 @@ export function renderLobbyScreen(): void {
   document.getElementById('name-input')?.addEventListener('input', (e) => {
     setPlayerName((e.target as HTMLInputElement).value)
   })
+
+  document.getElementById('settings-btn')!.addEventListener('click', openSettings)
 
   document.getElementById('quick-match-btn')!.addEventListener('click', (e) => {
     ;(e.currentTarget as HTMLButtonElement).disabled = true
