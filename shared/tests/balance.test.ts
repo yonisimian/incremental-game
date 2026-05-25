@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { TargetEnvelope } from '../src/balance/types.js'
-import type { SimScore } from '../src/balance/validate.js'
+import type { TargetEnvelope, SimScore } from '../src/balance/types.js'
 import { validateEnvelope } from '../src/balance/validate.js'
 
 const envelope: TargetEnvelope = {

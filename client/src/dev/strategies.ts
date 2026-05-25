@@ -84,7 +84,7 @@ function generateStrategies(modeDef: ModeDefinition): Strategy[] {
     const subsetIds = new Set(subset.map((u) => u.id))
 
     // Validate prerequisite closure
-    if (!isPrereqClosed(subset, subsetIds, modeDef)) continue
+    if (!isPrereqClosed(subset, subsetIds)) continue
 
     // Validate choice-group exclusivity
     if (!isChoiceValid(subset, choiceGroups)) continue
@@ -104,11 +104,7 @@ function generateStrategies(modeDef: ModeDefinition): Strategy[] {
 }
 
 /** Check that all prerequisites of each subset member are also in the subset. */
-function isPrereqClosed(
-  subset: UpgradeDefinition[],
-  subsetIds: Set<string>,
-  _modeDef: ModeDefinition,
-): boolean {
+function isPrereqClosed(subset: UpgradeDefinition[], subsetIds: Set<string>): boolean {
   for (const u of subset) {
     // For ANY-type prereqs, at least one prereq must be in subset
     // For ALL-type prereqs, all must be in subset

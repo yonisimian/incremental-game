@@ -1,12 +1,10 @@
-import type { CheckpointStatus, EnvelopeReport, StrategyReport, TargetEnvelope } from './types.js'
-
-/** Minimal simulation result needed for envelope validation. */
-export interface SimScore {
-  /** Strategy name. */
-  readonly name: string
-  /** Score at each checkpoint timeSec (same order as envelope.checkpoints). */
-  readonly scoresAtCheckpoints: readonly number[]
-}
+import type {
+  CheckpointStatus,
+  EnvelopeReport,
+  SimScore,
+  StrategyReport,
+  TargetEnvelope,
+} from './types.js'
 
 /**
  * Validate simulation results against a target envelope.
@@ -22,6 +20,10 @@ export function validateEnvelope(
   perfectResults: readonly SimScore[],
   delayedResults: readonly SimScore[],
 ): EnvelopeReport {
+  if (envelope.checkpoints.length === 0) {
+    return { pass: false, viableCount: 0, spreadRatio: null, strategies: [], exploitWarnings: [] }
+  }
+
   const lastIdx = envelope.checkpoints.length - 1
   const lastCheckpoint = envelope.checkpoints[lastIdx]
 

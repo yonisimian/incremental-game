@@ -60,3 +60,11 @@ export interface EnvelopeReport {
   /** Strategies that exceed maxScore at any checkpoint (exploit warnings). */
   readonly exploitWarnings: readonly string[]
 }
+
+/** Minimal simulation result needed for envelope validation. */
+export interface SimScore {
+  /** Strategy name. */
+  readonly name: string
+  /** Score at each checkpoint timeSec (same order as envelope.checkpoints). */
+  readonly scoresAtCheckpoints: readonly number[]
+}
