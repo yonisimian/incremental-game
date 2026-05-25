@@ -49,7 +49,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 0, y: 150 },
-    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'uh' }] },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: HIGHLIGHT_UNLOCK }] },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
   },
   {
