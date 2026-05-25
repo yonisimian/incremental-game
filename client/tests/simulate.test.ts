@@ -48,17 +48,20 @@ describe('simulate — structure', () => {
 // ─── No-upgrades baseline ────────────────────────────────────────────
 
 describe('simulate — no-upgrades idler baseline', () => {
-  // Idler: base 1 r0/s + 1 r1/s, highlight r0 → ×2 → 2 r0/s + 1 r1/s
-  const result = simulate({ name: 'baseline', actions: [hl('r0')] }, 'idler')
+  // Idler: buy uh first to unlock highlight, then highlight r0
+  // base 1 r0/s, after uh bought: highlight r0 → ×2 → 2 r0/s + 1 r1/s
+  const result = simulate({ name: 'baseline', actions: [hl('r0'), buy('uh')] }, 'idler')
   const final = result.snapshots.at(-1)!
 
-  it('accumulates correct score (2 r0/s × 35s = 70)', () => {
-    expect(result.finalScore).toBeCloseTo(70, 1)
-    expect(final.score).toBeCloseTo(70, 1)
+  it('accumulates correct score (with highlight unlock delay)', () => {
+    // uh costs 5 r0, at 1/s takes 5s. Then 30s at 2/s = 60, plus 5 at 1/s = 5 → ~65
+    expect(result.finalScore).toBeGreaterThan(60)
+    expect(result.finalScore).toBeLessThan(75)
   })
 
   it('accumulates correct r0 balance', () => {
-    expect(final.resources.r0).toBeCloseTo(70, 1)
+    // After buying uh (cost 5), remaining time has highlight active
+    expect(final.resources.r0).toBeGreaterThan(55)
   })
 
   it('accumulates correct r1 balance (1 r1/s × 35s = 35)', () => {
@@ -66,21 +69,22 @@ describe('simulate — no-upgrades idler baseline', () => {
   })
 
   it('reports correct income rates', () => {
+    // After uh purchased, income should be 2 r0/s and 1 r1/s
     expect(final.incomePerSec.r0).toBeCloseTo(2)
     expect(final.incomePerSec.r1).toBeCloseTo(1)
   })
 
-  it('has no purchase events', () => {
-    expect(result.purchaseLog).toHaveLength(0)
-    expect(result.snapshots.every((s) => s.event === '')).toBe(true)
+  it('has one purchase event (uh)', () => {
+    expect(result.purchaseLog).toHaveLength(1)
+    expect(result.purchaseLog[0].id).toBe('uh')
   })
 })
 
 // ─── Highlight changes effective immediately ─────────────────────────
 
 describe('simulate — highlight is immediate', () => {
-  // Highlight ale instead of wood: 1 r0/s + 2 r1/s
-  const result = simulate({ name: 'ale-hl', actions: [hl('r1')] }, 'idler')
+  // Highlight ale instead of wood, with uh unlock: 1 r0/s until uh bought, then 1 r0/s + 2 r1/s
+  const result = simulate({ name: 'ale-hl', actions: [hl('r1'), buy('uh')] }, 'idler')
   const final = result.snapshots.at(-1)!
 
   it('score reflects unhighlighted r0 income (1 r0/s × 35s = 35)', () => {
@@ -88,7 +92,8 @@ describe('simulate — highlight is immediate', () => {
   })
 
   it('r1 gets highlighted boost (2 r1/s × 35s = 70)', () => {
-    expect(final.resources.r1).toBeCloseTo(70, 1)
+    // uh costs 5 r0 (r0 at 1/s, so 5s), then 30s at 2 r1/s + 5s at 1 r1/s = 65
+    expect(final.resources.r1).toBeGreaterThan(60)
   })
 })
 
@@ -96,20 +101,19 @@ describe('simulate — highlight is immediate', () => {
 
 describe('simulate — upgrade purchase', () => {
   // u1 = Heavy Logging: costs 25 r0, adds +5 r0/s
-  // With hl('r0'): base 1 r0/s + highlight ×2 = 2 r0/s.
-  // After buy: base 1 + 5 = 6 r0/s, highlight ×2 = 12 r0/s
-  const result = simulate({ name: 'HL only', actions: [hl('r0'), buy('u1')] }, 'idler')
+  // With hl('r0') + uh: base 1 r0/s until uh bought (5s), then 2 r0/s
+  // After u1 buy: base 1 + 5 = 6 r0/s, highlight ×2 = 12 r0/s
+  const result = simulate({ name: 'HL only', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler')
 
-  it('records the purchase in purchaseLog', () => {
-    expect(result.purchaseLog).toHaveLength(1)
-    expect(result.purchaseLog[0].id).toBe('u1')
+  it('records the purchases in purchaseLog', () => {
+    expect(result.purchaseLog.some((p) => p.id === 'u1')).toBe(true)
   })
 
   it('purchase happens after accumulating 25 r0', () => {
-    // At 2 r0/tick-sec → need 25/2 = 12.5s → tick 50, timeSec = 12.75
-    const purchaseTime = result.purchaseLog[0].timeSec
-    expect(purchaseTime).toBeGreaterThanOrEqual(12.5)
-    expect(purchaseTime).toBeLessThanOrEqual(13)
+    const u1Purchase = result.purchaseLog.find((p) => p.id === 'u1')!
+    // uh costs 5 at 1/s (5s), then need 25 r0 at 2/s (12.5s) → ~17.5s
+    expect(u1Purchase.timeSec).toBeGreaterThanOrEqual(17)
+    expect(u1Purchase.timeSec).toBeLessThanOrEqual(18.5)
   })
 
   it('score is higher than no-upgrades (70)', () => {
@@ -140,17 +144,23 @@ describe('simulate — upgrade purchase', () => {
 // ─── Multiple purchases in sequence ─────────────────────────────────
 
 describe('simulate — multi-purchase strategy', () => {
-  // SA→HL: buy u0 first (30 r0), then u1 (25 r0)
-  const result = simulate({ name: 'SA→HL', actions: [hl('r0'), buy('u0'), buy('u1')] }, 'idler')
+  // SA→HL: buy uh first, then u0 (15 r0), then u1 (25 r0)
+  const result = simulate(
+    { name: 'SA→HL', actions: [hl('r0'), buy('uh'), buy('u0'), buy('u1')] },
+    'idler',
+  )
 
   it('records both purchases in order', () => {
-    expect(result.purchaseLog).toHaveLength(2)
-    expect(result.purchaseLog[0].id).toBe('u0')
-    expect(result.purchaseLog[1].id).toBe('u1')
+    const buyIds = result.purchaseLog.map((p) => p.id)
+    expect(buyIds).toContain('u0')
+    expect(buyIds).toContain('u1')
+    expect(buyIds.indexOf('u0')).toBeLessThan(buyIds.indexOf('u1'))
   })
 
   it('second purchase happens after the first', () => {
-    expect(result.purchaseLog[1].timeSec).toBeGreaterThan(result.purchaseLog[0].timeSec)
+    const u0Time = result.purchaseLog.find((p) => p.id === 'u0')!.timeSec
+    const u1Time = result.purchaseLog.find((p) => p.id === 'u1')!.timeSec
+    expect(u1Time).toBeGreaterThan(u0Time)
   })
 })
 
@@ -163,9 +173,9 @@ describe('simulate — empty strategy', () => {
     expect(result.snapshots).toHaveLength(totalTicks)
   })
 
-  it('uses default highlight (r0) and produces score', () => {
-    // Default highlight is r0, so same as baseline
-    expect(result.finalScore).toBeCloseTo(70, 1)
+  it('uses default highlight (r0) but no highlight boost without uh', () => {
+    // Without uh, no highlight boost: 1 r0/s × 35s = 35
+    expect(result.finalScore).toBeCloseTo(35, 1)
   })
 })
 
@@ -209,8 +219,11 @@ describe('simulate — prerequisite enforcement', () => {
 // ─── Prerequisite chain (u1 → u6) ───────────────────────────────────
 
 describe('simulate — prerequisite chain', () => {
-  // Buy u1 first (prereq for u6), then buy u6.
-  const result = simulate({ name: 'u1→u6', actions: [hl('r0'), buy('u1'), buy('u6')] }, 'idler')
+  // Buy uh first, then u1 (prereq for u6), then buy u6.
+  const result = simulate(
+    { name: 'u1→u6', actions: [hl('r0'), buy('uh'), buy('u1'), buy('u6')] },
+    'idler',
+  )
 
   it('records u6 purchase after u1', () => {
     const u6Purchases = result.purchaseLog.filter((p) => p.id === 'u6')

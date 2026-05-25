@@ -69,7 +69,7 @@
   - [ ] Increase tick speed (…per generator?)
   - [ ] Lower tier support: each N tier-1 entities add power to tier-2 generators
 - Specific upgrades — idler:
-  - [ ] Unlock highlighting (start with 0 idle production?)
+  - [x] Unlock highlighting (start with 0 idle production?)
   - [ ] Highlight battery charge: highlight "nothing" to charge a battery that amplifies highlighting power
   - [ ] Highlight battery diminish: lower drain rate
   - [ ] Highlight battery recharge: faster charging rate

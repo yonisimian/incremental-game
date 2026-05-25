@@ -110,6 +110,15 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
   return ownedCount >= upgrade.purchaseLimit
 }
 
+// ─── Highlight ────────────────────────────────────────────────────────
+
+/** Whether the highlight mechanic is currently active for this player. */
+export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
+  if (!mode.highlightEnabled) return false
+  if (!mode.highlightUnlockUpgrade) return true
+  return (state.upgrades[mode.highlightUnlockUpgrade] ?? 0) > 0
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**

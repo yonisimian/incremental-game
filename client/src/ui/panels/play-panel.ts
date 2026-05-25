@@ -5,7 +5,12 @@ import { handledByHotkey } from '../hotkeys.js'
 import { renderClickerUpgrades } from '../components.js'
 import { setText, bindUpgradeEvents } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
-import { getModeDefinition, getResourceIcon, getResourceName } from '@game/shared'
+import {
+  getModeDefinition,
+  getResourceIcon,
+  getResourceName,
+  isHighlightActive,
+} from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -45,14 +50,15 @@ function renderClickerContent(state: Readonly<GameState>): string {
 function renderIdlerContent(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = modeDef.flavor
+  const highlightUnlocked = isHighlightActive(state.player, modeDef)
   const highlight = getHighlight(state)
 
   const cards = modeDef.resources
     .map((key) => {
       const balance = formatNumber(state.player.resources[key])
-      const isHighlighted = highlight === key
+      const isHighlighted = highlightUnlocked && highlight === key
       return `
-      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}">
+      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}"${!highlightUnlocked ? ' disabled' : ''}>
         <span class="card-emoji">${getResourceIcon(flavor, key)}</span>
         <span class="card-name">${getResourceName(flavor, key)}</span>
         <span class="card-balance" id="${key}-balance">${balance}</span>
@@ -61,8 +67,8 @@ function renderIdlerContent(state: Readonly<GameState>): string {
     .join('')
 
   return `
-    <div class="currency-cards">
-      <span class="cards-hotkey" aria-hidden="true">Tab</span>
+    <div class="currency-cards${highlightUnlocked ? '' : ' locked'}">
+      ${highlightUnlocked ? '<span class="cards-hotkey" aria-hidden="true">Tab</span>' : ''}
       ${cards}
     </div>
   `
@@ -100,6 +106,8 @@ export const playPanel: Panel = {
   update(state) {
     const modeDef = getModeDefinition(state.mode!)
     if (!modeDef.clicksEnabled) {
+      const highlightUnlocked = isHighlightActive(state.player, modeDef)
+
       for (const key of modeDef.resources) {
         setText(`${key}-balance`, formatNumber(state.player.resources[key]))
       }
@@ -107,7 +115,25 @@ export const playPanel: Panel = {
       const highlight = getHighlight(state)
       for (const key of modeDef.resources) {
         const card = document.getElementById(`card-${key}`)
-        if (card) card.classList.toggle('highlighted', highlight === key)
+        if (card) {
+          card.classList.toggle('highlighted', highlightUnlocked && highlight === key)
+          ;(card as HTMLButtonElement).disabled = !highlightUnlocked
+        }
+      }
+
+      // Show/hide Tab hotkey hint and locked state
+      const container = document.querySelector('.currency-cards')
+      if (container) {
+        container.classList.toggle('locked', !highlightUnlocked)
+        const hotkey = container.querySelector('.cards-hotkey')
+        if (highlightUnlocked && !hotkey) {
+          container.insertAdjacentHTML(
+            'afterbegin',
+            '<span class="cards-hotkey" aria-hidden="true">Tab</span>',
+          )
+        } else if (!highlightUnlocked && hotkey) {
+          hotkey.remove()
+        }
       }
     } else {
       updateUpgradesIfDirty(renderClickerUpgrades(state))

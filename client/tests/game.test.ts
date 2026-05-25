@@ -469,6 +469,19 @@ describe('game.ts', () => {
     it('replays unacked highlight on top of server state', () => {
       enterIdlerPlaying(game)
 
+      // Give player the highlight-unlock upgrade so setHighlight works
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 5,
+            resources: { r0: 5, r1: 5 },
+            upgrades: { uh: 1 },
+            generators: {},
+            meta: { highlight: 'r0' },
+          },
+        }),
+      )
+
       game.setHighlight('r1')
       expect(game.getState().player.meta.highlight).toBe('r1')
 
@@ -479,7 +492,7 @@ describe('game.ts', () => {
           player: {
             score: 5,
             resources: { r0: 5, r1: 5 },
-            upgrades: { u0: 0 },
+            upgrades: { uh: 1 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -616,8 +629,29 @@ describe('game.ts', () => {
   // ── Idler: setHighlight ────────────────────────────────────────────
 
   describe('setHighlight', () => {
-    it('optimistically updates highlight', () => {
+    function unlockHighlight(g: GameModule): void {
+      g.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { uh: 1 },
+            generators: {},
+            meta: { highlight: 'r0' },
+          },
+        }),
+      )
+    }
+
+    it('is a no-op before purchasing the unlock upgrade', () => {
       enterIdlerPlaying(game)
+      game.setHighlight('r1')
+      expect(game.getState().player.meta.highlight).toBe('r0') // unchanged
+    })
+
+    it('optimistically updates highlight after unlock', () => {
+      enterIdlerPlaying(game)
+      unlockHighlight(game)
       expect(game.getState().player.meta.highlight).toBe('r0') // from createInitialState
       game.setHighlight('r1')
       expect(game.getState().player.meta.highlight).toBe('r1')
@@ -636,6 +670,7 @@ describe('game.ts', () => {
 
     it('is a no-op when already set to same value', async () => {
       enterIdlerPlaying(game)
+      unlockHighlight(game)
       game.setHighlight('r1')
       const { queueAction } = await import('../src/network.js')
       vi.mocked(queueAction).mockClear()
@@ -645,6 +680,7 @@ describe('game.ts', () => {
 
     it('rejects an invalid target resource', () => {
       enterIdlerPlaying(game)
+      unlockHighlight(game)
       game.setHighlight('bogus')
       expect(game.getState().player.meta.highlight).toBe('r0') // unchanged
     })
@@ -665,7 +701,7 @@ describe('game.ts', () => {
           player: {
             score: amount,
             resources: { r0: amount, r1: 0 },
-            upgrades: { u0: 0 },
+            upgrades: { uh: 1, u0: 0 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -679,7 +715,7 @@ describe('game.ts', () => {
           player: {
             score: 0,
             resources: { r0: 0, r1: amount },
-            upgrades: { u0: 0 },
+            upgrades: { uh: 1, u0: 0 },
             generators: {},
             meta: { highlight: 'r0' },
           },

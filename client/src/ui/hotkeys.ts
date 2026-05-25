@@ -1,7 +1,7 @@
 import { doClick, doBuy, setHighlight, getState, cancelQueue, quitMatch } from '../game.js'
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
-import { type UpgradeCategory, getModeDefinition } from '@game/shared'
+import { type UpgradeCategory, getModeDefinition, isHighlightActive } from '@game/shared'
 
 /**
  * Set to true while the hotkey handler is processing a Space press.
@@ -88,7 +88,7 @@ export function initHotkeys(): void {
 
     // Tab — cycle highlight (non-clicking modes with highlight), unless focus is inside the tab grid
     if (e.key === 'Tab') {
-      if (inTabGrid || !modeDef.highlightEnabled) return
+      if (inTabGrid || !isHighlightActive(state.player, modeDef)) return
       const resources = modeDef.resources
       const current = (state.player.meta.highlight as string | undefined) ?? resources[0]
       const idx = resources.indexOf(current)

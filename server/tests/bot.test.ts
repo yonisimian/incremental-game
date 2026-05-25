@@ -119,8 +119,15 @@ describe('Bot', () => {
   })
 
   describe('IdlerBot', () => {
-    // Synthetic upgrades matching the bot's hardcoded plan: u0(r0), u1(r0), u2(r1)
+    // Synthetic upgrades matching the bot's hardcoded plan: uh(r0), u0(r0), u1(r0), u2(r1)
     const idlerUpgrades = [
+      {
+        id: 'uh' as const,
+        cost: 5,
+        costCurrency: 'r0' as const,
+        purchaseLimit: 1,
+        modifiers: [],
+      },
       {
         id: 'u0' as const,
         cost: 30,
@@ -144,7 +151,7 @@ describe('Bot', () => {
       },
     ]
 
-    it('stays on r0 highlight first (for u0)', () => {
+    it('stays on r0 highlight first (for uh)', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
@@ -152,18 +159,19 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
+          uh: 0,
           u0: 0,
           u1: 0,
           u2: 0,
         },
       }
       const actions = bot.decide(state)
-      // First plan step is u0 (costs r0), highlight should stay on r0
+      // First plan step is uh (costs r0), highlight should stay on r0
       const highlights = actions.filter((a) => a.type === 'set_highlight')
       expect(highlights).toHaveLength(0) // already on r0, no switch needed
     })
 
-    it('buys u0 when r0 is sufficient', () => {
+    it('buys uh then u0 when r0 is sufficient', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
@@ -171,6 +179,7 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
+          uh: 0,
           u0: 0,
           u1: 0,
           u2: 0,
@@ -180,7 +189,12 @@ describe('Bot', () => {
       let actions = bot.decide(state)
       expect(actions.filter((a) => a.type === 'buy')).toHaveLength(0)
 
-      // Now with enough r0
+      // Now with enough r0 for uh (costs 5)
+      state.resources.r0 = 5
+      actions = bot.decide(state)
+      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'uh' })
+
+      // Next step: u0 (costs 30)
       state.resources.r0 = 30
       actions = bot.decide(state)
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'u0' })
@@ -194,14 +208,15 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
+          uh: 0,
           u0: 0,
           u1: 0,
           u2: 0,
         },
       }
 
-      // Buy through entire plan: u0, u1, u2 (3 steps)
-      for (let i = 0; i < 3; i++) {
+      // Buy through entire plan: uh, u0, u1, u2 (4 steps)
+      for (let i = 0; i < 4; i++) {
         bot.decide(state)
       }
 
@@ -244,10 +259,10 @@ describe('Bot', () => {
         resources: { r0: 9999, r1: 9999 },
         generators: {},
         meta: { highlight: 'r0' as const },
-        upgrades: { u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
+        upgrades: { uh: 0, u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
       }
 
-      // Run through all plan steps (u0, u1, u2, u4, u5 = 5 steps)
+      // Run through all plan steps (uh, u0, u1, u2, u4, u5 = 6 steps)
       const buyIds: string[] = []
       for (let i = 0; i < 10; i++) {
         const actions = bot.decide(state)
