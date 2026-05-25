@@ -9,6 +9,7 @@ import {
 } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
+import { formatNumber } from './format-number.js'
 
 // ─── Hotkeys ─────────────────────────────────────────────────────────
 
@@ -79,9 +80,9 @@ export function opponentDisplayName(state: Readonly<GameState>): string {
 /** Format a score for the scoreboard (includes target for target-score goal). */
 export function formatScore(score: number, state: Readonly<GameState>): string {
   if (state.goal?.type === 'target-score') {
-    return `${Math.floor(score)} / ${state.goal.target}`
+    return `${formatNumber(score)} / ${formatNumber(state.goal.target)}`
   }
-  return `${Math.floor(score)}`
+  return formatNumber(score)
 }
 
 /** Can the player afford this upgrade (and is it still purchasable)? */

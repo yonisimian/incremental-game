@@ -8,6 +8,7 @@ import {
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
+import { formatNumber } from './format-number.js'
 import {
   getModeDefinition,
   getPrerequisiteUpgradeIds,
@@ -85,7 +86,7 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
       const nextCost = getUpgradeNextCost(u, owned)
       const costLabel = maxed
         ? '✓'
-        : `${nextCost} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
+        : `${formatNumber(nextCost)} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
 
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
@@ -239,7 +240,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
       const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed ? '✓' : `${nextCost} ${emoji}${countLabel}`
+      const costLabel = maxed ? '✓' : `${formatNumber(nextCost)} ${emoji}${countLabel}`
       const levelLabel =
         u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
           ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`

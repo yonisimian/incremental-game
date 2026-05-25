@@ -1,6 +1,7 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax } from '../../game.js'
+import { formatNumber } from '../format-number.js'
 import {
   type GeneratorDefinition,
   getModeDefinition,
@@ -45,10 +46,10 @@ function renderGeneratorCard(
       </div>
       <div class="generator-actions">
         <button class="generator-buy-btn" data-action="buy" ${!affordable ? 'disabled' : ''}>
-          Buy 1 — ${costIcon}${nextCost}
+          Buy 1 — ${costIcon}${formatNumber(nextCost)}
         </button>
         <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
-          Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? bulkCost : '—'}
+          Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}
         </button>
       </div>
     </article>

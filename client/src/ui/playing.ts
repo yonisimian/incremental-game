@@ -12,6 +12,7 @@ import {
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
+import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
 import {
   renderTabGrid,
@@ -40,7 +41,7 @@ function renderResourceBar(state: Readonly<GameState>): string {
       ${activeFlavor.resources
         .map((r) => {
           const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
-          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${Math.floor(state.player.resources[r.key])}</span></span>`
+          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${formatNumber(state.player.resources[r.key])}</span></span>`
         })
         .join('')}
     </div>
@@ -124,7 +125,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
   // Update resource bar (visible across all tabs)
   if (activeFlavor) {
     for (const r of activeFlavor.resources) {
-      setText(`header-${r.key}`, String(Math.floor(state.player.resources[r.key])))
+      setText(`header-${r.key}`, formatNumber(state.player.resources[r.key]))
     }
   }
 
