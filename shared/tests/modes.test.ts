@@ -195,10 +195,8 @@ describe('collectModifiers', () => {
     state.upgrades.u6 = 1
     const mods = collectModifiers(state, def)
 
-    // Woodcutter base output: 1 × 2 = 2. u6 adds +4 per Woodcutter, so +8 total, effective 10.
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 10)).toBe(
-      true,
-    )
+    // Woodcutter base output: 0.5 × 2 = 1. u6 adds +4 per Woodcutter, so +8 total, effective 9.
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 9)).toBe(true)
   })
 
   it('applies multiplicative generator-targeted upgrades', () => {
@@ -208,9 +206,9 @@ describe('collectModifiers', () => {
     state.upgrades.u7 = 1
     const mods = collectModifiers(state, def)
 
-    // Brewer base rate: 0.2 × 3 = 0.6. u7 ×2 → effective 1.2.
+    // Brewer base rate: 1 × 3 = 3. u7 ×2 → effective 6.
     const brewerMod = mods.find(
-      (m) => m.field === 'r1' && m.stage === 'additive' && Math.abs(m.value - 1.2) < 0.001,
+      (m) => m.field === 'r1' && m.stage === 'additive' && Math.abs(m.value - 6) < 0.001,
     )
     expect(brewerMod).toBeDefined()
   })
@@ -271,8 +269,8 @@ describe('collectModifiers', () => {
     state.upgrades.u10 = 1
     const mods = collectModifiers(state, def)
 
-    // g0 wins tie (lowest-tier), base rate 1.0 × 3 × 2 = 6
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 6)).toBe(true)
+    // g0 wins tie (lowest-tier), base rate 0.5 × 3 × 2 = 3
+    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 3)).toBe(true)
   })
 
   it('applies u11 balanced engineering as global bonus when generators are balanced', () => {
@@ -314,8 +312,8 @@ describe('applyPurchase', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r0 = 100
-    applyPurchase(state, 'u0', def) // costs 30 r0
-    expect(state.resources.r0).toBe(70)
+    applyPurchase(state, 'u0', def) // costs 15 r0
+    expect(state.resources.r0).toBe(85)
     expect(state.upgrades.u0).toBe(1)
   })
 

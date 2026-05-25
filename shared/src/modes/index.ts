@@ -7,6 +7,8 @@ import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
 
+export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
+
 // ─── Validation ──────────────────────────────────────────────────────
 
 /** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
