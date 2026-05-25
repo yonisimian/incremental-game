@@ -13,6 +13,7 @@ import {
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  isHighlightActive,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -275,7 +276,10 @@ export class Match {
         this.applyPurchase(player, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, player)) break
       } else if (action.type === 'set_highlight' && action.highlight) {
-        if (this.modeDef.highlightEnabled && this.modeDef.resources.includes(action.highlight)) {
+        if (
+          isHighlightActive(player.state, this.modeDef) &&
+          this.modeDef.resources.includes(action.highlight)
+        ) {
           player.state.meta.highlight = action.highlight
         }
       } else if (action.type === 'buy_generator' && action.generatorId) {
@@ -323,7 +327,10 @@ export class Match {
         if (this.checkBuyUpgradeWin(action.upgradeId, botPlayer)) break
       } else {
         // set_highlight — validate identically to processActions
-        if (this.modeDef.highlightEnabled && this.modeDef.resources.includes(action.highlight)) {
+        if (
+          isHighlightActive(botPlayer.state, this.modeDef) &&
+          this.modeDef.resources.includes(action.highlight)
+        ) {
           botPlayer.state.meta.highlight = action.highlight
         }
       }

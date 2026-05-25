@@ -71,6 +71,8 @@ export interface ModeDefinition {
   readonly clicksEnabled: boolean
   /** Whether the mode supports highlight cycling (Tab key, set_highlight action). */
   readonly highlightEnabled: boolean
+  /** If set, highlighting requires this upgrade to be purchased before it becomes active. */
+  readonly highlightUnlockUpgrade?: string
   /** Starting resource balances for a new round. */
   readonly initialResources: Readonly<Record<string, number>>
   /** Starting mode-specific metadata (e.g., idler highlight). */

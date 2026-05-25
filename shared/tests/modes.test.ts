@@ -227,6 +227,8 @@ describe('collectModifiers', () => {
   it('calls collectDynamic for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
+    // Highlight requires the unlock upgrade (uh) to be purchased
+    state.upgrades.uh = 1
     const mods = collectModifiers(state, def)
     // Highlight mechanic should produce a multiplicative modifier
     expect(

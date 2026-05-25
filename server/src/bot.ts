@@ -90,6 +90,7 @@ export class IdlerBot implements BotStrategy {
 
     // Base plan — core economy upgrades
     const basePlan: { id: string; currency: string }[] = [
+      { id: 'uh', currency: 'r0' }, // Unlock Highlight (unlocks highlight mechanic)
       { id: 'u0', currency: 'r0' }, // Sharpened Axes (costs wood)
       { id: 'u1', currency: 'r0' }, // Heavy Logging (costs wood)
       { id: 'u2', currency: 'r1' }, // Royal Brewery (costs ale)

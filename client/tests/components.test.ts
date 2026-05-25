@@ -56,11 +56,11 @@ describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
     // Current idler tree positions (timed goal excludes u5):
-    // u0(0,0), u1(200,0), u2(400,0),
+    // uh(-200,0), u0(0,0), u1(200,0), u2(400,0),
     // u12(0,150), u6(200,150), u7(400,150),
     // u8(100,300), u4(300,300), u9(500,300),
     // u10(200,450), u11(400,450)
-    expect(bounds.minX).toBe(0)
+    expect(bounds.minX).toBe(-200)
     expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
     expect(bounds.maxY).toBe(450)
@@ -97,9 +97,9 @@ describe('renderUpgradeTree', () => {
 
   it('emits one <line> per prereq edge in the idler tree', () => {
     const { edgesSvg } = renderUpgradeTree(makeIdlerState())
-    // u6←u1, u7←u2, u4←u6, u4←u7, u8←u6, u9←u7, u10←u4, u11←u4
+    // u0←uh, u6←u1, u7←u2, u4←u6, u4←u7, u8←u6, u9←u7, u10←u4, u11←u4
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
-    expect(lineCount).toBe(8)
+    expect(lineCount).toBe(9)
   })
 
   it('marks line as `unlocked` only when child node is unlocked', () => {
@@ -122,7 +122,8 @@ describe('renderUpgradeTree', () => {
 
   it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState())
-    // u4, u6, u7, u8, u9, u10, u11 have prereqs → all locked
+    // u0, u4, u6, u7, u8, u9, u10, u11 have prereqs → all locked
+    expect(nodes).toMatch(/data-upgrade="u0"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u4"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u6"[^>]*\sdisabled\b/)
     expect(nodes).toMatch(/data-upgrade="u7"[^>]*\sdisabled\b/)
@@ -132,7 +133,7 @@ describe('renderUpgradeTree', () => {
     expect(nodes).toMatch(/data-upgrade="u11"[^>]*\sdisabled\b/)
     // .locked class is applied to those nodes
     const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
-    expect(lockedCount).toBe(7)
+    expect(lockedCount).toBe(8)
   })
 
   it('marks one-shot owned upgrades with `.owned` class and disables them', () => {

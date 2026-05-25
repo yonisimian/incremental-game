@@ -24,6 +24,7 @@ import {
   isChoiceGroupAvailable,
   getUpgradeNextCost,
   applyPurchase,
+  isHighlightActive,
 } from '@game/shared'
 import {
   getSeq,
@@ -348,7 +349,7 @@ export function setHighlight(target: string): void {
   if (state.screen !== 'playing') return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
-  if (!modeDef.highlightEnabled) return
+  if (!isHighlightActive(state.player, modeDef)) return
   if (!modeDef.resources.includes(target)) return
   if (state.player.meta.highlight === target) return
 

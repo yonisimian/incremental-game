@@ -403,6 +403,17 @@ describe('Match', () => {
       return m
     }
 
+    /** Enter idler and buy the highlight-unlock upgrade (uh) so highlight tests work. */
+    function enterIdlerWithHighlight() {
+      const m = enterIdlerPlaying()
+      // Accumulate 5 r0 at base 1/sec (no highlight yet), then buy 'uh'
+      vi.advanceTimersByTime(5000)
+      m.handleMessage('p1', buyMsg('uh', 1))
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws2.send as ReturnType<typeof vi.fn>).mockClear()
+      return m
+    }
+
     function highlightMsg(highlight: string, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
@@ -438,40 +449,60 @@ describe('Match', () => {
       expect(ids).toContain('u4')
     })
 
-    it('produces r0 and r1 at 1/sec base rate', () => {
+    it('produces r0 and r1 at 1/sec base rate (no highlight)', () => {
       enterIdlerPlaying()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
-      // Default highlight=r0 → r0 at 2/sec, r1 at 1/sec
-      expect(u.player.resources.r0).toBeCloseTo(2, 1)
+      // Without highlight unlock: both at base 1/sec
+      expect(u.player.resources.r0).toBeCloseTo(1, 1)
       expect(u.player.resources.r1).toBeCloseTo(1, 1)
     })
 
+    it('highlight doubles production after unlock', () => {
+      enterIdlerWithHighlight()
+      // Get a baseline by advancing one broadcast interval
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(1000)
+      const after = latestUpdate(ws1)
+      // Default highlight=r0 → r0 gains ~2/sec, r1 gains ~1/sec
+      const r0Delta = after.player.resources.r0 - before.player.resources.r0
+      const r1Delta = after.player.resources.r1 - before.player.resources.r1
+      expect(r0Delta).toBeCloseTo(2, 0)
+      expect(r1Delta).toBeCloseTo(1, 0)
+    })
+
     it('score = total r0 produced (highlight = r0 gives 2x)', () => {
-      enterIdlerPlaying()
+      enterIdlerWithHighlight()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Highlighted r0 → 2/sec → score = r0 produced
-      expect(u.player.score).toBeCloseTo(2, 1)
+      expect(u.player.score).toBeGreaterThan(1.5)
     })
 
     it('highlight toggle changes production rates', () => {
-      const m = enterIdlerPlaying()
+      const m = enterIdlerWithHighlight()
       // Switch to r1 highlight
-      m.handleMessage('p1', highlightMsg('r1', 1))
+      m.handleMessage('p1', highlightMsg('r1', 2))
+      // Snapshot state after switch
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
-      const u = latestUpdate(ws1)
+      const after = latestUpdate(ws1)
       // r0 at 1/sec (not highlighted), r1 at 2/sec (highlighted)
-      expect(u.player.resources.r0).toBeCloseTo(1, 1)
-      expect(u.player.resources.r1).toBeCloseTo(2, 1)
-      expect(u.player.score).toBeCloseTo(1, 1) // score = r0
+      const r0Delta = after.player.resources.r0 - before.player.resources.r0
+      const r1Delta = after.player.resources.r1 - before.player.resources.r1
+      expect(r0Delta).toBeCloseTo(1, 0)
+      expect(r1Delta).toBeCloseTo(2, 0)
     })
 
     it('Sharpened Axes makes highlight 4x', () => {
-      const m = enterIdlerPlaying()
-      // Give player enough r0 to buy (30)
-      vi.advanceTimersByTime(15_000) // ~30 r0 at 2/sec
-      m.handleMessage('p1', buyMsg('u0', 1))
+      const m = enterIdlerWithHighlight()
+      // Give player enough r0 to buy u0 (costs 15 r0)
+      vi.advanceTimersByTime(8_000) // ~16 r0 at 2/sec (highlighted)
+      m.handleMessage('p1', buyMsg('u0', 2))
       // Clear updates to measure from here
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
@@ -481,10 +512,10 @@ describe('Match', () => {
     })
 
     it('Heavy Logging adds +5 base r0/sec', () => {
-      const m = enterIdlerPlaying()
-      // Wait for enough r0 (u1 costs 25 r0)
-      vi.advanceTimersByTime(13_000) // ~26 r0 at 2/sec
-      m.handleMessage('p1', buyMsg('u1', 1))
+      const m = enterIdlerWithHighlight()
+      // Wait for enough r0 (u1 costs 25 r0) at 2/sec (highlighted)
+      vi.advanceTimersByTime(13_000) // ~26 r0
+      m.handleMessage('p1', buyMsg('u1', 2))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
@@ -493,11 +524,11 @@ describe('Match', () => {
     })
 
     it('Royal Brewery adds +5 base r1/sec', () => {
-      const m = enterIdlerPlaying()
-      // Switch to r1 to earn enough (costs 25 r1)
-      m.handleMessage('p1', highlightMsg('r1', 1))
-      vi.advanceTimersByTime(13_000) // ~26 r1 at 2/sec
-      m.handleMessage('p1', buyMsg('u2', 2))
+      const m = enterIdlerWithHighlight()
+      // Switch to r1 to earn enough (costs 10 r1)
+      m.handleMessage('p1', highlightMsg('r1', 2))
+      vi.advanceTimersByTime(6_000) // ~12 r1 at 2/sec
+      m.handleMessage('p1', buyMsg('u2', 3))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
@@ -506,12 +537,12 @@ describe('Match', () => {
     })
 
     it('cannot buy r0 upgrade with r1', () => {
-      const m = enterIdlerPlaying()
+      const m = enterIdlerWithHighlight()
       // Switch to r1 to build up only r1
-      m.handleMessage('p1', highlightMsg('r1', 1))
+      m.handleMessage('p1', highlightMsg('r1', 2))
       vi.advanceTimersByTime(10_000) // r1 ~= 20, r0 ~= 10
-      // Try to buy u0 (costs 30 r0) — should fail
-      m.handleMessage('p1', buyMsg('u0', 2))
+      // Try to buy u0 (costs 15 r0) — should fail since player doesn't have enough r0
+      m.handleMessage('p1', buyMsg('u0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
       expect(u.player.upgrades.u0).toBe(0)

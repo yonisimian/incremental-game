@@ -18,8 +18,10 @@ function getHighlight(state: Readonly<PlayerState>): string {
 /**
  * Emit dynamic modifiers based on runtime player state.
  * The highlight mechanic: highlighted resource gets ×2 (or ×4 with u0 / sharpened-axes).
+ * Requires the unlock-highlight upgrade (uh) to be purchased before taking effect.
  */
 function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
+  if (state.upgrades.uh === 0) return []
   const highlight = getHighlight(state)
   const sharpenedAxes = state.upgrades.u0 > 0
   return [{ stage: 'multiplicative', field: highlight, value: sharpenedAxes ? 4 : 2 }]
@@ -29,12 +31,22 @@ function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
 
 const idlerUpgrades: readonly UpgradeDefinition[] = [
   {
+    id: 'uh', // Unlock Highlight
+    cost: 5,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: -200, y: 0 },
+    modifiers: [], // unlocks the highlight mechanic (checked in collectIdlerDynamic)
+  },
+  {
     id: 'u0', // Sharpened Axes
     cost: 15,
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
     position: { x: 0, y: 0 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'uh' }] },
     modifiers: [], // meta-modifier — effect expressed in collectIdlerDynamic
   },
   {
@@ -247,6 +259,11 @@ const idlerFlavor: ModeFlavor = {
     { key: 'r1', displayName: 'Ale', icon: '🍺' },
   ],
   upgrades: [
+    {
+      id: 'uh',
+      name: '🔦 Focus Training',
+      description: 'Unlock highlighting (×2 to selected resource)',
+    },
     { id: 'u0', name: '🪓 Sharpened Axes', description: 'Highlight boost → 4× (from 2×)' },
     { id: 'u1', name: '🌲 Heavy Logging', description: '+5 base 🪵/sec' },
     { id: 'u2', name: '👑 Royal Brewery', description: '+5 base 🍺/sec' },
@@ -304,6 +321,7 @@ export const idlerMode: ModeDefinition = {
   scoreResource: 'r0',
   clicksEnabled: false,
   highlightEnabled: true,
+  highlightUnlockUpgrade: 'uh',
   initialResources: { r0: 0, r1: 0 },
   initialMeta: { highlight: 'r0' },
   collectDynamic: collectIdlerDynamic,
