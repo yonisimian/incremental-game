@@ -978,6 +978,18 @@ body {
   }
 }
 
+.paused-banner {
+  margin: 0.75rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.95);
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
 /* Upgrade Tree Panel — pan/zoom viewport + canvas + edges + nodes */
 
 .tree-viewport {
