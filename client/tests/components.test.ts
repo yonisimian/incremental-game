@@ -56,11 +56,11 @@ describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
     // Current idler tree positions (timed goal excludes u5):
-    // uh(-200,0), u0(0,0), u1(200,0), u2(400,0),
+    // uh(0,0), u0(0,0), u1(200,0), u2(400,0),
     // u12(0,150), u6(200,150), u7(400,150),
     // u8(100,300), u4(300,300), u9(500,300),
     // u10(200,450), u11(400,450)
-    expect(bounds.minX).toBe(-200)
+    expect(bounds.minX).toBe(0)
     expect(bounds.maxX).toBe(500)
     expect(bounds.minY).toBe(0)
     expect(bounds.maxY).toBe(450)

@@ -39,7 +39,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: -200, y: 0 },
+    position: { x: 0, y: 0 },
     modifiers: [], // unlocks the highlight mechanic (checked in collectIdlerDynamic)
   },
   {
