@@ -72,6 +72,7 @@ function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpda
       meta: {},
     },
     timeLeft: 55,
+    paused: false,
     ...overrides,
   }
 }
