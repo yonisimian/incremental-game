@@ -85,6 +85,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
         </header>
         ${renderScoreboard(state)}
         ${renderResourceBar(state)}
+        <div class="paused-banner" id="pause-banner"${state.paused ? '' : ' hidden'}>PAUSED</div>
       </div>
 
       ${renderTabGrid()}
@@ -120,6 +121,13 @@ export function updatePlaying(state: Readonly<GameState>): void {
     setText('player-score', formatScore(state.player.score, state))
     setText('opponent-score', formatScore(state.opponent.score, state))
     if (scoreChanged) bumpScore('player-score')
+  }
+
+  // Update pause banner.
+  const pauseBanner = document.getElementById('pause-banner')
+  if (pauseBanner) {
+    pauseBanner.hidden = !state.paused
+    pauseBanner.textContent = state.paused ? 'PAUSED' : ''
   }
 
   // Update resource bar (visible across all tabs)

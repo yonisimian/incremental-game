@@ -68,6 +68,7 @@ export class Match {
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private broadcastTimer: ReturnType<typeof setInterval> | null = null
   private roundTimer: ReturnType<typeof setTimeout> | null = null
+  private paused = false
   private onEndCallback: (() => void) | null = null
 
   constructor(
@@ -145,7 +146,18 @@ export class Match {
 
     if (this.phase !== 'playing') return
 
+    if (msg.type === 'PAUSE') {
+      this.pause()
+      return
+    }
+
+    if (msg.type === 'UNPAUSE') {
+      this.resume()
+      return
+    }
+
     if (msg.type === 'ACTION_BATCH') {
+      if (this.paused) return
       this.processActions(player, msg.actions, msg.seq)
       this.checkTargetScoreReached()
     }
@@ -209,14 +221,11 @@ export class Match {
   // ─── Private: game loop ────────────────────────────────────────────
 
   private beginGameLoop(): void {
-    const startTime = Date.now()
-    const durationSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
-
     // Tick: compute passive income, run bot, update timer
     this.tickTimer = setInterval(() => {
+      if (this.paused) return
       this.tick++
-      const elapsedSec = (Date.now() - startTime) / 1000
-      this.timeLeftSec = Math.max(0, durationSec - elapsedSec)
+      this.timeLeftSec = Math.max(0, this.timeLeftSec - TICK_INTERVAL_MS / 1000)
 
       for (const player of this.players) {
         this.applyPassiveIncome(player)
@@ -242,7 +251,7 @@ export class Match {
       } else {
         this.endRound('complete')
       }
-    }, durationSec * 1000)
+    }, this.timeLeftSec * 1000)
   }
 
   /** Check if any player reached the target score (target-score goal only). */
@@ -349,6 +358,33 @@ export class Match {
     )
   }
 
+  private pause(): void {
+    if (this.phase !== 'playing' || this.paused) return
+    this.paused = true
+    if (this.roundTimer) {
+      clearTimeout(this.roundTimer)
+      this.roundTimer = null
+    }
+    this.broadcastState()
+  }
+
+  private resume(): void {
+    if (this.phase !== 'playing' || !this.paused) return
+    this.paused = false
+    if (this.timeLeftSec <= 0) {
+      this.endRound('complete')
+      return
+    }
+    this.roundTimer = setTimeout(() => {
+      if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
+        this.endRound('safety-cap')
+      } else {
+        this.endRound('complete')
+      }
+    }, this.timeLeftSec * 1000)
+    this.broadcastState()
+  }
+
   private applyClick(player: MatchPlayer): void {
     const modifiers = collectModifiers(player.state, this.modeDef)
     const income = computeClickIncome(modifiers)
@@ -379,6 +415,7 @@ export class Match {
       player: p1.state,
       opponent: p2.state,
       timeLeft: this.timeLeftSec,
+      paused: this.paused,
     })
 
     this.send(p2, {
@@ -388,6 +425,7 @@ export class Match {
       player: p2.state,
       opponent: p1.state,
       timeLeft: this.timeLeftSec,
+      paused: this.paused,
     })
   }
 

@@ -3,10 +3,12 @@ import type {
   GameMode,
   Goal,
   QuickMatchMessage,
+  PauseMessage,
   RematchMessage,
   RoomCreateMessage,
   RoomJoinMessage,
   RoomUpdateMessage,
+  UnpauseMessage,
   PlayerAction,
   ServerMessage,
 } from '@game/shared'
@@ -121,6 +123,20 @@ export function sendRoomUpdate(update: { mode?: GameMode; goal?: Goal }): void {
 export function sendQuit(): void {
   if (ws?.readyState !== WebSocket.OPEN) return
   ws.send(JSON.stringify({ type: 'QUIT' }))
+}
+
+/** Send a pause request for the current match. */
+export function sendPause(): void {
+  if (ws?.readyState !== WebSocket.OPEN) return
+  const msg: PauseMessage = { type: 'PAUSE' }
+  ws.send(JSON.stringify(msg))
+}
+
+/** Send an unpause request for the current match. */
+export function sendUnpause(): void {
+  if (ws?.readyState !== WebSocket.OPEN) return
+  const msg: UnpauseMessage = { type: 'UNPAUSE' }
+  ws.send(JSON.stringify(msg))
 }
 
 /** Send a bot request message (while in queue). */
