@@ -257,14 +257,21 @@ export class Match {
     this.scheduleRoundEnd(this.timeLeftSec * 1000)
   }
 
+  /**
+   * Reason reported when the round ends because its time expired.
+   * Timed goals complete normally; capped goals (target-score / buy-upgrade)
+   * hit their safety cap.
+   */
+  private get timeExpiredReason(): RoundEndReason {
+    return this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade'
+      ? 'safety-cap'
+      : 'complete'
+  }
+
   /** (Re)arm the round-end timeout to fire after the given delay. */
   private scheduleRoundEnd(delayMs: number): void {
     this.roundTimer = setTimeout(() => {
-      if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
-        this.endRound('safety-cap')
-      } else {
-        this.endRound('complete')
-      }
+      this.endRound(this.timeExpiredReason)
     }, delayMs)
   }
 
@@ -388,7 +395,7 @@ export class Match {
     if (this.phase !== 'playing' || !this.paused) return
     this.paused = false
     if (this.timeLeftSec <= 0) {
-      this.endRound('complete')
+      this.endRound(this.timeExpiredReason)
       return
     }
     // Re-anchor the round end to the remaining time and re-arm the timeout.
