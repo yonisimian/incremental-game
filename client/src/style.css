@@ -603,6 +603,28 @@ body {
   border-color: var(--danger);
 }
 
+/* Pause button (bot matches only) */
+
+.pause-btn {
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.pause-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Currency cards (idler mode) */
 
 .currency-cards {

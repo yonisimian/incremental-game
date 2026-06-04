@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { quitMatch } from '../game.js'
+import { quitMatch, togglePause } from '../game.js'
 import { getModeDefinition } from '@game/shared'
 import type { ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
@@ -48,6 +48,17 @@ function renderResourceBar(state: Readonly<GameState>): string {
   `
 }
 
+/**
+ * Pause/resume button — only rendered in bot matches, where pausing is allowed.
+ * The icon doubles as a play triangle while paused so the same control resumes.
+ */
+function renderPauseButton(state: Readonly<GameState>): string {
+  if (!state.vsBot) return ''
+  const label = state.paused ? 'Resume match' : 'Pause match'
+  const icon = state.paused ? '▶' : '⏸'
+  return `<button class="pause-btn" id="pause-btn" aria-label="${label}" title="${label}">${icon}</button>`
+}
+
 /** Shared scoreboard HTML for both modes. */
 function renderScoreboard(state: Readonly<GameState>): string {
   if (state.goal?.type === 'target-score') return ''
@@ -80,6 +91,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
       <div class="playing-top">
         <header class="game-header">
           <button class="quit-btn" id="quit-btn">← Quit</button>
+          ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
         </header>
@@ -94,6 +106,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   `
 
   document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
+  document.getElementById('pause-btn')?.addEventListener('click', togglePause)
   bindTabEvents()
   renderActivePanel(state)
 }
@@ -128,6 +141,15 @@ export function updatePlaying(state: Readonly<GameState>): void {
   if (pauseBanner) {
     pauseBanner.hidden = !state.paused
     pauseBanner.textContent = state.paused ? 'PAUSED' : ''
+  }
+
+  // Update pause button icon/label to reflect the current state.
+  const pauseBtn = document.getElementById('pause-btn')
+  if (pauseBtn) {
+    const label = state.paused ? 'Resume match' : 'Pause match'
+    pauseBtn.textContent = state.paused ? '▶' : '⏸'
+    pauseBtn.setAttribute('aria-label', label)
+    pauseBtn.setAttribute('title', label)
   }
 
   // Update resource bar (visible across all tabs)
