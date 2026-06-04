@@ -36,6 +36,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     },
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    vsBot: false,
     matchId: 'test-match',
     upgrades: [...upgrades],
     countdown: COUNTDOWN_SEC,

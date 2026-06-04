@@ -40,6 +40,16 @@ describe('Match', () => {
     return m
   }
 
+  /** Create a bot match (pause is bot-only) and advance into the playing phase. */
+  function enterPlayingVsBot() {
+    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'clicker', undefined, {
+      decide: () => [],
+    })
+    m.start()
+    vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+    return m
+  }
+
   function clickMsg(seq: number) {
     return JSON.stringify({
       type: 'ACTION_BATCH',
@@ -128,7 +138,7 @@ describe('Match', () => {
     })
 
     it('pauses and resumes the round timer', () => {
-      const m = enterPlaying()
+      const m = enterPlayingVsBot()
       m.handleMessage('p1', pauseMsg())
       const pausedUpdate = latestUpdate(ws1)
       expect(pausedUpdate.paused).toBe(true)
@@ -144,12 +154,19 @@ describe('Match', () => {
     })
 
     it('ignores player actions while paused', () => {
-      const m = enterPlaying()
+      const m = enterPlayingVsBot()
       m.handleMessage('p1', pauseMsg())
       const pausedScore = latestUpdate(ws1).player.score
       m.handleMessage('p1', clickMsg(1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.score).toBe(pausedScore)
+    })
+
+    it('ignores pause requests in a non-bot (PvP) match', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).paused).toBe(false)
     })
   })
 

@@ -116,6 +116,7 @@ export class Match {
         matchId: this.id,
         config,
         opponentName: opponent.name,
+        vsBot: this.bot !== null,
         serverTime: Date.now(),
       })
     }
@@ -147,11 +148,13 @@ export class Match {
     if (this.phase !== 'playing') return
 
     if (msg.type === 'PAUSE') {
+      if (!this.bot) return // pause is only allowed in bot matches
       this.pause()
       return
     }
 
     if (msg.type === 'UNPAUSE') {
+      if (!this.bot) return // pause is only allowed in bot matches
       this.resume()
       return
     }

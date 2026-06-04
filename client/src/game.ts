@@ -76,6 +76,8 @@ export interface GameState {
   timeLeft: number
   /** Whether the server has paused the current match. */
   paused: boolean
+  /** Whether the current match is against a bot. */
+  vsBot: boolean
   /** Current match ID. */
   matchId: string | null
   /** Upgrade definitions for this round. */
@@ -131,6 +133,7 @@ const state: GameState = {
   opponent: clonePlayerState(EMPTY_PLAYER_STATE),
   timeLeft: 0,
   paused: false,
+  vsBot: false,
   matchId: null,
   upgrades: [],
   countdown: COUNTDOWN_SEC,
@@ -456,6 +459,7 @@ export function quitMatch(): void {
 /** Toggle the paused state for the current match. */
 export function togglePause(): void {
   if (state.screen !== 'playing') return
+  if (!state.vsBot) return // pause is only allowed in bot matches
   if (state.paused) {
     sendUnpause()
   } else {
@@ -518,6 +522,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
+  state.vsBot = msg.vsBot
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   pendingBatches.length = 0

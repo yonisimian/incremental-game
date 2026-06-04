@@ -46,8 +46,8 @@ export function initHotkeys(): void {
       return
     }
 
-    // Pause / resume hotkey.
-    if (e.key.toLowerCase() === 'p' && state.screen === 'playing' && state.mode) {
+    // Pause / resume hotkey (bot matches only).
+    if (e.key.toLowerCase() === 'p' && state.screen === 'playing' && state.mode && state.vsBot) {
       e.preventDefault()
       togglePause()
       return

@@ -38,6 +38,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     },
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    vsBot: false,
     matchId: 'test-match',
     upgrades: [],
     countdown: COUNTDOWN_SEC,

@@ -123,6 +123,8 @@ export interface RoundStartMessage {
   }
   /** Opponent's display name (may be empty). */
   opponentName: string
+  /** Whether the opponent is a bot (pause is only allowed in bot matches). */
+  vsBot: boolean
   /** Server timestamp (ms) for clock synchronization. */
   serverTime: number
 }
