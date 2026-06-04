@@ -64,6 +64,8 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
+  /** Wall-clock timestamp (ms) at which the current round ends; source of truth for the timer. */
+  private endAtMs = 0
 
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private broadcastTimer: ReturnType<typeof setInterval> | null = null
@@ -224,11 +226,15 @@ export class Match {
   // ─── Private: game loop ────────────────────────────────────────────
 
   private beginGameLoop(): void {
+    // Anchor the round end to a wall-clock timestamp so the displayed timer can
+    // never drift away from the authoritative round-end timeout.
+    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+
     // Tick: compute passive income, run bot, update timer
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, this.timeLeftSec - TICK_INTERVAL_MS / 1000)
+      this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
 
       for (const player of this.players) {
         this.applyPassiveIncome(player)
@@ -248,13 +254,18 @@ export class Match {
     }, BROADCAST_INTERVAL_MS)
 
     // End the round after the full duration (timed) or safety cap (target-score / buy-upgrade)
+    this.scheduleRoundEnd(this.timeLeftSec * 1000)
+  }
+
+  /** (Re)arm the round-end timeout to fire after the given delay. */
+  private scheduleRoundEnd(delayMs: number): void {
     this.roundTimer = setTimeout(() => {
       if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
         this.endRound('safety-cap')
       } else {
         this.endRound('complete')
       }
-    }, this.timeLeftSec * 1000)
+    }, delayMs)
   }
 
   /** Check if any player reached the target score (target-score goal only). */
@@ -364,6 +375,8 @@ export class Match {
   private pause(): void {
     if (this.phase !== 'playing' || this.paused) return
     this.paused = true
+    // Freeze the remaining time from the wall-clock anchor before stopping the timer.
+    this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
     if (this.roundTimer) {
       clearTimeout(this.roundTimer)
       this.roundTimer = null
@@ -378,13 +391,9 @@ export class Match {
       this.endRound('complete')
       return
     }
-    this.roundTimer = setTimeout(() => {
-      if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
-        this.endRound('safety-cap')
-      } else {
-        this.endRound('complete')
-      }
-    }, this.timeLeftSec * 1000)
+    // Re-anchor the round end to the remaining time and re-arm the timeout.
+    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    this.scheduleRoundEnd(this.timeLeftSec * 1000)
     this.broadcastState()
   }
 
