@@ -52,17 +52,23 @@ export function getPrerequisiteUpgradeIds(
   return [...ids]
 }
 
-/** Convert a prerequisite declaration into a human-readable label. */
+/** Convert a prerequisite declaration into a human-readable label.
+ *
+ * By default each upgrade is shown by its raw id. Pass `resolveName` to map ids
+ * to display names (e.g. flavor names) for a friendlier label.
+ */
 export function formatPrerequisiteExpression(
   prerequisites: UpgradePrerequisites | undefined,
+  resolveName?: (id: string) => string,
 ): string {
   const expr = prerequisites ?? null
   if (!expr) return ''
 
   const format = (node: PrerequisiteExpression): string => {
     if (node.type === 'upgrade') {
+      const label = resolveName ? resolveName(node.id) : node.id
       const minLevel = node.minLevel ?? 1
-      return minLevel > 1 ? `${node.id} (level ${minLevel}+)` : node.id
+      return minLevel > 1 ? `${label} (level ${minLevel}+)` : label
     }
     const delimiter = node.type === 'all' ? ' and ' : ' or '
     return node.items

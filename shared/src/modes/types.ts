@@ -21,6 +21,8 @@ export interface UpgradeFlavor {
   readonly id: string
   /** Display name (e.g. '🪓 Sharpened Axes'). */
   readonly name: string
+  /** Single-glyph icon shown on the upgrade-tree node (e.g. '🪓'). */
+  readonly icon: string
   /** Display description (e.g. 'Highlight boost → 4×'). */
   readonly description: string
 }

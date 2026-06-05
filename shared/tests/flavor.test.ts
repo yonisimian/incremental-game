@@ -6,6 +6,7 @@ import {
   getResourceIcon,
   getResourceName,
   getUpgradeName,
+  getUpgradeIcon,
   getUpgradeDescription,
   getGeneratorName,
   getGeneratorIcon,
@@ -85,7 +86,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
       scoreLabel: 'Score',
       showClickStats: false,
       resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-      upgrades: [{ id: 'u0', name: 'Upg', description: 'desc' }],
+      upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
       generators: [],
     },
   }
@@ -171,8 +172,8 @@ describe('validateModeDefinition — negative tests', () => {
   it('throws when flavor has an orphan upgrade entry', () => {
     const def = withFlavor(makeValidDef(), {
       upgrades: [
-        { id: 'u0', name: 'Upg', description: 'desc' },
-        { id: 'u_ghost', name: 'Ghost', description: 'no matching mechanic' },
+        { id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' },
+        { id: 'u_ghost', name: 'Ghost', icon: '👻', description: 'no matching mechanic' },
       ],
     })
     expect(() => {
@@ -228,8 +229,8 @@ function makeFlavor(): ModeFlavor {
       { key: 'r1', displayName: 'Wood', icon: '🪵' },
     ],
     upgrades: [
-      { id: 'u0', name: 'Pickaxe', description: 'Mine faster' },
-      { id: 'u1', name: 'Furnace', description: 'Smelt ore' },
+      { id: 'u0', name: 'Pickaxe', icon: '⛏️', description: 'Mine faster' },
+      { id: 'u1', name: 'Furnace', icon: '🔥', description: 'Smelt ore' },
     ],
     generators: [
       { id: 'g0', name: 'Miner', icon: '⛏️' },
@@ -278,6 +279,21 @@ describe('getUpgradeName', () => {
     const result = getUpgradeName(makeFlavor(), 'u99')
     expect(result).toBe('u99')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('upgrade name'))
+    warn.mockRestore()
+  })
+})
+
+describe('getUpgradeIcon', () => {
+  it('returns the icon for a known upgrade id', () => {
+    expect(getUpgradeIcon(makeFlavor(), 'u0')).toBe('⛏️')
+    expect(getUpgradeIcon(makeFlavor(), 'u1')).toBe('🔥')
+  })
+
+  it('returns the raw id and warns for an unknown upgrade', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = getUpgradeIcon(makeFlavor(), 'u99')
+    expect(result).toBe('u99')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('upgrade icon'))
     warn.mockRestore()
   })
 })
