@@ -42,11 +42,17 @@ const clickerFlavor: ModeFlavor = {
   showClickStats: true,
   resources: [{ key: 'r0', displayName: 'Gold', icon: '💰', className: 'gold' }],
   upgrades: [
-    { id: 'u0', name: 'Double Click', description: 'Each manual click gives +2 instead of +1' },
-    { id: 'u1', name: 'Multiplier', description: '2x all income' },
+    {
+      id: 'u0',
+      name: 'Double Click',
+      icon: '👆',
+      description: 'Each manual click gives +2 instead of +1',
+    },
+    { id: 'u1', name: 'Multiplier', icon: '✖️', description: '2x all income' },
     {
       id: 'u2',
       name: 'The Coronation',
+      icon: '👑',
       description: 'An ostentatious ceremony declaring you Click Monarch.',
     },
   ],

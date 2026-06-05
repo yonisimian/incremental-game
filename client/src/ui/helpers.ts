@@ -134,8 +134,15 @@ export function formatUpgradesPurchased(purchased: readonly string[], flavor: Mo
     .join(', ')
 }
 
-/** Bind click handler via event delegation on the given container. Defaults to '#upgrades'. */
-export function bindUpgradeEvents(containerId = 'upgrades'): void {
+/**
+ * Bind click handler via event delegation on the given container. Defaults to
+ * '#upgrades' and buying directly. Pass `onActivate` to handle node clicks
+ * differently (e.g. the tree panel opens a detail popup instead of buying).
+ */
+export function bindUpgradeEvents(
+  containerId = 'upgrades',
+  onActivate: (upgradeId: string) => void = doBuy,
+): void {
   const container = document.getElementById(containerId)
   if (!container || container.dataset.delegated) return
   container.dataset.delegated = 'true'
@@ -143,6 +150,6 @@ export function bindUpgradeEvents(containerId = 'upgrades'): void {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.upgrade-btn')
     if (!btn || btn.disabled) return
     const uid = btn.dataset.upgrade
-    if (uid) doBuy(uid)
+    if (uid) onActivate(uid)
   })
 }

@@ -1052,19 +1052,162 @@ body {
   stroke: var(--accent);
 }
 
-/* Tree nodes — reuse .upgrade-btn but absolutely-positioned, fixed-width, centered on coords */
+/* Tree nodes — fixed-size, icon-only buttons centered on their coords.
+   Clicking opens the detail popup (Buy/Cancel), so nodes are never disabled. */
 .upgrade-btn.tree-node {
   position: absolute;
-  width: 180px;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  gap: 0;
   transform: translate(-50%, -50%);
-  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+}
+
+.tree-node-icon {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+/* ✓ badge for fully-owned/maxed nodes. */
+.tree-node-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.upgrade-btn.tree-node.too-expensive .tree-node-icon {
+  opacity: 0.4;
 }
 
 .upgrade-btn.tree-node.locked {
   /* Dim via filter (saturation+brightness), NOT opacity — opacity would
-     let the SVG edges show through the node body. */
+     let the SVG edges show through the node body. Still clickable (opens the
+     popup, which explains the lock), so keep the pointer cursor. */
   filter: grayscale(0.7) brightness(0.55);
-  cursor: not-allowed;
+}
+
+/* Upgrade detail popup — overlays the tree viewport with Buy/Cancel actions. */
+.upgrade-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.upgrade-detail {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.upgrade-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.upgrade-detail-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.upgrade-detail-name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.upgrade-detail-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.upgrade-detail-cost {
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.upgrade-detail-level {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.upgrade-detail-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.upgrade-detail-lock {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.upgrade-detail-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.upgrade-detail-buy,
+.upgrade-detail-cancel {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.upgrade-detail-buy {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.upgrade-detail-buy:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.upgrade-detail-cancel {
+  color: var(--text);
+  background: transparent;
+}
+
+.upgrade-detail-cancel:hover {
+  border-color: var(--accent);
 }
 
 /* Generators Panel */

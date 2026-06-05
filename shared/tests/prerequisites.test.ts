@@ -133,6 +133,20 @@ describe('formatPrerequisiteExpression', () => {
       'u0 (level 3+)',
     )
   })
+
+  it('resolves upgrade ids to display names when a resolver is given', () => {
+    const expr = {
+      type: 'any' as const,
+      items: [
+        { type: 'upgrade' as const, id: 'u6' },
+        { type: 'upgrade' as const, id: 'u7', minLevel: 2 },
+      ],
+    }
+    const names: Record<string, string> = { u6: 'Sawmill', u7: 'Tavern' }
+    expect(formatPrerequisiteExpression(expr, (id) => names[id] ?? id)).toBe(
+      'Sawmill or Tavern (level 2+)',
+    )
+  })
 })
 
 describe('validateUpgradePrerequisites', () => {

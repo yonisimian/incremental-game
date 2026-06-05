@@ -7,6 +7,7 @@ import type { ModeFlavor } from './modes/types.js'
 const resourceIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const resourceNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const upgradeNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const upgradeIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const upgradeDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const generatorNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const generatorIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
@@ -63,6 +64,18 @@ export function getUpgradeName(flavor: ModeFlavor, id: string): string {
   )
   const v = m.get(id)
   if (v === undefined) warnMissing('upgrade name', id)
+  return v ?? id
+}
+
+/** Return the single-glyph node icon for an upgrade id within the given flavor. */
+export function getUpgradeIcon(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    upgradeIconCache,
+    flavor,
+    () => new Map(flavor.upgrades.map((u) => [u.id, u.icon])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('upgrade icon', id)
   return v ?? id
 }
 

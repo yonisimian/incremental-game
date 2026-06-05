@@ -215,9 +215,9 @@ describe('formatUpgradesPurchased', () => {
     showClickStats: false,
     resources: [],
     upgrades: [
-      { id: 'u0', name: '🍻 Tavern Recruits', description: '' },
-      { id: 'u1', name: '🪓 Sharpened Axes', description: '' },
-      { id: 'u2', name: '🏗️ Lumber Mill', description: '' },
+      { id: 'u0', name: '🍻 Tavern Recruits', icon: '🍻', description: '' },
+      { id: 'u1', name: '🪓 Sharpened Axes', icon: '🪓', description: '' },
+      { id: 'u2', name: '🏗️ Lumber Mill', icon: '🏗️', description: '' },
     ],
     generators: [],
   }
