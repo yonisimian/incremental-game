@@ -38,7 +38,7 @@ describe('getDefaultGoal', () => {
 
   it('returns the first goal for idler', () => {
     const goal = getDefaultGoal('idler')
-    expect(goal.type).toBe('timed')
+    expect(goal.type).toBe('buy-upgrade')
   })
 })
 
