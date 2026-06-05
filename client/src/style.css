@@ -603,6 +603,28 @@ body {
   border-color: var(--danger);
 }
 
+/* Pause button (bot matches only) */
+
+.pause-btn {
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.pause-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Currency cards (idler mode) */
 
 .currency-cards {
@@ -976,6 +998,18 @@ body {
     display: block;
     width: 100%;
   }
+}
+
+.paused-banner {
+  margin: 0.75rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.95);
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 /* Upgrade Tree Panel — pan/zoom viewport + canvas + edges + nodes */

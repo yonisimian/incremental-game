@@ -42,6 +42,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
     matchId: 'test-match',
     config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...clickerDef.upgrades] },
     opponentName: '',
+    vsBot: false,
     serverTime: Date.now(),
     ...overrides,
   }
@@ -72,6 +73,7 @@ function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpda
       meta: {},
     },
     timeLeft: 55,
+    paused: false,
     ...overrides,
   }
 }

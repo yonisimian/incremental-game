@@ -36,6 +36,8 @@ import {
   sendRoomJoin,
   sendRoomUpdate,
   sendQuit,
+  sendPause,
+  sendUnpause,
   sendBotRequest,
 } from './network.js'
 import {
@@ -72,6 +74,10 @@ export interface GameState {
   opponent: PlayerState
   /** Seconds remaining this round. */
   timeLeft: number
+  /** Whether the server has paused the current match. */
+  paused: boolean
+  /** Whether the current match is against a bot. */
+  vsBot: boolean
   /** Current match ID. */
   matchId: string | null
   /** Upgrade definitions for this round. */
@@ -126,6 +132,8 @@ const state: GameState = {
   player: clonePlayerState(EMPTY_PLAYER_STATE),
   opponent: clonePlayerState(EMPTY_PLAYER_STATE),
   timeLeft: 0,
+  paused: false,
+  vsBot: false,
   matchId: null,
   upgrades: [],
   countdown: COUNTDOWN_SEC,
@@ -319,7 +327,7 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
 
 /** Record a click action (optimistic). Clicker mode only. */
 export function doClick(): void {
-  if (state.screen !== 'playing') return
+  if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!modeDef.clicksEnabled) return
@@ -346,7 +354,7 @@ export function doClick(): void {
 
 /** Set the highlighted currency (idler mode, optimistic). */
 export function setHighlight(target: string): void {
-  if (state.screen !== 'playing') return
+  if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isHighlightActive(state.player, modeDef)) return
@@ -361,7 +369,7 @@ export function setHighlight(target: string): void {
 
 /** Attempt to purchase an upgrade (optimistic). */
 export function doBuy(upgradeId: string): void {
-  if (state.screen !== 'playing') return
+  if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
 
   const def = state.upgrades.find((u) => u.id === upgradeId)
@@ -395,7 +403,7 @@ export function doBuy(upgradeId: string): void {
 
 /** Attempt to purchase a generator (optimistic). */
 export function doBuyGenerator(generatorId: string): void {
-  if (state.screen !== 'playing' || !state.mode) return
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -408,7 +416,7 @@ export function doBuyGenerator(generatorId: string): void {
 
 /** Attempt to purchase the maximum affordable copies of a generator. */
 export function doBuyGeneratorMax(generatorId: string): void {
-  if (state.screen !== 'playing' || !state.mode) return
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -446,6 +454,17 @@ export function quitMatch(): void {
   sendQuit()
   recorderRoundEnd(state.player.score)
   resetForMatch()
+}
+
+/** Toggle the paused state for the current match. */
+export function togglePause(): void {
+  if (state.screen !== 'playing') return
+  if (!state.vsBot) return // pause is only allowed in bot matches
+  if (state.paused) {
+    sendUnpause()
+  } else {
+    sendPause()
+  }
 }
 
 /** Reset for a fresh match (e.g., rematch). */
@@ -502,6 +521,8 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponent = createInitialState(modeDef)
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
+  state.paused = false
+  state.vsBot = msg.vsBot
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   pendingBatches.length = 0
@@ -517,6 +538,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   // Server state is authoritative — reconcile with pending optimistic actions
   state.opponent = msg.opponent
   state.timeLeft = msg.timeLeft
+  state.paused = msg.paused
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
@@ -580,6 +602,7 @@ function handleRoundEnd(msg: RoundEndMessage): void {
 
   state.screen = 'ended'
   state.endData = msg
+  state.paused = false
   state.player.score = msg.finalScores.player
   state.opponent.score = msg.finalScores.opponent
   pendingBatches.length = 0

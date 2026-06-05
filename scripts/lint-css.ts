@@ -9,12 +9,13 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const ROOT = new URL('..', import.meta.url).pathname
-const STYLE_PATH = join(ROOT, 'client/src/style.css')
-const SOURCE_DIRS = [join(ROOT, 'client/src')]
-const DEV_DIR = join(ROOT, 'client/src/dev')
+const ROOT = dirname(fileURLToPath(import.meta.url))
+const STYLE_PATH = join(ROOT, '..', 'client', 'src', 'style.css')
+const SOURCE_DIRS = [join(ROOT, '..', 'client', 'src')]
+const DEV_DIR = join(ROOT, '..', 'client', 'src', 'dev')
 
 // Classes that are expected to exist only in CSS (e.g. dynamic from shared data)
 // or only in source code (dev UI styled inline).
@@ -204,8 +205,8 @@ for (const dir of SOURCE_DIRS) {
   sourceFiles.push(...collectFiles(dir, '.ts'))
 }
 // Also scan HTML files
-sourceFiles.push(join(ROOT, 'client/index.html'))
-sourceFiles.push(join(ROOT, 'client/dev.html'))
+sourceFiles.push(join(ROOT, '..', 'client', 'index.html'))
+sourceFiles.push(join(ROOT, '..', 'client', 'dev.html'))
 
 const referenced = getReferencedClasses(sourceFiles)
 

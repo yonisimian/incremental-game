@@ -64,10 +64,13 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
+  /** Wall-clock timestamp (ms) at which the current round ends; source of truth for the timer. */
+  private endAtMs = 0
 
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private broadcastTimer: ReturnType<typeof setInterval> | null = null
   private roundTimer: ReturnType<typeof setTimeout> | null = null
+  private paused = false
   private onEndCallback: (() => void) | null = null
 
   constructor(
@@ -115,6 +118,7 @@ export class Match {
         matchId: this.id,
         config,
         opponentName: opponent.name,
+        vsBot: this.bot !== null,
         serverTime: Date.now(),
       })
     }
@@ -145,7 +149,20 @@ export class Match {
 
     if (this.phase !== 'playing') return
 
+    if (msg.type === 'PAUSE') {
+      if (!this.bot) return // pause is only allowed in bot matches
+      this.pause()
+      return
+    }
+
+    if (msg.type === 'UNPAUSE') {
+      if (!this.bot) return // pause is only allowed in bot matches
+      this.resume()
+      return
+    }
+
     if (msg.type === 'ACTION_BATCH') {
+      if (this.paused) return
       this.processActions(player, msg.actions, msg.seq)
       this.checkTargetScoreReached()
     }
@@ -209,14 +226,15 @@ export class Match {
   // ─── Private: game loop ────────────────────────────────────────────
 
   private beginGameLoop(): void {
-    const startTime = Date.now()
-    const durationSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
+    // Anchor the round end to a wall-clock timestamp so the displayed timer can
+    // never drift away from the authoritative round-end timeout.
+    this.endAtMs = Date.now() + this.timeLeftSec * 1000
 
     // Tick: compute passive income, run bot, update timer
     this.tickTimer = setInterval(() => {
+      if (this.paused) return
       this.tick++
-      const elapsedSec = (Date.now() - startTime) / 1000
-      this.timeLeftSec = Math.max(0, durationSec - elapsedSec)
+      this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
 
       for (const player of this.players) {
         this.applyPassiveIncome(player)
@@ -236,13 +254,25 @@ export class Match {
     }, BROADCAST_INTERVAL_MS)
 
     // End the round after the full duration (timed) or safety cap (target-score / buy-upgrade)
+    this.scheduleRoundEnd(this.timeLeftSec * 1000)
+  }
+
+  /**
+   * Reason reported when the round ends because its time expired.
+   * Timed goals complete normally; capped goals (target-score / buy-upgrade)
+   * hit their safety cap.
+   */
+  private get timeExpiredReason(): RoundEndReason {
+    return this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade'
+      ? 'safety-cap'
+      : 'complete'
+  }
+
+  /** (Re)arm the round-end timeout to fire after the given delay. */
+  private scheduleRoundEnd(delayMs: number): void {
     this.roundTimer = setTimeout(() => {
-      if (this.goal.type === 'target-score' || this.goal.type === 'buy-upgrade') {
-        this.endRound('safety-cap')
-      } else {
-        this.endRound('complete')
-      }
-    }, durationSec * 1000)
+      this.endRound(this.timeExpiredReason)
+    }, delayMs)
   }
 
   /** Check if any player reached the target score (target-score goal only). */
@@ -349,6 +379,31 @@ export class Match {
     )
   }
 
+  private pause(): void {
+    if (this.phase !== 'playing' || this.paused) return
+    this.paused = true
+    // Freeze the remaining time from the wall-clock anchor before stopping the timer.
+    this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
+    if (this.roundTimer) {
+      clearTimeout(this.roundTimer)
+      this.roundTimer = null
+    }
+    this.broadcastState()
+  }
+
+  private resume(): void {
+    if (this.phase !== 'playing' || !this.paused) return
+    this.paused = false
+    if (this.timeLeftSec <= 0) {
+      this.endRound(this.timeExpiredReason)
+      return
+    }
+    // Re-anchor the round end to the remaining time and re-arm the timeout.
+    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    this.scheduleRoundEnd(this.timeLeftSec * 1000)
+    this.broadcastState()
+  }
+
   private applyClick(player: MatchPlayer): void {
     const modifiers = collectModifiers(player.state, this.modeDef)
     const income = computeClickIncome(modifiers)
@@ -379,6 +434,7 @@ export class Match {
       player: p1.state,
       opponent: p2.state,
       timeLeft: this.timeLeftSec,
+      paused: this.paused,
     })
 
     this.send(p2, {
@@ -388,6 +444,7 @@ export class Match {
       player: p2.state,
       opponent: p1.state,
       timeLeft: this.timeLeftSec,
+      paused: this.paused,
     })
   }
 

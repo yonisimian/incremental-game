@@ -52,6 +52,16 @@ export interface QuitMessage {
   type: 'QUIT'
 }
 
+/** Sent by client to pause the current match. */
+export interface PauseMessage {
+  type: 'PAUSE'
+}
+
+/** Sent by client to resume the current match after a pause. */
+export interface UnpauseMessage {
+  type: 'UNPAUSE'
+}
+
 /** Sent by client while in queue or room to request a bot opponent. */
 export interface BotRequestMessage {
   type: 'BOT_REQUEST'
@@ -77,6 +87,8 @@ export type ClientMessage =
   | RoomJoinMessage
   | RoomUpdateMessage
   | QuitMessage
+  | PauseMessage
+  | UnpauseMessage
   | BotRequestMessage
   | RematchMessage
 
@@ -95,6 +107,8 @@ export interface StateUpdateMessage {
   opponent: PlayerState
   /** Seconds remaining in the round. */
   timeLeft: number
+  /** Whether the server has paused the current match. */
+  paused: boolean
 }
 
 /** Sent when a match begins (after matchmaking). */
@@ -109,6 +123,8 @@ export interface RoundStartMessage {
   }
   /** Opponent's display name (may be empty). */
   opponentName: string
+  /** Whether the opponent is a bot (pause is only allowed in bot matches). */
+  vsBot: boolean
   /** Server timestamp (ms) for clock synchronization. */
   serverTime: number
 }

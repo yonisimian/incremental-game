@@ -1,4 +1,12 @@
-import { doClick, doBuy, setHighlight, getState, cancelQueue, quitMatch } from '../game.js'
+import {
+  doClick,
+  doBuy,
+  setHighlight,
+  getState,
+  togglePause,
+  cancelQueue,
+  quitMatch,
+} from '../game.js'
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { type UpgradeCategory, getModeDefinition, isHighlightActive } from '@game/shared'
@@ -35,6 +43,13 @@ export function initHotkeys(): void {
       } else if (state.screen === 'waiting' || state.screen === 'room') {
         cancelQueue()
       }
+      return
+    }
+
+    // Pause / resume hotkey (bot matches only).
+    if (e.key.toLowerCase() === 'p' && state.screen === 'playing' && state.mode && state.vsBot) {
+      e.preventDefault()
+      togglePause()
       return
     }
 

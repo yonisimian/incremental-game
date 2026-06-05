@@ -71,11 +71,13 @@ A real-time head-to-head incremental game playable on any device via the browser
      ROOM_JOIN      { code, name }                    ← join room by 6-char code
      ROOM_UPDATE    { mode?, goal? }                  ← creator changes settings
      QUIT           {}                                ← leave match / room / queue
+     PAUSE          {}                                ← pause match (bot matches only)
+     UNPAUSE        {}                                ← resume a paused match
      BOT_REQUEST    {}                                ← request a bot opponent
 
    Server → Client:
-     STATE_UPDATE   { tick, ackSeq, player, opponent, timeLeft }
-     ROUND_START    { matchId, config, opponentName, serverTime }
+     STATE_UPDATE   { tick, ackSeq, player, opponent, timeLeft, paused }
+     ROUND_START    { matchId, config, opponentName, vsBot, serverTime }
      ROUND_END      { winner, reason, finalScores, stats }
 
    Server → Client (room lifecycle):

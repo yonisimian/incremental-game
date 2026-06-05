@@ -40,6 +40,16 @@ describe('Match', () => {
     return m
   }
 
+  /** Create a bot match (pause is bot-only) and advance into the playing phase. */
+  function enterPlayingVsBot() {
+    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'clicker', undefined, {
+      decide: () => [],
+    })
+    m.start()
+    vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+    return m
+  }
+
   function clickMsg(seq: number) {
     return JSON.stringify({
       type: 'ACTION_BATCH',
@@ -54,6 +64,14 @@ describe('Match', () => {
       seq,
       actions: [{ type: 'buy', timestamp: Date.now(), upgradeId }],
     })
+  }
+
+  function pauseMsg() {
+    return JSON.stringify({ type: 'PAUSE' })
+  }
+
+  function unpauseMsg() {
+    return JSON.stringify({ type: 'UNPAUSE' })
   }
 
   /**
@@ -117,6 +135,38 @@ describe('Match', () => {
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000 + BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
       expect(u.player.score).toBe(0)
+    })
+
+    it('pauses and resumes the round timer', () => {
+      const m = enterPlayingVsBot()
+      m.handleMessage('p1', pauseMsg())
+      const pausedUpdate = latestUpdate(ws1)
+      expect(pausedUpdate.paused).toBe(true)
+
+      const pausedTimeLeft = pausedUpdate.timeLeft
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS * 2)
+      expect(latestUpdate(ws1).timeLeft).toBe(pausedTimeLeft)
+
+      m.handleMessage('p1', unpauseMsg())
+      expect(latestUpdate(ws1).paused).toBe(false)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS * 2)
+      expect(latestUpdate(ws1).timeLeft).toBeLessThan(pausedTimeLeft)
+    })
+
+    it('ignores player actions while paused', () => {
+      const m = enterPlayingVsBot()
+      m.handleMessage('p1', pauseMsg())
+      const pausedScore = latestUpdate(ws1).player.score
+      m.handleMessage('p1', clickMsg(1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.score).toBe(pausedScore)
+    })
+
+    it('ignores pause requests in a non-bot (PvP) match', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).paused).toBe(false)
     })
   })
 
