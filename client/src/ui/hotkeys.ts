@@ -9,6 +9,7 @@ import {
 } from '../game.js'
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
+import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
 import { type UpgradeCategory, getModeDefinition, isHighlightActive } from '@game/shared'
 
 /**
@@ -38,6 +39,11 @@ export function initHotkeys(): void {
 
     // ── Escape — context-sensitive quit/back (screen-agnostic) ──
     if (e.key === 'Escape') {
+      // An open upgrade-detail popup takes priority — close it, don't quit.
+      if (isUpgradeDetailOpen()) {
+        closeUpgradeDetail()
+        return
+      }
       if (state.screen === 'playing' || state.screen === 'countdown') {
         quitMatch()
       } else if (state.screen === 'waiting' || state.screen === 'room') {

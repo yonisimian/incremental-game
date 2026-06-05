@@ -1,6 +1,7 @@
 import type { Panel } from '../panels.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
 import { bindUpgradeEvents } from '../helpers.js'
+import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
 
 // ─── Tunables ────────────────────────────────────────────────────────
@@ -81,7 +82,9 @@ export const upgradeTreePanel: Panel = {
       lastMatchId = state.matchId
     }
 
-    // 3. Build fresh DOM.
+    // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
+    //    popup mounted inside the viewport), so clear popup state to match.
+    resetUpgradeDetail()
     const { edgesSvg, nodes, bounds } = renderUpgradeTree(state)
     prevHtml = edgesSvg + nodes
     container.innerHTML = renderShell(edgesSvg, nodes, bounds)
@@ -100,10 +103,13 @@ export const upgradeTreePanel: Panel = {
   },
 
   bind() {
-    bindUpgradeEvents('tree-canvas')
+    // Tree nodes open a detail popup (with Buy/Cancel) instead of buying on click.
+    bindUpgradeEvents('tree-canvas', openUpgradeDetail)
   },
 
   update(state) {
+    // Keep the open detail popup's live fields (cost / Buy-enabled) in sync.
+    updateUpgradeDetail(state)
     const { edgesSvg, nodes } = renderUpgradeTree(state)
     const html = edgesSvg + nodes
     if (html === prevHtml) return

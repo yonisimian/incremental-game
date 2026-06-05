@@ -14,6 +14,7 @@ import {
   getPrerequisiteUpgradeIds,
   getResourceIcon,
   getUpgradeName,
+  getUpgradeIcon,
   getUpgradeDescription,
   isChoiceGroupAvailable,
   isMaxed,
@@ -73,7 +74,8 @@ export function renderClickerUpgrades(state: Readonly<GameState>): string {
 
       // Lock tooltip (mutually exclusive conditions)
       let lockTitle = ''
-      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
+      if (!unlocked)
+        lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
       else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
       const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
 
@@ -137,14 +139,17 @@ interface UpgradeTreeRender {
  * each prereq → upgrade pair, plus absolutely-positioned `.upgrade-btn.tree-node`
  * buttons. Returns each layer as a string and a bounding box.
  *
+ * Nodes are **icon-only**: the upgrade's glyph is the entire button body, with
+ * the name exposed via `aria-label`/`title` (plus the cost). Clicking a node
+ * opens the detail popup (see `upgrade-detail.ts`) rather than buying directly,
+ * so nodes are **never** `disabled` — even locked ones open the popup, which
+ * explains why they can't be bought yet.
+ *
  * State-class derivation per node (top-down, first match wins):
  *   `.locked`         — !isUnlocked  (overrides everything)
  *   `.owned`          — isUnlocked + reached purchaseLimit
  *   `.too-expensive`  — isUnlocked + !canAfford + not(capped)
  *   (none)            — buyable
- *
- * `disabled` attr is set whenever the node isn't currently buyable. Hotkey
- * label is suppressed only on locked nodes (owned/too-expensive keep it).
  */
 export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
@@ -209,9 +214,10 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
   }
   const edgesSvg = edgeLines.join('')
 
-  // Nodes — reuse .upgrade-btn markup with .tree-node + state modifiers.
-  // Tree-panel upgrades have no per-index hotkeys (see TODO: generic tree
-  // hotkeys like buy-cheapest / buy-all). No `.upgrade-hotkey` span emitted.
+  // Nodes — fixed-size, icon-only buttons. Name/cost/description live in the
+  // detail popup opened on click; here we only surface the icon plus an
+  // accessible label and a hover title (name + cost). No `disabled`: locked
+  // nodes are still clickable so the popup can explain why they're locked.
   const nodes = tree
     .map((u) => {
       if (!u.position) return ''
@@ -221,12 +227,6 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
 
-      // Lock tooltip (mutually exclusive conditions)
-      let lockTitle = ''
-      if (!unlocked) lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites)}`
-      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
-      const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
-
       // State-class derivation (mutually exclusive, in priority order)
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
@@ -234,30 +234,26 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       else if (choiceBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const buyable = unlocked && !choiceBlocked && affordable && !maxed
-      const disabled = !buyable
-
       const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
       const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed ? '✓' : `${formatNumber(nextCost)} ${emoji}${countLabel}`
-      const levelLabel =
-        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
-          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
-          : ''
+      const costLabel = maxed ? 'Maxed' : `${formatNumber(nextCost)} ${emoji}${countLabel}`
+      const name = getUpgradeName(flavor, u.id)
+      const icon = getUpgradeIcon(flavor, u.id)
+      // Accessible label / hover title: name + current cost (or Maxed).
+      const title = `${name} — ${costLabel}`
+      const ownedBadge = maxed ? '<span class="tree-node-badge" aria-hidden="true">✓</span>' : ''
 
       return `
         <button
           class="upgrade-btn tree-node ${stateClass}"
           data-upgrade="${u.id}"
           style="left: ${u.position.x}px; top: ${u.position.y}px"
-          ${disabled ? 'disabled' : ''}
-          ${titleAttr}
+          aria-label="${escapeAttr(title)}"
+          title="${escapeAttr(title)}"
         >
-          <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
-          ${levelLabel}
-          <span class="upgrade-cost">${costLabel}</span>
-          <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
+          <span class="tree-node-icon" aria-hidden="true">${icon}</span>
+          ${ownedBadge}
         </button>
       `
     })

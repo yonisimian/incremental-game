@@ -125,20 +125,22 @@ describe('renderUpgradeTree', () => {
   it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState())
     // u0, u4, u6, u7, u8, u9, u10, u11 have prereqs → all locked
-    expect(nodes).toMatch(/data-upgrade="u0"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u4"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u6"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u7"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u8"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u9"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u10"[^>]*\sdisabled\b/)
-    expect(nodes).toMatch(/data-upgrade="u11"[^>]*\sdisabled\b/)
-    // .locked class is applied to those nodes
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u0"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u4"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u6"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u7"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u8"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u9"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u10"/)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u11"/)
+    // .locked class is applied to those nodes. Tree nodes are never `disabled`:
+    // clicking always opens the detail popup (which explains the lock).
     const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
     expect(lockedCount).toBe(8)
+    expect(nodes).not.toContain('disabled')
   })
 
-  it('marks one-shot owned upgrades with `.owned` class and disables them', () => {
+  it('marks one-shot owned upgrades with `.owned` class (no `disabled`)', () => {
     const state = makeIdlerState({
       resources: { r0: 9999, r1: 9999 },
       upgrades: {
@@ -147,12 +149,11 @@ describe('renderUpgradeTree', () => {
       },
     })
     const { nodes } = renderUpgradeTree(state)
-    expect(nodes).toMatch(
-      /class="upgrade-btn tree-node owned"[^>]*data-upgrade="u1"[^>]*\sdisabled\b/,
-    )
+    expect(nodes).toMatch(/class="upgrade-btn tree-node owned"[^>]*data-upgrade="u1"/)
+    expect(nodes).not.toContain('disabled')
   })
 
-  it('marks unlocked-but-broke nodes with `.too-expensive` (and disables), not `.locked`', () => {
+  it('marks unlocked-but-broke nodes with `.too-expensive`, not `.locked`', () => {
     const state = makeIdlerState({
       resources: { r0: 0, r1: 0 }, // no money for any unlocked root
       // both roots have no prereqs → unlocked
@@ -161,6 +162,29 @@ describe('renderUpgradeTree', () => {
     expect(nodes).toMatch(/class="upgrade-btn tree-node too-expensive"[^>]*data-upgrade="u1"/)
     // Same node should NOT carry `.locked` (priority ordering)
     expect(nodes).not.toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u1"/)
+  })
+
+  it('renders each tree node as an icon-only button with an accessible label', () => {
+    const { nodes } = renderUpgradeTree(makeIdlerState())
+    // Every node carries an icon span and an aria-label (the name).
+    expect(nodes).toContain('class="tree-node-icon"')
+    expect(nodes).toMatch(/data-upgrade="u1"[^>]*aria-label="[^"]+"/)
+    // No textual name/cost/description spans on tree nodes anymore.
+    expect(nodes).not.toContain('upgrade-name')
+    expect(nodes).not.toContain('upgrade-cost')
+    expect(nodes).not.toContain('upgrade-desc')
+  })
+
+  it('shows a ✓ badge on fully-owned tree nodes', () => {
+    const state = makeIdlerState({
+      resources: { r0: 9999, r1: 9999 },
+      upgrades: {
+        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+        u1: 1, // one-shot, owned → maxed
+      },
+    })
+    const { nodes } = renderUpgradeTree(state)
+    expect(nodes).toContain('class="tree-node-badge"')
   })
 
   it('does not emit any `.upgrade-hotkey` span on tree nodes', () => {
