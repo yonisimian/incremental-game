@@ -19,7 +19,7 @@ export const TARGET_SCORE_SAFETY_CAP_SEC = 300
 export const BUY_UPGRADE_SAFETY_CAP_SEC = 600
 
 /** Countdown before round starts (seconds). */
-export const COUNTDOWN_SEC = 3
+export const COUNTDOWN_SEC = 0
 
 // ─── Server Tick Rates ───────────────────────────────────────────────
 

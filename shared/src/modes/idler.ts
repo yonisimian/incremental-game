@@ -345,6 +345,150 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     modifiers: [],
   },
 
+  {
+    id: 'sc-0', // system clicking
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1000, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'sc-1', // system clicking
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1000, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sc-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sc-2', // system clicking
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1000, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sc-1' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sc-3', // system clicking
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1100, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sc-0' }] },
+    choiceGroup: 'clicking-choice',
+    modifiers: [],
+  },
+  {
+    id: 'sc-4', // system clicking
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1200, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sc-0' }] },
+    choiceGroup: 'clicking-choice',
+    modifiers: [],
+  },
+
+  {
+    id: 'sh-0', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1300, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'sh-1', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1400, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-2', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1300, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-3', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1400, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-2' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-4', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1300, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-2' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-5', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1200, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-4' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-6', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1400, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-4' }] },
+    modifiers: [],
+  },
+  {
+    id: 'sh-7', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1200, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-5' }] },
+    choiceGroup: 'highlight-choice',
+    modifiers: [],
+  },
+  {
+    id: 'sh-8', // system highlight
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1400, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'sh-6' }] },
+    choiceGroup: 'highlight-choice',
+    modifiers: [],
+  },
+
   // {
   //   id: 'uh', // Unlock Highlight
   //   cost: 5,
@@ -633,10 +777,10 @@ const idlerFlavor: ModeFlavor = {
       id: 'ae-3',
       name: '🌱 Advanced Economy IV',
       icon: '🌱',
-      description: 'The MF bonus of the previous upgrade works retro for the all the second of the grand upgrade',
+      description:
+        'The MF bonus of the previous upgrade works retro for the all the second of the grand upgrade',
     },
 
-    
     {
       id: 'g-0',
       name: '🌱 Generators I',
@@ -755,14 +899,101 @@ const idlerFlavor: ModeFlavor = {
       id: 'g-3',
       name: '🌱 Generators',
       icon: '🌱',
-      description: 'All the generators get additional factor based of how the close to same quantity',
+      description:
+        'All the generators get additional factor based of how the close to same quantity',
     },
     {
       id: 'g-4',
       name: '🌱 Generators',
       icon: '🌱',
       description: 'The most purchased G gets additional bonus factor',
-    }
+    },
+
+    {
+      id: 'sc-0',
+      name: '🌱 System Clicker',
+      icon: '🌱',
+      description: 'Unclock clicking',
+    },
+    {
+      id: 'sc-1',
+      name: '🌱 System Clicker',
+      icon: '🌱',
+      description: 'AF CP',
+    },
+    {
+      id: 'sc-2',
+      name: '🌱 System Clicker',
+      icon: '🌱',
+      description: 'MF CP',
+    },
+    {
+      id: 'sc-3',
+      name: '🌱 System Clicker',
+      icon: '🌱',
+      description: 'CPS (or something else with clicking) Gives MF AR',
+    },
+    {
+      id: 'sc-4',
+      name: '🌱 System Clicker',
+      icon: '🌱',
+      description: 'All production gives MF CP',
+    },
+
+    {
+      id: 'sh-0',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'Unclock Highlight',
+    },
+    {
+      id: 'sh-1',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'MF HP',
+    },
+    {
+      id: 'sh-2',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'Unlock Battery (Charging in Convex formula)',
+    },
+    {
+      id: 'sh-3',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'MF BP',
+    },
+    {
+      id: 'sh-4',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'AF Max Charge',
+    },
+    {
+      id: 'sh-5',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'anti MF Darining speed',
+    },
+    {
+      id: 'sh-6',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'MF Charging speed',
+    },
+    {
+      id: 'sh-7',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'High Charge More bonus',
+    },
+    {
+      id: 'sh-8',
+      name: '🌱 System Highlight',
+      icon: '🌱',
+      description: 'Low Charge More bonus',
+    },
 
     // {
     //   id: 'uh',
