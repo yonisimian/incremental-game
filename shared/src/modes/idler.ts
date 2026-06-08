@@ -39,7 +39,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 50, y: 0 },
+    position: { x: 50, y: 100 },
     modifiers: [],
   },
   {
@@ -48,7 +48,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 0, y: 100 },
+    position: { x: 0, y: 200 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'be-0' }] },
     modifiers: [],
   },
@@ -58,7 +58,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 0, y: 200 },
+    position: { x: 0, y: 300 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'be-10' }] },
     modifiers: [],
   },
@@ -68,7 +68,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 100, y: 100 },
+    position: { x: 100, y: 200 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'be-0' }] },
     modifiers: [],
   },
@@ -78,7 +78,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 100, y: 200 },
+    position: { x: 100, y: 300 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'be-20' }] },
     modifiers: [],
   },
@@ -88,10 +88,263 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     costCurrency: 'r0',
     purchaseLimit: 1,
     category: 'tree',
-    position: { x: 100, y: 300 },
+    position: { x: 100, y: 400 },
     prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'be-21' }] },
     modifiers: [],
   },
+
+  {
+    id: 'ae-0', // advanced economy
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 300, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'ae-1', // advanced economy
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 300, y: 200 },
+    modifiers: [],
+  },
+  {
+    id: 'ae-2', // advanced economy
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 300, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ae-1' }] },
+    modifiers: [],
+  },
+  {
+    id: 'ae-3', // advanced economy
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 300, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ae-2' }] },
+    modifiers: [],
+  },
+
+  {
+    id: 'g-0', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 450, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'g-10', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-11', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 650, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-10' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-12', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-10' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-13', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-12' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-20', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-21', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 850, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-20' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-22', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-20' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-23', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-22' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-1', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 450, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-30', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-1' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-31', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 650, y: 600 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-30' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-32', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 600 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-30' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-33', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 550, y: 700 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-32' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-40', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-1' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-41', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 850, y: 600 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-40' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-42', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 600 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-40' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-43', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 750, y: 700 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-42' }] },
+    modifiers: [],
+  },
+  {
+    id: 'g-2', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 350, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-1' }] },
+    choiceGroup: 'generator-choice',
+    modifiers: [],
+  },
+  {
+    id: 'g-3', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 350, y: 600 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-1' }] },
+    choiceGroup: 'generator-choice',
+    modifiers: [],
+  },
+  {
+    id: 'g-4', // generators
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 350, y: 700 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'g-1' }] },
+    choiceGroup: 'generator-choice',
+    modifiers: [],
+  },
+
   // {
   //   id: 'uh', // Unlock Highlight
   //   cost: 5,
@@ -271,7 +524,7 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
     category: 'tree',
-    position: { x: 600, y: 0 },
+    position: { x: 0, y: 0 },
     modifiers: [],
   },
 ]
@@ -357,6 +610,160 @@ const idlerFlavor: ModeFlavor = {
       icon: '🌱',
       description: 'SR Bank',
     },
+
+    {
+      id: 'ae-0',
+      name: '🌱 Advanced Economy I',
+      icon: '🌱',
+      description: 'MF AR',
+    },
+    {
+      id: 'ae-1',
+      name: '🌱 Advanced Economy II',
+      icon: '🌱',
+      description: 'MF AR by purchase time of this upgrade',
+    },
+    {
+      id: 'ae-2',
+      name: '🌱 Advanced Economy III',
+      icon: '🌱',
+      description: 'Bigger MF for newer seconds',
+    },
+    {
+      id: 'ae-3',
+      name: '🌱 Advanced Economy IV',
+      icon: '🌱',
+      description: 'The MF bonus of the previous upgrade works retro for the all the second of the grand upgrade',
+    },
+
+    
+    {
+      id: 'g-0',
+      name: '🌱 Generators I',
+      icon: '🌱',
+      description: 'Give access to Generators Panel and G1 and G2',
+    },
+    {
+      id: 'g-10',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'AF G1',
+    },
+    {
+      id: 'g-11',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'MF G1',
+    },
+    {
+      id: 'g-12',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G1 price',
+    },
+    {
+      id: 'g-13',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G1 price scaling',
+    },
+    {
+      id: 'g-20',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'AF G2',
+    },
+    {
+      id: 'g-21',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'MF G2',
+    },
+    {
+      id: 'g-22',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G2 price',
+    },
+    {
+      id: 'g-23',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G2 price scaling',
+    },
+    {
+      id: 'g-1',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Give access to G3 and G4',
+    },
+    {
+      id: 'g-30',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'AF G3',
+    },
+    {
+      id: 'g-31',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'MF G3',
+    },
+    {
+      id: 'g-32',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G3 price',
+    },
+    {
+      id: 'g-33',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G3 price scaling',
+    },
+    {
+      id: 'g-40',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'AF G4',
+    },
+    {
+      id: 'g-41',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'MF G4',
+    },
+    {
+      id: 'g-42',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G4 price',
+    },
+    {
+      id: 'g-43',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Reduce G4 price scaling',
+    },
+    {
+      id: 'g-2',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'Lower tier G give additional factor to higher tiers',
+    },
+    {
+      id: 'g-3',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'All the generators get additional factor based of how the close to same quantity',
+    },
+    {
+      id: 'g-4',
+      name: '🌱 Generators',
+      icon: '🌱',
+      description: 'The most purchased G gets additional bonus factor',
+    }
+
     // {
     //   id: 'uh',
     //   name: '🔦 Focus Training',
