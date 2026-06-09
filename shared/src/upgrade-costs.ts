@@ -4,8 +4,17 @@ export type CostScaling =
   | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
   | { readonly type: 'exponential'; readonly baseCost: number; readonly factor: number }
 
-/** Per-level cost multiplier (1.0 at level 0), applied uniformly to each currency (D8). */
+/**
+ * Per-level cost multiplier (1.0 at level 0), applied uniformly to each currency (D8).
+ *
+ * `baseCost` is a *reference denominator* (the slope's scale), not the actual
+ * level-0 cost — that comes from the `cost` map. For `linear`, the multiplier is
+ * `(baseCost + factor*level) / baseCost`; for `exponential`, `factor**level`.
+ * `baseCost` must be > 0; a non-positive value disables scaling (returns 1.0)
+ * to avoid divide-by-zero / NaN.
+ */
 function costScaleMultiplier(scaling: CostScaling, level: number): number {
+  if (scaling.baseCost <= 0) return 1
   if (scaling.type === 'linear') {
     return (scaling.baseCost + scaling.factor * level) / scaling.baseCost
   }

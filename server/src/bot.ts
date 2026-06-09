@@ -146,8 +146,8 @@ export class IdlerBot implements BotStrategy {
  */
 export function createBot(
   _mode: GameMode,
-  _modeDef: ModeDefinition,
-  availableUpgrades: readonly UpgradeDefinition[] = _modeDef.upgrades,
+  modeDef: ModeDefinition,
+  availableUpgrades: readonly UpgradeDefinition[] = modeDef.upgrades,
 ): BotStrategy {
   return new IdlerBot(availableUpgrades)
 }

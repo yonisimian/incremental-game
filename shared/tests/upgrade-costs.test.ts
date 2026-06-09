@@ -45,6 +45,18 @@ describe('upgrade costs', () => {
     expect(getUpgradeNextCost(expo, 2)).toEqual({ r0: 12 })
   })
 
+  it('treats non-positive baseCost as no scaling (guards divide-by-zero)', () => {
+    const zeroBase: UpgradeDefinition = {
+      id: 'z',
+      cost: { r0: 8 },
+      purchaseLimit: 5,
+      modifiers: [],
+      costScaling: { type: 'linear', baseCost: 0, factor: 2 },
+    }
+    expect(getUpgradeNextCost(zeroBase, 0)).toEqual({ r0: 8 })
+    expect(getUpgradeNextCost(zeroBase, 4)).toEqual({ r0: 8 })
+  })
+
   it('bulk cost linear', () => {
     expect(getUpgradeBulkCost(linear, 0, 3)).toEqual({ r0: 5 + 7 + 9 })
   })
