@@ -199,8 +199,10 @@ function applyEffect(ref: EffectRef, state): Modifier | null // resolve → pars
 Tree / mode data carries declarative refs:
 
 ```ts
-// idler mode definition (data, not a closure)
-effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: 2 }]
+// idler `uh` upgrade definition (data, not a closure)
+effects: [
+  { type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2', boostedMultiplier: 3 },
+]
 ```
 
 ### Why `parse` instead of a zod schema (deferred)
@@ -218,9 +220,9 @@ is naturally a zod schema. We **deferred zod** for now because:
 
 ### Seed effect library
 
-| Effect type           | Replaces              | Params (as built)                 |
-| --------------------- | --------------------- | --------------------------------- |
-| `highlightMultiplier` | `collectIdlerDynamic` | `{ unlockUpgradeId, multiplier }` |
+| Effect type           | Replaces              | Params (as built)                                     |
+| --------------------- | --------------------- | ----------------------------------------------------- |
+| `highlightMultiplier` | `collectIdlerDynamic` | `{ multiplier, boostUpgradeId?, boostedMultiplier? }` |
 
 Future effects (`bankedResourceBonus`, `dominantGenerator`, `balancedGenerators`,
 `timeGrowth`, …) are added to this table as Phase 3+ tree nodes require them.
@@ -242,13 +244,22 @@ green (shared 133 / server 104 / client 134), typecheck + eslint + format + knip
 
 ---
 
-## Phase 3 — Relative layout (authoring tree → flat defs)
+## Phase 3 — Relative layout (authoring tree → flat defs) — ✅ done
 
 _(Folds in the original plan-16 design; position-preservation constraint dropped per Phase 0.)_
 
 **Goal:** Author the tree as a nested structure where each node's position is **relative to
 its layout parent**, so moving a branch is a one-line offset change. Establishes the
 extension point for **branch-level inheritance** (e.g. color a branch via its root).
+
+> **Reality check:** the stub started as 3 independent nodes. Most stay **roots** whose
+> `offset` equals their absolute position (**faithful conversion** — no fabricated
+> relationships). As a smoke test of the layout system, one real nested child was added:
+> `uh2` (Sharper Focus) is a layout child of `uh` (offset `0,150`) with a `prerequisites`
+> link to `uh`, and it raises the highlight multiplier 2 → 3 via a `boostUpgradeId` tier on
+> `uh`'s per-upgrade `highlightMultiplier` effect (co-located with the unlock it modifies).
+> This exercises nesting, relative-offset
+> resolution, prerequisite-edge rendering, and effect tiering end-to-end.
 
 ### The two-relationships separation (core of the original plan)
 
@@ -262,13 +273,12 @@ extension point for **branch-level inheritance** (e.g. color a branch via its ro
 layout tree; its gating stays in `prerequisites`, and the renderer keeps drawing edges
 from `prerequisites` (so both incoming edges still render).
 
-### Authoring type + flattener
+### Authoring type + flattener (as built)
 
 ```ts
 // shared/src/modes/upgrade-tree.ts (NEW)
 interface UpgradeTreeNode extends Omit<UpgradeDefinition, 'position'> {
   readonly offset: UpgradePosition // relative to layout parent
-  readonly branch?: BranchStyle // Phase-3b cosmetic inheritance (deferred)
   readonly children?: readonly UpgradeTreeNode[]
 }
 function flattenUpgradeTree(roots: readonly UpgradeTreeNode[]): readonly UpgradeDefinition[]
@@ -276,9 +286,11 @@ function flattenUpgradeTree(roots: readonly UpgradeTreeNode[]): readonly Upgrade
 
 - Flatten resolves absolute `position = parentAbs + offset`, recursing through `children`.
 - **No cycle detection needed** (literal nested objects can't cycle); only **duplicate-id**
-  detection. This is a concrete simplicity win over an anchor-by-id scheme.
+  detection (a dup would corrupt the flat id-keyed maps).
 - Output is the same flat `UpgradeDefinition[]` the engine + renderer already consume, so
-  **nothing downstream changes** — renderer keeps reading absolute `position`.
+  **nothing downstream changes** — renderer keeps reading absolute `position`. `idler` now
+  authors its upgrades as a tree and flattens at module load.
+- The `branch?` field is **not** added yet (Phase 3b, deferred — no unused field now).
 
 ### Branch inheritance (Phase 3b — designed, deferred)
 
@@ -286,8 +298,10 @@ function flattenUpgradeTree(roots: readonly UpgradeTreeNode[]): readonly Upgrade
 flatten. Output target (field on def vs. sibling `Map<id, ResolvedBranch>`) decided when a
 renderer consumes it. **Do not add an unused field now.**
 
-**Validation:** unit tests on the flattener (absolute resolution, depth accumulation,
-duplicate-id throw, gameplay fields pass through verbatim).
+**Validation:** ✅ flattener unit tests (root resolution, depth accumulation, full
+enumeration, duplicate-id throw, gameplay-field passthrough with `offset`/`children`
+dropped, empty input); idler tree flattens to the prior absolute positions; full suite
+green (shared 142 / server 104 / client 134), typecheck + eslint + format + knip clean.
 
 ---
 

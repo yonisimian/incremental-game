@@ -57,12 +57,11 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Phase-0 idler stub (timed goal excludes the trophy u5):
-    // uh(0,0), u1(200,0)
+    // Timed goal excludes the trophy u5: uh(0,0), uh2(0,150), u1(200,0).
     expect(bounds.minX).toBe(0)
     expect(bounds.maxX).toBe(200)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(0)
+    expect(bounds.maxY).toBe(150)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
@@ -93,11 +92,11 @@ describe('renderUpgradeTree', () => {
     expect(bounds).toEqual({ minX: 0, maxX: 0, minY: 0, maxY: 0 })
   })
 
-  it('emits no <line> edges when the tree has no prereq edges', () => {
+  it('emits one <line> edge per prerequisite link', () => {
     const { edgesSvg } = renderUpgradeTree(makeIdlerState())
-    // Phase-0 idler stub has no prerequisites → no edges.
+    // Idler stub has a single prerequisite: uh2 requires uh → one edge.
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
-    expect(lineCount).toBe(0)
+    expect(lineCount).toBe(1)
   })
 
   it('marks one-shot owned upgrades with `.owned` class (no `disabled`)', () => {
