@@ -7,7 +7,7 @@ import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
-import { applyEffect } from '../effects/index.js'
+import { applyEffect, prepareEffect } from '../effects/index.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -52,6 +52,13 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // highlightEnabled ↔ initialMeta consistency
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
+
+  // Effect refs: resolve + parse once up front, so unknown types or malformed
+  // params fail at startup rather than mid-tick. Also warms the per-ref cache.
+  for (const ref of def.effects ?? []) prepareEffect(ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) prepareEffect(ref)
+  }
 }
 
 // ─── Registry ────────────────────────────────────────────────────────

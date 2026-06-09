@@ -23,7 +23,7 @@ export interface UpgradePosition {
 
 /**
  * A declarative, serializable reference to a registered effect: a `type`
- * discriminant plus inline params (validated against the effect's schema when
+ * discriminant plus inline params (validated by the effect's `parse` when
  * applied). See `shared/src/effects` for the registry and implementations.
  */
 export interface EffectRef {
