@@ -492,11 +492,11 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      // Idler has more upgrades than clicker
-      expect(ids.length).toBeGreaterThanOrEqual(4)
-      // Idler-exclusive upgrade IDs (u4, u6 only exist in idler)
-      expect(ids).toContain('u6')
-      expect(ids).toContain('u4')
+      // Idler stub tree: unlock-highlight, a production upgrade, and the trophy
+      // (default idler goal is buy-upgrade, so the trophy is included).
+      expect(ids).toContain('uh')
+      expect(ids).toContain('u1')
+      expect(ids).toContain('u5')
     })
 
     it('produces r0 and r1 at 1/sec base rate (no highlight)', () => {
@@ -548,19 +548,6 @@ describe('Match', () => {
       expect(r1Delta).toBeCloseTo(2, 0)
     })
 
-    it('Sharpened Axes makes highlight 4x', () => {
-      const m = enterIdlerWithHighlight()
-      // Give player enough r0 to buy u0 (costs 15 r0)
-      vi.advanceTimersByTime(8_000) // ~16 r0 at 2/sec (highlighted)
-      m.handleMessage('p1', buyMsg('u0', 2))
-      // Clear updates to measure from here
-      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
-      vi.advanceTimersByTime(1000)
-      const u = latestUpdate(ws1)
-      // Highlighted r0 → 4/sec now (1 base × 4)
-      expect(u.player.resources.r0).toBeGreaterThan(3.5)
-    })
-
     it('Heavy Logging adds +5 base r0/sec', () => {
       const m = enterIdlerWithHighlight()
       // Wait for enough r0 (u1 costs 25 r0) at 2/sec (highlighted)
@@ -573,29 +560,16 @@ describe('Match', () => {
       expect(u.player.resources.r0).toBeGreaterThan(11)
     })
 
-    it('Royal Brewery adds +5 base r1/sec', () => {
-      const m = enterIdlerWithHighlight()
-      // Switch to r1 to earn enough (costs 10 r1)
-      m.handleMessage('p1', highlightMsg('r1', 2))
-      vi.advanceTimersByTime(6_000) // ~12 r1 at 2/sec
-      m.handleMessage('p1', buyMsg('u2', 3))
-      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
-      vi.advanceTimersByTime(1000)
-      const u = latestUpdate(ws1)
-      // Base r1 = 1 + 5(RB) = 6, highlighted x2 = 12/sec
-      expect(u.player.resources.r1).toBeGreaterThan(11)
-    })
-
     it('cannot buy r0 upgrade with r1', () => {
       const m = enterIdlerWithHighlight()
       // Switch to r1 to build up only r1
       m.handleMessage('p1', highlightMsg('r1', 2))
       vi.advanceTimersByTime(10_000) // r1 ~= 20, r0 ~= 10
-      // Try to buy u0 (costs 15 r0) — should fail since player doesn't have enough r0
-      m.handleMessage('p1', buyMsg('u0', 3))
+      // Try to buy u1 (costs 25 r0) — should fail since player doesn't have enough r0
+      m.handleMessage('p1', buyMsg('u1', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades.u0).toBe(0)
+      expect(u.player.upgrades.u1).toBe(0)
     })
 
     it('rejects clicks in idler mode', () => {

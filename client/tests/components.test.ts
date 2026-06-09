@@ -57,15 +57,12 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
 describe('renderUpgradeTree', () => {
   it('returns bounds enclosing all tree-node positions', () => {
     const { bounds } = renderUpgradeTree(makeIdlerState())
-    // Current idler tree positions (timed goal excludes u5):
-    // uh(0,0), u0(0,0), u1(200,0), u2(400,0),
-    // u12(0,150), u6(200,150), u7(400,150),
-    // u8(100,300), u4(300,300), u9(500,300),
-    // u10(200,450), u11(400,450)
+    // Phase-0 idler stub (timed goal excludes the trophy u5):
+    // uh(0,0), u1(200,0)
     expect(bounds.minX).toBe(0)
-    expect(bounds.maxX).toBe(500)
+    expect(bounds.maxX).toBe(200)
     expect(bounds.minY).toBe(0)
-    expect(bounds.maxY).toBe(450)
+    expect(bounds.maxY).toBe(0)
   })
 
   it('anchors bounds on actual node positions, not on origin (0,0)', () => {
@@ -97,47 +94,11 @@ describe('renderUpgradeTree', () => {
     expect(bounds).toEqual({ minX: 0, maxX: 0, minY: 0, maxY: 0 })
   })
 
-  it('emits one <line> per prereq edge in the idler tree', () => {
+  it('emits no <line> edges when the tree has no prereq edges', () => {
     const { edgesSvg } = renderUpgradeTree(makeIdlerState())
-    // u0←uh, u6←u1, u7←u2, u4←u6, u4←u7, u8←u6, u9←u7, u10←u4, u11←u4
+    // Phase-0 idler stub has no prerequisites → no edges.
     const lineCount = (edgesSvg.match(/<line\b/g) ?? []).length
-    expect(lineCount).toBe(9)
-  })
-
-  it('marks line as `unlocked` only when child node is unlocked', () => {
-    // No prereqs owned → no edges should be marked unlocked
-    const lockedTree = renderUpgradeTree(makeIdlerState())
-    expect(lockedTree.edgesSvg).not.toContain('class="unlocked"')
-
-    // u1 owned → u6 edge (u6←u1) becomes unlocked
-    const partial = renderUpgradeTree(
-      makeIdlerState({
-        upgrades: {
-          ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-          u1: 1,
-        },
-      }),
-    )
-    const unlockedCount = (partial.edgesSvg.match(/class="unlocked"/g) ?? []).length
-    expect(unlockedCount).toBe(1)
-  })
-
-  it('emits a button with `.locked` for each tree node when prerequisites are unowned', () => {
-    const { nodes } = renderUpgradeTree(makeIdlerState())
-    // u0, u4, u6, u7, u8, u9, u10, u11 have prereqs → all locked
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u0"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u4"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u6"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u7"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u8"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u9"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u10"/)
-    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="u11"/)
-    // .locked class is applied to those nodes. Tree nodes are never `disabled`:
-    // clicking always opens the detail popup (which explains the lock).
-    const lockedCount = (nodes.match(/class="upgrade-btn tree-node locked"/g) ?? []).length
-    expect(lockedCount).toBe(8)
-    expect(nodes).not.toContain('disabled')
+    expect(lineCount).toBe(0)
   })
 
   it('marks one-shot owned upgrades with `.owned` class (no `disabled`)', () => {

@@ -703,21 +703,7 @@ describe('game.ts', () => {
           player: {
             score: amount,
             resources: { r0: amount, r1: 0 },
-            upgrades: { uh: 1, u0: 0 },
-            generators: {},
-            meta: { highlight: 'r0' },
-          },
-        }),
-      )
-    }
-
-    function giveR1(g: GameModule, amount: number): void {
-      g.handleServerMessage(
-        makeStateUpdate({
-          player: {
-            score: 0,
-            resources: { r0: 0, r1: amount },
-            upgrades: { uh: 1, u0: 0 },
+            upgrades: { uh: 1, u1: 0 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -728,80 +714,9 @@ describe('game.ts', () => {
     it('deducts r0 for r0-cost upgrades', () => {
       enterIdlerPlaying(game)
       giveR0(game, 50)
-      game.doBuy('u0') // costs 15 r0
-      expect(game.getState().player.upgrades.u0).toBe(1)
-      expect(game.getState().player.resources.r0).toBe(35)
-    })
-
-    it('deducts r1 for r1-cost tree upgrades', () => {
-      enterIdlerPlaying(game)
-      giveR1(game, 25)
-      game.doBuy('u2') // costs 10 r1
-      expect(game.getState().player.upgrades.u2).toBe(1)
-      expect(game.getState().player.resources.r1).toBe(15)
-    })
-
-    it('rejects buying a tree upgrade when prerequisites are unowned', () => {
-      enterIdlerPlaying(game)
-      // u6 requires u1 — provide resources but no prereqs
-      game.handleServerMessage(
-        makeStateUpdate({
-          player: {
-            score: 0,
-            resources: { r0: 9999, r1: 9999 },
-            upgrades: {
-              u6: 0,
-              u1: 0,
-            },
-            generators: {},
-            meta: { highlight: 'r0' },
-          },
-        }),
-      )
-      game.doBuy('u6') // prereqs unmet → no-op
-      expect(game.getState().player.upgrades.u6).toBe(0)
-      expect(game.getState().player.resources.r0).toBe(9999)
-    })
-
-    it('accepts buying a tree upgrade once prerequisite is owned', () => {
-      enterIdlerPlaying(game)
-      game.handleServerMessage(
-        makeStateUpdate({
-          player: {
-            score: 0,
-            resources: { r0: 9999, r1: 9999 },
-            upgrades: {
-              u6: 0,
-              u1: 1,
-            },
-            generators: {},
-            meta: { highlight: 'r0' },
-          },
-        }),
-      )
-      game.doBuy('u6')
-      expect(game.getState().player.upgrades.u6).toBe(1)
-    })
-
-    it('ANY-semantics: accepts when only one of two prerequisites is owned', () => {
-      enterIdlerPlaying(game)
-      game.handleServerMessage(
-        makeStateUpdate({
-          player: {
-            score: 0,
-            resources: { r0: 9999, r1: 9999 },
-            upgrades: {
-              u4: 0,
-              u6: 1,
-              u7: 0,
-            },
-            generators: {},
-            meta: { highlight: 'r0' },
-          },
-        }),
-      )
-      game.doBuy('u4')
-      expect(game.getState().player.upgrades.u4).toBe(1)
+      game.doBuy('u1') // costs 25 r0
+      expect(game.getState().player.upgrades.u1).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(25)
     })
   })
 })
