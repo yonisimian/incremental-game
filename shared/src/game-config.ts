@@ -1,13 +1,10 @@
 // ─── Round ───────────────────────────────────────────────────────────
 
-/** Default round duration in seconds (clicker timed). */
+/** Default round duration in seconds (generic timed goal / test default). */
 export const ROUND_DURATION_SEC = 30
 
 /** Default round duration in seconds (idler timed). */
 export const IDLER_ROUND_DURATION_SEC = 35
-
-/** Default target score for clicker target-score mode. */
-export const CLICKER_TARGET_SCORE = 666
 
 /** Default target score for idler target-score mode. */
 export const IDLER_TARGET_SCORE = 364

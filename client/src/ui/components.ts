@@ -2,24 +2,21 @@ import type { GameState } from '../game.js'
 import {
   canAfford,
   escapeAttr,
+  formatCostLabel,
   isUnlocked,
   formatTime,
   formatScore,
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
-import { formatNumber } from './format-number.js'
 import {
   getModeDefinition,
   getPrerequisiteUpgradeIds,
-  getResourceIcon,
   getUpgradeName,
   getUpgradeIcon,
-  getUpgradeDescription,
   isChoiceGroupAvailable,
   isMaxed,
   isUnlimited,
-  formatPrerequisiteExpression,
   getUpgradeNextCost,
 } from '@game/shared'
 
@@ -59,64 +56,6 @@ export function renderProgressBars(state: Readonly<GameState>): string {
   `
 }
 
-// ─── Upgrades ────────────────────────────────────────────────────────
-
-export function renderClickerUpgrades(state: Readonly<GameState>): string {
-  const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
-  return state.upgrades
-    .map((u, i) => {
-      const owned = state.player.upgrades[u.id] ?? 0
-      const unlocked = isUnlocked(state, u)
-      const affordable = canAfford(state, u)
-      const maxed = isMaxed(u, owned)
-      const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
-
-      // Lock tooltip (mutually exclusive conditions)
-      let lockTitle = ''
-      if (!unlocked)
-        lockTitle = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
-      else if (choiceBlocked) lockTitle = 'Another choice in this group has already been selected'
-      const titleAttr = lockTitle ? `title="${escapeAttr(lockTitle)}"` : ''
-
-      const hotkey = i + 1
-      const levelLabel =
-        u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0
-          ? `<span class="upgrade-level">${owned}/${u.purchaseLimit}</span>`
-          : ''
-      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-      const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed
-        ? '✓'
-        : `${formatNumber(nextCost)} ${getResourceIcon(flavor, modeDef.scoreResource)}${countLabel}`
-
-      // State-class derivation (mutually exclusive, in priority order)
-      let stateClass = ''
-      if (!unlocked) stateClass = 'locked'
-      else if (maxed) stateClass = 'owned'
-      else if (choiceBlocked) stateClass = 'locked'
-      else if (!affordable) stateClass = 'too-expensive'
-
-      const disabled = !unlocked || maxed || choiceBlocked || !affordable
-
-      return `
-        <button
-          class="upgrade-btn ${stateClass}"
-          data-upgrade="${u.id}"
-          ${disabled ? 'disabled' : ''}
-          ${titleAttr}
-        >
-          <span class="upgrade-name">${getUpgradeName(flavor, u.id)}</span>
-          ${levelLabel}
-          <span class="upgrade-cost">${costLabel}</span>
-          <span class="upgrade-desc">${getUpgradeDescription(flavor, u.id)}</span>
-          <span class="upgrade-hotkey" aria-hidden="true">${hotkey}</span>
-        </button>
-      `
-    })
-    .join('')
-}
-
 // ─── Upgrade Tree ────────────────────────────────────────────────────
 
 /** Bounding box of all tree-node positions. Used to size the SVG and seed initial pan. */
@@ -154,7 +93,7 @@ interface UpgradeTreeRender {
 export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = modeDef.flavor
-  const tree = state.upgrades.filter((u) => u.category === 'tree')
+  const tree = state.upgrades
 
   // Bounds — initialize with sentinels so the first node defines the box (not
   // 0,0). Otherwise a tree whose nodes all sit far from origin gets bogus
@@ -234,10 +173,9 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       else if (choiceBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
       const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
       const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed ? 'Maxed' : `${formatNumber(nextCost)} ${emoji}${countLabel}`
+      const costLabel = maxed ? 'Maxed' : `${formatCostLabel(nextCost, flavor)}${countLabel}`
       const name = getUpgradeName(flavor, u.id)
       const icon = getUpgradeIcon(flavor, u.id)
       // Accessible label / hover title: name + current cost (or Maxed).

@@ -12,11 +12,8 @@ export type PrerequisiteExpression =
 
 export type UpgradePrerequisites = PrerequisiteExpression
 
-/** Available game modes. */
-export type GameMode = 'clicker' | 'idler'
-
-/** Which panel hosts an upgrade. */
-export type UpgradeCategory = 'play' | 'tree'
+/** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap (D1). */
+export type GameMode = 'idler'
 
 /** A 2D position on the upgrade-tree canvas (logical units; render-time scale applies). */
 export interface UpgradePosition {
@@ -27,9 +24,8 @@ export interface UpgradePosition {
 /** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
-  readonly cost: number
-  /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
-  readonly costCurrency?: string
+  /** Cost as a currency→amount map (e.g. `{ r0: 15 }` or `{ r0: 15, r1: 5 }`). */
+  readonly cost: Readonly<Record<string, number>>
   /** Optional dynamic cost scaling for repeatable upgrades. */
   readonly costScaling?:
     | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
@@ -41,8 +37,6 @@ export interface UpgradeDefinition {
   readonly purchaseLimit: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
-  /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
-  readonly category?: UpgradeCategory
   /**
    * Which upgrades belong to the same mutually exclusive choice group.
    * Purchasing one choice prevents buying any other upgrade in the same group.
@@ -56,8 +50,8 @@ export interface UpgradeDefinition {
    */
   readonly prerequisites?: UpgradePrerequisites
   /**
-   * Hand-placed position on the tree canvas. Required for `category: 'tree'`
-   * upgrades; ignored for play-panel upgrades.
+   * Hand-placed position on the tree canvas. All upgrades are tree upgrades,
+   * so this is the node's canvas anchor.
    */
   readonly position?: UpgradePosition
   /**

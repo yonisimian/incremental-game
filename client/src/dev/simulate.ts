@@ -14,6 +14,8 @@ import {
   computePassiveRates,
   createInitialState,
   getModeDefinition,
+  getUpgradeNextCost,
+  isCostAffordable,
   isMaxed,
   isPrerequisiteSatisfied,
 } from '@game/shared'
@@ -55,8 +57,7 @@ function canAfford(state: PlayerState, action: StrategyAction, modeDef: ModeDefi
     // Check prerequisites
     if (!isPrerequisiteSatisfied(def.prerequisites, state)) return false
 
-    const costResource = def.costCurrency ?? modeDef.scoreResource
-    return (state.resources[costResource] ?? 0) >= def.cost
+    return isCostAffordable(state.resources, getUpgradeNextCost(def, owned))
   }
   return false
 }

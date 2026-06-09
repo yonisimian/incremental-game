@@ -138,6 +138,13 @@ readonly cost: Readonly<Record<string, number>>   // e.g. { r0: 15 } or { r0: 15
   **D9**), `generators-panel.ts` (generators keep scalar cost — **D6**),
   `client/src/dev/*`, `scripts/simulate-idler.ts`.
 
+> **Follow-up (revisit later):** `getUpgradeBulkCost` and `getMaxAffordableUpgradeLevels`
+> in `shared/src/upgrade-costs.ts` are currently exercised only by unit tests — no gameplay
+> path calls them (bulk-buy isn't wired for idler upgrades). Keep for now; when bulk-buy
+> lands, wire them in, otherwise prune them. Likewise the per-upgrade `costScaling` machinery
+> is unused by any shipping upgrade — see the `costScaleMultiplier` doc for its
+> `baseCost`-as-reference-denominator semantics before relying on it.
+
 ### 1b. Drop `category`
 
 - Idler has no flat upgrades; **all** upgrades are tree upgrades. Remove `UpgradeCategory`

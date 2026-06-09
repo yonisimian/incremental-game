@@ -5,13 +5,9 @@ import {
   isPrerequisiteSatisfied,
   isChoiceGroupAvailable,
   getUpgradeNextCost,
+  isCostAffordable,
 } from '@game/shared'
-import type {
-  GeneratorDefinition,
-  ModeDefinition,
-  PlayerState,
-  UpgradeDefinition,
-} from '@game/shared'
+import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.
@@ -42,7 +38,6 @@ export function isValidPurchase(
   state: PlayerState,
   upgradeId: string,
   upgradeMap: ReadonlyMap<string, UpgradeDefinition>,
-  mode: ModeDefinition,
 ): boolean {
   const def = upgradeMap.get(upgradeId)
   if (!def) return false
@@ -56,11 +51,8 @@ export function isValidPurchase(
   // Only one choice from a mutual-exclusion group may be selected.
   if (!isChoiceGroupAvailable(def, state, Array.from(upgradeMap.values()))) return false
 
-  // Check the correct resource balance
-  const costResource = def.costCurrency ?? mode.scoreResource
-  const balance = state.resources[costResource] ?? 0
-  const nextCost = getUpgradeNextCost(def, owned)
-  return balance >= nextCost
+  // Every currency in the cost map must be affordable.
+  return isCostAffordable(state.resources, getUpgradeNextCost(def, owned))
 }
 
 /**

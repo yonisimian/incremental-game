@@ -1,7 +1,6 @@
 import type { Modifier } from '../modifiers/types.js'
 import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
-import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
@@ -55,7 +54,6 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 // ─── Registry ────────────────────────────────────────────────────────
 
 const MODE_REGISTRY: Record<GameMode, ModeDefinition> = {
-  clicker: clickerMode,
   idler: idlerMode,
 }
 
@@ -223,10 +221,11 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   const owned = state.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return
 
-  // Deduct from correct resource
-  const costResource = def.costCurrency ?? mode.scoreResource
-  const nextCost = getUpgradeNextCost(def, owned)
-  state.resources[costResource] = (state.resources[costResource] ?? 0) - nextCost
+  // Deduct each currency in the cost map
+  const cost = getUpgradeNextCost(def, owned)
+  for (const [currency, amount] of Object.entries(cost)) {
+    state.resources[currency] = (state.resources[currency] ?? 0) - amount
+  }
 
   // Grant upgrade
   state.upgrades[upgradeId] = owned + 1

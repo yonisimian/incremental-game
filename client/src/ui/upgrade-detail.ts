@@ -2,7 +2,6 @@ import type { GameState } from '../game.js'
 import { doBuy, getState } from '../game.js'
 import {
   getModeDefinition,
-  getResourceIcon,
   getUpgradeName,
   getUpgradeIcon,
   getUpgradeDescription,
@@ -13,8 +12,7 @@ import {
   getUpgradeNextCost,
   type UpgradeDefinition,
 } from '@game/shared'
-import { canAfford, isUnlocked, escapeAttr } from './helpers.js'
-import { formatNumber } from './format-number.js'
+import { canAfford, formatCostLabel, isUnlocked, escapeAttr } from './helpers.js'
 
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
@@ -54,10 +52,9 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
 
-  const emoji = getResourceIcon(flavor, u.costCurrency ?? modeDef.scoreResource)
   const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
   const nextCost = getUpgradeNextCost(u, owned)
-  const costLabel = maxed ? 'Maxed' : `${formatNumber(nextCost)} ${emoji}${countLabel}`
+  const costLabel = maxed ? 'Maxed' : `${formatCostLabel(nextCost, flavor)}${countLabel}`
 
   const levelLabel =
     u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0 ? `${owned}/${u.purchaseLimit}` : ''

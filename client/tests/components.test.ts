@@ -74,10 +74,9 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'far-node',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 500, y: 500 },
         },
       ],
@@ -164,18 +163,16 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'src',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 0, y: 0 },
         },
         {
           id: 'dst',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 50, y: 0 }, // length 50 < 2 * 60 = 120
           prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'src' }] },
         },

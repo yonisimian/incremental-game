@@ -1,5 +1,10 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
-import { getPrerequisiteUpgradeIds, isMaxed } from '@game/shared'
+import {
+  getPrerequisiteUpgradeIds,
+  getCostCurrency,
+  getUpgradeNextCost,
+  isCostAffordable,
+} from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -13,60 +18,6 @@ type BotAction =
 export interface BotStrategy {
   /** Return zero or more actions to execute this tick. */
   decide(state: Readonly<PlayerState>, tickSec: number): BotAction[]
-}
-
-// ─── Clicker Bot ─────────────────────────────────────────────────────
-
-/**
- * Medium-difficulty clicker bot.
- * - Clicks at a randomized rate (~4–7 CPS).
- * - Buys the cheapest affordable upgrade with a ~1.5–2.5 s reaction delay.
- */
-export class ClickerBot implements BotStrategy {
-  private readonly upgrades: readonly UpgradeDefinition[]
-  private readonly scoreResource: string
-  /** Accumulated seconds since the last purchase attempt. */
-  private purchaseCooldown = 0
-  /** Pre-rolled delay before the next purchase attempt. */
-  private nextPurchaseDelay = 1.5 + Math.random()
-
-  constructor(upgrades: readonly UpgradeDefinition[], scoreResource: string) {
-    this.upgrades = upgrades
-    this.scoreResource = scoreResource
-  }
-
-  decide(state: Readonly<PlayerState>, tickSec: number): BotAction[] {
-    const actions: BotAction[] = []
-
-    // Randomized clicking: ~4–7 CPS, scaled by tick duration
-    const cps = 4 + Math.random() * 3
-    const clicks = Math.round(cps * tickSec)
-    for (let i = 0; i < clicks; i++) {
-      actions.push({ type: 'click' })
-    }
-
-    // Buy cheapest affordable upgrade with a ~1.5–2.5 s reaction delay
-    this.purchaseCooldown += tickSec
-    if (this.purchaseCooldown >= this.nextPurchaseDelay) {
-      const affordable = this.upgrades
-        .filter((u) => {
-          const owned = state.upgrades[u.id] ?? 0
-          if (isMaxed(u, owned)) return false
-          const costResource = u.costCurrency ?? this.scoreResource
-          return (state.resources[costResource] ?? 0) >= u.cost
-        })
-        .sort((a, b) => a.cost - b.cost)
-
-      if (affordable.length > 0) {
-        actions.push({ type: 'buy', upgradeId: affordable[0].id })
-      }
-      // Reset regardless — don't let cooldown accumulate past the threshold
-      this.purchaseCooldown = 0
-      this.nextPurchaseDelay = 1.5 + Math.random()
-    }
-
-    return actions
-  }
 }
 
 // ─── Idler Bot ───────────────────────────────────────────────────────
@@ -136,7 +87,7 @@ export class IdlerBot implements BotStrategy {
       for (const prereq of getPrerequisiteUpgradeIds(def.prerequisites)) {
         visit(prereq)
       }
-      result.push({ id, currency: def.costCurrency ?? 'r0' })
+      result.push({ id, currency: getCostCurrency(def, 'r0') })
     }
 
     visit(target.id)
@@ -158,8 +109,8 @@ export class IdlerBot implements BotStrategy {
     }
 
     // Buy when affordable
-    const balance = state.resources[next.currency] ?? 0
-    if (balance >= def.cost) {
+    const owned = state.upgrades[next.id] ?? 0
+    if (isCostAffordable(state.resources, getUpgradeNextCost(def, owned))) {
       actions.push({ type: 'buy', upgradeId: next.id })
       this.planIndex++
 
@@ -189,13 +140,14 @@ export class IdlerBot implements BotStrategy {
  * goals that hide the trophy, the bot doesn't see it. Under buy-upgrade,
  * the idler bot detects the trophy and builds a plan to reach it via its
  * prerequisite chain.
+ *
+ * Idler is currently the only mode (the `mode`/`modeDef` plumbing is kept so
+ * re-adding modes stays cheap — see master-plan D1).
  */
 export function createBot(
-  mode: GameMode,
+  _mode: GameMode,
   modeDef: ModeDefinition,
   availableUpgrades: readonly UpgradeDefinition[] = modeDef.upgrades,
 ): BotStrategy {
-  return mode === 'clicker'
-    ? new ClickerBot(availableUpgrades, modeDef.scoreResource)
-    : new IdlerBot(availableUpgrades)
+  return new IdlerBot(availableUpgrades)
 }

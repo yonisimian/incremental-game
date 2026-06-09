@@ -43,19 +43,15 @@ function collectIdlerDynamic(state: Readonly<PlayerState>): Modifier[] {
 const idlerUpgrades: readonly UpgradeDefinition[] = [
   {
     id: 'uh', // Unlock Highlight
-    cost: 5,
-    costCurrency: 'r0',
+    cost: { r0: 5 },
     purchaseLimit: 1,
-    category: 'tree',
     position: { x: 0, y: 0 },
     modifiers: [], // unlocks the highlight mechanic (checked in collectIdlerDynamic)
   },
   {
     id: 'u1', // Heavy Logging
-    cost: 25,
-    costCurrency: 'r0',
+    cost: { r0: 25 },
     purchaseLimit: 1,
-    category: 'tree',
     position: { x: 200, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
   },
@@ -63,11 +59,9 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
   // ─── Trophy upgrade (buy-upgrade goal only) ─────────────────────────
   {
     id: 'u5', // Royal Throne
-    cost: 30000,
-    costCurrency: 'r0',
+    cost: { r0: 30000 },
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
-    category: 'tree',
     position: { x: 600, y: 0 },
     modifiers: [],
   },
