@@ -1,5 +1,7 @@
 import type { GeneratorDefinition, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
+import type { UpgradeTreeNode } from './upgrade-tree.js'
+import { flattenUpgradeTree } from './upgrade-tree.js'
 import {
   BUY_UPGRADE_SAFETY_CAP_SEC,
   IDLER_ROUND_DURATION_SEC,
@@ -21,19 +23,23 @@ const HIGHLIGHT_UNLOCK = 'uh'
 // Per-upgrade dynamic-modifier closures were removed; state-derived behavior is now
 // authored as data via the effect registry (see `shared/src/effects`).
 
-const idlerUpgrades: readonly UpgradeDefinition[] = [
+// Authoring tree: nodes carry an `offset` relative to their layout parent and
+// flatten to absolute `position`. The current stub nodes are independent (no
+// layout parent, no prerequisites), so each is a root whose offset equals its
+// absolute position. Nesting is exercised once a real tree is authored.
+const idlerTree: readonly UpgradeTreeNode[] = [
   {
     id: 'uh', // Unlock Highlight
     cost: { r0: 5 },
     purchaseLimit: 1,
-    position: { x: 0, y: 0 },
+    offset: { x: 0, y: 0 },
     modifiers: [], // unlocks the highlight mechanic (see mode-level `effects` below)
   },
   {
     id: 'u1', // Heavy Logging
     cost: { r0: 25 },
     purchaseLimit: 1,
-    position: { x: 200, y: 0 },
+    offset: { x: 200, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
   },
 
@@ -43,10 +49,12 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: { r0: 30000 },
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
-    position: { x: 600, y: 0 },
+    offset: { x: 600, y: 0 },
     modifiers: [],
   },
 ]
+
+const idlerUpgrades: readonly UpgradeDefinition[] = flattenUpgradeTree(idlerTree)
 
 // ─── Generators ──────────────────────────────────────────────────────────────
 
