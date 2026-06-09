@@ -489,6 +489,102 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     modifiers: [],
   },
 
+  {
+    id: 'e-0', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1600, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'e-1', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1700, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-2', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1600, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-3', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1700, y: 300 },
+    prerequisites: {
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'e-1' },
+        { type: 'upgrade', id: 'e-2' },
+      ],
+    },
+    modifiers: [],
+  },
+  {
+    id: 'e-4', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1500, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-2' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-5', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1600, y: 300 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-2' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-6', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1600, y: 400 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-5' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-7', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1700, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-6' }] },
+    modifiers: [],
+  },
+  {
+    id: 'e-8', // espionage
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1500, y: 500 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'e-6' }] },
+    modifiers: [],
+  },
+
   // {
   //   id: 'uh', // Unlock Highlight
   //   cost: 5,
@@ -993,6 +1089,61 @@ const idlerFlavor: ModeFlavor = {
       name: '🌱 System Highlight',
       icon: '🌱',
       description: 'Low Charge More bonus',
+    },
+
+    {
+      id: 'e-0',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'See Enemy MR',
+    },
+    {
+      id: 'e-1',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'See Enemy SR',
+    },
+    {
+      id: 'e-2',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'See Enemy MR PS',
+    },
+    {
+      id: 'e-3',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'See Enemy SR PS',
+    },
+    {
+      id: 'e-4',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'See Enemy Clicks PS',
+    },
+    {
+      id: 'e-5',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'Notify when Enemy buys something',
+    },
+    {
+      id: 'e-6',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'The notification differentiate between G and Upgrade purchases',
+    },
+    {
+      id: 'e-7',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'The notification show which upgrade purchased',
+    },
+    {
+      id: 'e-8',
+      name: '🌱 Espionage',
+      icon: '🌱',
+      description: 'The notification show which G purchased',
     },
 
     // {
