@@ -1,4 +1,4 @@
-import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/shared'
+import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
   getResourceIcon,
@@ -12,23 +12,6 @@ import {
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 import { formatNumber } from './format-number.js'
-
-// ─── Hotkeys ─────────────────────────────────────────────────────────
-
-/**
- * Per-category index-hotkey characters — single source of truth for both
- * rendering (per-card label) and the global keydown handler (key → upgrade
- * by index). The Nth character is the hotkey for the Nth upgrade in that
- * category. Upgrades past the string length render without a hotkey label
- * and aren't keyboard-buyable; extend the string to add more.
- *
- * Categories without an entry (e.g. 'tree') get no per-index hotkeys.
- * Tree-specific hotkeys (buy-cheapest-in-tree, buy-all-in-tree) are tracked
- * in TODO.md and intentionally not wired here yet.
- */
-export const UPGRADE_HOTKEYS: Partial<Record<UpgradeCategory, string>> = {
-  play: '123456789',
-}
 
 // ─── Shared DOM Root ─────────────────────────────────────────────────
 

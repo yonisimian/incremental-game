@@ -77,7 +77,6 @@ describe('renderUpgradeTree', () => {
           cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 500, y: 500 },
         },
       ],
@@ -167,7 +166,6 @@ describe('renderUpgradeTree', () => {
           cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 0, y: 0 },
         },
         {
@@ -175,7 +173,6 @@ describe('renderUpgradeTree', () => {
           cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
-          category: 'tree',
           position: { x: 50, y: 0 }, // length 50 < 2 * 60 = 120
           prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'src' }] },
         },

@@ -45,7 +45,6 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'uh', // Unlock Highlight
     cost: { r0: 5 },
     purchaseLimit: 1,
-    category: 'tree',
     position: { x: 0, y: 0 },
     modifiers: [], // unlocks the highlight mechanic (checked in collectIdlerDynamic)
   },
@@ -53,7 +52,6 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     id: 'u1', // Heavy Logging
     cost: { r0: 25 },
     purchaseLimit: 1,
-    category: 'tree',
     position: { x: 200, y: 0 },
     modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
   },
@@ -64,7 +62,6 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     cost: { r0: 30000 },
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
-    category: 'tree',
     position: { x: 600, y: 0 },
     modifiers: [],
   },

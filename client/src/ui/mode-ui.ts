@@ -17,8 +17,8 @@ export interface ModeUI {
 
 /**
  * Derive the client-side panel configuration from the mode definition.
- * Adding generators or tree-category upgrades to a new mode automatically
- * surfaces the corresponding panel — no hardcoded per-mode map needed.
+ * Adding generators or upgrades to a new mode automatically surfaces the
+ * corresponding panel — no hardcoded per-mode map needed.
  */
 export function getModeUI(mode: GameMode): ModeUI {
   const modeDef = getModeDefinition(mode)
@@ -28,7 +28,7 @@ export function getModeUI(mode: GameMode): ModeUI {
     panels.push({ index: panels.length, panel: generatorsPanel })
   }
 
-  if (modeDef.upgrades.some((u) => u.category === 'tree')) {
+  if (modeDef.upgrades.length > 0) {
     panels.push({ index: panels.length, panel: upgradeTreePanel })
   }
 

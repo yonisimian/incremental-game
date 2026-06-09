@@ -15,9 +15,6 @@ export type UpgradePrerequisites = PrerequisiteExpression
 /** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap (D1). */
 export type GameMode = 'idler'
 
-/** Which panel hosts an upgrade. */
-export type UpgradeCategory = 'play' | 'tree'
-
 /** A 2D position on the upgrade-tree canvas (logical units; render-time scale applies). */
 export interface UpgradePosition {
   readonly x: number
@@ -40,8 +37,6 @@ export interface UpgradeDefinition {
   readonly purchaseLimit: number
   /** Declarative modifiers this upgrade applies when owned. */
   readonly modifiers: readonly Modifier[]
-  /** Which panel hosts this upgrade. Defaults to 'play' when absent. */
-  readonly category?: UpgradeCategory
   /**
    * Which upgrades belong to the same mutually exclusive choice group.
    * Purchasing one choice prevents buying any other upgrade in the same group.
@@ -55,8 +50,8 @@ export interface UpgradeDefinition {
    */
   readonly prerequisites?: UpgradePrerequisites
   /**
-   * Hand-placed position on the tree canvas. Required for `category: 'tree'`
-   * upgrades; ignored for play-panel upgrades.
+   * Hand-placed position on the tree canvas. All upgrades are tree upgrades,
+   * so this is the node's canvas anchor.
    */
   readonly position?: UpgradePosition
   /**

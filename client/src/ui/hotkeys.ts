@@ -7,15 +7,10 @@ import {
   cancelQueue,
   quitMatch,
 } from '../game.js'
-import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
+import { canBuy } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
-import {
-  type UpgradeCategory,
-  getModeDefinition,
-  getUpgradeCostTotal,
-  isHighlightActive,
-} from '@game/shared'
+import { getModeDefinition, getUpgradeCostTotal, isHighlightActive } from '@game/shared'
 
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
@@ -122,19 +117,6 @@ export function initHotkeys(): void {
             getUpgradeCostTotal(b, state.player.upgrades[b.id] ?? 0),
         )
       for (const u of buyable) doBuy(u.id)
-      return
-    }
-
-    // Per-category indexed buy: 1/2/3… → play (see UPGRADE_HOTKEYS).
-    // Categories without an entry (e.g. tree) have no per-index hotkeys.
-    const pressed = e.key.toLowerCase()
-    for (const cat of Object.keys(UPGRADE_HOTKEYS) as UpgradeCategory[]) {
-      const keys = UPGRADE_HOTKEYS[cat]
-      if (!keys) continue
-      const idx = keys.toLowerCase().indexOf(pressed)
-      if (idx === -1) continue
-      const upgrades = state.upgrades.filter((u) => (u.category ?? 'play') === cat)
-      if (idx < upgrades.length) doBuy(upgrades[idx].id)
       return
     }
   })

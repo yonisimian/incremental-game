@@ -93,7 +93,7 @@ interface UpgradeTreeRender {
 export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = modeDef.flavor
-  const tree = state.upgrades.filter((u) => u.category === 'tree')
+  const tree = state.upgrades
 
   // Bounds — initialize with sentinels so the first node defines the box (not
   // 0,0). Otherwise a tree whose nodes all sit far from origin gets bogus
