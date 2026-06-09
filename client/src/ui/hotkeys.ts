@@ -10,7 +10,12 @@ import {
 import { canBuy, UPGRADE_HOTKEYS } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
-import { type UpgradeCategory, getModeDefinition, isHighlightActive } from '@game/shared'
+import {
+  type UpgradeCategory,
+  getModeDefinition,
+  getUpgradeCostTotal,
+  isHighlightActive,
+} from '@game/shared'
 
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
@@ -109,7 +114,13 @@ export function initHotkeys(): void {
 
     // C — buy all buyable upgrades (cheapest first); skips locked & one-shot-owned
     if (e.key === 'c' || e.key === 'C') {
-      const buyable = state.upgrades.filter((u) => canBuy(state, u)).sort((a, b) => a.cost - b.cost)
+      const buyable = state.upgrades
+        .filter((u) => canBuy(state, u))
+        .sort(
+          (a, b) =>
+            getUpgradeCostTotal(a, state.player.upgrades[a.id] ?? 0) -
+            getUpgradeCostTotal(b, state.player.upgrades[b.id] ?? 0),
+        )
       for (const u of buyable) doBuy(u.id)
       return
     }

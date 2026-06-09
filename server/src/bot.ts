@@ -1,5 +1,10 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
-import { getPrerequisiteUpgradeIds } from '@game/shared'
+import {
+  getPrerequisiteUpgradeIds,
+  getPrimaryCostCurrency,
+  getUpgradeNextCost,
+  isCostAffordable,
+} from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -82,7 +87,7 @@ export class IdlerBot implements BotStrategy {
       for (const prereq of getPrerequisiteUpgradeIds(def.prerequisites)) {
         visit(prereq)
       }
-      result.push({ id, currency: def.costCurrency ?? 'r0' })
+      result.push({ id, currency: getPrimaryCostCurrency(def, 'r0') })
     }
 
     visit(target.id)
@@ -104,8 +109,8 @@ export class IdlerBot implements BotStrategy {
     }
 
     // Buy when affordable
-    const balance = state.resources[next.currency] ?? 0
-    if (balance >= def.cost) {
+    const owned = state.upgrades[next.id] ?? 0
+    if (isCostAffordable(state.resources, getUpgradeNextCost(def, owned))) {
       actions.push({ type: 'buy', upgradeId: next.id })
       this.planIndex++
 

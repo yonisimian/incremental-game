@@ -22,6 +22,7 @@ import {
   isMaxed,
   isPrerequisiteSatisfied,
   isChoiceGroupAvailable,
+  isCostAffordable,
   getUpgradeNextCost,
   applyPurchase,
   isHighlightActive,
@@ -383,11 +384,8 @@ export function doBuy(upgradeId: string): void {
 
   if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
 
-  // Check correct resource balance
-  const costResource = def.costCurrency ?? modeDef.scoreResource
-  const balance = state.player.resources[costResource] ?? 0
-  const nextCost = getUpgradeNextCost(def, owned)
-  if (balance < nextCost) return
+  // Every currency in the cost map must be affordable
+  if (!isCostAffordable(state.player.resources, getUpgradeNextCost(def, owned))) return
 
   applyPurchase(state.player, upgradeId, modeDef)
 
@@ -569,10 +567,11 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 
       // Check correct resource and apply
       if (!modeDef) continue
-      const costResource = def.costCurrency ?? modeDef.scoreResource
-      const balance = reconciled.resources[costResource] ?? 0
-      if (balance >= def.cost) {
-        reconciled.resources[costResource] = balance - def.cost
+      const cost = getUpgradeNextCost(def, owned)
+      if (isCostAffordable(reconciled.resources, cost)) {
+        for (const [currency, amount] of Object.entries(cost)) {
+          reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
+        }
         grantUpgrade(reconciled, uid)
       }
     }

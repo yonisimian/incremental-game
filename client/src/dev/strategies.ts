@@ -6,7 +6,13 @@
  * producing a topological purchase ordering with highlight switches.
  */
 
-import { getModeDefinition, getPrerequisiteUpgradeIds, isPrerequisiteSatisfied } from '@game/shared'
+import {
+  getModeDefinition,
+  getPrerequisiteUpgradeIds,
+  getPrimaryCostCurrency,
+  getUpgradeCostTotal,
+  isPrerequisiteSatisfied,
+} from '@game/shared'
 import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -151,7 +157,7 @@ function topoSort(
   }
 
   // Sort by cost to get deterministic ordering for same-depth nodes
-  const sorted = [...subset].sort((a, b) => a.cost - b.cost)
+  const sorted = [...subset].sort((a, b) => getUpgradeCostTotal(a, 0) - getUpgradeCostTotal(b, 0))
   for (const u of sorted) {
     if (!visit(u)) return null
   }
@@ -164,12 +170,14 @@ function buildActions(ordered: UpgradeDefinition[], modeDef: ModeDefinition): St
   const actions: StrategyAction[] = []
 
   // Start with the highlight matching the first upgrade's currency
-  const firstCurrency = ordered[0]?.costCurrency ?? modeDef.scoreResource
+  const firstCurrency = ordered[0]
+    ? getPrimaryCostCurrency(ordered[0], modeDef.scoreResource)
+    : modeDef.scoreResource
   actions.push(hl(firstCurrency))
   let currentHighlight = firstCurrency
 
   for (const u of ordered) {
-    const currency = u.costCurrency ?? modeDef.scoreResource
+    const currency = getPrimaryCostCurrency(u, modeDef.scoreResource)
     if (currency !== currentHighlight) {
       actions.push(hl(currency))
       currentHighlight = currency

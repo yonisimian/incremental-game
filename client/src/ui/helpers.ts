@@ -1,8 +1,10 @@
 import type { ModeFlavor, UpgradeCategory, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
+  getResourceIcon,
   getUpgradeName,
   isChoiceGroupAvailable,
+  isCostAffordable,
   isMaxed,
   isPrerequisiteSatisfied,
   getUpgradeNextCost,
@@ -90,11 +92,17 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return false
   if (!state.mode) return false
-  const modeDef = getModeDefinition(state.mode)
-  const costResource = u.costCurrency ?? modeDef.scoreResource
-  const balance = state.player.resources[costResource] ?? 0
-  const next = getUpgradeNextCost(u, owned)
-  return balance >= next
+  return isCostAffordable(state.player.resources, getUpgradeNextCost(u, owned))
+}
+
+/** Render a cost map as a `"<amount> <icon>"` label, one entry per currency. */
+export function formatCostLabel(
+  cost: Readonly<Record<string, number>>,
+  flavor: ModeFlavor,
+): string {
+  return Object.entries(cost)
+    .map(([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`)
+    .join('  ')
 }
 
 /** Are this upgrade's prerequisites all owned? Empty / missing prereqs = always unlocked. */

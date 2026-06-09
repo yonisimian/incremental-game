@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { GameMode, Goal } from '@game/shared'
+import type { GameMode, Goal, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getModeDefinition } from '@game/shared'
 import { Match } from '../src/match.js'
 import { IdlerBot, createBot } from '../src/bot.js'
@@ -26,32 +26,28 @@ describe('Bot', () => {
   describe('IdlerBot', () => {
     // Synthetic upgrades. The bot's hardcoded base plan is uh(r0) → u1(r0);
     // u0/u2 are kept here only as trophy-chain prereqs for the buy-upgrade test.
-    const idlerUpgrades = [
+    const idlerUpgrades: UpgradeDefinition[] = [
       {
         id: 'uh' as const,
-        cost: 5,
-        costCurrency: 'r0' as const,
+        cost: { r0: 5 },
         purchaseLimit: 1,
         modifiers: [],
       },
       {
         id: 'u0' as const,
-        cost: 30,
-        costCurrency: 'r0' as const,
+        cost: { r0: 30 },
         purchaseLimit: 1,
         modifiers: [],
       },
       {
         id: 'u1' as const,
-        cost: 25,
-        costCurrency: 'r0' as const,
+        cost: { r0: 25 },
         purchaseLimit: 1,
         modifiers: [],
       },
       {
         id: 'u2' as const,
-        cost: 25,
-        costCurrency: 'r1' as const,
+        cost: { r1: 25 },
         purchaseLimit: 1,
         modifiers: [],
       },
@@ -136,8 +132,7 @@ describe('Bot', () => {
         ...idlerUpgrades,
         {
           id: 'u4' as const,
-          cost: 50,
-          costCurrency: 'r0' as const,
+          cost: { r0: 50 },
           purchaseLimit: 1,
           prerequisites: {
             type: 'all' as const,
@@ -151,8 +146,7 @@ describe('Bot', () => {
         },
         {
           id: 'u5' as const,
-          cost: 1000,
-          costCurrency: 'r0' as const,
+          cost: { r0: 1000 },
           purchaseLimit: 1,
           goalType: 'buy-upgrade' as const,
           prerequisites: { type: 'all' as const, items: [{ type: 'upgrade' as const, id: 'u4' }] },

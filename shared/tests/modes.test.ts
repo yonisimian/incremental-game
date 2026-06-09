@@ -52,13 +52,13 @@ describe('getAvailableUpgrades', () => {
   // Build a small synthetic mode so the test is independent of real mode tuning.
   const untagged: UpgradeDefinition = {
     id: 'untagged',
-    cost: 10,
+    cost: { r0: 10 },
     purchaseLimit: 1,
     modifiers: [],
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
-    cost: 100,
+    cost: { r0: 100 },
     purchaseLimit: 1,
     modifiers: [],
     goalType: 'buy-upgrade',
@@ -115,8 +115,7 @@ describe('collectModifiers', () => {
   it('scales unlimited upgrade modifiers by owned count', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uUnlim',
-      cost: 10,
-      costCurrency: 'r0',
+      cost: { r0: 10 },
       purchaseLimit: Infinity,
       modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
     }
@@ -151,7 +150,7 @@ describe('applyPurchase', () => {
     return createInitialState(def)
   }
 
-  it('deducts cost from costCurrency for idler upgrades', () => {
+  it('deducts cost from the cost-map currencies for idler upgrades', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r0 = 100
@@ -163,8 +162,7 @@ describe('applyPurchase', () => {
   it('increments count for unlimited upgrades', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uUnlim',
-      cost: 10,
-      costCurrency: 'r1',
+      cost: { r1: 10 },
       purchaseLimit: Infinity,
       modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
     }
@@ -186,8 +184,7 @@ describe('applyPurchase', () => {
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF1',
-      cost: 5,
-      costCurrency: 'r0',
+      cost: { r0: 5 },
       purchaseLimit: 3,
       modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
     }
@@ -209,8 +206,7 @@ describe('applyPurchase', () => {
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF2',
-      cost: 5,
-      costCurrency: 'r0',
+      cost: { r0: 5 },
       purchaseLimit: 2,
       modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
     }
@@ -247,8 +243,7 @@ describe('purchase timestamps (state.meta.purchasedAt)', () => {
   it('repeated purchase does not overwrite purchasedAt', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uRepeat',
-      cost: 10,
-      costCurrency: 'r0',
+      cost: { r0: 10 },
       purchaseLimit: Infinity,
       modifiers: [],
     }

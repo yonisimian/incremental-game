@@ -27,9 +27,8 @@ export interface UpgradePosition {
 /** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
-  readonly cost: number
-  /** Which resource pays for this upgrade. Falls back to mode's scoreResource if absent. */
-  readonly costCurrency?: string
+  /** Cost as a currency→amount map (e.g. `{ r0: 15 }` or `{ r0: 15, r1: 5 }`). */
+  readonly cost: Readonly<Record<string, number>>
   /** Optional dynamic cost scaling for repeatable upgrades. */
   readonly costScaling?:
     | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }

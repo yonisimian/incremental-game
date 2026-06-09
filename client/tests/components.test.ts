@@ -74,7 +74,7 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'far-node',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
           category: 'tree',
@@ -164,7 +164,7 @@ describe('renderUpgradeTree', () => {
       upgrades: [
         {
           id: 'src',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
           category: 'tree',
@@ -172,7 +172,7 @@ describe('renderUpgradeTree', () => {
         },
         {
           id: 'dst',
-          cost: 0,
+          cost: { r0: 0 },
           purchaseLimit: 1,
           modifiers: [],
           category: 'tree',

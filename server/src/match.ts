@@ -314,8 +314,7 @@ export class Match {
         }
         this.applyClick(player)
       } else if (action.type === 'buy' && action.upgradeId) {
-        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap, this.modeDef))
-          continue
+        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue
         this.applyPurchase(player, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, player)) break
       } else if (action.type === 'set_highlight' && action.highlight) {
@@ -364,8 +363,7 @@ export class Match {
         botPlayer.recentClickTimestamps.push(now)
         this.applyClick(botPlayer)
       } else if (action.type === 'buy') {
-        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap, this.modeDef))
-          continue
+        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap)) continue
         this.applyPurchase(botPlayer, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, botPlayer)) break
       } else {
