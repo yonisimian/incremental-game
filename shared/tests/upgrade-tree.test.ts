@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flattenUpgradeTree } from '../src/index.js'
+import { flattenUpgradeTree, getModeDefinition } from '../src/index.js'
 import type { UpgradeTreeNode } from '../src/index.js'
 
 function node(
@@ -93,5 +93,14 @@ describe('flattenUpgradeTree', () => {
 
   it('returns an empty array for no roots', () => {
     expect(flattenUpgradeTree([])).toEqual([])
+  })
+})
+
+describe('idler tree conversion (golden)', () => {
+  it('flattens to the prior absolute positions (no behavior change)', () => {
+    const positionById = new Map(getModeDefinition('idler').upgrades.map((u) => [u.id, u.position]))
+    expect(positionById.get('uh')).toEqual({ x: 0, y: 0 })
+    expect(positionById.get('u1')).toEqual({ x: 200, y: 0 })
+    expect(positionById.get('u5')).toEqual({ x: 600, y: 0 })
   })
 })

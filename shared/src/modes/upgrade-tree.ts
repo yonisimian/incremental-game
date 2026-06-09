@@ -25,6 +25,9 @@ const ORIGIN: UpgradePosition = { x: 0, y: 0 }
  * Each node's absolute `position` is resolved as `parentAbsolute + offset`,
  * recursing through `children`. Literal nested objects cannot cycle, so only
  * duplicate ids are checked (they would corrupt the flat id-keyed maps).
+ *
+ * Output is **pre-order** (each node precedes its descendants); consumers that
+ * care about array order should rely on this rather than authoring order.
  */
 export function flattenUpgradeTree(
   roots: readonly UpgradeTreeNode[],
