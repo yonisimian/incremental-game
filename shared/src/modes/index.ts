@@ -1,7 +1,6 @@
 import type { Modifier } from '../modifiers/types.js'
 import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition } from './types.js'
-import { clickerMode } from './clicker.js'
 import { idlerMode } from './idler.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
@@ -55,7 +54,6 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 // ─── Registry ────────────────────────────────────────────────────────
 
 const MODE_REGISTRY: Record<GameMode, ModeDefinition> = {
-  clicker: clickerMode,
   idler: idlerMode,
 }
 

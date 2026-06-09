@@ -12,8 +12,8 @@ export type PrerequisiteExpression =
 
 export type UpgradePrerequisites = PrerequisiteExpression
 
-/** Available game modes. */
-export type GameMode = 'clicker' | 'idler'
+/** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap (D1). */
+export type GameMode = 'idler'
 
 /** Which panel hosts an upgrade. */
 export type UpgradeCategory = 'play' | 'tree'

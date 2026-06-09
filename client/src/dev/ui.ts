@@ -27,7 +27,6 @@ let lastResults: SimResult[] = []
 
 const STRATEGIES: Record<string, readonly Strategy[]> = {
   idler: IDLER_STRATEGIES,
-  // clicker: [] — future
 }
 
 // ─── Envelope registry per mode + goal type ──────────────────────────

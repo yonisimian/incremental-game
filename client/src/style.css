@@ -845,78 +845,7 @@ body {
   font-size: 2rem;
 }
 
-/* Click button */
-
-.click-button {
-  width: 160px;
-  min-width: 80px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 3px solid var(--accent);
-  background: var(--surface);
-  color: var(--accent);
-  font-size: 1.4rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-  touch-action: manipulation;
-  clip-path: circle(50%);
-}
-
-/* Tab focus outlines disabled globally — see Reset & Base */
-
-.click-button:active {
-  background: var(--accent);
-  color: var(--bg);
-}
-
-.btn-hotkey {
-  display: block;
-  margin: 0.4rem auto 0;
-  font-size: 0.6rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
-  box-shadow: 0 1px 0 var(--border);
-  width: fit-content;
-}
-
 /* Upgrades */
-
-.upgrades-wrapper {
-  width: 100%;
-}
-
-.upgrades-header {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 0.3rem;
-}
-
-.upgrades-hotkey {
-  font-size: 0.65rem;
-  color: var(--text-dim);
-}
-
-.upgrades-hotkey .btn-hotkey {
-  display: inline;
-  margin: 0;
-}
-
-.upgrades {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-}
 
 .upgrade-btn {
   position: relative;
@@ -945,46 +874,9 @@ body {
   opacity: 0.5;
 }
 
-.upgrade-name {
-  font-weight: 600;
-  flex: 1;
-}
-
-.upgrade-hotkey {
-  position: absolute;
-  right: 0.4rem;
-  bottom: 0.3rem;
-  font-size: 0.6rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
-  box-shadow: 0 1px 0 var(--border);
-}
-
-.upgrade-cost {
-  font-weight: 700;
-  color: var(--gold);
-  min-width: 3ch;
-  text-align: right;
-}
-
-.upgrade-desc {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  display: none;
-}
-
 /* Hide keyboard hints on touch devices (no physical keyboard) */
 @media (pointer: coarse) {
-  .btn-hotkey,
-  .cards-hotkey,
-  .upgrades-hotkey,
-  .upgrade-hotkey {
+  .cards-hotkey {
     display: none;
   }
 }
@@ -993,10 +885,6 @@ body {
 @media (min-width: 400px) {
   .upgrade-btn {
     flex-wrap: wrap;
-  }
-  .upgrade-desc {
-    display: block;
-    width: 100%;
   }
 }
 
@@ -1497,9 +1385,6 @@ body {
 
 /* ─── Theme Scaffolding ─────────────────────────────────────────────── */
 /* Scoped per-theme overrides. Add theme-specific rules here. */
-.theme-clicker {
-  /* clicker mode */
-}
 .theme-medieval {
   /* idler mode */
 }

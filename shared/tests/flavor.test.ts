@@ -14,7 +14,7 @@ import {
 
 // ─── Positive: real modes pass validation ────────────────────────────
 
-const MODES: GameMode[] = ['clicker', 'idler']
+const MODES: GameMode[] = ['idler']
 
 for (const mode of MODES) {
   const def = getModeDefinition(mode)

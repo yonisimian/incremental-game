@@ -325,7 +325,7 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
   notify()
 }
 
-/** Record a click action (optimistic). Clicker mode only. */
+/** Record a click action (optimistic). Only active when the mode enables clicks. */
 export function doClick(): void {
   if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return

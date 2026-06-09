@@ -13,13 +13,6 @@ import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../sr
 // ─── getModeDefinition ───────────────────────────────────────────────
 
 describe('getModeDefinition', () => {
-  it('returns the clicker mode definition', () => {
-    const def = getModeDefinition('clicker')
-    expect(def.resources).toEqual(['r0'])
-    expect(def.scoreResource).toBe('r0')
-    expect(def.clicksEnabled).toBe(true)
-  })
-
   it('returns the idler mode definition', () => {
     const def = getModeDefinition('idler')
     expect(def.resources).toEqual(['r0', 'r1'])
@@ -31,11 +24,6 @@ describe('getModeDefinition', () => {
 // ─── getDefaultGoal ──────────────────────────────────────────────────
 
 describe('getDefaultGoal', () => {
-  it('returns the first goal for clicker', () => {
-    const goal = getDefaultGoal('clicker')
-    expect(goal.type).toBe('timed')
-  })
-
   it('returns the first goal for idler', () => {
     const goal = getDefaultGoal('idler')
     expect(goal.type).toBe('buy-upgrade')
@@ -45,20 +33,17 @@ describe('getDefaultGoal', () => {
 // ─── Mode goal & trophy coverage ─────────────────────────────────────
 
 describe('mode goals', () => {
-  it.each(['clicker', 'idler'] as const)('%s mode has all three goal types', (mode) => {
+  it.each(['idler'] as const)('%s mode has all three goal types', (mode) => {
     const types = getModeDefinition(mode)
       .goals.map((g) => g.type)
       .sort()
     expect(types).toEqual(['buy-upgrade', 'target-score', 'timed'])
   })
 
-  it.each(['clicker', 'idler'] as const)(
-    '%s mode has exactly one upgrade tagged for buy-upgrade',
-    (mode) => {
-      const tagged = getModeDefinition(mode).upgrades.filter((u) => u.goalType === 'buy-upgrade')
-      expect(tagged).toHaveLength(1)
-    },
-  )
+  it.each(['idler'] as const)('%s mode has exactly one upgrade tagged for buy-upgrade', (mode) => {
+    const tagged = getModeDefinition(mode).upgrades.filter((u) => u.goalType === 'buy-upgrade')
+    expect(tagged).toHaveLength(1)
+  })
 })
 
 // ─── getAvailableUpgrades ────────────────────────────────────────────
@@ -105,18 +90,6 @@ describe('getAvailableUpgrades', () => {
 // ─── createInitialState ──────────────────────────────────────────────
 
 describe('createInitialState', () => {
-  it('creates fresh clicker state', () => {
-    const def = getModeDefinition('clicker')
-    const state = createInitialState(def)
-    expect(state.score).toBe(0)
-    expect(state.resources).toEqual({ r0: 0 })
-    expect(state.meta).toEqual({})
-    // All upgrades initialized to 0
-    for (const u of def.upgrades) {
-      expect(state.upgrades[u.id]).toBe(0)
-    }
-  })
-
   it('creates fresh idler state with highlight meta', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
@@ -126,49 +99,19 @@ describe('createInitialState', () => {
   })
 
   it('returns independent copies (no shared references)', () => {
-    const def = getModeDefinition('clicker')
+    const def = getModeDefinition('idler')
     const a = createInitialState(def)
     const b = createInitialState(def)
     a.resources.r0 = 999
-    a.upgrades.u0 = 1
+    a.upgrades.uh = 1
     expect(b.resources.r0).toBe(0)
-    expect(b.upgrades.u0).toBe(0)
+    expect(b.upgrades.uh).toBe(0)
   })
 })
 
 // ─── collectModifiers ────────────────────────────────────────────────
 
 describe('collectModifiers', () => {
-  it('includes native modifiers for clicker', () => {
-    const def = getModeDefinition('clicker')
-    const state = createInitialState(def)
-    const mods = collectModifiers(state, def)
-    // Should at least include the base clickIncome modifier
-    expect(mods.some((m) => m.field === 'clickIncome')).toBe(true)
-  })
-
-  it('includes upgrade modifiers when owned', () => {
-    const def = getModeDefinition('clicker')
-    const state = createInitialState(def)
-    state.upgrades.u0 = 1
-    const mods = collectModifiers(state, def)
-    // u0 (double-click) adds +1 clickIncome
-    expect(
-      mods.some((m) => m.field === 'clickIncome' && m.value === 1 && m.stage === 'additive'),
-    ).toBe(true)
-  })
-
-  it('does not include unowned upgrade modifiers', () => {
-    const def = getModeDefinition('clicker')
-    const state = createInitialState(def)
-    const mods = collectModifiers(state, def)
-    // clickIncome comes from native modifiers, but no extra additive clickIncome without u0
-    const additiveClickIncome = mods.filter(
-      (m) => m.field === 'clickIncome' && m.stage === 'additive' && m.value > 1,
-    )
-    expect(additiveClickIncome).toHaveLength(0)
-  })
-
   it('scales unlimited upgrade modifiers by owned count', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uUnlim',
@@ -207,15 +150,6 @@ describe('applyPurchase', () => {
   function makeState(def: ModeDefinition): PlayerState {
     return createInitialState(def)
   }
-
-  it('deducts cost from scoreResource for clicker upgrades', () => {
-    const def = getModeDefinition('clicker')
-    const state = makeState(def)
-    state.resources.r0 = 50
-    applyPurchase(state, 'u0', def) // costs 25
-    expect(state.resources.r0).toBe(25)
-    expect(state.upgrades.u0).toBe(1)
-  })
 
   it('deducts cost from costCurrency for idler upgrades', () => {
     const def = getModeDefinition('idler')
@@ -288,7 +222,7 @@ describe('applyPurchase', () => {
   })
 
   it('does nothing for unknown upgrade ID', () => {
-    const def = getModeDefinition('clicker')
+    const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r0 = 999
     applyPurchase(state, 'bogus', def)

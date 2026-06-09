@@ -24,7 +24,6 @@ const IGNORED_UNUSED = new Set([
   '2s',
   '15s',
   // Theme classes injected dynamically from shared mode flavor data
-  'theme-clicker',
   'theme-medieval',
   // Classes injected from dynamic server/shared state values
   'draw', // end.winner value

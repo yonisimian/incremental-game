@@ -161,26 +161,26 @@ describe('rooms', () => {
 
   it('allows the creator to update room settings', () => {
     createRoom(player('p1'), noop)
-    const res = updateRoomSettings('p1', { mode: 'clicker' })
+    const res = updateRoomSettings('p1', { mode: 'idler' })
     expect(res.ok).toBe(true)
     if (!res.ok) return
-    expect(res.settings.mode).toBe('clicker')
+    expect(res.settings.mode).toBe('idler')
   })
 
   it('rejects settings update from non-creator', () => {
-    const res = updateRoomSettings('ghost', { mode: 'clicker' })
+    const res = updateRoomSettings('ghost', { mode: 'idler' })
     expect(res.ok).toBe(false)
   })
 
   it('resets goal when mode changes and goal is incompatible', () => {
     createRoom(player('p1'), noop)
-    // Change to clicker — goal should auto-reset if the current goal is
-    // not valid for clicker.
-    const res = updateRoomSettings('p1', { mode: 'clicker' })
+    // Change to idler — goal should auto-reset if the current goal is
+    // not valid for idler.
+    const res = updateRoomSettings('p1', { mode: 'idler' })
     expect(res.ok).toBe(true)
     if (!res.ok) return
-    // Result should have a valid goal for clicker mode
-    expect(res.settings.mode).toBe('clicker')
+    // Result should have a valid goal for idler mode
+    expect(res.settings.mode).toBe('idler')
     expect(res.settings.goal).toBeDefined()
   })
 

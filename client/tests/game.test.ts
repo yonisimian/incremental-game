@@ -33,14 +33,13 @@ async function loadGame(): Promise<GameModule> {
 
 const defaultTimedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
 
-const clickerDef = getModeDefinition('clicker')
 const idlerDef = getModeDefinition('idler')
 
 function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartMessage {
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
-    config: { mode: 'clicker', goal: defaultTimedGoal, upgrades: [...clickerDef.upgrades] },
+    config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
     opponentName: '',
     vsBot: false,
     serverTime: Date.now(),
@@ -49,7 +48,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
 }
 
 const defaultUpgrades: Record<string, number> = {
-  u0: 0,
+  uh: 0,
   u1: 0,
 }
 
@@ -166,7 +165,7 @@ describe('game.ts', () => {
       game.handleServerMessage(makeRoundStart({ matchId: 'm-123' }))
       const s = game.getState()
       expect(s.matchId).toBe('m-123')
-      expect(s.upgrades.length).toBe(clickerDef.upgrades.length)
+      expect(s.upgrades.length).toBe(idlerDef.upgrades.length)
     })
 
     it('counts down from COUNTDOWN_SEC to playing', () => {
@@ -187,24 +186,6 @@ describe('game.ts', () => {
   // ── Clicks (optimistic) ──────────────────────────────────────────
 
   describe('doClick', () => {
-    it('increments score and r0 by 1', () => {
-      enterPlaying(game)
-      game.doClick()
-
-      const s = game.getState()
-      expect(s.player.score).toBe(1)
-      expect(s.player.resources.r0).toBe(1)
-    })
-
-    it('accumulates multiple clicks', () => {
-      enterPlaying(game)
-      game.doClick()
-      game.doClick()
-      game.doClick()
-
-      expect(game.getState().player.score).toBe(3)
-    })
-
     it('is a no-op outside playing screen', () => {
       // Still on 'lobby'
       game.doClick()
@@ -212,65 +193,20 @@ describe('game.ts', () => {
     })
 
     it('is a no-op in idler mode', () => {
-      game.handleServerMessage(
-        makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [] },
-        }),
-      )
-      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      enterIdlerPlaying(game)
       expect(game.getState().screen).toBe('playing')
 
       game.doClick()
       expect(game.getState().player.score).toBe(0)
-    })
-
-    it('notifies the state change handler', () => {
-      enterPlaying(game)
-      const spy = vi.fn()
-      game.setStateChangeHandler(spy)
-      spy.mockClear()
-
-      game.doClick()
-      expect(spy).toHaveBeenCalledOnce()
     })
   })
 
   // ── Purchases (optimistic) ───────────────────────────────────────
 
   describe('doBuy', () => {
-    it('deducts r0 and grants upgrade', () => {
-      enterPlaying(game)
-      // u0 costs 25 — earn enough
-      for (let i = 0; i < 25; i++) game.doClick()
-
-      game.doBuy('u0')
-      const s = game.getState()
-      expect(s.player.upgrades.u0).toBe(1)
-      expect(s.player.resources.r0).toBe(0)
-      expect(s.player.score).toBe(25) // score unchanged by purchase
-    })
-
-    it('rejects if not enough r0', () => {
-      enterPlaying(game)
-      game.doClick() // 1 r0
-
-      game.doBuy('u0') // costs 25
-      expect(game.getState().player.upgrades.u0).toBe(0)
-      expect(game.getState().player.resources.r0).toBe(1)
-    })
-
-    it('rejects a duplicate purchase', () => {
-      enterPlaying(game)
-      for (let i = 0; i < 50; i++) game.doClick()
-
-      game.doBuy('u0') // costs 25
-      game.doBuy('u0') // duplicate
-      expect(game.getState().player.resources.r0).toBe(25) // 50 − 25, not 50 − 50
-    })
-
     it('is a no-op outside playing screen', () => {
-      game.doBuy('u0')
-      expect(game.getState().player.upgrades.u0).toBeUndefined()
+      game.doBuy('u1')
+      expect(game.getState().player.upgrades.u1).toBeUndefined()
     })
   })
 
@@ -311,42 +247,6 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Upgrade effects on click income ──────────────────────────────
-
-  describe('upgrade effects on clicks', () => {
-    it('u0 gives +2 per click', () => {
-      enterPlaying(game)
-      for (let i = 0; i < 25; i++) game.doClick()
-      game.doBuy('u0') // costs 25
-
-      const before = game.getState().player.score
-      game.doClick()
-      expect(game.getState().player.score - before).toBe(2)
-    })
-
-    it('u1 doubles click income', () => {
-      enterPlaying(game)
-      for (let i = 0; i < 100; i++) game.doClick()
-      game.doBuy('u1') // costs 100
-
-      const before = game.getState().player.score
-      game.doClick()
-      expect(game.getState().player.score - before).toBe(2) // 1 * 2
-    })
-
-    it('u0 + u1 gives +4 per click', () => {
-      enterPlaying(game)
-      // earn 125 r0 (25 + 100)
-      for (let i = 0; i < 125; i++) game.doClick()
-      game.doBuy('u0')
-      game.doBuy('u1')
-
-      const before = game.getState().player.score
-      game.doClick()
-      expect(game.getState().player.score - before).toBe(4) // 2 * 2
-    })
-  })
-
   // ── STATE_UPDATE reconciliation ──────────────────────────────────
 
   describe('STATE_UPDATE', () => {
@@ -379,44 +279,31 @@ describe('game.ts', () => {
       expect(s.timeLeft).toBe(50)
     })
 
-    it('replays unacked clicks on top of server state', () => {
-      enterPlaying(game)
-      // 3 optimistic clicks → score=3, currency=3
-      game.doClick()
-      game.doClick()
-      game.doClick()
-
-      // Server acks 0 of them (ackSeq=0), server sees score=0
+    it('drops acknowledged batches', () => {
+      enterIdlerPlaying(game)
+      // Give currency and make an optimistic purchase
       game.handleServerMessage(
         makeStateUpdate({
           ackSeq: 0,
           player: {
-            score: 0,
-            resources: { r0: 0 },
+            score: 50,
+            resources: { r0: 50 },
             upgrades: { ...defaultUpgrades },
             generators: {},
             meta: {},
           },
         }),
       )
+      game.doBuy('u1') // costs 25, optimistic
 
-      // Reconciled: server(0) + 3 pending clicks = 3
-      expect(game.getState().player.score).toBe(3)
-    })
-
-    it('drops acknowledged batches', () => {
-      enterPlaying(game)
-      game.doClick()
-      game.doClick()
-
-      // Server acks all pending batches and reports score=2
+      // Server acks all pending batches and reports the post-purchase state
       game.handleServerMessage(
         makeStateUpdate({
           ackSeq: 999, // acks everything
           player: {
-            score: 2,
-            resources: { r0: 2 },
-            upgrades: { ...defaultUpgrades },
+            score: 50,
+            resources: { r0: 25 },
+            upgrades: { ...defaultUpgrades, u1: 1 },
             generators: {},
             meta: {},
           },
@@ -424,7 +311,8 @@ describe('game.ts', () => {
       )
 
       // No pending → adopts server state exactly
-      expect(game.getState().player.score).toBe(2)
+      expect(game.getState().player.resources.r0).toBe(25)
+      expect(game.getState().player.upgrades.u1).toBe(1)
     })
 
     it('replays unacked purchases on top of server state', () => {
@@ -444,9 +332,9 @@ describe('game.ts', () => {
         }),
       )
 
-      // Buy u0 (costs 25) — optimistic
-      game.doBuy('u0')
-      expect(game.getState().player.upgrades.u0).toBe(1)
+      // Buy u1 (costs 25) — optimistic
+      game.doBuy('u1')
+      expect(game.getState().player.upgrades.u1).toBe(1)
       expect(game.getState().player.resources.r0).toBe(25)
 
       // Server sends update that hasn't seen the buy yet (ackSeq=0)
@@ -464,7 +352,7 @@ describe('game.ts', () => {
       )
 
       // Pending purchase should be replayed on top of server state
-      expect(game.getState().player.upgrades.u0).toBe(1)
+      expect(game.getState().player.upgrades.u1).toBe(1)
       expect(game.getState().player.resources.r0).toBe(30) // 55 - 25
     })
 
@@ -538,7 +426,17 @@ describe('game.ts', () => {
   describe('resetForMatch', () => {
     it('resets to lobby screen with clean state', () => {
       enterPlaying(game)
-      game.doClick()
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 10,
+            resources: { r0: 10 },
+            upgrades: { ...defaultUpgrades },
+            generators: {},
+            meta: {},
+          },
+        }),
+      )
       game.resetForMatch()
 
       const s = game.getState()
@@ -659,12 +557,6 @@ describe('game.ts', () => {
       expect(game.getState().player.meta.highlight).toBe('r1')
     })
 
-    it('is a no-op in clicker mode', () => {
-      enterPlaying(game)
-      game.setHighlight('r1')
-      expect(game.getState().player.meta.highlight).toBeUndefined()
-    })
-
     it('is a no-op outside playing screen', () => {
       game.setHighlight('ale')
       expect(game.getState().screen).toBe('lobby')
@@ -685,12 +577,6 @@ describe('game.ts', () => {
       unlockHighlight(game)
       game.setHighlight('bogus')
       expect(game.getState().player.meta.highlight).toBe('r0') // unchanged
-    })
-
-    it('rejects a valid resource when mode has no highlight', () => {
-      enterPlaying(game) // clicker mode
-      game.setHighlight('r0') // valid resource for clicker, but mode has no highlight
-      expect(game.getState().player.meta.highlight).toBeUndefined()
     })
   })
 

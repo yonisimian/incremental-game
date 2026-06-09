@@ -12,12 +12,6 @@ import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
 import { type UpgradeCategory, getModeDefinition, isHighlightActive } from '@game/shared'
 
-/**
- * Set to true while the hotkey handler is processing a Space press.
- * The click-button listener checks this to avoid double-firing doClick().
- */
-export let handledByHotkey = false
-
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
   // Block Tab from cycling focus on all screens — this is a game, not a form.
@@ -99,10 +93,6 @@ export function initHotkeys(): void {
     if (e.key === ' ' || e.code === 'Space') {
       if (inTabGrid || !modeDef.clicksEnabled) return
       e.preventDefault() // prevent page scroll
-      handledByHotkey = true
-      setTimeout(() => {
-        handledByHotkey = false
-      }, 200)
       doClick()
       return
     }

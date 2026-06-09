@@ -102,6 +102,19 @@ export class Match {
     return [this.players[0].id, this.players[1].id]
   }
 
+  /**
+   * Test-only seam: add to a player's resource balances. Used by tests to set up
+   * scenarios that are impractical to reach through passive income alone (e.g.
+   * affording the high-cost buy-upgrade trophy). Not used by production paths.
+   */
+  grantResourcesForTest(playerId: string, resources: Record<string, number>): void {
+    const player = this.players.find((p) => p.id === playerId)
+    if (!player) return
+    for (const [res, amount] of Object.entries(resources)) {
+      player.state.resources[res] = (player.state.resources[res] ?? 0) + amount
+    }
+  }
+
   /** Send ROUND_START to both, then begin the game loop after countdown. */
   start(): void {
     const config = {

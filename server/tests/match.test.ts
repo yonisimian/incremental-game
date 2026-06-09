@@ -1,11 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
 import type { Goal } from '@game/shared'
-import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, MAX_CPS, ROUND_DURATION_SEC } from '@game/shared'
+import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
 import { Match } from '../src/match.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
 
 // ─── Tests ───────────────────────────────────────────────────────────
+
+const TIMED_GOAL: Goal = {
+  type: 'timed',
+  label: '⏱ Timed',
+  durationSec: ROUND_DURATION_SEC,
+}
 
 describe('Match', () => {
   let ws1: WebSocket
@@ -24,7 +30,7 @@ describe('Match', () => {
   // ── Factory helpers ──────────────────────────────────────────────
 
   function createMatch() {
-    return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker')
+    return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', TIMED_GOAL)
   }
 
   function startMatch() {
@@ -42,7 +48,7 @@ describe('Match', () => {
 
   /** Create a bot match (pause is bot-only) and advance into the playing phase. */
   function enterPlayingVsBot() {
-    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'clicker', undefined, {
+    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'idler', TIMED_GOAL, {
       decide: () => [],
     })
     m.start()
@@ -75,21 +81,15 @@ describe('Match', () => {
   }
 
   /**
-   * Send `n` clicks for a player, spreading across time to stay
-   * within the rate limit. Returns the next available sequence number.
+   * Give a player a scoring lead. Both players earn symmetric passive income, so
+   * we grant the player the highlight unlock (uh → ×2 on the score resource r0)
+   * so it out-produces the other over time. Resources are granted via the test
+   * seam so the purchase is affordable immediately; advance time afterwards for
+   * the lead to materialize.
    */
-  function earnCurrency(match: Match, playerId: string, n: number, startSeq = 1): number {
-    let seq = startSeq
-    let remaining = n
-    while (remaining > 0) {
-      const batch = Math.min(remaining, MAX_CPS)
-      for (let i = 0; i < batch; i++) {
-        match.handleMessage(playerId, clickMsg(seq++))
-      }
-      remaining -= batch
-      if (remaining > 0) vi.advanceTimersByTime(1001)
-    }
-    return seq
+  function giveLead(match: Match, playerId: 'p1' | 'p2') {
+    match.grantResourcesForTest(playerId, { r0: 5 }) // afford uh (cost 5)
+    match.handleMessage(playerId, buyMsg('uh', 1))
   }
 
   // ── Creation ─────────────────────────────────────────────────────
@@ -130,11 +130,11 @@ describe('Match', () => {
 
     it('ignores actions during countdown', () => {
       const m = startMatch()
-      m.handleMessage('p1', clickMsg(1))
-      // Advance past countdown + broadcast
+      m.grantResourcesForTest('p1', { r0: 100 }) // afford uh, isolating the phase gate
+      m.handleMessage('p1', buyMsg('uh', 1)) // sent during countdown — must be ignored
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000 + BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.score).toBe(0)
+      expect(u.player.upgrades.uh).toBe(0)
     })
 
     it('pauses and resumes the round timer', () => {
@@ -170,128 +170,19 @@ describe('Match', () => {
     })
   })
 
-  // ── Click actions ────────────────────────────────────────────────
-
-  describe('click actions', () => {
-    it('awards +1 score and +1 r0 per click', () => {
-      const m = enterPlaying()
-      m.handleMessage('p1', clickMsg(1))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
-      const u = latestUpdate(ws1)
-      expect(u.player.score).toBe(1)
-      expect(u.player.resources.r0).toBe(1)
-    })
-
-    it('rejects clicks beyond the rate limit', () => {
-      const m = enterPlaying()
-      for (let i = 1; i <= MAX_CPS + 5; i++) {
-        m.handleMessage('p1', clickMsg(i))
-      }
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
-      const u = latestUpdate(ws1)
-      expect(u.player.score).toBe(MAX_CPS)
-    })
-  })
-
-  // ── Purchases ────────────────────────────────────────────────────
-
-  describe('purchases', () => {
-    it('deducts r0 and grants the upgrade', () => {
-      const m = enterPlaying()
-      // u0 costs 25, no passive income side-effect
-      const seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage('p1', buyMsg('u0', seq))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
-      const u = latestUpdate(ws1)
-      expect(u.player.upgrades.u0).toBe(1)
-      expect(u.player.resources.r0).toBe(0)
-      expect(u.player.score).toBe(25) // score unaffected by purchase
-    })
-
-    it('rejects an unaffordable purchase', () => {
-      const m = enterPlaying()
-      m.handleMessage('p1', clickMsg(1)) // earn 1
-      m.handleMessage('p1', buyMsg('u0', 2)) // costs 25
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
-      const u = latestUpdate(ws1)
-      expect(u.player.upgrades.u0).toBe(0)
-      expect(u.player.resources.r0).toBe(1)
-    })
-
-    it('rejects a duplicate purchase', () => {
-      const m = enterPlaying()
-      // u0 costs 25; earn 50 to prove only 25 is deducted
-      let seq = earnCurrency(m, 'p1', 50)
-      m.handleMessage('p1', buyMsg('u0', seq++))
-      m.handleMessage('p1', buyMsg('u0', seq))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
-      const u = latestUpdate(ws1)
-      expect(u.player.upgrades.u0).toBe(1)
-      expect(u.player.resources.r0).toBe(25) // 50 − 25, not 50 − 50
-    })
-  })
-
-  // ── Upgrade effects ──────────────────────────────────────────────
-
-  describe('upgrade effects', () => {
-    it('auto-generators add passive income each tick', () => {
-      const m = enterPlaying()
-      // Use generators for passive income: buy a g0 (costs 15, produces 0.5 r0/sec)
-      const seq = earnCurrency(m, 'p1', 15)
-      m.handleMessage(
-        'p1',
-        JSON.stringify({
-          type: 'ACTION_BATCH',
-          seq,
-          actions: [{ type: 'buy_generator', timestamp: Date.now(), generatorId: 'g0' }],
-        }),
-      )
-
-      // Snapshot after purchase
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      const scoreBefore = latestUpdate(ws1).player.score
-
-      // Advance exactly 1 second (4 ticks × 250ms) → +0.5 from cursor
-      vi.advanceTimersByTime(1000)
-      const scoreAfter = latestUpdate(ws1).player.score
-
-      expect(scoreAfter - scoreBefore).toBeCloseTo(0.5, 1)
-    })
-
-    it('u0 gives +2 per click', () => {
-      const m = enterPlaying()
-      let seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage('p1', buyMsg('u0', seq++))
-
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      const scoreBefore = latestUpdate(ws1).player.score
-
-      // Advance past rate-limit window, then click
-      vi.advanceTimersByTime(1001)
-      m.handleMessage('p1', clickMsg(seq))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      const scoreAfter = latestUpdate(ws1).player.score
-
-      expect(scoreAfter - scoreBefore).toBe(2)
-    })
-  })
-
   // ── Broadcasting ─────────────────────────────────────────────────
 
   describe('broadcasting', () => {
     it('includes opponent state in updates', () => {
       const m = enterPlaying()
-      m.handleMessage('p1', clickMsg(1))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      giveLead(m, 'p1') // p1 out-produces p2 so the two views are distinguishable
+      vi.advanceTimersByTime(2000)
 
+      const u1 = latestUpdate(ws1)
       const u2 = latestUpdate(ws2)
-      expect(u2.opponent.score).toBe(1) // p2 sees p1's score
-      expect(u2.player.score).toBe(0) // p2 hasn't clicked
+      // p2's view of its opponent mirrors p1's own score, and p1 leads
+      expect(u2.opponent.score).toBeCloseTo(u1.player.score, 5)
+      expect(u2.opponent.score).toBeGreaterThan(u2.player.score)
     })
   })
 
@@ -300,7 +191,7 @@ describe('Match', () => {
   describe('round end', () => {
     it('sends ROUND_END with correct winner after timeout', () => {
       const m = enterPlaying()
-      m.handleMessage('p1', clickMsg(1)) // p1 = 1, p2 = 0
+      giveLead(m, 'p1') // p1 out-produces p2 over the round
       vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
@@ -365,17 +256,19 @@ describe('Match', () => {
   describe('edge cases', () => {
     it('ignores malformed JSON', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', { r0: 100 })
       m.handleMessage('p1', 'not json{{{')
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      expect(latestUpdate(ws1).player.score).toBe(0)
+      // Message dropped: no upgrade purchased, no crash
+      expect(latestUpdate(ws1).player.upgrades.uh).toBe(0)
     })
 
     it('ignores messages from unknown player IDs', () => {
       const m = enterPlaying()
-      m.handleMessage('unknown', clickMsg(1))
+      m.handleMessage('unknown', buyMsg('uh', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      expect(latestUpdate(ws1).player.score).toBe(0)
-      expect(latestUpdate(ws2).player.score).toBe(0)
+      expect(latestUpdate(ws1).player.upgrades.uh).toBe(0)
+      expect(latestUpdate(ws2).player.upgrades.uh).toBe(0)
     })
   })
 
@@ -400,15 +293,16 @@ describe('Match', () => {
 
     it('includes correct final scores for both players', () => {
       const m = enterPlaying()
-      m.handleMessage('p1', clickMsg(1)) // p1 earns 1
+      giveLead(m, 'p1') // p1 builds a score lead
+      vi.advanceTimersByTime(2000)
       m.handleMessage('p1', quitMsg())
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
-      expect(p1End.finalScores.player).toBe(1)
-      expect(p1End.finalScores.opponent).toBe(0)
-      expect(p2End.finalScores.player).toBe(0)
-      expect(p2End.finalScores.opponent).toBe(1)
+      // Scores mirror across the two players' views, with p1 ahead
+      expect(p1End.finalScores.player).toBeGreaterThan(p1End.finalScores.opponent)
+      expect(p1End.finalScores.player).toBe(p2End.finalScores.opponent)
+      expect(p1End.finalScores.opponent).toBe(p2End.finalScores.player)
     })
 
     it('allows quitting during countdown', () => {
@@ -599,7 +493,7 @@ describe('Match', () => {
     }
 
     function createTargetMatch() {
-      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', targetGoal)
+      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', targetGoal)
     }
 
     function startTargetMatch() {
@@ -614,17 +508,32 @@ describe('Match', () => {
       return m
     }
 
+    // A target far above any passive income within the safety cap, so the
+    // safety-cap path can be exercised without the target being reached first.
+    const highTargetGoal: Goal = {
+      type: 'target-score',
+      label: '🎯 Race to Score',
+      target: 100_000,
+      safetyCapSec: 300,
+    }
+
+    function enterHighTargetPlaying() {
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', highTargetGoal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      return m
+    }
+
     it('sends goal in ROUND_START config', () => {
       startTargetMatch()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       expect(msg.config.goal).toEqual(targetGoal)
     })
 
-    it('ends immediately when a player reaches the target score', () => {
+    it('ends when a player reaches the target score', () => {
       const m = enterTargetPlaying()
-      // Earn exactly 50 clicks (target)
-      earnCurrency(m, 'p1', 50)
-      // Match should auto-end after score check
+      giveLead(m, 'p1') // p1 produces 2/sec, p2 1/sec
+      vi.advanceTimersByTime(26_000) // p1 crosses 50 before p2
       const p1End = sentOfType(ws1, 'ROUND_END')
       expect(p1End).toHaveLength(1)
       expect(p1End[0].winner).toBe('player')
@@ -633,7 +542,8 @@ describe('Match', () => {
 
     it('declares the first player to hit the target as winner', () => {
       const m = enterTargetPlaying()
-      earnCurrency(m, 'p2', 50)
+      giveLead(m, 'p2') // p2 produces 2/sec, p1 1/sec
+      vi.advanceTimersByTime(26_000) // p2 crosses 50 before p1
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
@@ -643,29 +553,28 @@ describe('Match', () => {
 
     it('does not end before target is reached', () => {
       const m = enterTargetPlaying()
-      earnCurrency(m, 'p1', 49) // one short
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      giveLead(m, 'p1') // p1 produces 2/sec
+      vi.advanceTimersByTime(24_000) // p1 ~48, still under target 50
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(0)
 
-      // Now hit the target
-      m.handleMessage('p1', clickMsg(100))
+      // Cross the target
+      vi.advanceTimersByTime(2_000)
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
     })
 
     it('ends with safety-cap reason when time expires without reaching target', () => {
-      enterTargetPlaying()
-      // Don't click at all — let safety cap expire
-      vi.advanceTimersByTime(targetGoal.safetyCapSec * 1000)
+      enterHighTargetPlaying() // target unreachable via passive income
+      vi.advanceTimersByTime(highTargetGoal.safetyCapSec * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       expect(p1End.reason).toBe('safety-cap')
-      expect(p1End.winner).toBe('draw') // both 0
+      expect(p1End.winner).toBe('draw') // symmetric passive income
     })
 
     it('safety-cap picks higher score as winner', () => {
-      const m = enterTargetPlaying()
-      m.handleMessage('p1', clickMsg(1)) // p1 = 1, p2 = 0
-      vi.advanceTimersByTime(targetGoal.safetyCapSec * 1000)
+      const m = enterHighTargetPlaying() // target unreachable via passive income
+      giveLead(m, 'p1') // p1 out-produces p2
+      vi.advanceTimersByTime(highTargetGoal.safetyCapSec * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       expect(p1End.reason).toBe('safety-cap')
@@ -680,32 +589,6 @@ describe('Match', () => {
       expect(u.timeLeft).toBeGreaterThan(280)
       expect(u.timeLeft).toBeLessThan(300)
     })
-
-    it('passive income can trigger target-score end', () => {
-      const lowTargetGoal: Goal = {
-        type: 'target-score',
-        label: '🎯 Race to Score',
-        target: 5,
-        safetyCapSec: 300,
-      }
-      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', lowTargetGoal)
-      m.start()
-      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
-
-      // Buy double-click (costs 25, earn 25 first)
-      const seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage(
-        'p1',
-        JSON.stringify({
-          type: 'ACTION_BATCH',
-          seq,
-          actions: [{ type: 'buy', timestamp: Date.now(), upgradeId: 'u0' }],
-        }),
-      )
-
-      // p1 score is already 25 from earning currency — should have ended
-      expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
-    })
   })
 
   // ── Buy-upgrade (trophy) goal ──────────────────────────────────────
@@ -717,7 +600,7 @@ describe('Match', () => {
     }
 
     function createBuyMatch() {
-      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker', buyGoal)
+      return new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', buyGoal)
     }
 
     function enterBuyPlaying() {
@@ -739,22 +622,22 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).toContain('u2') // The Coronation
+      expect(ids).toContain('u5') // Royal Throne
     })
 
     it('excludes the trophy upgrade for non-buy-upgrade goals', () => {
-      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'clicker')
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', TIMED_GOAL)
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).not.toContain('u2')
+      expect(ids).not.toContain('u5')
     })
 
     it('buying the trophy ends the match with the buyer as winner', () => {
       const m = enterBuyPlaying()
-      // u2 (The Coronation) costs 1000 — earn enough
-      const seq = earnCurrency(m, 'p1', 1000)
-      m.handleMessage('p1', buyMsg('u2', seq))
+      // u5 (Royal Throne) costs 30000 — grant via the test seam (unreachable via passive income)
+      m.grantResourcesForTest('p1', { r0: 30_000 })
+      m.handleMessage('p1', buyMsg('u5', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
@@ -766,8 +649,8 @@ describe('Match', () => {
 
     it('player 2 buying the trophy makes player 2 the winner', () => {
       const m = enterBuyPlaying()
-      const seq = earnCurrency(m, 'p2', 1000)
-      m.handleMessage('p2', buyMsg('u2', seq))
+      m.grantResourcesForTest('p2', { r0: 30_000 })
+      m.handleMessage('p2', buyMsg('u5', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
@@ -777,15 +660,15 @@ describe('Match', () => {
 
     it('buying a non-trophy upgrade does not end the match', () => {
       const m = enterBuyPlaying()
-      const seq = earnCurrency(m, 'p1', 25)
-      m.handleMessage('p1', buyMsg('u0', seq)) // u0 = Double Click, not a trophy
+      m.grantResourcesForTest('p1', { r0: 5 })
+      m.handleMessage('p1', buyMsg('uh', 1)) // uh = Unlock Highlight, not a trophy
 
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(0)
     })
 
     it('safety-cap expires with score-based winner when nobody buys trophy', () => {
       const m = enterBuyPlaying()
-      m.handleMessage('p1', clickMsg(1)) // p1 = 1, p2 = 0
+      giveLead(m, 'p1') // p1 out-produces p2; trophy unaffordable via passive income
       vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
@@ -802,38 +685,36 @@ describe('Match', () => {
       expect(p1End.winner).toBe('draw')
     })
 
-    it('final scores are correct when trophy is bought', () => {
+    it('reports mirrored final scores at safety cap', () => {
       const m = enterBuyPlaying()
-      m.handleMessage('p1', clickMsg(1)) // p1 earns 1
-      // p1 doesn't have enough for trophy yet — but let's verify scores after safety cap
+      giveLead(m, 'p1') // p1 builds a score lead
       vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
-      expect(p1End.finalScores.player).toBe(1)
-      expect(p1End.finalScores.opponent).toBe(0)
-      expect(p2End.finalScores.player).toBe(0)
-      expect(p2End.finalScores.opponent).toBe(1)
+      expect(p1End.finalScores.player).toBeGreaterThan(p1End.finalScores.opponent)
+      expect(p1End.finalScores.player).toBe(p2End.finalScores.opponent)
+      expect(p1End.finalScores.opponent).toBe(p2End.finalScores.player)
     })
 
     it('no further actions are processed after trophy purchase', () => {
       const m = enterBuyPlaying()
-      // Earn enough for trophy + extra
-      const seq = earnCurrency(m, 'p1', 1050)
-      // Send trophy buy and a click in the same batch
+      // Grant enough for the trophy plus another upgrade
+      m.grantResourcesForTest('p1', { r0: 30_005 })
+      // Send trophy buy and a second buy in the same batch
       m.handleMessage(
         'p1',
         JSON.stringify({
           type: 'ACTION_BATCH',
-          seq,
+          seq: 1,
           actions: [
-            { type: 'buy', timestamp: Date.now(), upgradeId: 'u2' },
-            { type: 'click', timestamp: Date.now() },
+            { type: 'buy', timestamp: Date.now(), upgradeId: 'u5' },
+            { type: 'buy', timestamp: Date.now(), upgradeId: 'uh' },
           ],
         }),
       )
 
-      // Only one ROUND_END — the click after trophy should be ignored
+      // Only one ROUND_END — the action after the trophy buy is not processed
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
     })
   })

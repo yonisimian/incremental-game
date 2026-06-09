@@ -147,11 +147,21 @@ function renderPlayerSlots(players: string[]): string {
 
 function renderCreatorSettings(mode: GameMode, goalType: string): string {
   const modeDef = getModeDefinition(mode)
-  const modeChips = AVAILABLE_MODES.map((m) => {
-    const def = getModeDefinition(m)
-    const selected = m === mode ? ' selected' : ''
-    return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(def.flavor.displayName)}</button>`
-  }).join('')
+  // Hide the mode picker entirely when there's only one mode to choose from (D10).
+  const modeRow =
+    AVAILABLE_MODES.length > 1
+      ? `
+      <div class="setting-row">
+        <span class="setting-label">Mode</span>
+        <div class="mode-chips" id="mode-chips">${AVAILABLE_MODES.map((m) => {
+          const def = getModeDefinition(m)
+          // Always true while only one mode exists; kept for when AVAILABLE_MODES grows.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          const selected = m === mode ? ' selected' : ''
+          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(def.flavor.displayName)}</button>`
+        }).join('')}</div>
+      </div>`
+      : ''
 
   const goalChips = modeDef.goals
     .map((g) => {
@@ -161,11 +171,7 @@ function renderCreatorSettings(mode: GameMode, goalType: string): string {
     .join('')
 
   return `
-    <div class="room-settings" id="room-settings">
-      <div class="setting-row">
-        <span class="setting-label">Mode</span>
-        <div class="mode-chips" id="mode-chips">${modeChips}</div>
-      </div>
+    <div class="room-settings" id="room-settings">${modeRow}
       <div class="setting-row">
         <span class="setting-label">Goal</span>
         <div class="goal-chips" id="goal-chips">${goalChips}</div>
