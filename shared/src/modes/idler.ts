@@ -585,6 +585,36 @@ const idlerUpgrades: readonly UpgradeDefinition[] = [
     modifiers: [],
   },
 
+  {
+    id: 'd-0', // defense
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1800, y: 100 },
+    modifiers: [],
+  },
+  {
+    id: 'd-1', // defense
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1800, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'd-0' }] },
+    modifiers: [],
+  },
+  {
+    id: 'd-2', // defense
+    cost: 0,
+    costCurrency: 'r0',
+    purchaseLimit: 1,
+    category: 'tree',
+    position: { x: 1900, y: 200 },
+    prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'd-0' }] },
+    modifiers: [],
+  },
+
   // {
   //   id: 'uh', // Unlock Highlight
   //   cost: 5,
@@ -1144,6 +1174,25 @@ const idlerFlavor: ModeFlavor = {
       name: '🌱 Espionage',
       icon: '🌱',
       description: 'The notification show which G purchased',
+    },
+
+    {
+      id: 'd-0',
+      name: '🌱 Defense',
+      icon: '🌱',
+      description: 'Alert X seconds before getting Attacked',
+    },
+    {
+      id: 'd-1',
+      name: '🌱 Defense',
+      icon: '🌱',
+      description: 'Add one second for the alert',
+    },
+    {
+      id: 'd-2',
+      name: '🌱 Defense',
+      icon: '🌱',
+      description: 'Tells which AA is incoming',
     },
 
     // {
