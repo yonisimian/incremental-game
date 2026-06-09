@@ -170,55 +170,75 @@ readonly cost: Readonly<Record<string, number>>   // e.g. { r0: 15 } or { r0: 15
 
 ---
 
-## Phase 2 — Effect registry (★ keystone)
+## Phase 2 — Effect registry (★ keystone) — ✅ done
 
-**Goal:** Replace inline `dynamicModifier` closures (and the mode-level `collectDynamic`)
-with **named, parameterized, serializable effects**.
+**Goal:** Introduce a **named, parameterized, serializable effect** registry to replace
+ad-hoc state-derived modifier closures, and migrate the one live dynamic behavior onto it.
 
-### Registry shape
+> **Reality check (Phase 0 fallout):** the proof-of-concept per-upgrade closures
+> (`u8`–`u12`) were already wiped to a minimal stub in Phase 0. The **only** live
+> state-derived behavior left was the mode-level highlight ×2. So Phase 2 builds the
+> registry infrastructure and migrates **just** `highlightMultiplier`. The remaining
+> effects (banked-resource bonus, dominant/balanced generator, time growth) are **not**
+> speculative scaffolding here — they are authored on demand in Phase 3+ when real tree
+> nodes need them. (**YAGNI**.)
+
+### Registry shape (as built)
 
 ```ts
 // shared/src/effects/registry.ts (NEW)
 interface EffectDef<P> {
-  readonly params: ZodSchema<P> // self-describing → drives editor forms
+  readonly parse: (raw: EffectRef) => P // validate + narrow; mirrors zod's `.parse`
   readonly apply: (p: P, state: Readonly<PlayerState>) => Modifier | null
 }
 function registerEffect<P>(type: string, def: EffectDef<P>): void
 function resolveEffect(type: string): EffectDef<unknown> | undefined
-function applyEffect(ref: EffectRef, state): Modifier | null // validates params, runs apply
+function applyEffect(ref: EffectRef, state): Modifier | null // resolve → parse → apply; throws on unknown type
 ```
 
-Tree data carries declarative refs:
+Tree / mode data carries declarative refs:
 
 ```ts
-// before (closure)
-dynamicModifier: (s) => { const b = Math.min(s.resources.r0 * 0.001, 1); return b>0 ? {…} : null }
-
-// after (data)
-effects: [{ type: 'bankedResourceBonus', field: 'r0', perUnit: 0.001, cap: 1 }]
+// idler mode definition (data, not a closure)
+effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: 2 }]
 ```
 
-### Seed effect library (derived from current closures)
+### Why `parse` instead of a zod schema (deferred)
 
-| Effect type           | Replaces              | Params                                               |
-| --------------------- | --------------------- | ---------------------------------------------------- |
-| `bankedResourceBonus` | `u8`, `u9`            | `{ field, perUnit, cap }`                            |
-| `dominantGenerator`   | `u10`                 | `{ generators[], factor }`                           |
-| `balancedGenerators`  | `u11`                 | `{ generators[], maxBonus }`                         |
-| `timeGrowth`          | `u12`                 | `{ field: 'globalMultiplier', perSec, cap }`         |
-| `highlightMultiplier` | `collectIdlerDynamic` | `{ base, boosted, boostUpgradeId, unlockUpgradeId }` |
+The keystone justification for effects is _self-describing params → editor forms_, which
+is naturally a zod schema. We **deferred zod** for now because:
 
-> Note: `u8` and `u9` collapse into **one** reusable effect — exactly the consolidation
-> that makes a tree authorable by non-programmers and editable in a UI.
+- The only consumers today are TS-authored data — already compiler-checked. There is **no
+  untrusted input** until the Phase 4 JSON boundary, which is the real validation seam.
+- Adding a runtime dependency to `@game/shared` (shipped to both client and server) for a
+  single effect is premature.
+- `EffectDef.parse(raw) => P` deliberately mirrors zod's `.parse` signature, so Phase 4 can
+  drop in `schema.parse` (and attach the schema object for Phase 6 editor introspection)
+  **with no call-site churn**. The interface is the forward-compatible seam.
 
-- Replace `UpgradeDefinition.dynamicModifier?: (state) => …` with
-  `effects?: readonly EffectRef[]` (pure data).
-- `collectModifiers` runs static `modifiers` then `effects` via `applyEffect`.
-- The mode-level `collectDynamic` (highlight) becomes a **mode-level `effects` list**
-  (**D11**) — same registry, no bespoke code hook.
+### Seed effect library
 
-**Validation:** behavior-identical numeric output vs. the old closures (golden test on a few
-states); param schemas reject malformed effects.
+| Effect type           | Replaces              | Params (as built)                 |
+| --------------------- | --------------------- | --------------------------------- |
+| `highlightMultiplier` | `collectIdlerDynamic` | `{ unlockUpgradeId, multiplier }` |
+
+Future effects (`bankedResourceBonus`, `dominantGenerator`, `balancedGenerators`,
+`timeGrowth`, …) are added to this table as Phase 3+ tree nodes require them.
+
+### Type / wiring changes (done)
+
+- Replaced `UpgradeDefinition.dynamicModifier?: (state) => …` with
+  `effects?: readonly EffectRef[]` (pure data). New `EffectRef` type in `types.ts`.
+- Replaced the mode-level `ModeDefinition.collectDynamic?` hook with a mode-level
+  `effects?: readonly EffectRef[]` list (**D11**) — same registry, no bespoke code hook.
+- `collectModifiers` runs static `modifiers` then mode-level and per-upgrade `effects` via
+  `applyEffect`, preserving the generator-field routing for both.
+- Seed effects register at module load; `modes/index.ts` imports the effects barrel so
+  registration runs whenever `collectModifiers` is reachable (incl. direct test imports).
+
+**Validation:** ✅ behavior-identical highlight output vs. the old closure (golden tests on
+several states); registry rejects unknown effect types and malformed params; full suite
+green (shared 133 / server 104 / client 134), typecheck + eslint + format + knip clean.
 
 ---
 

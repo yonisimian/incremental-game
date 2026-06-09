@@ -21,6 +21,16 @@ export interface UpgradePosition {
   readonly y: number
 }
 
+/**
+ * A declarative, serializable reference to a registered effect: a `type`
+ * discriminant plus inline params (validated by the effect's `parse` when
+ * applied). See `shared/src/effects` for the registry and implementations.
+ */
+export interface EffectRef {
+  readonly type: string
+  readonly [param: string]: unknown
+}
+
 /** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
@@ -61,11 +71,11 @@ export interface UpgradeDefinition {
    */
   readonly goalType?: Goal['type']
   /**
-   * A state-derived modifier emitted when this upgrade is owned.
-   * Use for bonuses that depend on runtime state (e.g., banked resources).
-   * Must be a pure function of PlayerState — no side effects.
+   * Declarative, state-derived effects emitted when this upgrade is owned.
+   * Each ref names a registered effect plus its params (see `shared/src/effects`).
+   * Replaces the old `dynamicModifier` closure with pure, serializable data.
    */
-  readonly dynamicModifier?: (state: Readonly<PlayerState>) => Modifier | null
+  readonly effects?: readonly EffectRef[]
 }
 
 /** Static definition of a generator building (repeatable, scaling cost). */
