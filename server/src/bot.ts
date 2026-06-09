@@ -1,7 +1,7 @@
 import type { GameMode, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 import {
   getPrerequisiteUpgradeIds,
-  getPrimaryCostCurrency,
+  getCostCurrency,
   getUpgradeNextCost,
   isCostAffordable,
 } from '@game/shared'
@@ -87,7 +87,7 @@ export class IdlerBot implements BotStrategy {
       for (const prereq of getPrerequisiteUpgradeIds(def.prerequisites)) {
         visit(prereq)
       }
-      result.push({ id, currency: getPrimaryCostCurrency(def, 'r0') })
+      result.push({ id, currency: getCostCurrency(def, 'r0') })
     }
 
     visit(target.id)

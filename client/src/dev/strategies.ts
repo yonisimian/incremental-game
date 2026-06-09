@@ -9,7 +9,7 @@
 import {
   getModeDefinition,
   getPrerequisiteUpgradeIds,
-  getPrimaryCostCurrency,
+  getCostCurrency,
   getUpgradeCostTotal,
   isPrerequisiteSatisfied,
 } from '@game/shared'
@@ -171,13 +171,13 @@ function buildActions(ordered: UpgradeDefinition[], modeDef: ModeDefinition): St
 
   // Start with the highlight matching the first upgrade's currency
   const firstCurrency = ordered[0]
-    ? getPrimaryCostCurrency(ordered[0], modeDef.scoreResource)
+    ? getCostCurrency(ordered[0], modeDef.scoreResource)
     : modeDef.scoreResource
   actions.push(hl(firstCurrency))
   let currentHighlight = firstCurrency
 
   for (const u of ordered) {
-    const currency = getPrimaryCostCurrency(u, modeDef.scoreResource)
+    const currency = getCostCurrency(u, modeDef.scoreResource)
     if (currency !== currentHighlight) {
       actions.push(hl(currency))
       currentHighlight = currency

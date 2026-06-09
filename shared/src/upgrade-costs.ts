@@ -76,15 +76,14 @@ export function getUpgradeCostTotal(def: UpgradeDefinition, currentLevel: number
   return Object.values(getUpgradeNextCost(def, currentLevel)).reduce((sum, amt) => sum + amt, 0)
 }
 
-/** Dominant cost currency (highest amount; ties resolve to first key), else `fallback`. */
-export function getPrimaryCostCurrency(def: UpgradeDefinition, fallback: string): string {
-  let best: string | undefined
-  let bestAmount = -Infinity
-  for (const [currency, amount] of Object.entries(def.cost)) {
-    if (amount > bestAmount) {
-      best = currency
-      bestAmount = amount
-    }
-  }
-  return best ?? fallback
+/**
+ * The currency an upgrade is paid in — used to drive the single-currency
+ * highlight mechanic (bot plans, dev-sim). Upgrade costs are single-currency
+ * today, so this returns that currency; `fallback` is used only when the cost
+ * map is empty. When multi-currency costs are introduced (Phase 2), this needs
+ * a deliberate selection rule (e.g. weighted by production rate or scarcity)
+ * rather than picking an arbitrary key.
+ */
+export function getCostCurrency(def: UpgradeDefinition, fallback: string): string {
+  return Object.keys(def.cost)[0] ?? fallback
 }
