@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { Goal, GeneratorDefinition, PlayerState, UpgradeDefinition } from '../types.js'
+import type { EffectRef, Goal, GeneratorDefinition, UpgradeDefinition } from '../types.js'
 
 // ─── Flavor Types ────────────────────────────────────────────────────
 
@@ -81,8 +81,12 @@ export interface ModeDefinition {
   readonly initialMeta: Readonly<Record<string, unknown>>
   /** Generator buildings available in this mode (may be empty). */
   readonly generators: readonly GeneratorDefinition[]
-  /** Optional: collect dynamic (state-derived) modifiers. */
-  readonly collectDynamic?: (state: Readonly<PlayerState>) => Modifier[]
+  /**
+   * Declarative, state-derived effects applied to every player in this mode.
+   * Each ref names a registered effect plus its params (see `shared/src/effects`).
+   * Replaces the old `collectDynamic` closure with pure, serializable data.
+   */
+  readonly effects?: readonly EffectRef[]
   /** Cosmetic display data — names, icons, labels, theme class. */
   readonly flavor: ModeFlavor
 }

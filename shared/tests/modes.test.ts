@@ -130,7 +130,7 @@ describe('collectModifiers', () => {
     expect(scaledMod).toBeDefined()
   })
 
-  it('calls collectDynamic for idler mode', () => {
+  it('applies mode-level effects (highlight) for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     // Highlight requires the unlock upgrade (uh) to be purchased

@@ -5,6 +5,9 @@ import { idlerMode } from './idler.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
+// Importing from the effects barrel ensures seed effects are registered
+// whenever `collectModifiers` is reachable (incl. tests that import this module).
+import { applyEffect } from '../effects/index.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -156,30 +159,30 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
-  // Dynamic (state-derived) modifiers — mode-specific hook
-  if (mode.collectDynamic) {
-    for (const mod of mode.collectDynamic(state)) {
-      if (generatorIds.has(mod.field)) {
-        const genState = generatorModifiers.get(mod.field)!
-        if (mod.stage === 'additive') genState.additive += mod.value
-        else if (mod.stage === 'multiplicative') genState.multiplicative *= mod.value
-      } else {
-        modifiers.push(mod)
-      }
-    }
-  }
-
-  // Upgrade-level dynamic modifiers — per-upgrade state-derived bonuses
-  for (const upgrade of mode.upgrades) {
-    if (!upgrade.dynamicModifier || (state.upgrades[upgrade.id] ?? 0) <= 0) continue
-    const mod = upgrade.dynamicModifier(state)
-    if (!mod) continue
+  // Route a single state-derived modifier: generator-targeted ones accumulate
+  // into the per-generator totals; everything else is pushed directly.
+  const routeModifier = (mod: Modifier): void => {
     if (generatorIds.has(mod.field)) {
       const genState = generatorModifiers.get(mod.field)!
       if (mod.stage === 'additive') genState.additive += mod.value
       else if (mod.stage === 'multiplicative') genState.multiplicative *= mod.value
     } else {
       modifiers.push(mod)
+    }
+  }
+
+  // Mode-level effects — state-derived modifiers applied to every player.
+  for (const ref of mode.effects ?? []) {
+    const mod = applyEffect(ref, state)
+    if (mod) routeModifier(mod)
+  }
+
+  // Upgrade-level effects — per-upgrade state-derived bonuses (owned upgrades only).
+  for (const upgrade of mode.upgrades) {
+    if ((state.upgrades[upgrade.id] ?? 0) <= 0) continue
+    for (const ref of upgrade.effects ?? []) {
+      const mod = applyEffect(ref, state)
+      if (mod) routeModifier(mod)
     }
   }
 
