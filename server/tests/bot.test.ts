@@ -119,7 +119,8 @@ describe('Bot', () => {
   })
 
   describe('IdlerBot', () => {
-    // Synthetic upgrades matching the bot's hardcoded plan: uh(r0), u0(r0), u1(r0), u2(r1)
+    // Synthetic upgrades. The bot's hardcoded base plan is uh(r0) → u1(r0);
+    // u0/u2 are kept here only as trophy-chain prereqs for the buy-upgrade test.
     const idlerUpgrades = [
       {
         id: 'uh' as const,
@@ -171,7 +172,7 @@ describe('Bot', () => {
       expect(highlights).toHaveLength(0) // already on r0, no switch needed
     })
 
-    it('buys uh then u0 when r0 is sufficient', () => {
+    it('buys uh then u1 when r0 is sufficient', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
@@ -194,10 +195,10 @@ describe('Bot', () => {
       actions = bot.decide(state)
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'uh' })
 
-      // Next step: u0 (costs 30)
+      // Next step: u1 (costs 25)
       state.resources.r0 = 30
       actions = bot.decide(state)
-      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'u0' })
+      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'u1' })
     })
 
     it('returns empty actions after plan is exhausted', () => {
@@ -215,7 +216,7 @@ describe('Bot', () => {
         },
       }
 
-      // Buy through entire plan: uh, u0, u1, u2 (4 steps)
+      // Buy through the entire base plan: uh, u1 (2 steps); extra calls are no-ops
       for (let i = 0; i < 4; i++) {
         bot.decide(state)
       }

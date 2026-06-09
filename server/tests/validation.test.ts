@@ -193,85 +193,74 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   })
 })
 
-// ─── isValidPurchase: prerequisites (idler tree) ─────────────────────
-
-const idlerDef = getModeDefinition('idler')
-const idlerUpgradeMap = new Map<string, UpgradeDefinition>(idlerDef.upgrades.map((u) => [u.id, u]))
+// ─── isValidPurchase: prerequisites ──────────────────────────────────
 
 describe('isValidPurchase — prerequisites', () => {
-  function makeIdlerState(overrides: Partial<PlayerState> = {}): PlayerState {
+  // Self-contained prerequisite fixtures (independent of any mode's tree).
+  const prereqUpgrades: UpgradeDefinition[] = [
+    { id: 'root', cost: 1, purchaseLimit: 1, modifiers: [] },
+    { id: 'a', cost: 1, purchaseLimit: 1, modifiers: [] },
+    { id: 'b', cost: 1, purchaseLimit: 1, modifiers: [] },
+    {
+      id: 'andChild', // requires root
+      cost: 1,
+      purchaseLimit: 1,
+      modifiers: [],
+      prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'root' }] },
+    },
+    {
+      id: 'orChild', // requires a OR b
+      cost: 1,
+      purchaseLimit: 1,
+      modifiers: [],
+      prerequisites: {
+        type: 'any',
+        items: [
+          { type: 'upgrade', id: 'a' },
+          { type: 'upgrade', id: 'b' },
+        ],
+      },
+    },
+  ]
+  const prereqMap = new Map(prereqUpgrades.map((u) => [u.id, u]))
+
+  function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
       score: 0,
       resources: { r0: 9999, r1: 9999 },
-      upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+      upgrades: Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])),
       generators: {},
       meta: { highlight: 'r0' },
       ...overrides,
     }
   }
 
-  it('rejects u4 when no prerequisites are owned (even with infinite resources)', () => {
-    const state = makeIdlerState()
-    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
-  })
-
-  it('rejects u4 when neither u6 nor u7 is owned (OR-semantics)', () => {
-    const state = makeIdlerState({
-      upgrades: {
-        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        u1: 1, // u6's prereq owned, but u6 itself not
-      },
-    })
-    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(false)
-  })
-
-  it('accepts u4 when at least one of u6 or u7 is owned', () => {
-    const state = makeIdlerState({
-      upgrades: {
-        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
-        u6: 1,
-      },
-    })
-    expect(isValidPurchase(state, 'u4', idlerUpgradeMap, idlerDef)).toBe(true)
-  })
-
-  it('rejects u6 when u1 is unowned', () => {
-    const state = makeIdlerState()
-    expect(isValidPurchase(state, 'u6', idlerUpgradeMap, idlerDef)).toBe(false)
-  })
-
-  it('accepts an OR-style prerequisite when at least one branch is owned', () => {
-    const custom: UpgradeDefinition[] = [
-      { id: 'a', cost: 1, purchaseLimit: 1, modifiers: [] },
-      { id: 'b', cost: 1, purchaseLimit: 1, modifiers: [] },
-      {
-        id: 'c',
-        cost: 1,
-        purchaseLimit: 1,
-        modifiers: [],
-        prerequisites: {
-          type: 'any',
-          items: [
-            { type: 'upgrade', id: 'a' },
-            { type: 'upgrade', id: 'b' },
-          ],
-        },
-      },
-    ]
-    const map = new Map(custom.map((u) => [u.id, u]))
-    const state: PlayerState = {
-      score: 0,
-      resources: { r0: 9999 },
-      upgrades: { a: 1, b: 0, c: 0 },
-      generators: {},
-      meta: {},
-    }
-    expect(isValidPurchase(state, 'c', map, clickerDef)).toBe(true)
-  })
-
   it('accepts root-level upgrades (no prerequisites) immediately', () => {
-    const state = makeIdlerState()
-    expect(isValidPurchase(state, 'u1', idlerUpgradeMap, idlerDef)).toBe(true)
-    expect(isValidPurchase(state, 'u2', idlerUpgradeMap, idlerDef)).toBe(true)
+    const state = makeState()
+    expect(isValidPurchase(state, 'root', prereqMap, clickerDef)).toBe(true)
+  })
+
+  it('rejects an AND-prereq child when its prerequisite is unowned', () => {
+    const state = makeState()
+    expect(isValidPurchase(state, 'andChild', prereqMap, clickerDef)).toBe(false)
+  })
+
+  it('accepts an AND-prereq child once its prerequisite is owned', () => {
+    const state = makeState({
+      upgrades: { ...Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])), root: 1 },
+    })
+    expect(isValidPurchase(state, 'andChild', prereqMap, clickerDef)).toBe(true)
+  })
+
+  it('rejects an OR-prereq child when neither branch is owned', () => {
+    const state = makeState()
+    expect(isValidPurchase(state, 'orChild', prereqMap, clickerDef)).toBe(false)
+  })
+
+  it('accepts an OR-prereq child when at least one branch is owned', () => {
+    const state = makeState({
+      upgrades: { ...Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])), a: 1 },
+    })
+    expect(isValidPurchase(state, 'orChild', prereqMap, clickerDef)).toBe(true)
   })
 })

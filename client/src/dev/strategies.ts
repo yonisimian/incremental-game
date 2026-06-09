@@ -30,18 +30,9 @@ const hl = (h: string): StrategyAction => ({ type: 'set_highlight', highlight: h
 // ─── Upgrade abbreviations (for chart markers & table display) ──────
 
 export const UPGRADE_ABBR: Record<string, string> = {
-  u0: 'SA',
-  u1: 'HL',
-  u2: 'RB',
-  u4: 'IE',
-  u5: 'RT',
-  u6: 'SF',
-  u7: 'YC',
-  u8: 'RH',
-  u9: 'CM',
-  u10: 'DH',
-  u11: 'BE',
-  u12: 'TM',
+  uh: 'FT', // Focus Training
+  u1: 'HL', // Heavy Logging
+  u5: 'RT', // Royal Throne (trophy)
 }
 
 // ─── Strategy Generator ──────────────────────────────────────────────

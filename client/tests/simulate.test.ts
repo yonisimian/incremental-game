@@ -144,23 +144,20 @@ describe('simulate — upgrade purchase', () => {
 // ─── Multiple purchases in sequence ─────────────────────────────────
 
 describe('simulate — multi-purchase strategy', () => {
-  // SA→HL: buy uh first, then u0 (15 r0), then u1 (25 r0)
-  const result = simulate(
-    { name: 'SA→HL', actions: [hl('r0'), buy('uh'), buy('u0'), buy('u1')] },
-    'idler',
-  )
+  // uh→HL: buy uh (5 r0) first to unlock highlight, then u1 (25 r0)
+  const result = simulate({ name: 'uh→HL', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler')
 
   it('records both purchases in order', () => {
     const buyIds = result.purchaseLog.map((p) => p.id)
-    expect(buyIds).toContain('u0')
+    expect(buyIds).toContain('uh')
     expect(buyIds).toContain('u1')
-    expect(buyIds.indexOf('u0')).toBeLessThan(buyIds.indexOf('u1'))
+    expect(buyIds.indexOf('uh')).toBeLessThan(buyIds.indexOf('u1'))
   })
 
   it('second purchase happens after the first', () => {
-    const u0Time = result.purchaseLog.find((p) => p.id === 'u0')!.timeSec
+    const uhTime = result.purchaseLog.find((p) => p.id === 'uh')!.timeSec
     const u1Time = result.purchaseLog.find((p) => p.id === 'u1')!.timeSec
-    expect(u1Time).toBeGreaterThan(u0Time)
+    expect(u1Time).toBeGreaterThan(uhTime)
   })
 })
 
@@ -176,62 +173,5 @@ describe('simulate — empty strategy', () => {
   it('uses default highlight (r0) but no highlight boost without uh', () => {
     // Without uh, no highlight boost: 1 r0/s × 35s = 35
     expect(result.finalScore).toBeCloseTo(35, 1)
-  })
-})
-
-// ─── Cross-resource purchase (u2 costs r1) ──────────────────────────
-
-describe('simulate — cross-resource cost', () => {
-  // u2 = Royal Brewery: costs 25 r1, adds +5 r1/s
-  // Highlight ale first to earn r1 faster: 2 r1/s → 25/2 = 12.5s
-  const result = simulate({ name: 'RB', actions: [hl('r1'), buy('u2'), hl('r0')] }, 'idler')
-
-  it('buys u2 using r1 currency', () => {
-    expect(result.purchaseLog).toHaveLength(1)
-    expect(result.purchaseLog[0].id).toBe('u2')
-  })
-
-  it('r1 is deducted at purchase', () => {
-    const purchaseIdx = result.snapshots.findIndex((s) => s.event.includes('buy:u2'))
-    expect(purchaseIdx).toBeGreaterThan(0)
-    expect(result.snapshots[purchaseIdx].resources.r1).toBeLessThan(
-      result.snapshots[purchaseIdx - 1].resources.r1,
-    )
-  })
-})
-
-// ─── Prerequisite enforcement ────────────────────────────────────────
-
-describe('simulate — prerequisite enforcement', () => {
-  // u6 (Skilled Foremen) requires u1 (Heavy Logging).
-  // Trying to buy u6 without u1 should get stuck — never purchases.
-  const result = simulate({ name: 'u6 without u1', actions: [hl('r0'), buy('u6')] }, 'idler')
-
-  it('cannot buy u6 without owning prerequisite u1', () => {
-    expect(result.purchaseLog).toHaveLength(0)
-  })
-
-  it('no purchase events in any snapshot', () => {
-    expect(result.snapshots.every((s) => s.event === '')).toBe(true)
-  })
-})
-
-// ─── Prerequisite chain (u1 → u6) ───────────────────────────────────
-
-describe('simulate — prerequisite chain', () => {
-  // Buy uh first, then u1 (prereq for u6), then buy u6.
-  const result = simulate(
-    { name: 'u1→u6', actions: [hl('r0'), buy('uh'), buy('u1'), buy('u6')] },
-    'idler',
-  )
-
-  it('records u6 purchase after u1', () => {
-    const u6Purchases = result.purchaseLog.filter((p) => p.id === 'u6')
-    expect(u6Purchases).toHaveLength(1)
-  })
-
-  it('score is at least as high as u1-only strategy', () => {
-    const u1Only = simulate({ name: 'u1 only', actions: [hl('r0'), buy('u1')] }, 'idler')
-    expect(result.finalScore).toBeGreaterThanOrEqual(u1Only.finalScore)
   })
 })

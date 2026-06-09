@@ -188,42 +188,6 @@ describe('collectModifiers', () => {
     expect(scaledMod).toBeDefined()
   })
 
-  it('applies generator-targeted upgrades to generator output', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.generators.g0 = 2
-    state.upgrades.u6 = 1
-    const mods = collectModifiers(state, def)
-
-    // Woodcutter base output: 0.5 × 2 = 1. u6 adds +4 per Woodcutter, so +8 total, effective 9.
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 9)).toBe(true)
-  })
-
-  it('applies multiplicative generator-targeted upgrades', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.generators.g1 = 3
-    state.upgrades.u7 = 1
-    const mods = collectModifiers(state, def)
-
-    // Brewer base rate: 1 × 3 = 3. u7 ×2 → effective 6.
-    const brewerMod = mods.find(
-      (m) => m.field === 'r1' && m.stage === 'additive' && Math.abs(m.value - 6) < 0.001,
-    )
-    expect(brewerMod).toBeDefined()
-  })
-
-  it('generator-targeted upgrades have no effect without owned generators', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.upgrades.u6 = 1 // owns upgrade but no generators
-    const mods = collectModifiers(state, def)
-
-    // No generator output modifier should appear for r0 from generators
-    // (only native +1 r0/sec and u6 should not produce any g0 output)
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value > 1)).toBe(false)
-  })
-
   it('calls collectDynamic for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
@@ -233,63 +197,6 @@ describe('collectModifiers', () => {
     // Highlight mechanic should produce a multiplicative modifier
     expect(
       mods.some((m) => m.stage === 'multiplicative' && (m.field === 'r0' || m.field === 'r1')),
-    ).toBe(true)
-  })
-
-  it('applies u8 banked-wood bonus as multiplicative modifier', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.resources.r0 = 120
-    state.upgrades.u8 = 1
-    const mods = collectModifiers(state, def)
-
-    // 120 * 0.001 = 0.12 → multiplicative 1.12 on r0
-    expect(
-      mods.some((m) => m.field === 'r0' && m.stage === 'multiplicative' && m.value === 1.12),
-    ).toBe(true)
-  })
-
-  it('applies u9 banked-ale bonus as multiplicative modifier', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.resources.r1 = 50
-    state.upgrades.u9 = 1
-    const mods = collectModifiers(state, def)
-
-    // 50 * 0.001 = 0.05 → multiplicative 1.05 on r1
-    expect(
-      mods.some((m) => m.field === 'r1' && m.stage === 'multiplicative' && m.value === 1.05),
-    ).toBe(true)
-  })
-
-  it('applies u10 dominant harvesters ×2 to the top generator (lowest-tier wins ties)', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.generators.g0 = 3
-    state.generators.g1 = 3
-    state.generators.g2 = 1
-    state.upgrades.u10 = 1
-    const mods = collectModifiers(state, def)
-
-    // g0 wins tie (lowest-tier), base rate 0.5 × 3 × 2 = 3
-    expect(mods.some((m) => m.field === 'r0' && m.stage === 'additive' && m.value === 3)).toBe(true)
-  })
-
-  it('applies u11 balanced engineering as global bonus when generators are balanced', () => {
-    const def = getModeDefinition('idler')
-    const state = createInitialState(def)
-    state.generators.g0 = 3
-    state.generators.g1 = 3
-    state.generators.g2 = 3
-    state.generators.g3 = 3
-    state.upgrades.u11 = 1
-    const mods = collectModifiers(state, def)
-
-    // Perfectly balanced → balanceRatio = 1 → bonus = 1.25
-    expect(
-      mods.some(
-        (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative' && m.value === 1.25,
-      ),
     ).toBe(true)
   })
 })
@@ -314,9 +221,9 @@ describe('applyPurchase', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r0 = 100
-    applyPurchase(state, 'u0', def) // costs 15 r0
-    expect(state.resources.r0).toBe(85)
-    expect(state.upgrades.u0).toBe(1)
+    applyPurchase(state, 'u1', def) // costs 25 r0
+    expect(state.resources.r0).toBe(75)
+    expect(state.upgrades.u1).toBe(1)
   })
 
   it('increments count for unlimited upgrades', () => {
@@ -389,23 +296,18 @@ describe('applyPurchase', () => {
   })
 })
 
-// ─── Time-Based Multiplier (u12) ─────────────────────────────────────
+// ─── Purchase timestamps (state.meta.purchasedAt) ────────────────────
 
-describe('time-based multiplier (u12)', () => {
-  function setupIdler() {
+describe('purchase timestamps (state.meta.purchasedAt)', () => {
+  it('applyPurchase records purchasedAt in state.meta', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
-    return { def, state }
-  }
-
-  it('applyPurchase records purchasedAt in state.meta', () => {
-    const { def, state } = setupIdler()
     state.resources.r0 = 300
     state.meta.gameSec = 5
-    applyPurchase(state, 'u12', def)
-    expect(state.upgrades.u12).toBe(1)
+    applyPurchase(state, 'u1', def) // costs 25 r0
+    expect(state.upgrades.u1).toBe(1)
     const purchasedAt = state.meta.purchasedAt as Record<string, number>
-    expect(purchasedAt.u12).toBe(5)
+    expect(purchasedAt.u1).toBe(5)
   })
 
   it('repeated purchase does not overwrite purchasedAt', () => {
@@ -429,48 +331,5 @@ describe('time-based multiplier (u12)', () => {
     const purchasedAt = state.meta.purchasedAt as Record<string, number>
     expect(purchasedAt.uRepeat).toBe(2) // still original timestamp
     expect(state.upgrades.uRepeat).toBe(2)
-  })
-
-  it('dynamicModifier returns null when upgrade is not owned', () => {
-    const { def, state } = setupIdler()
-    const u12 = def.upgrades.find((u) => u.id === 'u12')!
-    expect(u12.dynamicModifier!(state)).toBeNull()
-  })
-
-  it('dynamicModifier returns multiplier based on elapsed time', () => {
-    const { def, state } = setupIdler()
-    state.upgrades.u12 = 1
-    state.meta.purchasedAt = { u12: 5 }
-    state.meta.gameSec = 35 // 30 seconds elapsed
-    const u12 = def.upgrades.find((u) => u.id === 'u12')!
-    const mod = u12.dynamicModifier!(state)
-    expect(mod).not.toBeNull()
-    // multiplier = 1 + (1/60)*30 = 1.5
-    expect(mod!.value).toBeCloseTo(1.5)
-    expect(mod!.stage).toBe('multiplicative')
-    expect(mod!.field).toBe('globalMultiplier')
-  })
-
-  it('multiplier is capped at 10', () => {
-    const { def, state } = setupIdler()
-    state.upgrades.u12 = 1
-    state.meta.purchasedAt = { u12: 0 }
-    state.meta.gameSec = 9999 // way past cap
-    const u12 = def.upgrades.find((u) => u.id === 'u12')!
-    const mod = u12.dynamicModifier!(state)
-    expect(mod!.value).toBe(10)
-  })
-
-  it('collectModifiers includes the time multiplier when owned', () => {
-    const { def, state } = setupIdler()
-    state.upgrades.u12 = 1
-    state.meta.purchasedAt = { u12: 0 }
-    state.meta.gameSec = 60 // 60s elapsed → multiplier = 1 + 1 = 2
-    const mods = collectModifiers(state, def)
-    const globalMult = mods.find(
-      (m) => m.field === 'globalMultiplier' && m.stage === 'multiplicative',
-    )
-    expect(globalMult).toBeDefined()
-    expect(globalMult!.value).toBeCloseTo(2)
   })
 })

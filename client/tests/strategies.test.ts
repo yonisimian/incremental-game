@@ -13,8 +13,9 @@ describe('IDLER_STRATEGIES — auto-generated', () => {
   })
 
   it('generates a non-trivial number of strategies', () => {
-    // With 10 upgrades and prereqs/choice groups, we expect more than just baselines
-    expect(IDLER_STRATEGIES.length).toBeGreaterThan(10)
+    // Phase-0 idler stub has 2 non-trophy upgrades (uh, u1); the generator still
+    // produces several highlight/buy permutations beyond the baselines.
+    expect(IDLER_STRATEGIES.length).toBeGreaterThanOrEqual(4)
   })
 
   it('every strategy starts with a set_highlight action', () => {

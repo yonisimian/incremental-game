@@ -73,8 +73,8 @@ export class ClickerBot implements BotStrategy {
 
 /**
  * Medium-difficulty idler bot.
- * Strategy: u0 (Sharpened Axes) → u1 (Heavy Logging) → u2 (Royal Brewery),
- * then, under buy-upgrade goal, pursues Industrial Era → Royal Throne (trophy).
+ * Strategy: uh (Unlock Highlight) → u1 (Heavy Logging),
+ * then, under buy-upgrade goal, pursues the Royal Throne (trophy).
  * Switches highlight between resources as needed for the next target upgrade.
  */
 export class IdlerBot implements BotStrategy {
@@ -91,9 +91,7 @@ export class IdlerBot implements BotStrategy {
     // Base plan — core economy upgrades
     const basePlan: { id: string; currency: string }[] = [
       { id: 'uh', currency: 'r0' }, // Unlock Highlight (unlocks highlight mechanic)
-      { id: 'u0', currency: 'r0' }, // Sharpened Axes (costs wood)
       { id: 'u1', currency: 'r0' }, // Heavy Logging (costs wood)
-      { id: 'u2', currency: 'r1' }, // Royal Brewery (costs ale)
     ]
 
     // If the trophy is available (buy-upgrade goal), append its prereq chain.
