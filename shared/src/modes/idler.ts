@@ -27,7 +27,9 @@ const HIGHLIGHT_UNLOCK = 'uh'
 // flatten to absolute `position`. The current stub nodes are independent (no
 // layout parent, no prerequisites), so each is a root whose offset equals its
 // absolute position. Nesting is exercised once a real tree is authored.
-const idlerTree: readonly UpgradeTreeNode[] = [
+//
+// Exported so the Phase 4 tree codec tests can round-trip the real idler tree.
+export const idlerTree: readonly UpgradeTreeNode[] = [
   {
     id: 'uh', // Unlock Highlight
     cost: { r0: 5 },

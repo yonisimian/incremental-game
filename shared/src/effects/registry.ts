@@ -27,13 +27,16 @@ export function resolveEffect(type: string): EffectDef<unknown> | undefined {
 /**
  * Resolve and validate a ref once, caching the result by ref identity.
  *
- * Effect refs are immutable, code-authored data, so each distinct ref is parsed
- * exactly once; every later call (e.g. per tick) reuses the cached params. Call
- * this at startup (see `validateModeDefinition`) to fail fast on malformed data.
+ * Effect refs are immutable data, so each distinct ref is validated exactly once;
+ * every later call (e.g. per tick) reuses the cached params. Call this at startup
+ * (see `validateModeDefinition`) to fail fast on malformed data.
+ *
+ * The ref's `type` discriminant is stripped before validation: the effect's
+ * schema describes its params only. A strict schema would otherwise reject the
+ * leftover `type` key.
  *
  * Throws on an unknown effect type: an unknown type is a bug that should surface
- * immediately rather than be silently dropped. (The Phase 4 JSON boundary will
- * validate refs before they ever reach the runtime.)
+ * immediately rather than be silently dropped.
  */
 export function prepareEffect(ref: EffectRef): PreparedEffect {
   const cached = prepared.get(ref)
@@ -42,7 +45,8 @@ export function prepareEffect(ref: EffectRef): PreparedEffect {
   if (!def) {
     throw new Error(`Unknown effect type: ${ref.type}`)
   }
-  const entry: PreparedEffect = { def, params: def.parse(ref) }
+  const { type: _type, ...rawParams } = ref
+  const entry: PreparedEffect = { def, params: def.schema.parse(rawParams) }
   prepared.set(ref, entry)
   return entry
 }
