@@ -64,6 +64,40 @@ describe('highlightMultiplier params', () => {
       applyHighlight({ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: 'x' }),
     ).toThrow(/multiplier/u)
   })
+
+  it('rejects boostUpgradeId without boostedMultiplier', () => {
+    expect(() =>
+      applyHighlight({
+        type: 'highlightMultiplier',
+        unlockUpgradeId: 'uh',
+        multiplier: 2,
+        boostUpgradeId: 'uh2',
+      }),
+    ).toThrow(/together/u)
+  })
+
+  it('rejects boostedMultiplier without boostUpgradeId', () => {
+    expect(() =>
+      applyHighlight({
+        type: 'highlightMultiplier',
+        unlockUpgradeId: 'uh',
+        multiplier: 2,
+        boostedMultiplier: 3,
+      }),
+    ).toThrow(/together/u)
+  })
+
+  it('rejects a non-finite boostedMultiplier', () => {
+    expect(() =>
+      applyHighlight({
+        type: 'highlightMultiplier',
+        unlockUpgradeId: 'uh',
+        multiplier: 2,
+        boostUpgradeId: 'uh2',
+        boostedMultiplier: Infinity,
+      }),
+    ).toThrow(/boostedMultiplier/u)
+  })
 })
 
 // ─── Golden parity: highlight behavior must match the pre-effect closure ──
@@ -106,6 +140,26 @@ describe('highlightMultiplier behavior (golden)', () => {
     delete state.meta.highlight
     const mods = collectModifiers(state, def)
     expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
+  })
+
+  it('raises the highlight to ×3 once the boost upgrade (uh2) is owned', () => {
+    const def = getModeDefinition('idler')
+    const state = idlerState()
+    state.upgrades.uh = 1
+    state.upgrades.uh2 = 1
+    state.meta.highlight = 'r0'
+    const mods = collectModifiers(state, def)
+    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 3 })
+    expect(mods.some((m) => m.stage === 'multiplicative' && m.value === 2)).toBe(false)
+  })
+
+  it('does not boost when uh2 is owned but the unlock (uh) is not', () => {
+    const def = getModeDefinition('idler')
+    const state = idlerState()
+    state.upgrades.uh2 = 1
+    state.meta.highlight = 'r0'
+    const mods = collectModifiers(state, def)
+    expect(mods.some((m) => m.stage === 'multiplicative')).toBe(false)
   })
 })
 

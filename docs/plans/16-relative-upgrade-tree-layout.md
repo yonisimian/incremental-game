@@ -250,11 +250,13 @@ _(Folds in the original plan-16 design; position-preservation constraint dropped
 its layout parent**, so moving a branch is a one-line offset change. Establishes the
 extension point for **branch-level inheritance** (e.g. color a branch via its root).
 
-> **Reality check:** the current stub is 3 independent nodes with no prerequisites and no
-> branches. They are authored as **roots** whose `offset` equals their absolute position
-> (**faithful conversion** — no fabricated layout/prereq relationships). The flattener's
-> correctness is fully tested regardless; the relative-offset/nesting payoff arrives when a
-> real tree is authored (Phase 6+).
+> **Reality check:** the stub started as 3 independent nodes. Most stay **roots** whose
+> `offset` equals their absolute position (**faithful conversion** — no fabricated
+> relationships). As a smoke test of the layout system, one real nested child was added:
+> `uh2` (Sharper Focus) is a layout child of `uh` (offset `0,150`) with a `prerequisites`
+> link to `uh`, and it raises the highlight multiplier 2 → 3 via a `boostUpgradeId` tier on
+> the mode-level `highlightMultiplier` effect. This exercises nesting, relative-offset
+> resolution, prerequisite-edge rendering, and effect tiering end-to-end.
 
 ### The two-relationships separation (core of the original plan)
 

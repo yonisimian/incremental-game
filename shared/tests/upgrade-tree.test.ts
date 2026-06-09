@@ -97,9 +97,11 @@ describe('flattenUpgradeTree', () => {
 })
 
 describe('idler tree conversion (golden)', () => {
-  it('flattens to the prior absolute positions (no behavior change)', () => {
+  it('flattens to the expected absolute positions', () => {
     const positionById = new Map(getModeDefinition('idler').upgrades.map((u) => [u.id, u.position]))
     expect(positionById.get('uh')).toEqual({ x: 0, y: 0 })
+    // uh2 is a layout child of uh (offset 0,150) → absolute (0, 150).
+    expect(positionById.get('uh2')).toEqual({ x: 0, y: 150 })
     expect(positionById.get('u1')).toEqual({ x: 200, y: 0 })
     expect(positionById.get('u5')).toEqual({ x: 600, y: 0 })
   })

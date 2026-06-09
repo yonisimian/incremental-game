@@ -34,6 +34,16 @@ const idlerTree: readonly UpgradeTreeNode[] = [
     purchaseLimit: 1,
     offset: { x: 0, y: 0 },
     modifiers: [], // unlocks the highlight mechanic (see mode-level `effects` below)
+    children: [
+      {
+        id: 'uh2', // Sharper Focus — boosts the highlight multiplier 2 → 3
+        cost: { r0: 100 },
+        purchaseLimit: 1,
+        offset: { x: 0, y: 150 }, // relative to `uh` (0,0) → absolute (0, 150)
+        prerequisites: { type: 'upgrade', id: 'uh' },
+        modifiers: [], // boost is gated inside the mode-level highlightMultiplier effect
+      },
+    ],
   },
   {
     id: 'u1', // Heavy Logging
@@ -107,6 +117,12 @@ const idlerFlavor: ModeFlavor = {
       icon: '🔦',
       description: 'Unlock highlighting (×2 to selected resource)',
     },
+    {
+      id: 'uh2',
+      name: '🔬 Sharper Focus',
+      icon: '🔬',
+      description: 'Boost highlight to ×3 on the selected resource',
+    },
     { id: 'u1', name: '🌲 Heavy Logging', icon: '🌲', description: '+5 base 🪵/sec' },
     {
       id: 'u5',
@@ -134,7 +150,15 @@ export const idlerMode: ModeDefinition = {
   highlightUnlockUpgrade: HIGHLIGHT_UNLOCK,
   initialResources: { r0: 0, r1: 0 },
   initialMeta: { highlight: 'r0' },
-  effects: [{ type: 'highlightMultiplier', unlockUpgradeId: HIGHLIGHT_UNLOCK, multiplier: 2 }],
+  effects: [
+    {
+      type: 'highlightMultiplier',
+      unlockUpgradeId: HIGHLIGHT_UNLOCK,
+      multiplier: 2,
+      boostUpgradeId: 'uh2', // Sharper Focus raises the highlight to ×3
+      boostedMultiplier: 3,
+    },
+  ],
   nativeModifiers: [
     { stage: 'additive', field: 'r0', value: 1 }, // base 1 wood/s
     { stage: 'additive', field: 'r1', value: 1 }, // base 1 ale/s
