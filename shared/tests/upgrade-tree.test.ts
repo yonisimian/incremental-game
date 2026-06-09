@@ -71,7 +71,7 @@ describe('flattenUpgradeTree', () => {
           goalType: 'buy-upgrade',
           prerequisites: { type: 'upgrade', id: 'x' },
           modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
-          effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'x', multiplier: 2 }],
+          effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
           children: [node('b', { x: 1, y: 1 })],
         },
       ),
@@ -84,7 +84,7 @@ describe('flattenUpgradeTree', () => {
       goalType: 'buy-upgrade',
       prerequisites: { type: 'upgrade', id: 'x' },
       modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
-      effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'x', multiplier: 2 }],
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
       position: { x: 5, y: 5 },
     })
     expect('offset' in a).toBe(false)

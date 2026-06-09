@@ -17,7 +17,7 @@ const HIGHLIGHT_UNLOCK = 'uh'
 // Phase 0 (data-driven tree master plan): the proof-of-concept tree was wiped to
 // a minimal functional stub. Kept just enough to keep the mode playable while the
 // real, data-driven tree is authored in later phases:
-//   - uh: unlocks the highlight mechanic (mode-level `highlightMultiplier` effect)
+//   - uh: unlocks the highlight mechanic (per-upgrade `highlightMultiplier` effect)
 //   - u1: a single static production upgrade (a buy target for bots/tests)
 //   - u5: the buy-upgrade trophy (so the default Race-to-Buy goal is winnable)
 // Per-upgrade dynamic-modifier closures were removed; state-derived behavior is now
@@ -33,7 +33,13 @@ const idlerTree: readonly UpgradeTreeNode[] = [
     cost: { r0: 5 },
     purchaseLimit: 1,
     offset: { x: 0, y: 0 },
-    modifiers: [], // unlocks the highlight mechanic (see mode-level `effects` below)
+    modifiers: [],
+    // Highlight mechanic lives on its unlock upgrade: ×2 to the highlighted
+    // resource, raised to ×3 once the child `uh2` (Sharper Focus) is owned. The
+    // effect runs only while `uh` is owned (per-upgrade effects gate on ownership).
+    effects: [
+      { type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2', boostedMultiplier: 3 },
+    ],
     children: [
       {
         id: 'uh2', // Sharper Focus — boosts the highlight multiplier 2 → 3
@@ -41,7 +47,7 @@ const idlerTree: readonly UpgradeTreeNode[] = [
         purchaseLimit: 1,
         offset: { x: 0, y: 150 }, // relative to `uh` (0,0) → absolute (0, 150)
         prerequisites: { type: 'upgrade', id: 'uh' },
-        modifiers: [], // boost is gated inside the mode-level highlightMultiplier effect
+        modifiers: [], // boost tier is declared on uh's highlightMultiplier effect
       },
     ],
   },
@@ -150,15 +156,6 @@ export const idlerMode: ModeDefinition = {
   highlightUnlockUpgrade: HIGHLIGHT_UNLOCK,
   initialResources: { r0: 0, r1: 0 },
   initialMeta: { highlight: 'r0' },
-  effects: [
-    {
-      type: 'highlightMultiplier',
-      unlockUpgradeId: HIGHLIGHT_UNLOCK,
-      multiplier: 2,
-      boostUpgradeId: 'uh2', // Sharper Focus raises the highlight to ×3
-      boostedMultiplier: 3,
-    },
-  ],
   nativeModifiers: [
     { stage: 'additive', field: 'r0', value: 1 }, // base 1 wood/s
     { stage: 'additive', field: 'r1', value: 1 }, // base 1 ale/s

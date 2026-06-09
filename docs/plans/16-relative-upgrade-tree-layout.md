@@ -199,8 +199,10 @@ function applyEffect(ref: EffectRef, state): Modifier | null // resolve → pars
 Tree / mode data carries declarative refs:
 
 ```ts
-// idler mode definition (data, not a closure)
-effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: 2 }]
+// idler `uh` upgrade definition (data, not a closure)
+effects: [
+  { type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2', boostedMultiplier: 3 },
+]
 ```
 
 ### Why `parse` instead of a zod schema (deferred)
@@ -218,9 +220,9 @@ is naturally a zod schema. We **deferred zod** for now because:
 
 ### Seed effect library
 
-| Effect type           | Replaces              | Params (as built)                 |
-| --------------------- | --------------------- | --------------------------------- |
-| `highlightMultiplier` | `collectIdlerDynamic` | `{ unlockUpgradeId, multiplier }` |
+| Effect type           | Replaces              | Params (as built)                                     |
+| --------------------- | --------------------- | ----------------------------------------------------- |
+| `highlightMultiplier` | `collectIdlerDynamic` | `{ multiplier, boostUpgradeId?, boostedMultiplier? }` |
 
 Future effects (`bankedResourceBonus`, `dominantGenerator`, `balancedGenerators`,
 `timeGrowth`, …) are added to this table as Phase 3+ tree nodes require them.
@@ -255,7 +257,8 @@ extension point for **branch-level inheritance** (e.g. color a branch via its ro
 > relationships). As a smoke test of the layout system, one real nested child was added:
 > `uh2` (Sharper Focus) is a layout child of `uh` (offset `0,150`) with a `prerequisites`
 > link to `uh`, and it raises the highlight multiplier 2 → 3 via a `boostUpgradeId` tier on
-> the mode-level `highlightMultiplier` effect. This exercises nesting, relative-offset
+> `uh`'s per-upgrade `highlightMultiplier` effect (co-located with the unlock it modifies).
+> This exercises nesting, relative-offset
 > resolution, prerequisite-edge rendering, and effect tiering end-to-end.
 
 ### The two-relationships separation (core of the original plan)

@@ -41,35 +41,22 @@ describe('highlightMultiplier params', () => {
     return applyEffect(ref, state)
   }
 
-  it('rejects a missing unlockUpgradeId', () => {
-    expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: 2 })).toThrow(
-      /unlockUpgradeId/u,
+  it('rejects a non-finite multiplier', () => {
+    expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: Infinity })).toThrow(
+      /multiplier/u,
     )
   })
 
-  it('rejects a non-string unlockUpgradeId', () => {
-    expect(() =>
-      applyHighlight({ type: 'highlightMultiplier', unlockUpgradeId: 7, multiplier: 2 }),
-    ).toThrow(/unlockUpgradeId/u)
-  })
-
-  it('rejects a non-finite multiplier', () => {
-    expect(() =>
-      applyHighlight({ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: Infinity }),
-    ).toThrow(/multiplier/u)
-  })
-
   it('rejects a non-number multiplier', () => {
-    expect(() =>
-      applyHighlight({ type: 'highlightMultiplier', unlockUpgradeId: 'uh', multiplier: 'x' }),
-    ).toThrow(/multiplier/u)
+    expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: 'x' })).toThrow(
+      /multiplier/u,
+    )
   })
 
   it('rejects boostUpgradeId without boostedMultiplier', () => {
     expect(() =>
       applyHighlight({
         type: 'highlightMultiplier',
-        unlockUpgradeId: 'uh',
         multiplier: 2,
         boostUpgradeId: 'uh2',
       }),
@@ -80,7 +67,6 @@ describe('highlightMultiplier params', () => {
     expect(() =>
       applyHighlight({
         type: 'highlightMultiplier',
-        unlockUpgradeId: 'uh',
         multiplier: 2,
         boostedMultiplier: 3,
       }),
@@ -91,7 +77,6 @@ describe('highlightMultiplier params', () => {
     expect(() =>
       applyHighlight({
         type: 'highlightMultiplier',
-        unlockUpgradeId: 'uh',
         multiplier: 2,
         boostUpgradeId: 'uh2',
         boostedMultiplier: Infinity,
@@ -153,6 +138,17 @@ describe('highlightMultiplier behavior (golden)', () => {
     expect(mods.some((m) => m.stage === 'multiplicative' && m.value === 2)).toBe(false)
   })
 
+  it('applies the ×3 boost to the highlighted resource when it changes (r1)', () => {
+    const def = getModeDefinition('idler')
+    const state = idlerState()
+    state.upgrades.uh = 1
+    state.upgrades.uh2 = 1
+    state.meta.highlight = 'r1'
+    const mods = collectModifiers(state, def)
+    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r1', value: 3 })
+    expect(mods.some((m) => m.stage === 'multiplicative' && m.field === 'r0')).toBe(false)
+  })
+
   it('does not boost when uh2 is owned but the unlock (uh) is not', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
@@ -173,8 +169,8 @@ describe('collectModifiers effect wiring', () => {
       cost: { r0: 10 },
       purchaseLimit: 1,
       modifiers: [],
-      // Self-gated: emits a ×3 highlight modifier once `uEffect` is owned.
-      effects: [{ type: 'highlightMultiplier', unlockUpgradeId: 'uEffect', multiplier: 3 }],
+      // Gated by placement: per-upgrade effects run only once `uEffect` is owned.
+      effects: [{ type: 'highlightMultiplier', multiplier: 3 }],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }
 
@@ -200,7 +196,7 @@ describe('collectModifiers effect wiring', () => {
     ) =>
       mods.filter((m) => m.field === f && m.stage === 'additive').reduce((s, m) => s + m.value, 0)
 
-    // Highlight a generator id (g1: produces r1 at rate 1) → the mode-level
+    // Highlight a generator id (g1: produces r1 at rate 1) → uh's per-upgrade
     // highlight effect emits a g1-targeted ×2, which must fold into g1's output.
     const hi = createInitialState(def)
     hi.upgrades.uh = 1
@@ -219,5 +215,21 @@ describe('collectModifiers effect wiring', () => {
     expect(hiMods.some((m) => m.field === 'g1')).toBe(false)
     // g1 (rate 1, owned 1) doubles: its r1 output gains exactly one extra unit.
     expect(sumAdditive(hiMods, 'r1')).toBe(sumAdditive(loMods, 'r1') + 1)
+  })
+
+  it('applies mode-level effects regardless of upgrade ownership', () => {
+    const base = getModeDefinition('idler')
+    // A mode-level effect is ungated by upgrade ownership — it always runs.
+    const def: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'highlightMultiplier', multiplier: 5 }],
+    }
+    const state = createInitialState(def)
+    state.meta.highlight = 'r0'
+    expect(collectModifiers(state, def)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 5,
+    })
   })
 })
