@@ -62,21 +62,24 @@ graph TD
 
 ## Locked decisions (from review)
 
-| #   | Decision                                                                                                                                                                                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | **Keep the `GameMode` abstraction**, but go **idler-only**: delete `clicker.ts` + `ClickerBot`. The mode plumbing stays so re-adding modes later is cheap.                               |
-| D2  | **Clicker-as-tree-panel** (clicker becomes an unlockable/upgradable panel via the tree) is a **future direction only** — noted, not designed here.                                       |
-| D3  | On-disk format is **JSON** (native to JS, no parser dependency, editor reads/writes directly).                                                                                           |
-| D4  | `cost` becomes a **`Record<currency, amount>`** map (e.g. `{ r0: 15, r1: 5 }`); `costCurrency` is removed.                                                                               |
-| D5  | Phase order is as in the diagram above; relative-layout is folded in as **Phase 3** (not a separate earlier plan).                                                                       |
-| D6  | **Generators stay scalar** this pass (single `baseCost` + `costCurrency`); they are not moved to multi-currency or data-driven yet. _(was Open Q A)_                                     |
-| D7  | When the tree is wiped (Phase 0), **suspend the idler balance CI / envelope** until the new tree exists, rather than maintain a balance baseline for throwaway content. _(was Open Q B)_ |
-| D8  | `costScaling` over a cost map scales **each currency entry by the same factor** (existing `linear`/`exponential` shape applied per-currency). _(was Open Q C)_                           |
-| D9  | "Cheapest upgrade" hotkey sorts by **score-resource-equivalent total** of the cost map. _(was Open Q D)_                                                                                 |
-| D10 | The lobby mode-picker is **hidden when only one mode is available** (`AVAILABLE_MODES.length === 1`). _(was Open Q E)_                                                                   |
-| D11 | The mode-level highlight becomes a **mode-level `effects` list**, for consistency with upgrade effects (no bespoke code hook). _(was Open Q F)_                                          |
-| D12 | Trees are **authored in TS and compiled to JSON at build** (type-safety during dev); JSON remains the runtime format. _(was Open Q G)_                                                   |
-| D13 | The **server is authoritative**: it serves the tree file + version; both clients fetch the same versioned file. _(was Open Q H)_                                                         |
+| #   | Decision                                                                                                                                                                                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Keep the `GameMode` abstraction**, but go **idler-only**: delete `clicker.ts` + `ClickerBot`. The mode plumbing stays so re-adding modes later is cheap.                                                |
+| D2  | **Clicker-as-tree-panel** (clicker becomes an unlockable/upgradable panel via the tree) is a **future direction only** — noted, not designed here.                                                        |
+| D3  | On-disk format is **JSON** (native to JS, no parser dependency, editor reads/writes directly).                                                                                                            |
+| D4  | `cost` becomes a **`Record<currency, amount>`** map (e.g. `{ r0: 15, r1: 5 }`); `costCurrency` is removed.                                                                                                |
+| D5  | Phase order is as in the diagram above; relative-layout is folded in as **Phase 3** (not a separate earlier plan).                                                                                        |
+| D6  | **Generators stay scalar** this pass (single `baseCost` + `costCurrency`); they are not moved to multi-currency or data-driven yet. _(was Open Q A)_                                                      |
+| D7  | When the tree is wiped (Phase 0), **suspend the idler balance CI / envelope** until the new tree exists, rather than maintain a balance baseline for throwaway content. _(was Open Q B)_                  |
+| D8  | `costScaling` over a cost map scales **each currency entry by the same factor** (existing `linear`/`exponential` shape applied per-currency). _(was Open Q C)_                                            |
+| D9  | "Cheapest upgrade" hotkey sorts by **score-resource-equivalent total** of the cost map. _(was Open Q D)_                                                                                                  |
+| D10 | The lobby mode-picker is **hidden when only one mode is available** (`AVAILABLE_MODES.length === 1`). _(was Open Q E)_                                                                                    |
+| D11 | The mode-level highlight becomes a **mode-level `effects` list**, for consistency with upgrade effects (no bespoke code hook). _(was Open Q F)_                                                           |
+| D12 | Trees are **authored in TS and compiled to JSON at build** (type-safety during dev); JSON remains the runtime format. _(was Open Q G)_                                                                    |
+| D13 | The **server is authoritative**: it serves the tree file + version; both clients fetch the same versioned file. _(was Open Q H)_                                                                          |
+| D14 | Each effect carries a **zod schema** (`EffectDef.schema`); the registry strips the `type` discriminant and validates params with it. One source of truth, feeds the Phase 6 editor. _(Phase 4)_           |
+| D15 | The tree file is the **whole mode minus code** (resources, goals, flavor, generators, native + mode-level effects, nested offset tree) + `version`, so Phase 5 can ship the engine data-free. _(Phase 4)_ |
+| D16 | Phase 4 stays a pure data/behavior boundary: schema + `parseTree`/`serializeTree` + round-trip + version hook; idler keeps its **synchronous TS boot** (no fetch/build-emit until Phase 5). _(Phase 4)_   |
 
 ---
 
@@ -321,9 +324,23 @@ green (shared 142 / server 104 / client 134), typecheck + eslint + format + knip
 - Trees are **authored in TS and compiled to JSON at build** (**D12**) for dev-time
   type-safety; JSON is the runtime format consumed by `parseTree`.
 
----
+**As built:** `shared/src/tree/` holds `schema.ts` (zod `TreeFileSchema` over the **whole
+mode minus code** — resources, scoreResource, goals, flavor, generators, native + mode-level
+effects, and the nested offset tree; **D15**) and `codec.ts`
+(`parseTreeFile` → `toModeDefinition` → `parseTree`, plus `serializeTree` and the
+`migrateTreeFile` version hook). Two file-format details: `purchaseLimit` is `number | null`
+(`null` = unlimited, since JSON can't encode `Infinity`; mapped back at the boundary), and
+positions are stored as relative `offset`s flattened by Phase 3's `flattenUpgradeTree`.
+Effect params are now validated by **per-effect zod schemas** (**D14**): `EffectDef.parse`
+was replaced by `EffectDef.schema`, the registry strips the `type` discriminant and runs
+`schema.parse`, and `highlightMultiplier` is a strict `z.union` (the both-or-neither boost
+pairing is enforced structurally). Idler keeps its synchronous TS boot (**D16**); the
+build-to-JSON emit + async fetch land in Phase 5.
 
-## Phase 5 — Runtime loading + loading screen
+**Validation:** ✅ tree codec tests (idler `parseTree` ≡ hand-authored mode; serialize→parse
+round-trip + deterministic re-serialize; `null`↔`Infinity` sentinel; missing/unsupported
+version; structural, duplicate-id, unknown-effect-type, and malformed-effect-param failures);
+full suite green (shared 159 / server 104 / client 134), typecheck + eslint + format + knip clean.
 
 **Goal:** Ship the engine without the tree; fetch the default tree JSON at startup.
 

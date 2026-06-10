@@ -1,18 +1,22 @@
+import type { ZodType } from 'zod'
+
 import type { Modifier } from '../modifiers/types.js'
-import type { EffectRef, PlayerState } from '../types.js'
+import type { PlayerState } from '../types.js'
 
 /**
- * A registered effect: how to validate its raw params and how to turn them into
- * a modifier at runtime.
+ * A registered effect: a zod schema describing its params, plus how to turn
+ * parsed params into a modifier at runtime.
  *
- * `parse` deliberately mirrors zod's `.parse(raw) => P` signature. Today params
- * are TS-authored and compiler-checked, so a hand-rolled guard is enough; when
- * the Phase 4 JSON boundary introduces untrusted input, a schema's `.parse` can
- * be slotted in here with no change to call sites.
+ * The schema is the single source of truth for an effect's param shape: the
+ * registry validates raw refs against it (so malformed data is rejected at the
+ * trust boundary), and the Phase 6 editor can introspect it to generate a form.
  */
 export interface EffectDef<P> {
-  /** Validate and narrow a raw ref into typed params. Throws on malformed input. */
-  readonly parse: (raw: EffectRef) => P
+  /**
+   * Validates a ref's params (the ref minus its `type` discriminant) and narrows
+   * them to `P`. Throws (`ZodError`) on malformed input.
+   */
+  readonly schema: ZodType<P>
   /** Pure: produce a modifier from params + state, or `null` when inactive. */
   readonly apply: (params: P, state: Readonly<PlayerState>) => Modifier | null
 }
