@@ -1,11 +1,14 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
   SERVER_STATUS_INTERVAL_MS,
   getAvailableUpgrades,
   getModeDefinition,
+  loadTree,
   AVAILABLE_MODES,
 } from '@game/shared'
 import type { ClientMessage, GameMode, Goal, ServerStatusMessage } from '@game/shared'
@@ -27,6 +30,22 @@ import { createBot } from './bot.js'
 
 const PORT = Number(process.env.PORT) || 10000
 
+// ─── Mode trees (server-authoritative) ───────────────────────────────
+//
+// The server owns the canonical tree files (D13/D17): it reads each one from
+// disk at startup, validates + registers it as a runtime mode, and caches the
+// raw bytes to serve verbatim. Clients fetch the same bytes from `/trees/:mode`,
+// so both ends agree on the exact tree (multiplayer integrity). The path is
+// resolved relative to this module, so it works from both `src` (dev) and
+// `dist` (prod) — `../trees/` is a sibling of each.
+const treesDir = fileURLToPath(new URL('../trees/', import.meta.url))
+const rawTrees = new Map<GameMode, string>()
+for (const mode of AVAILABLE_MODES) {
+  const raw = readFileSync(`${treesDir}${mode}.json`, 'utf8')
+  loadTree(JSON.parse(raw) as unknown)
+  rawTrees.set(mode, raw)
+}
+
 // ─── Helper: valid modes ─────────────────────────────────────────────
 
 function isValidMode(mode: unknown): mode is GameMode {
@@ -40,9 +59,28 @@ function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
   return modeDef.goals.some((g) => g.type === (goal as { type: string }).type)
 }
 
-// ─── HTTP Server (health check) ─────────────────────────────────────
+// ─── HTTP Server (health check + tree files) ────────────────────────
 
-const httpServer = createServer((_req, res) => {
+const httpServer = createServer((req, res) => {
+  // Serve the canonical tree files (server-authoritative; D17).
+  const treeMatch = /^\/trees\/([a-z0-9-]+)\.json$/u.exec(req.url ?? '/')
+  if (treeMatch) {
+    const raw = rawTrees.get(treeMatch[1] as GameMode)
+    if (raw === undefined) {
+      res.writeHead(404, { 'Access-Control-Allow-Origin': '*' })
+      res.end('not found')
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    })
+    res.end(raw)
+    return
+  }
+
+  // Health check (cold-start probe).
   res.writeHead(200, {
     'Content-Type': 'text/plain',
     'Access-Control-Allow-Origin': '*',

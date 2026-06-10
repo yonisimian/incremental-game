@@ -3,4 +3,5 @@
 
 export { CURRENT_TREE_VERSION, TreeFileSchema } from './schema.js'
 export type { TreeFile, TreeUpgradeNode } from './schema.js'
-export { parseTree, parseTreeFile, serializeTree, toModeDefinition } from './codec.js'
+export { loadTree, parseTree, parseTreeFile, serializeTree, toModeDefinition } from './codec.js'
+export { toTreeFile } from './authoring.js'

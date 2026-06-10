@@ -15,6 +15,7 @@ export * from './upgrade-groups.js'
 export * from './upgrade-costs.js'
 export * from './balance/index.js'
 export * from './tree/index.js'
+export { buildIdlerTreeFile } from './modes/idler.js'
 export type {
   ModeDefinition,
   ModeFlavor,

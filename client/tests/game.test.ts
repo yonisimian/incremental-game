@@ -28,6 +28,10 @@ type GameModule = typeof import('../src/game.js')
 
 async function loadGame(): Promise<GameModule> {
   vi.resetModules()
+  // resetModules wipes the runtime mode registry — re-register the tree on the
+  // fresh module instance before importing code that reads it.
+  const shared = await import('@game/shared')
+  shared.loadTree(shared.buildIdlerTreeFile())
   return await import('../src/game.js')
 }
 

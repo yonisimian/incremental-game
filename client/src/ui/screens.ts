@@ -2,6 +2,7 @@ import type { GameMode } from '@game/shared'
 import { getModeDefinition, AVAILABLE_MODES } from '@game/shared'
 import type { GameState } from '../game.js'
 import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
+import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
 
 // ─── Shared Fragments ────────────────────────────────────────────────
@@ -18,6 +19,30 @@ export function renderWakingScreen(): void {
       <div class="spinner"></div>
     </div>
   `
+}
+
+export function renderLoadingScreen(): void {
+  app.innerHTML = `
+    <div class="screen waking-screen">
+      <h1>incremen<span class="brand-t">T</span>al</h1>
+      <p class="status-text">Loading game…</p>
+      <div class="spinner"></div>
+    </div>
+  `
+}
+
+export function renderLoadErrorScreen(): void {
+  app.innerHTML = `
+    <div class="screen waking-screen">
+      <h1>incremen<span class="brand-t">T</span>al</h1>
+      <p class="status-text">Couldn't load the game data.</p>
+      <button class="bot-btn" id="retry-load-btn">Retry</button>
+    </div>
+  `
+
+  document.getElementById('retry-load-btn')!.addEventListener('click', () => {
+    void connect()
+  })
 }
 
 export function renderWaitingScreen(): void {
