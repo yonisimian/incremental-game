@@ -80,11 +80,6 @@ export function registerMode(id: GameMode, def: ModeDefinition): void {
   MODE_REGISTRY.set(id, def)
 }
 
-/** Whether a mode's definition has been loaded into the registry. */
-export function isModeLoaded(mode: GameMode): boolean {
-  return MODE_REGISTRY.has(mode)
-}
-
 /**
  * Look up the mode definition for a GameMode. Throws if the mode has not been
  * loaded yet — a missing load is a boot-order bug that should surface loudly.
@@ -99,8 +94,8 @@ export function getModeDefinition(mode: GameMode): ModeDefinition {
 
 /**
  * All game mode keys the app knows about. Static (the `GameMode` union), so it is
- * available before any tree is loaded — distinct from whether a mode's data is
- * loaded (see `isModeLoaded`). Used for input validation and the lobby picker.
+ * available before any tree is loaded — distinct from whether a mode's data has
+ * been loaded into the registry. Used for input validation and the lobby picker.
  */
 export const AVAILABLE_MODES: readonly GameMode[] = ['idler']
 
