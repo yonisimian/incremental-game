@@ -11,9 +11,9 @@ export const CURRENT_TREE_VERSION = 1
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
 /** A position is the offset from a node's layout parent (roots: from the origin). */
-const PositionSchema = z.object({ x: z.number(), y: z.number() })
+const PositionSchema = z.strictObject({ x: z.number(), y: z.number() })
 
-const ModifierSchema = z.object({
+const ModifierSchema = z.strictObject({
   stage: z.enum(['additive', 'multiplicative', 'global']),
   field: z.string(),
   value: z.number(),
@@ -23,8 +23,8 @@ const ModifierSchema = z.object({
 const CostSchema = z.record(z.string(), z.number())
 
 const CostScalingSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('linear'), baseCost: z.number(), factor: z.number() }),
-  z.object({ type: z.literal('exponential'), baseCost: z.number(), factor: z.number() }),
+  z.strictObject({ type: z.literal('linear'), baseCost: z.number(), factor: z.number() }),
+  z.strictObject({ type: z.literal('exponential'), baseCost: z.number(), factor: z.number() }),
 ])
 
 /**
@@ -32,62 +32,63 @@ const CostScalingSchema = z.discriminatedUnion('type', [
  * type so the inferred file shape matches the engine's `PrerequisiteExpression`.
  */
 const PrerequisiteSchema: z.ZodType<PrerequisiteExpression> = z.lazy(() =>
-  z.union([
-    z.object({
+  z.discriminatedUnion('type', [
+    z.strictObject({
       type: z.literal('upgrade'),
       id: z.string(),
       minLevel: z.number().int().min(1).optional(),
     }),
-    z.object({ type: z.literal('all'), items: z.array(PrerequisiteSchema) }),
-    z.object({ type: z.literal('any'), items: z.array(PrerequisiteSchema) }),
+    z.strictObject({ type: z.literal('all'), items: z.array(PrerequisiteSchema) }),
+    z.strictObject({ type: z.literal('any'), items: z.array(PrerequisiteSchema) }),
   ]),
 )
 
 /**
- * A declarative effect ref: a `type` discriminant plus inline params. Params are
- * kept verbatim (loose object) and validated per-effect by the registry once the
- * tree is assembled into a `ModeDefinition` — see `validateModeDefinition`.
+ * A declarative effect ref: a `type` discriminant plus inline params. This is the
+ * one deliberately **loose** schema — params are kept verbatim and validated
+ * per-effect by the registry once the tree is assembled into a `ModeDefinition`
+ * (see `validateModeDefinition`), since each effect owns its own param schema.
  */
 const EffectRefSchema = z.looseObject({ type: z.string() })
 
 const GoalSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('timed'), label: z.string(), durationSec: z.number() }),
-  z.object({
+  z.strictObject({ type: z.literal('timed'), label: z.string(), durationSec: z.number() }),
+  z.strictObject({
     type: z.literal('target-score'),
     label: z.string(),
     target: z.number(),
     safetyCapSec: z.number(),
   }),
-  z.object({ type: z.literal('buy-upgrade'), label: z.string(), safetyCapSec: z.number() }),
+  z.strictObject({ type: z.literal('buy-upgrade'), label: z.string(), safetyCapSec: z.number() }),
 ])
 
-const GeneratorSchema = z.object({
+const GeneratorSchema = z.strictObject({
   id: z.string(),
   baseCost: z.number(),
   costScaling: z.number(),
   costCurrency: z.string(),
-  production: z.object({ resource: z.string(), rate: z.number() }),
+  production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
 // ─── Flavor schemas ──────────────────────────────────────────────────
 
-const ResourceFlavorSchema = z.object({
+const ResourceFlavorSchema = z.strictObject({
   key: z.string(),
   displayName: z.string(),
   icon: z.string(),
   className: z.string().optional(),
 })
 
-const UpgradeFlavorSchema = z.object({
+const UpgradeFlavorSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   icon: z.string(),
   description: z.string(),
 })
 
-const GeneratorFlavorSchema = z.object({ id: z.string(), name: z.string(), icon: z.string() })
+const GeneratorFlavorSchema = z.strictObject({ id: z.string(), name: z.string(), icon: z.string() })
 
-const ModeFlavorSchema = z.object({
+const ModeFlavorSchema = z.strictObject({
   displayName: z.string(),
   themeClass: z.string(),
   scoreLabel: z.string(),
@@ -105,7 +106,7 @@ const ModeFlavorSchema = z.object({
  * cannot encode `Infinity`), and `position` is expressed as a relative `offset`.
  * The `codec` maps `null → Infinity` and flattens offsets to absolute positions.
  */
-const UpgradeNodeSchema = z.object({
+const UpgradeNodeSchema = z.strictObject({
   id: z.string(),
   cost: CostSchema,
   costScaling: CostScalingSchema.optional(),
@@ -131,7 +132,7 @@ const UpgradeNodeSchema = z.object({
  * form. `parseTree` (see `codec.ts`) is the single boundary that turns this into
  * a runtime `ModeDefinition`.
  */
-export const TreeFileSchema = z.object({
+export const TreeFileSchema = z.strictObject({
   version: z.literal(CURRENT_TREE_VERSION),
   /** Mode key (e.g. 'idler') — used for validation messages and registration. */
   id: z.string(),

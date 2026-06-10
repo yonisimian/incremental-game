@@ -63,15 +63,18 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     scoreResource: tree.scoreResource,
     clicksEnabled: tree.clicksEnabled,
     highlightEnabled: tree.highlightEnabled,
-    highlightUnlockUpgrade: tree.highlightUnlockUpgrade,
     initialResources: tree.initialResources,
     initialMeta: tree.initialMeta,
     nativeModifiers: tree.nativeModifiers,
-    effects: tree.effects,
     generators: tree.generators,
     goals: tree.goals,
     flavor: tree.flavor,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
+    // Optional fields are assigned only when present so the result stays minimal.
+    ...(tree.highlightUnlockUpgrade !== undefined
+      ? { highlightUnlockUpgrade: tree.highlightUnlockUpgrade }
+      : {}),
+    ...(tree.effects !== undefined ? { effects: tree.effects } : {}),
   }
   validateModeDefinition(tree.id, def)
   return def

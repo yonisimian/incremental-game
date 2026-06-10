@@ -10,8 +10,24 @@ import {
 } from '../src/index.js'
 import type { TreeFile } from '../src/index.js'
 import { idlerTree } from '../src/modes/idler.js'
+import type { UpgradeTreeNode } from '../src/modes/upgrade-tree.js'
 
 // ─── Fixtures ────────────────────────────────────────────────────────
+
+/**
+ * Convert a runtime authoring node to its serializable file form: map the
+ * `Infinity` unlimited sentinel back to `null` (JSON cannot encode `Infinity`,
+ * and the schema rejects it), recursing into layout children.
+ */
+function toFileNode(node: UpgradeTreeNode): unknown {
+  const { purchaseLimit, children, ...rest } = node
+  const fileNode: Record<string, unknown> = {
+    ...rest,
+    purchaseLimit: Number.isFinite(purchaseLimit) ? purchaseLimit : null,
+  }
+  if (children) fileNode.children = children.map(toFileNode)
+  return fileNode
+}
 
 /** Build a tree file from the real, hand-authored idler mode + its nested tree. */
 function idlerTreeFileInput(): unknown {
@@ -31,7 +47,7 @@ function idlerTreeFileInput(): unknown {
     generators: m.generators,
     goals: m.goals,
     flavor: m.flavor,
-    upgrades: idlerTree,
+    upgrades: idlerTree.map(toFileNode),
   }
 }
 
@@ -125,6 +141,21 @@ describe('tree codec — versioning', () => {
 describe('tree codec — validation failures', () => {
   it('rejects a structurally invalid file (wrong field type)', () => {
     expect(() => parseTreeFile({ ...minimalTree(), resources: 'r0' })).toThrow()
+  })
+
+  it('rejects an unknown top-level key (strict schema catches typos)', () => {
+    expect(() => parseTreeFile({ ...minimalTree(), purchaseLimt: 1 })).toThrow()
+  })
+
+  it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 0 } },
+    ]
+    tree.flavor.upgrades = [flavorFor('a')]
+    expect(() =>
+      parseTreeFile({ ...tree, upgrades: [{ ...tree.upgrades[0], modifers: [] }] }),
+    ).toThrow()
   })
 
   it('rejects a duplicate upgrade id (via the flattener)', () => {
