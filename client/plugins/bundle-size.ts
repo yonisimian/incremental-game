@@ -17,7 +17,7 @@
 
 import { gzipSync } from 'node:zlib'
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join, basename } from 'node:path'
+import { join } from 'node:path'
 import type { Plugin, ResolvedConfig } from 'vite'
 
 /** @public */
@@ -75,7 +75,11 @@ export function bundleSize(opts: BundleSizeOptions): Plugin {
           return // no assets dir yet (e.g. during dev)
         }
 
-        const entryPattern = /^(.+?)-[A-Za-z0-9]+\.(js|css)$/
+        // Vite emits `<entry>-<hash>.<ext>`. The hash is base64url, so it can
+        // contain `-`/`_` (and may even end with one, e.g. `main-DvhSvxG-.js`).
+        // Match a greedy entry name + a trailing fixed-length hash so multi-word
+        // entries (`pan-zoom`, `dev-recorder`) and hyphen-ending hashes both work.
+        const entryPattern = /^(.+)-[A-Za-z0-9_-]{8,}\.(js|css)$/
         for (const file of files) {
           const match = entryPattern.exec(file)
           if (!match) continue
@@ -99,8 +103,9 @@ export function bundleSize(opts: BundleSizeOptions): Plugin {
             const raw = buf.length
             const gz = gzipSize(buf)
             const ext = file.endsWith('.css') ? 'CSS' : 'JS'
-            const name = basename(file)
-            const shortName = name.replace(/-[A-Za-z0-9]+\./, '.')
+            // Display the entry name without the build hash (which can contain
+            // `-`/`_`); we already parsed it out into `entry`.
+            const shortName = `${entry}.${ext.toLowerCase()}`
 
             if (entry === 'main' && ext === 'JS') {
               mainJsRaw = raw
