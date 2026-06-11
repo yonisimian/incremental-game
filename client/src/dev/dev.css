@@ -438,3 +438,253 @@ body {
   color: rgba(255, 255, 255, 0.5);
   font-style: italic;
 }
+
+/* ─── Tree editor ─────────────────────────────────────────────────── */
+
+.ed-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ed-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ed-status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--dev-muted);
+}
+
+.ed-status.error {
+  color: #ff6b6b;
+}
+
+.ed-body {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* Canvas */
+
+.ed-canvas-viewport {
+  position: relative;
+  flex: 1;
+  height: 600px;
+  overflow: hidden;
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--dev-bg);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ed-canvas-viewport:active {
+  cursor: grabbing;
+}
+
+.ed-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.ed-edges {
+  position: absolute;
+  pointer-events: none;
+}
+
+.ed-edge {
+  stroke: rgba(79, 195, 247, 0.45);
+  stroke-width: 2;
+}
+
+.ed-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  background: var(--dev-surface);
+  color: var(--dev-text);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.ed-node:hover {
+  border-color: var(--dev-accent);
+}
+
+.ed-node.selected {
+  border-color: var(--dev-accent);
+  box-shadow: 0 0 0 2px var(--dev-accent);
+}
+
+.ed-node-id {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-node-cost {
+  font-size: 0.7rem;
+  color: var(--dev-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-node-limit {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.65rem;
+  color: var(--dev-muted);
+}
+
+/* Inspector */
+
+.ed-inspector {
+  width: 320px;
+  flex-shrink: 0;
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  background: var(--dev-surface);
+}
+
+.ed-empty {
+  color: var(--dev-muted);
+  font-style: italic;
+}
+
+.ed-section {
+  margin-bottom: 16px;
+}
+
+.ed-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--dev-accent);
+  margin-bottom: 6px;
+}
+
+.ed-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ed-field-label {
+  font-size: 0.8rem;
+  color: var(--dev-muted);
+}
+
+.ed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ed-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.ed-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  font-size: 0.85rem;
+}
+
+.ed-input:focus {
+  outline: none;
+  border-color: var(--dev-accent);
+}
+
+.ed-json {
+  font-family: monospace;
+  width: 100%;
+  resize: vertical;
+}
+
+.ed-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  background: var(--dev-surface);
+  color: var(--dev-text);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.ed-btn:hover {
+  border-color: var(--dev-accent);
+}
+
+.ed-btn-remove {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: var(--dev-muted);
+}
+
+.ed-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ed-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+}
+
+.ed-checklist-item {
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ed-hint {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+  font-style: italic;
+}
+
+.ed-error {
+  font-size: 0.8rem;
+  color: #ff6b6b;
+  min-height: 1em;
+}
