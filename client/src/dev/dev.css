@@ -485,9 +485,7 @@ body {
   overflow: hidden;
   border: 1px solid var(--dev-border);
   border-radius: 6px;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px) 0 0 / 24px 24px,
-    var(--dev-bg);
+  background: var(--dev-bg);
   cursor: grab;
   touch-action: none;
 }
@@ -503,6 +501,16 @@ body {
   transform-origin: 0 0;
 }
 
+/* World-space grid backdrop — pans/zooms with the canvas so its lines line up
+   with where dragged nodes snap (see GRID in canvas.ts). */
+.ed-grid {
+  position: absolute;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
 .ed-edges {
   position: absolute;
   pointer-events: none;
@@ -513,22 +521,29 @@ body {
   stroke-width: 2;
 }
 
+/* Tree nodes — fixed-size, icon-only buttons centered on their coords, mirroring
+   the production tree node. Id/cost/limit live in the hover title + inspector. */
 .ed-node {
   position: absolute;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 6px 10px;
+  padding: 0;
   border: 1px solid var(--dev-border);
-  border-radius: 6px;
+  border-radius: 14px;
   background: var(--dev-surface);
   color: var(--dev-text);
-  cursor: pointer;
-  overflow: hidden;
+  cursor: grab;
   transition:
     border-color 0.12s,
     box-shadow 0.12s;
+}
+
+.ed-node:active {
+  cursor: grabbing;
 }
 
 .ed-node:hover {
@@ -540,28 +555,9 @@ body {
   box-shadow: 0 0 0 2px var(--dev-accent);
 }
 
-.ed-node-id {
-  font-weight: 600;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ed-node-cost {
-  font-size: 0.7rem;
-  color: var(--dev-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ed-node-limit {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: 0.65rem;
-  color: var(--dev-muted);
+.ed-node-icon {
+  font-size: 1.7rem;
+  line-height: 1;
 }
 
 /* Inspector */

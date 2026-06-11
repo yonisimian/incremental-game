@@ -72,6 +72,25 @@ export function collectIds(tree: TreeFile): string[] {
   return walkPositioned(tree).map((p) => p.node.id)
 }
 
+/** Absolute canvas position of a node, or `null` if the id is unknown. */
+export function nodePosition(tree: TreeFile, id: string): { x: number; y: number } | null {
+  const p = walkPositioned(tree).find((n) => n.node.id === id)
+  return p ? { x: p.x, y: p.y } : null
+}
+
+/**
+ * Move a node so its absolute position becomes (`absX`, `absY`), by adjusting
+ * its offset relative to its layout parent. Children move with it (their offsets
+ * are unchanged). No-op if the id is unknown.
+ */
+export function setNodePosition(tree: TreeFile, id: string, absX: number, absY: number): void {
+  const target = walkPositioned(tree).find((p) => p.node.id === id)
+  if (!target) return
+  const parentX = target.x - target.node.offset.x
+  const parentY = target.y - target.node.offset.y
+  target.node.offset = { x: absX - parentX, y: absY - parentY }
+}
+
 /**
  * The set of upgrade ids referenced by a prerequisite expression. Used to draw
  * prerequisite edges on the canvas.

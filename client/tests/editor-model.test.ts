@@ -10,8 +10,10 @@ import {
   uniqueId,
   addNode,
   removeNode,
+  nodePosition,
+  setNodePosition,
 } from '../src/dev/editor/model.js'
-import { renderCanvas, NODE_W, NODE_H } from '../src/dev/editor/canvas.js'
+import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -160,6 +162,49 @@ describe('removeNode', () => {
   })
 })
 
+// ─── nodePosition / setNodePosition ──────────────────────────────────
+
+describe('nodePosition', () => {
+  it('returns the absolute position of a nested node', () => {
+    expect(nodePosition(makeTree(), 'c')).toEqual({ x: 110, y: 60 })
+  })
+
+  it('returns null for an unknown id', () => {
+    expect(nodePosition(makeTree(), 'nope')).toBeNull()
+  })
+})
+
+describe('setNodePosition', () => {
+  it('adjusts a root offset to the target absolute position', () => {
+    const tree = makeTree()
+    setNodePosition(tree, 'a', 48, 24)
+    expect(nodePosition(tree, 'a')).toEqual({ x: 48, y: 24 })
+    expect(findNode(tree, 'a')!.offset).toEqual({ x: 48, y: 24 })
+  })
+
+  it('keeps children in place by only changing the moved node offset', () => {
+    const tree = makeTree()
+    // 'b' is at (100,50); move it to (200,100). 'c' (offset 10,10) follows.
+    setNodePosition(tree, 'b', 200, 100)
+    expect(nodePosition(tree, 'b')).toEqual({ x: 200, y: 100 })
+    expect(nodePosition(tree, 'c')).toEqual({ x: 210, y: 110 })
+    expect(findNode(tree, 'c')!.offset).toEqual({ x: 10, y: 10 })
+  })
+
+  it('positions a child relative to its parent', () => {
+    const tree = makeTree()
+    // 'c's parent 'b' sits at (100,50); placing 'c' at (130,80) means offset (30,30).
+    setNodePosition(tree, 'c', 130, 80)
+    expect(findNode(tree, 'c')!.offset).toEqual({ x: 30, y: 30 })
+  })
+
+  it('is a no-op for an unknown id', () => {
+    const tree = makeTree()
+    setNodePosition(tree, 'nope', 0, 0)
+    expect(nodePosition(tree, 'a')).toEqual({ x: 0, y: 0 })
+  })
+})
+
 // ─── prerequisiteRefs ────────────────────────────────────────────────
 
 describe('prerequisiteRefs', () => {
@@ -201,7 +246,7 @@ describe('prerequisiteRefs', () => {
 describe('renderCanvas', () => {
   it('renders a card per node and marks the selected one', () => {
     const { nodes } = renderCanvas(makeTree(), 'b')
-    // `[ "]` excludes the inner spans (ed-node-id / -cost / -limit).
+    // `[ "]` excludes the inner `ed-node-icon` span (followed by `-`).
     expect((nodes.match(/class="ed-node[ "]/g) ?? []).length).toBe(4)
     expect(nodes).toContain('ed-node selected')
     expect(nodes).toContain('data-node-id="b"')
@@ -215,10 +260,12 @@ describe('renderCanvas', () => {
 
   it('computes bounds covering all node footprints', () => {
     const { bounds } = renderCanvas(makeTree(), null)
-    expect(bounds.minX).toBe(-40)
-    expect(bounds.minY).toBe(0)
-    expect(bounds.maxX).toBe(110 + NODE_W)
-    expect(bounds.maxY).toBe(60 + NODE_H)
+    // Positions are node centers, so footprints extend ±NODE_SIZE/2.
+    const half = NODE_SIZE / 2
+    expect(bounds.minX).toBe(-40 - half)
+    expect(bounds.minY).toBe(0 - half)
+    expect(bounds.maxX).toBe(110 + half)
+    expect(bounds.maxY).toBe(60 + half)
   })
 
   it('escapes html in node ids', () => {

@@ -14,8 +14,10 @@ import {
   uniqueId,
   addNode,
   removeNode,
+  nodePosition,
+  setNodePosition,
 } from './model.js'
-import { renderCanvas, type CanvasBounds } from './canvas.js'
+import { renderCanvas, GRID, type CanvasBounds } from './canvas.js'
 import { renderInspector, renderInspectorEmpty } from './inspector.js'
 import { exportTree, importTreeFromFile } from './io.js'
 
@@ -52,13 +54,20 @@ function buildLayout(): string {
     </div>`
 }
 
-/** Size + position an SVG that fully encloses the (possibly negative) bounds. */
+/** Size + position the grid + SVG that fully enclose the (possibly negative) bounds. */
 function canvasInnerHtml(edgesSvg: string, nodes: string, bounds: CanvasBounds): string {
   const offsetX = Math.min(0, bounds.minX)
   const offsetY = Math.min(0, bounds.minY)
   const width = bounds.maxX - offsetX + 200
   const height = bounds.maxY - offsetY + 200
+  // Shift the grid pattern so its lines fall on world multiples of GRID, which
+  // is exactly where dragged nodes snap to.
+  const gridX = (((-offsetX % GRID) + GRID) % GRID).toFixed(2)
+  const gridY = (((-offsetY % GRID) + GRID) % GRID).toFixed(2)
   return `
+    <div class="ed-grid"
+         style="left:${offsetX}px; top:${offsetY}px; width:${width}px; height:${height}px;
+                background-size:${GRID}px ${GRID}px; background-position:${gridX}px ${gridY}px"></div>
     <svg class="ed-edges" width="${width}" height="${height}" overflow="visible"
          style="left:${offsetX}px; top:${offsetY}px">
       ${edgesSvg}
@@ -151,13 +160,63 @@ export function initEditor(pane: HTMLElement): () => void {
     renderInspectorOnly()
   }
 
-  // ── Selection (pan/zoom suppresses the trailing click after a drag) ──
-  canvas.addEventListener('click', (e) => {
-    const card = (e.target as HTMLElement).closest<HTMLElement>('.ed-node')
-    if (!card) return
-    state.selectedId = card.dataset.nodeId ?? null
+  // ── Selection + drag-to-move (grid-snapped) ──
+  // A pointerdown on a node selects it and begins a drag. We stop propagation so
+  // the viewport's pan/zoom doesn't also start, and listen on `window` so the
+  // drag continues even if the cursor leaves the node. Positions snap to GRID.
+  const snap = (v: number): number => Math.round(v / GRID) * GRID
+
+  let drag: {
+    id: string
+    startClientX: number
+    startClientY: number
+    startX: number
+    startY: number
+    moved: boolean
+  } | null = null
+
+  const onDragMove = (e: PointerEvent): void => {
+    if (!drag) return
+    const zoom = state.panZoom?.getState().zoom ?? INITIAL_ZOOM
+    const dx = (e.clientX - drag.startClientX) / zoom
+    const dy = (e.clientY - drag.startClientY) / zoom
+    if (!drag.moved && Math.hypot(dx, dy) > 2) drag.moved = true
+    setNodePosition(state.tree, drag.id, snap(drag.startX + dx), snap(drag.startY + dy))
     renderCanvasOnly()
-    renderInspectorOnly()
+  }
+
+  const onDragEnd = (): void => {
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
+    if (drag?.moved) {
+      state.dirty = true
+      setStatus(`Moved ${drag.id}`)
+    }
+    drag = null
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.ed-node')
+    const id = card?.dataset.nodeId
+    if (id === undefined) return
+    e.stopPropagation() // don't let the viewport start a pan
+    const pos = nodePosition(state.tree, id)
+    if (!pos) return
+    drag = {
+      id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: pos.x,
+      startY: pos.y,
+      moved: false,
+    }
+    if (state.selectedId !== id) {
+      state.selectedId = id
+      renderCanvasOnly()
+      renderInspectorOnly()
+    }
+    window.addEventListener('pointermove', onDragMove)
+    window.addEventListener('pointerup', onDragEnd)
   })
 
   // ── Add / delete nodes ──
@@ -231,6 +290,8 @@ export function initEditor(pane: HTMLElement): () => void {
   remount()
 
   return () => {
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
     state.panZoom?.cleanup()
     state.panZoom = null
   }
