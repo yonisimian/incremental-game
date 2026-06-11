@@ -5,6 +5,7 @@
 import type { GameMode } from '@game/shared'
 import {
   getModeDefinition,
+  getModeFlavor,
   AVAILABLE_MODES,
   IDLER_TIMED_ENVELOPE,
   validateEnvelope,
@@ -92,7 +93,7 @@ export function initDevPanel(root: HTMLElement): void {
   for (const mode of AVAILABLE_MODES) {
     const opt = document.createElement('option')
     opt.value = mode
-    opt.textContent = getModeDefinition(mode).flavor.displayName
+    opt.textContent = getModeFlavor(getModeDefinition(mode)).displayName
     if (!(mode in STRATEGIES)) opt.disabled = true
     modeSelect.appendChild(opt)
   }
@@ -263,7 +264,7 @@ function renderResults(
   // ── Income chart (per resource, stacked vertically) ──
   resourceContainer.innerHTML = ''
   for (const resKey of modeDef.resources) {
-    const resFlavor = modeDef.flavor.resources.find((r) => r.key === resKey)
+    const resFlavor = getModeFlavor(modeDef).resources.find((r) => r.key === resKey)
     const resName = resFlavor?.displayName ?? resKey
 
     // Income/sec chart for this resource
@@ -520,7 +521,7 @@ function renderLiveCharts(
   }
 
   for (const resKey of modeDef.resources) {
-    const resFlavor = modeDef.flavor.resources.find((r) => r.key === resKey)
+    const resFlavor = getModeFlavor(modeDef).resources.find((r) => r.key === resKey)
     const resName = resFlavor?.displayName ?? resKey
     const divs = liveResourceDivs.get(resKey)!
 

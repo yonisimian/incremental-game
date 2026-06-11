@@ -112,6 +112,7 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
 // ─── Flavor ──────────────────────────────────────────────────────────
 
 const idlerFlavor: ModeFlavor = {
+  id: 'medieval',
   displayName: 'Idler',
   themeClass: 'theme-medieval',
   scoreLabel: 'Total',
@@ -166,7 +167,7 @@ const idlerMode: ModeDefinition = {
   ],
   upgrades: idlerUpgrades,
   generators: idlerGenerators,
-  flavor: idlerFlavor,
+  flavors: [idlerFlavor],
   goals: [
     { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
     {

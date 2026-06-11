@@ -89,6 +89,8 @@ const UpgradeFlavorSchema = z.strictObject({
 const GeneratorFlavorSchema = z.strictObject({ id: z.string(), name: z.string(), icon: z.string() })
 
 const ModeFlavorSchema = z.strictObject({
+  /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
+  id: z.string(),
   displayName: z.string(),
   themeClass: z.string(),
   scoreLabel: z.string(),
@@ -147,7 +149,12 @@ export const TreeFileSchema = z.strictObject({
   effects: z.array(EffectRefSchema).optional(),
   generators: z.array(GeneratorSchema),
   goals: z.array(GoalSchema),
-  flavor: ModeFlavorSchema,
+  /**
+   * Cosmetic skins for this mode (at least one). Mechanics are keyed by stable
+   * ids, so every flavor describes the same upgrades/generators/resources —
+   * players can pick different flavors and still compete in the same match.
+   */
+  flavors: z.array(ModeFlavorSchema).min(1),
   upgrades: z.array(UpgradeNodeSchema),
 })
 

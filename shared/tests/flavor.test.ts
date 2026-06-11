@@ -3,6 +3,7 @@ import { getModeDefinition, validateModeDefinition } from '../src/modes/index.js
 import type { ModeDefinition, ModeFlavor } from '../src/modes/types.js'
 import type { GameMode } from '../src/types.js'
 import {
+  getModeFlavor,
   getResourceIcon,
   getResourceName,
   getUpgradeName,
@@ -18,7 +19,7 @@ const MODES: GameMode[] = ['idler']
 
 for (const mode of MODES) {
   const def = getModeDefinition(mode)
-  const f = def.flavor
+  const f = getModeFlavor(def)
 
   describe(`${mode} flavor`, () => {
     it('resource keys match between mechanics and flavor', () => {
@@ -80,22 +81,25 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     initialResources: { r0: 0 },
     initialMeta: {},
     generators: [],
-    flavor: {
-      displayName: 'Test',
-      themeClass: 'theme-test',
-      scoreLabel: 'Score',
-      showClickStats: false,
-      resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-      upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
-      generators: [],
-    },
+    flavors: [
+      {
+        id: 'test',
+        displayName: 'Test',
+        themeClass: 'theme-test',
+        scoreLabel: 'Score',
+        showClickStats: false,
+        resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
+        upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
+        generators: [],
+      },
+    ],
   }
   return { ...base, ...overrides }
 }
 
-/** Return a new flavor with selected arrays overridden. */
+/** Return a new def whose (single) flavor has selected arrays overridden. */
 function withFlavor(def: ModeDefinition, patch: Partial<ModeFlavor>): ModeDefinition {
-  return { ...def, flavor: { ...def.flavor, ...patch } }
+  return { ...def, flavors: [{ ...def.flavors[0], ...patch }] }
 }
 
 describe('validateModeDefinition — negative tests', () => {
@@ -212,6 +216,85 @@ describe('validateModeDefinition — negative tests', () => {
       validateModeDefinition('test', def)
     }).not.toThrow()
   })
+
+  // ── Multiple flavors ─────────────────────────────────────────────
+
+  it('passes with several valid flavors describing the same mechanics', () => {
+    const def = makeValidDef({
+      flavors: [
+        {
+          id: 'medieval',
+          displayName: 'Medieval',
+          themeClass: 'theme-medieval',
+          scoreLabel: 'Score',
+          showClickStats: false,
+          resources: [{ key: 'r0', displayName: 'Wood', icon: '🪵' }],
+          upgrades: [{ id: 'u0', name: 'Axe', icon: '🪓', description: 'chop' }],
+          generators: [],
+        },
+        {
+          id: 'scifi',
+          displayName: 'Sci-Fi',
+          themeClass: 'theme-scifi',
+          scoreLabel: 'Score',
+          showClickStats: false,
+          resources: [{ key: 'r0', displayName: 'Energy', icon: '⚡' }],
+          upgrades: [{ id: 'u0', name: 'Laser', icon: '🔫', description: 'zap' }],
+          generators: [],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when two flavors share an id', () => {
+    const flavor = makeValidDef().flavors[0]
+    const def = makeValidDef({ flavors: [flavor, { ...flavor }] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/duplicate flavor id 'test'/)
+  })
+
+  it('throws when a non-default flavor is missing an upgrade entry', () => {
+    const good = makeValidDef().flavors[0]
+    const broken: ModeFlavor = { ...good, id: 'broken', upgrades: [] }
+    const def = makeValidDef({ flavors: [good, broken] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/flavor 'broken'.*missing flavor for upgrade/)
+  })
+
+  it('throws when a mode has no flavors', () => {
+    const def = makeValidDef({ flavors: [] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/no flavors/)
+  })
+})
+
+// ─── getModeFlavor resolution ────────────────────────────────────────
+
+describe('getModeFlavor', () => {
+  const def = makeValidDef({
+    flavors: [
+      { ...makeValidDef().flavors[0], id: 'first' },
+      { ...makeValidDef().flavors[0], id: 'second' },
+    ],
+  })
+
+  it('returns the first flavor when no id is given', () => {
+    expect(getModeFlavor(def).id).toBe('first')
+  })
+
+  it('returns the flavor matching the requested id', () => {
+    expect(getModeFlavor(def, 'second').id).toBe('second')
+  })
+
+  it('falls back to the first flavor for an unknown id', () => {
+    expect(getModeFlavor(def, 'nope').id).toBe('first')
+  })
 })
 
 // ─── Lookup helpers (flavor.ts functions) ────────────────────────────
@@ -220,6 +303,7 @@ describe('validateModeDefinition — negative tests', () => {
  *  caches start fresh for these tests. */
 function makeFlavor(): ModeFlavor {
   return {
+    id: 'test',
     displayName: 'Test',
     themeClass: 'theme-test',
     scoreLabel: 'Score',

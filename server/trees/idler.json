@@ -88,72 +88,75 @@
       "durationSec": 35
     }
   ],
-  "flavor": {
-    "displayName": "Idler",
-    "themeClass": "theme-medieval",
-    "scoreLabel": "Total",
-    "resources": [
-      {
-        "key": "r0",
-        "displayName": "Wood",
-        "icon": "🪵"
-      },
-      {
-        "key": "r1",
-        "displayName": "Ale",
-        "icon": "🍺"
-      }
-    ],
-    "showClickStats": false,
-    "upgrades": [
-      {
-        "id": "uh",
-        "name": "🔦 Focus Training",
-        "icon": "🔦",
-        "description": "Unlock highlighting (×2 to selected resource)"
-      },
-      {
-        "id": "uh2",
-        "name": "🔬 Sharper Focus",
-        "icon": "🔬",
-        "description": "Boost highlight to ×3 on the selected resource"
-      },
-      {
-        "id": "u1",
-        "name": "🌲 Heavy Logging",
-        "icon": "🌲",
-        "description": "+5 base 🪵/sec"
-      },
-      {
-        "id": "u5",
-        "name": "👑 Royal Throne",
-        "icon": "👑",
-        "description": "Carved from the finest oak. Cements your reign."
-      }
-    ],
-    "generators": [
-      {
-        "id": "g0",
-        "name": "Woodcutter",
-        "icon": "🪓"
-      },
-      {
-        "id": "g1",
-        "name": "Brewer",
-        "icon": "🍺"
-      },
-      {
-        "id": "g2",
-        "name": "Sawmill",
-        "icon": "🏗️"
-      },
-      {
-        "id": "g3",
-        "name": "Tavern",
-        "icon": "🍻"
-      }
-    ]
-  },
+  "flavors": [
+    {
+      "id": "medieval",
+      "displayName": "Idler",
+      "themeClass": "theme-medieval",
+      "scoreLabel": "Total",
+      "resources": [
+        {
+          "key": "r0",
+          "displayName": "Wood",
+          "icon": "🪵"
+        },
+        {
+          "key": "r1",
+          "displayName": "Ale",
+          "icon": "🍺"
+        }
+      ],
+      "showClickStats": false,
+      "upgrades": [
+        {
+          "id": "uh",
+          "name": "🔦 Focus Training",
+          "icon": "🔦",
+          "description": "Unlock highlighting (×2 to selected resource)"
+        },
+        {
+          "id": "uh2",
+          "name": "🔬 Sharper Focus",
+          "icon": "🔬",
+          "description": "Boost highlight to ×3 on the selected resource"
+        },
+        {
+          "id": "u1",
+          "name": "🌲 Heavy Logging",
+          "icon": "🌲",
+          "description": "+5 base 🪵/sec"
+        },
+        {
+          "id": "u5",
+          "name": "👑 Royal Throne",
+          "icon": "👑",
+          "description": "Carved from the finest oak. Cements your reign."
+        }
+      ],
+      "generators": [
+        {
+          "id": "g0",
+          "name": "Woodcutter",
+          "icon": "🪓"
+        },
+        {
+          "id": "g1",
+          "name": "Brewer",
+          "icon": "🍺"
+        },
+        {
+          "id": "g2",
+          "name": "Sawmill",
+          "icon": "🏗️"
+        },
+        {
+          "id": "g3",
+          "name": "Tavern",
+          "icon": "🍻"
+        }
+      ]
+    }
+  ],
   "upgrades": [
     {
       "id": "uh",

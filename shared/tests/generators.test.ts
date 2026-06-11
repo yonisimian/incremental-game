@@ -45,15 +45,18 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
     initialResources: { r0: 0 },
     initialMeta: {},
     generators,
-    flavor: {
-      displayName: 'Test',
-      themeClass: 'test',
-      scoreLabel: 'Score',
-      showClickStats: false,
-      resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-      upgrades: [],
-      generators: generators.map((g) => ({ id: g.id, name: g.id, icon: '⚙️' })),
-    },
+    flavors: [
+      {
+        id: 'test',
+        displayName: 'Test',
+        themeClass: 'test',
+        scoreLabel: 'Score',
+        showClickStats: false,
+        resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
+        upgrades: [],
+        generators: generators.map((g) => ({ id: g.id, name: g.id, icon: '⚙️' })),
+      },
+    ],
   }
 }
 

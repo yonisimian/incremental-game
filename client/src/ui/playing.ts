@@ -1,6 +1,6 @@
 import type { GameState } from '../game.js'
 import { quitMatch, togglePause } from '../game.js'
-import { getModeDefinition } from '@game/shared'
+import { getModeDefinition, getModeFlavor } from '@game/shared'
 import type { ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
 import {
@@ -81,7 +81,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   prevPlayerScore = 0
   activeModeUI = state.mode ? getModeUI(state.mode) : null
   const modeDef = state.mode ? getModeDefinition(state.mode) : null
-  activeFlavor = modeDef?.flavor ?? null
+  activeFlavor = modeDef ? getModeFlavor(modeDef) : null
   configurePanels(activeModeUI?.panels ?? [])
 
   const themeClass = activeFlavor?.themeClass ?? ''

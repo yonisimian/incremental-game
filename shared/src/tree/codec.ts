@@ -69,7 +69,7 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     nativeModifiers: tree.nativeModifiers,
     generators: tree.generators,
     goals: tree.goals,
-    flavor: tree.flavor,
+    flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
     // Optional fields are assigned only when present so the result stays minimal.
     ...(tree.highlightUnlockUpgrade !== undefined

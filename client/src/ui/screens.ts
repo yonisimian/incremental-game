@@ -1,5 +1,5 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, AVAILABLE_MODES } from '@game/shared'
+import { getModeDefinition, getModeFlavor, AVAILABLE_MODES } from '@game/shared'
 import type { GameState } from '../game.js'
 import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
@@ -183,7 +183,7 @@ function renderCreatorSettings(mode: GameMode, goalType: string): string {
           // Always true while only one mode exists; kept for when AVAILABLE_MODES grows.
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           const selected = m === mode ? ' selected' : ''
-          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(def.flavor.displayName)}</button>`
+          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(getModeFlavor(def).displayName)}</button>`
         }).join('')}</div>
       </div>`
       : ''
@@ -213,7 +213,7 @@ function renderJoinerSettings(mode: GameMode, goalType: string): string {
     <div class="room-settings" id="room-settings">
       <div class="setting-row">
         <span class="setting-label">Mode</span>
-        <span class="setting-value">${escapeAttr(modeDef.flavor.displayName)}</span>
+        <span class="setting-value">${escapeAttr(getModeFlavor(modeDef).displayName)}</span>
       </div>
       <div class="setting-row">
         <span class="setting-label">Goal</span>

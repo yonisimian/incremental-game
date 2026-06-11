@@ -1,6 +1,6 @@
 import type { Modifier } from '../modifiers/types.js'
 import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
-import type { ModeDefinition } from './types.js'
+import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
@@ -12,36 +12,54 @@ export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
-export function validateModeDefinition(id: string, def: ModeDefinition): void {
-  const f = def.flavor
+/**
+ * Validate that a single flavor's display data covers exactly the mode's
+ * mechanics (same resource keys, an entry per upgrade/generator, no orphans).
+ * Every flavor must satisfy this independently, so players on different flavors
+ * see consistent UI for the same shared simulation.
+ */
+function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
+  const where = `flavor '${f.id}'`
 
   // Resource keys must match exactly (same set, same count)
   const mechKeys = new Set(def.resources)
   const flavorKeys = new Set(f.resources.map((r) => r.key))
   if (mechKeys.size !== flavorKeys.size || ![...mechKeys].every((k) => flavorKeys.has(k)))
-    throw new Error(`[${id}] flavor.resources keys don't match mode.resources`)
+    throw new Error(`[${id}] ${where}: resources keys don't match mode.resources`)
 
   // Every mechanical upgrade must have a flavor entry
   for (const u of def.upgrades) {
     if (!f.upgrades.some((fu) => fu.id === u.id))
-      throw new Error(`[${id}] missing flavor for upgrade '${u.id}'`)
+      throw new Error(`[${id}] ${where}: missing flavor for upgrade '${u.id}'`)
   }
 
   // Every mechanical generator must have a flavor entry
   for (const g of def.generators) {
     if (!f.generators.some((fg) => fg.id === g.id))
-      throw new Error(`[${id}] missing flavor for generator '${g.id}'`)
+      throw new Error(`[${id}] ${where}: missing flavor for generator '${g.id}'`)
   }
 
   // No orphan flavor entries (flavor references nonexistent mechanic)
   for (const fu of f.upgrades) {
     if (!def.upgrades.some((u) => u.id === fu.id))
-      throw new Error(`[${id}] flavor references unknown upgrade '${fu.id}'`)
+      throw new Error(`[${id}] ${where}: references unknown upgrade '${fu.id}'`)
   }
   for (const fg of f.generators) {
     if (!def.generators.some((g) => g.id === fg.id))
-      throw new Error(`[${id}] flavor references unknown generator '${fg.id}'`)
+      throw new Error(`[${id}] ${where}: references unknown generator '${fg.id}'`)
+  }
+}
+
+/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+export function validateModeDefinition(id: string, def: ModeDefinition): void {
+  // At least one flavor (also enforced by the schema), with unique ids so a
+  // selector can address them and `getModeFlavor` resolves deterministically.
+  if (def.flavors.length === 0) throw new Error(`[${id}] mode has no flavors`)
+  const seen = new Set<string>()
+  for (const f of def.flavors) {
+    if (seen.has(f.id)) throw new Error(`[${id}] duplicate flavor id '${f.id}'`)
+    seen.add(f.id)
+    validateFlavor(id, def, f)
   }
 
   // Prerequisite expression validation

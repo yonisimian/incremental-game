@@ -51,7 +51,7 @@ export function toTreeFile(
     ...(mode.effects !== undefined ? { effects: mode.effects } : {}),
     generators: mode.generators,
     goals: mode.goals,
-    flavor: mode.flavor,
+    flavors: mode.flavors,
     upgrades: roots.map(toFileNode),
   })
 }

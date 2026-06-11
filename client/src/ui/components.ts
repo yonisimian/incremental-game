@@ -11,6 +11,7 @@ import {
 } from './helpers.js'
 import {
   getModeDefinition,
+  getModeFlavor,
   getPrerequisiteUpgradeIds,
   getUpgradeName,
   getUpgradeIcon,
@@ -92,7 +93,7 @@ interface UpgradeTreeRender {
  */
 export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
+  const flavor = getModeFlavor(modeDef)
   const tree = state.upgrades
 
   // Bounds — initialize with sentinels so the first node defines the box (not

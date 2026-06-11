@@ -208,6 +208,7 @@ describe('canBuy', () => {
 
 describe('formatUpgradesPurchased', () => {
   const testFlavor: ModeFlavor = {
+    id: 'test',
     displayName: 'Test',
     themeClass: 'theme-test',
     scoreLabel: 'Score',
