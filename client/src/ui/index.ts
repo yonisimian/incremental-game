@@ -5,6 +5,8 @@ import { app } from './helpers.js'
 import { renderLobbyScreen } from './lobby.js'
 import {
   renderWakingScreen,
+  renderLoadingScreen,
+  renderLoadErrorScreen,
   renderWaitingScreen,
   renderCountdownScreen,
   updateCountdown,
@@ -18,7 +20,7 @@ import { markRender, initPerfOverlay } from './perf-overlay.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
-let currentScreen: Screen | 'waking' | null = null
+let currentScreen: Screen | 'waking' | 'loading' | 'load-error' | null = null
 let connectionState: ConnectionState = 'disconnected'
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -26,11 +28,27 @@ let connectionState: ConnectionState = 'disconnected'
 /** Called whenever the game state changes. */
 export function render(state: Readonly<GameState>): void {
   const endMark = markRender()
-  // The connection overlay takes priority during waking/connecting
+  // The connection overlay takes priority during boot (waking / tree load).
   if (connectionState === 'waking' || connectionState === 'connecting') {
     if (currentScreen !== 'waking') {
       currentScreen = 'waking'
       renderWakingScreen()
+    }
+    endMark()
+    return
+  }
+  if (connectionState === 'loading') {
+    if (currentScreen !== 'loading') {
+      currentScreen = 'loading'
+      renderLoadingScreen()
+    }
+    endMark()
+    return
+  }
+  if (connectionState === 'load-error') {
+    if (currentScreen !== 'load-error') {
+      currentScreen = 'load-error'
+      renderLoadErrorScreen()
     }
     endMark()
     return
@@ -83,6 +101,16 @@ export function handleConnectionChange(state: ConnectionState): void {
     if (currentScreen !== 'waking') {
       currentScreen = 'waking'
       renderWakingScreen()
+    }
+  } else if (state === 'loading') {
+    if (currentScreen !== 'loading') {
+      currentScreen = 'loading'
+      renderLoadingScreen()
+    }
+  } else if (state === 'load-error') {
+    if (currentScreen !== 'load-error') {
+      currentScreen = 'load-error'
+      renderLoadErrorScreen()
     }
   } else if (state === 'connected') {
     // Re-render current game state

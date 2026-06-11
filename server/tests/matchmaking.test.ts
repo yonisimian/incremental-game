@@ -77,6 +77,10 @@ describe('rooms', () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.useFakeTimers()
+    // resetModules wipes the runtime mode registry too — re-register the tree
+    // on the fresh module instance before the re-imported code uses it.
+    const shared = await import('@game/shared')
+    shared.loadTree(shared.buildIdlerTreeFile())
     const mod = await import('../src/matchmaking.js')
     createRoom = mod.createRoom
     joinRoom = mod.joinRoom

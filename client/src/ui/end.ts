@@ -1,13 +1,13 @@
 import type { GameState } from '../game.js'
 import { rematch, resetForMatch } from '../game.js'
-import { getModeDefinition } from '@game/shared'
+import { getModeDefinition, getModeFlavor } from '@game/shared'
 import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
 
 export function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!
   const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
+  const flavor = getModeFlavor(modeDef)
 
   let winnerText: string
   if (end.reason === 'quit') {

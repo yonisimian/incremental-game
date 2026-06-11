@@ -2,6 +2,7 @@ import type { GameState } from '../game.js'
 import { doBuy, getState } from '../game.js'
 import {
   getModeDefinition,
+  getModeFlavor,
   getUpgradeName,
   getUpgradeIcon,
   getUpgradeDescription,
@@ -45,7 +46,7 @@ function findUpgrade(state: Readonly<GameState>, id: string): UpgradeDefinition 
 
 function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailView {
   const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
+  const flavor = getModeFlavor(modeDef)
   const owned = state.player.upgrades[u.id] ?? 0
   const unlocked = isUnlocked(state, u)
   const affordable = canAfford(state, u)

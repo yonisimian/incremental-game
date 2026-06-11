@@ -1,7 +1,6 @@
 import type { Modifier } from '../modifiers/types.js'
 import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
-import type { ModeDefinition } from './types.js'
-import { idlerMode } from './idler.js'
+import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
@@ -13,36 +12,54 @@ export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
-export function validateModeDefinition(id: string, def: ModeDefinition): void {
-  const f = def.flavor
+/**
+ * Validate that a single flavor's display data covers exactly the mode's
+ * mechanics (same resource keys, an entry per upgrade/generator, no orphans).
+ * Every flavor must satisfy this independently, so players on different flavors
+ * see consistent UI for the same shared simulation.
+ */
+function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
+  const where = `flavor '${f.id}'`
 
   // Resource keys must match exactly (same set, same count)
   const mechKeys = new Set(def.resources)
   const flavorKeys = new Set(f.resources.map((r) => r.key))
   if (mechKeys.size !== flavorKeys.size || ![...mechKeys].every((k) => flavorKeys.has(k)))
-    throw new Error(`[${id}] flavor.resources keys don't match mode.resources`)
+    throw new Error(`[${id}] ${where}: resources keys don't match mode.resources`)
 
   // Every mechanical upgrade must have a flavor entry
   for (const u of def.upgrades) {
     if (!f.upgrades.some((fu) => fu.id === u.id))
-      throw new Error(`[${id}] missing flavor for upgrade '${u.id}'`)
+      throw new Error(`[${id}] ${where}: missing flavor for upgrade '${u.id}'`)
   }
 
   // Every mechanical generator must have a flavor entry
   for (const g of def.generators) {
     if (!f.generators.some((fg) => fg.id === g.id))
-      throw new Error(`[${id}] missing flavor for generator '${g.id}'`)
+      throw new Error(`[${id}] ${where}: missing flavor for generator '${g.id}'`)
   }
 
   // No orphan flavor entries (flavor references nonexistent mechanic)
   for (const fu of f.upgrades) {
     if (!def.upgrades.some((u) => u.id === fu.id))
-      throw new Error(`[${id}] flavor references unknown upgrade '${fu.id}'`)
+      throw new Error(`[${id}] ${where}: references unknown upgrade '${fu.id}'`)
   }
   for (const fg of f.generators) {
     if (!def.generators.some((g) => g.id === fg.id))
-      throw new Error(`[${id}] flavor references unknown generator '${fg.id}'`)
+      throw new Error(`[${id}] ${where}: references unknown generator '${fg.id}'`)
+  }
+}
+
+/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+export function validateModeDefinition(id: string, def: ModeDefinition): void {
+  // At least one flavor (also enforced by the schema), with unique ids so a
+  // selector can address them and `getModeFlavor` resolves deterministically.
+  if (def.flavors.length === 0) throw new Error(`[${id}] mode has no flavors`)
+  const seen = new Set<string>()
+  for (const f of def.flavors) {
+    if (seen.has(f.id)) throw new Error(`[${id}] duplicate flavor id '${f.id}'`)
+    seen.add(f.id)
+    validateFlavor(id, def, f)
   }
 
   // Prerequisite expression validation
@@ -63,26 +80,46 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 
 // ─── Registry ────────────────────────────────────────────────────────
 
-const MODE_REGISTRY: Record<GameMode, ModeDefinition> = {
-  idler: idlerMode,
+/**
+ * Loaded mode definitions, keyed by mode id. Empty at import: modes are loaded
+ * at runtime from their (server-served) tree files via `loadTree` (see
+ * `shared/src/tree/codec.ts`), not baked into the bundle. Call `loadTree` once
+ * at startup before any `getModeDefinition` call (server reads the file from
+ * disk; the client fetches it from the server — D17/D18).
+ */
+const MODE_REGISTRY = new Map<GameMode, ModeDefinition>()
+
+/**
+ * Register a validated mode definition under its id. Idempotent: re-registering
+ * the same id overwrites it. Called by `loadTree` after parsing + validating a
+ * tree file; not meant to be called with hand-built definitions.
+ */
+export function registerMode(id: GameMode, def: ModeDefinition): void {
+  MODE_REGISTRY.set(id, def)
 }
 
-// Validate all modes at registration time — app won't start if a flavor is incomplete.
-for (const [id, def] of Object.entries(MODE_REGISTRY)) {
-  validateModeDefinition(id, def)
-}
-
-/** Look up the mode definition for a GameMode. */
+/**
+ * Look up the mode definition for a GameMode. Throws if the mode has not been
+ * loaded yet — a missing load is a boot-order bug that should surface loudly.
+ */
 export function getModeDefinition(mode: GameMode): ModeDefinition {
-  return MODE_REGISTRY[mode]
+  const def = MODE_REGISTRY.get(mode)
+  if (!def) {
+    throw new Error(`Mode '${mode}' is not loaded — call loadTree() at startup before use`)
+  }
+  return def
 }
 
-/** All available game mode keys. Derived from the registry — no hard-coding needed. */
-export const AVAILABLE_MODES: readonly GameMode[] = Object.keys(MODE_REGISTRY) as GameMode[]
+/**
+ * All game mode keys the app knows about. Static (the `GameMode` union), so it is
+ * available before any tree is loaded — distinct from whether a mode's data has
+ * been loaded into the registry. Used for input validation and the lobby picker.
+ */
+export const AVAILABLE_MODES: readonly GameMode[] = ['idler']
 
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {
-  return MODE_REGISTRY[mode].goals[0]
+  return getModeDefinition(mode).goals[0]
 }
 
 /** Upgrades visible/valid under the given goal — filters out goal-tagged upgrades whose tag doesn't match. */

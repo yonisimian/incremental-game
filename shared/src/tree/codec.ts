@@ -2,7 +2,8 @@ import { flattenUpgradeTree } from '../modes/upgrade-tree.js'
 
 import type { ModeDefinition } from '../modes/types.js'
 import type { UpgradeTreeNode } from '../modes/upgrade-tree.js'
-import { validateModeDefinition } from '../modes/index.js'
+import type { GameMode } from '../types.js'
+import { registerMode, validateModeDefinition } from '../modes/index.js'
 import { CURRENT_TREE_VERSION, TreeFileSchema } from './schema.js'
 
 import type { TreeFile, TreeUpgradeNode } from './schema.js'
@@ -68,7 +69,7 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     nativeModifiers: tree.nativeModifiers,
     generators: tree.generators,
     goals: tree.goals,
-    flavor: tree.flavor,
+    flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
     // Optional fields are assigned only when present so the result stays minimal.
     ...(tree.highlightUnlockUpgrade !== undefined
@@ -87,6 +88,19 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
  */
 export function parseTree(json: unknown): ModeDefinition {
   return toModeDefinition(parseTreeFile(json))
+}
+
+/**
+ * Parse, validate, and register a tree file as a runtime mode in one step — the
+ * boot entry point. The server reads the file from disk and the client fetches
+ * it from the server, then both call this before any `getModeDefinition` (D18).
+ * Returns the registered mode id. Throws on any invalid input.
+ */
+export function loadTree(json: unknown): GameMode {
+  const file = parseTreeFile(json)
+  const id = file.id as GameMode
+  registerMode(id, toModeDefinition(file))
+  return id
 }
 
 // ─── Serialize (authoring tree → JSON) ───────────────────────────────

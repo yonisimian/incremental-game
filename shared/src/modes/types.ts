@@ -39,6 +39,8 @@ export interface GeneratorFlavor {
 
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
+  /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
+  readonly id: string
   /** Human-readable mode name shown in UI (e.g. 'Clicker', 'Idler'). */
   readonly displayName: string
   /** CSS class applied to the playing-screen root (e.g. 'theme-medieval'). */
@@ -87,6 +89,11 @@ export interface ModeDefinition {
    * Replaces the old `collectDynamic` closure with pure, serializable data.
    */
   readonly effects?: readonly EffectRef[]
-  /** Cosmetic display data — names, icons, labels, theme class. */
-  readonly flavor: ModeFlavor
+  /**
+   * Cosmetic display data — names, icons, labels, theme class. A mode ships one
+   * or more flavors (at least one); all describe the same mechanics (keyed by
+   * stable ids), so players can pick different flavors and still compete in the
+   * same match. Resolve the active one with `getModeFlavor`.
+   */
+  readonly flavors: readonly ModeFlavor[]
 }

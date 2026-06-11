@@ -5,6 +5,7 @@ import { formatNumber } from '../format-number.js'
 import {
   type GeneratorDefinition,
   getModeDefinition,
+  getModeFlavor,
   getGeneratorCost,
   getGeneratorBulkCost,
   getMaxAffordableGeneratorCount,
@@ -29,7 +30,7 @@ function renderGeneratorCard(
   state: Readonly<GameState>,
 ): string {
   const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
+  const flavor = getModeFlavor(modeDef)
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)

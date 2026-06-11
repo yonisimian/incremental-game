@@ -2,6 +2,8 @@ import type { GeneratorDefinition, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import type { UpgradeTreeNode } from './upgrade-tree.js'
 import { flattenUpgradeTree } from './upgrade-tree.js'
+import { toTreeFile } from '../tree/authoring.js'
+import type { TreeFile } from '../tree/schema.js'
 import {
   BUY_UPGRADE_SAFETY_CAP_SEC,
   IDLER_ROUND_DURATION_SEC,
@@ -110,6 +112,7 @@ const idlerGenerators: readonly GeneratorDefinition[] = [
 // ─── Flavor ──────────────────────────────────────────────────────────
 
 const idlerFlavor: ModeFlavor = {
+  id: 'medieval',
   displayName: 'Idler',
   themeClass: 'theme-medieval',
   scoreLabel: 'Total',
@@ -150,7 +153,7 @@ const idlerFlavor: ModeFlavor = {
 // ─── Mode Definition ─────────────────────────────────────────────────
 
 /** Idler mode definition — passive income only, pure upgrade strategy. */
-export const idlerMode: ModeDefinition = {
+const idlerMode: ModeDefinition = {
   resources: ['r0', 'r1'],
   scoreResource: 'r0',
   clicksEnabled: false,
@@ -164,7 +167,7 @@ export const idlerMode: ModeDefinition = {
   ],
   upgrades: idlerUpgrades,
   generators: idlerGenerators,
-  flavor: idlerFlavor,
+  flavors: [idlerFlavor],
   goals: [
     { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: BUY_UPGRADE_SAFETY_CAP_SEC },
     {
@@ -175,4 +178,15 @@ export const idlerMode: ModeDefinition = {
     },
     { type: 'timed', label: '⏱ Timed', durationSec: IDLER_ROUND_DURATION_SEC },
   ],
+}
+
+/**
+ * Build the serializable idler tree file from the hand-authored TS source above.
+ * This is the authoring → file direction (D12): the build-time emit script
+ * serializes the result to `server/trees/idler.json`, and the drift-guard test
+ * asserts the committed file stays in sync. At runtime the mode is loaded from
+ * that JSON, not from this function (which is excluded from the client bundle).
+ */
+export function buildIdlerTreeFile(): TreeFile {
+  return toTreeFile('idler', idlerMode, idlerTree)
 }

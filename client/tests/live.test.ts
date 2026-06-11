@@ -81,7 +81,7 @@ class MockBroadcastChannel {
 
 // ─── Setup / teardown ────────────────────────────────────────────────
 
-beforeEach(() => {
+beforeEach(async () => {
   channels.clear()
   vi.stubGlobal('BroadcastChannel', MockBroadcastChannel)
   vi.stubGlobal('window', {
@@ -91,14 +91,16 @@ beforeEach(() => {
     getItem: () => null,
     setItem: () => {},
   })
+  // afterEach resets modules, wiping the runtime mode registry — re-register
+  // the tree on the fresh instance the dynamic imports will resolve to.
+  const shared = await import('@game/shared')
+  shared.loadTree(shared.buildIdlerTreeFile())
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
   vi.resetModules()
 })
-
-// ─── DevRecorder tests ──────────────────────────────────────────────
 
 describe('DevRecorder', () => {
   it('does not activate without flags', async () => {

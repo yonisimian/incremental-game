@@ -12,6 +12,7 @@ import type {
   PlayerAction,
   ServerMessage,
 } from '@game/shared'
+import { loadTree } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ type ServerMessageHandler = (msg: ServerMessage) => void
 type ConnectionStateHandler = (state: ConnectionState) => void
 export type ConnectionState =
   | 'waking' // HTTP health check in progress (cold-start)
+  | 'loading' // fetching/parsing the mode tree from the server
+  | 'load-error' // tree fetch/validation failed — needs a manual retry
   | 'connecting' // WebSocket handshake in progress
   | 'connected' // WebSocket open
   | 'disconnected' // closed / failed
@@ -38,6 +41,7 @@ let pendingActions: PlayerAction[] = []
 let batchTimer: ReturnType<typeof setInterval> | null = null
 let backoff = INITIAL_BACKOFF_MS
 let intentionalClose = false
+let treeLoaded = false
 
 let onMessage: ServerMessageHandler = () => {}
 let onConnectionState: ConnectionStateHandler = () => {}
@@ -78,6 +82,23 @@ export async function connect(): Promise<void> {
     // Server is waking — retry after backoff
     scheduleReconnect()
     return
+  }
+
+  // Load the mode tree once, server-authoritative: the tree data is not bundled,
+  // it is fetched from the server so both ends agree on the exact tree (D17).
+  if (!treeLoaded) {
+    onConnectionState('loading')
+    try {
+      const res = await fetch(`${httpUrl}trees/idler.json`)
+      if (!res.ok) throw new Error(`tree fetch failed: ${res.status}`)
+      loadTree((await res.json()) as unknown)
+      treeLoaded = true
+    } catch {
+      // A bad/unreachable tree is fatal for play — surface a retryable error
+      // rather than silently looping the cold-start backoff.
+      onConnectionState('load-error')
+      return
+    }
   }
 
   openWebSocket(wsUrl)

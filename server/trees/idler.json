@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "id": "idler",
+  "resources": [
+    "r0",
+    "r1"
+  ],
+  "scoreResource": "r0",
+  "clicksEnabled": false,
+  "highlightEnabled": true,
+  "highlightUnlockUpgrade": "uh",
+  "initialResources": {
+    "r0": 0,
+    "r1": 0
+  },
+  "initialMeta": {
+    "highlight": "r0"
+  },
+  "nativeModifiers": [
+    {
+      "stage": "additive",
+      "field": "r0",
+      "value": 1
+    },
+    {
+      "stage": "additive",
+      "field": "r1",
+      "value": 1
+    }
+  ],
+  "generators": [
+    {
+      "id": "g0",
+      "baseCost": 10,
+      "costScaling": 1.15,
+      "costCurrency": "r1",
+      "production": {
+        "resource": "r0",
+        "rate": 0.5
+      }
+    },
+    {
+      "id": "g1",
+      "baseCost": 10,
+      "costScaling": 1.15,
+      "costCurrency": "r1",
+      "production": {
+        "resource": "r1",
+        "rate": 1
+      }
+    },
+    {
+      "id": "g2",
+      "baseCost": 50,
+      "costScaling": 1.2,
+      "costCurrency": "r1",
+      "production": {
+        "resource": "r0",
+        "rate": 5
+      }
+    },
+    {
+      "id": "g3",
+      "baseCost": 600,
+      "costScaling": 1.5,
+      "costCurrency": "r0",
+      "production": {
+        "resource": "r1",
+        "rate": 10
+      }
+    }
+  ],
+  "goals": [
+    {
+      "type": "buy-upgrade",
+      "label": "🏆 Race to Buy",
+      "safetyCapSec": 600
+    },
+    {
+      "type": "target-score",
+      "label": "🎯 Race to Score",
+      "target": 364,
+      "safetyCapSec": 300
+    },
+    {
+      "type": "timed",
+      "label": "⏱ Timed",
+      "durationSec": 35
+    }
+  ],
+  "flavors": [
+    {
+      "id": "medieval",
+      "displayName": "Idler",
+      "themeClass": "theme-medieval",
+      "scoreLabel": "Total",
+      "resources": [
+        {
+          "key": "r0",
+          "displayName": "Wood",
+          "icon": "🪵"
+        },
+        {
+          "key": "r1",
+          "displayName": "Ale",
+          "icon": "🍺"
+        }
+      ],
+      "showClickStats": false,
+      "upgrades": [
+        {
+          "id": "uh",
+          "name": "🔦 Focus Training",
+          "icon": "🔦",
+          "description": "Unlock highlighting (×2 to selected resource)"
+        },
+        {
+          "id": "uh2",
+          "name": "🔬 Sharper Focus",
+          "icon": "🔬",
+          "description": "Boost highlight to ×3 on the selected resource"
+        },
+        {
+          "id": "u1",
+          "name": "🌲 Heavy Logging",
+          "icon": "🌲",
+          "description": "+5 base 🪵/sec"
+        },
+        {
+          "id": "u5",
+          "name": "👑 Royal Throne",
+          "icon": "👑",
+          "description": "Carved from the finest oak. Cements your reign."
+        }
+      ],
+      "generators": [
+        {
+          "id": "g0",
+          "name": "Woodcutter",
+          "icon": "🪓"
+        },
+        {
+          "id": "g1",
+          "name": "Brewer",
+          "icon": "🍺"
+        },
+        {
+          "id": "g2",
+          "name": "Sawmill",
+          "icon": "🏗️"
+        },
+        {
+          "id": "g3",
+          "name": "Tavern",
+          "icon": "🍻"
+        }
+      ]
+    }
+  ],
+  "upgrades": [
+    {
+      "id": "uh",
+      "cost": {
+        "r0": 5
+      },
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "effects": [
+        {
+          "type": "highlightMultiplier",
+          "multiplier": 2,
+          "boostUpgradeId": "uh2",
+          "boostedMultiplier": 3
+        }
+      ],
+      "offset": {
+        "x": 0,
+        "y": 0
+      },
+      "children": [
+        {
+          "id": "uh2",
+          "cost": {
+            "r0": 100
+          },
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "uh"
+          },
+          "offset": {
+            "x": 0,
+            "y": 150
+          }
+        }
+      ]
+    },
+    {
+      "id": "u1",
+      "cost": {
+        "r0": 25
+      },
+      "purchaseLimit": 1,
+      "modifiers": [
+        {
+          "stage": "additive",
+          "field": "r0",
+          "value": 5
+        }
+      ],
+      "offset": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    {
+      "id": "u5",
+      "cost": {
+        "r0": 30000
+      },
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "goalType": "buy-upgrade",
+      "offset": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  ]
+}

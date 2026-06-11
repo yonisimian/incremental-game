@@ -1,4 +1,22 @@
-import type { ModeFlavor } from './modes/types.js'
+import type { ModeDefinition, ModeFlavor } from './modes/types.js'
+
+// ─── Flavor resolution ───────────────────────────────────────────────
+
+/**
+ * Resolve the active cosmetic flavor for a mode. Returns the flavor whose `id`
+ * matches `flavorId`, or the first (default) flavor when `flavorId` is omitted
+ * or unknown. A mode always has at least one flavor (enforced by the schema),
+ * so this never returns `undefined`. This is the single seam a future
+ * flavor-picker plugs into — render code resolves through here instead of
+ * reaching for a fixed flavor.
+ */
+export function getModeFlavor(mode: ModeDefinition, flavorId?: string): ModeFlavor {
+  if (flavorId !== undefined) {
+    const match = mode.flavors.find((f) => f.id === flavorId)
+    if (match) return match
+  }
+  return mode.flavors[0]
+}
 
 // ─── Cached lookup maps ──────────────────────────────────────────────
 // Flavor arrays are tiny (2–6 entries) but looked up on every render tick.

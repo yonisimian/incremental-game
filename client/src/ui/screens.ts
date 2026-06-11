@@ -1,7 +1,8 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, AVAILABLE_MODES } from '@game/shared'
+import { getModeDefinition, getModeFlavor, AVAILABLE_MODES } from '@game/shared'
 import type { GameState } from '../game.js'
 import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
+import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
 
 // ─── Shared Fragments ────────────────────────────────────────────────
@@ -18,6 +19,30 @@ export function renderWakingScreen(): void {
       <div class="spinner"></div>
     </div>
   `
+}
+
+export function renderLoadingScreen(): void {
+  app.innerHTML = `
+    <div class="screen waking-screen">
+      <h1>incremen<span class="brand-t">T</span>al</h1>
+      <p class="status-text">Loading game…</p>
+      <div class="spinner"></div>
+    </div>
+  `
+}
+
+export function renderLoadErrorScreen(): void {
+  app.innerHTML = `
+    <div class="screen waking-screen">
+      <h1>incremen<span class="brand-t">T</span>al</h1>
+      <p class="status-text">Couldn't load the game data.</p>
+      <button class="bot-btn" id="retry-load-btn">Retry</button>
+    </div>
+  `
+
+  document.getElementById('retry-load-btn')!.addEventListener('click', () => {
+    void connect()
+  })
 }
 
 export function renderWaitingScreen(): void {
@@ -158,7 +183,7 @@ function renderCreatorSettings(mode: GameMode, goalType: string): string {
           // Always true while only one mode exists; kept for when AVAILABLE_MODES grows.
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           const selected = m === mode ? ' selected' : ''
-          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(def.flavor.displayName)}</button>`
+          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(getModeFlavor(def).displayName)}</button>`
         }).join('')}</div>
       </div>`
       : ''
@@ -188,7 +213,7 @@ function renderJoinerSettings(mode: GameMode, goalType: string): string {
     <div class="room-settings" id="room-settings">
       <div class="setting-row">
         <span class="setting-label">Mode</span>
-        <span class="setting-value">${escapeAttr(modeDef.flavor.displayName)}</span>
+        <span class="setting-value">${escapeAttr(getModeFlavor(modeDef).displayName)}</span>
       </div>
       <div class="setting-row">
         <span class="setting-label">Goal</span>

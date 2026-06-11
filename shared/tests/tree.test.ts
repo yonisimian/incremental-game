@@ -46,7 +46,7 @@ function idlerTreeFileInput(): unknown {
     effects: m.effects,
     generators: m.generators,
     goals: m.goals,
-    flavor: m.flavor,
+    flavors: m.flavors,
     upgrades: idlerTree.map(toFileNode),
   }
 }
@@ -66,15 +66,18 @@ function minimalTree(): TreeFile {
     effects: [],
     generators: [],
     goals: [{ type: 'timed', label: 'Timed', durationSec: 60 }],
-    flavor: {
-      displayName: 'Test',
-      themeClass: 'theme-test',
-      scoreLabel: 'Score',
-      resources: [{ key: 'r0', displayName: 'R0', icon: 'x' }],
-      showClickStats: false,
-      upgrades: [],
-      generators: [],
-    },
+    flavors: [
+      {
+        id: 'test',
+        displayName: 'Test',
+        themeClass: 'theme-test',
+        scoreLabel: 'Score',
+        resources: [{ key: 'r0', displayName: 'R0', icon: 'x' }],
+        showClickStats: false,
+        upgrades: [],
+        generators: [],
+      },
+    ],
     upgrades: [],
   }
 }
@@ -108,7 +111,7 @@ describe('tree codec — purchaseLimit sentinel', () => {
     tree.upgrades = [
       { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     expect(toModeDefinition(tree).upgrades[0].purchaseLimit).toBe(Infinity)
   })
 
@@ -117,7 +120,7 @@ describe('tree codec — purchaseLimit sentinel', () => {
     tree.upgrades = [
       { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
     expect(back.upgrades[0].purchaseLimit).toBeNull()
   })
@@ -152,7 +155,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 0 } },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
       parseTreeFile({ ...tree, upgrades: [{ ...tree.upgrades[0], modifers: [] }] }),
     ).toThrow()
@@ -172,7 +175,7 @@ describe('tree codec — validation failures', () => {
         ],
       },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() => toModeDefinition(tree)).toThrow(/duplicate/iu)
   })
 
@@ -188,7 +191,7 @@ describe('tree codec — validation failures', () => {
         effects: [{ type: 'doesNotExist' }],
       },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() => toModeDefinition(tree)).toThrow(/unknown effect type/iu)
   })
 
@@ -204,7 +207,7 @@ describe('tree codec — validation failures', () => {
         effects: [{ type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'b' }],
       },
     ]
-    tree.flavor.upgrades = [flavorFor('a')]
+    tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() => toModeDefinition(tree)).toThrow()
   })
 })

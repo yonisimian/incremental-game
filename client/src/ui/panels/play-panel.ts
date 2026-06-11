@@ -5,6 +5,7 @@ import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
   getModeDefinition,
+  getModeFlavor,
   getResourceIcon,
   getResourceName,
   isHighlightActive,
@@ -21,7 +22,7 @@ function getHighlight(state: Readonly<GameState>): string {
 
 function renderIdlerContent(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
-  const flavor = modeDef.flavor
+  const flavor = getModeFlavor(modeDef)
   const highlightUnlocked = isHighlightActive(state.player, modeDef)
   const highlight = getHighlight(state)
 
