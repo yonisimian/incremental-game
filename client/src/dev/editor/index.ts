@@ -6,7 +6,15 @@
 
 import { buildIdlerTreeFile, type TreeFile } from '@game/shared'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../../ui/pan-zoom.js'
-import { cloneTree, findNode, collectIds } from './model.js'
+import {
+  cloneTree,
+  findNode,
+  collectIds,
+  createNode,
+  uniqueId,
+  addNode,
+  removeNode,
+} from './model.js'
 import { renderCanvas, type CanvasBounds } from './canvas.js'
 import { renderInspector, renderInspectorEmpty } from './inspector.js'
 import { exportTree, importTreeFromFile } from './io.js'
@@ -26,6 +34,9 @@ function buildLayout(): string {
   return `
     <div class="ed-root">
       <div class="ed-toolbar">
+        <button id="ed-add-btn" class="ed-btn">➕ Add node</button>
+        <button id="ed-delete-btn" class="ed-btn">🗑 Delete</button>
+        <span class="ed-toolbar-sep"></span>
         <button id="ed-import-btn" class="ed-btn">📂 Import</button>
         <input type="file" id="ed-file" accept="application/json,.json" hidden />
         <button id="ed-export-btn" class="ed-btn">💾 Export</button>
@@ -74,6 +85,8 @@ export function initEditor(pane: HTMLElement): () => void {
   const canvas = pane.querySelector<HTMLDivElement>('#ed-canvas')!
   const inspector = pane.querySelector<HTMLElement>('#ed-inspector')!
   const status = pane.querySelector<HTMLSpanElement>('#ed-status')!
+  const addBtn = pane.querySelector<HTMLButtonElement>('#ed-add-btn')!
+  const deleteBtn = pane.querySelector<HTMLButtonElement>('#ed-delete-btn')!
   const importBtn = pane.querySelector<HTMLButtonElement>('#ed-import-btn')!
   const exportBtn = pane.querySelector<HTMLButtonElement>('#ed-export-btn')!
   const resetBtn = pane.querySelector<HTMLButtonElement>('#ed-reset-btn')!
@@ -91,6 +104,11 @@ export function initEditor(pane: HTMLElement): () => void {
     status.classList.toggle('error', isError)
   }
 
+  // Delete acts on the current selection, so it's only enabled when there is one.
+  const syncToolbar = (): void => {
+    deleteBtn.disabled = state.selectedId === null
+  }
+
   const renderCanvasOnly = (): void => {
     const { edgesSvg, nodes, bounds } = renderCanvas(state.tree, state.selectedId)
     canvas.innerHTML = canvasInnerHtml(edgesSvg, nodes, bounds)
@@ -99,12 +117,14 @@ export function initEditor(pane: HTMLElement): () => void {
   const renderInspectorOnly = (): void => {
     if (state.selectedId === null) {
       renderInspectorEmpty(inspector)
+      syncToolbar()
       return
     }
     const node = findNode(state.tree, state.selectedId)
     if (!node) {
       state.selectedId = null
       renderInspectorEmpty(inspector)
+      syncToolbar()
       return
     }
     renderInspector(inspector, {
@@ -116,6 +136,7 @@ export function initEditor(pane: HTMLElement): () => void {
         renderCanvasOnly()
       },
     })
+    syncToolbar()
   }
 
   // Full remount: rebuild canvas + recenter pan/zoom (on load/reset/import).
@@ -135,6 +156,37 @@ export function initEditor(pane: HTMLElement): () => void {
     const card = (e.target as HTMLElement).closest<HTMLElement>('.ed-node')
     if (!card) return
     state.selectedId = card.dataset.nodeId ?? null
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
+  // ── Add / delete nodes ──
+  // Add a child of the selected node (placed just below it), or a new root when
+  // nothing is selected. The new node is selected so it can be edited at once.
+  addBtn.addEventListener('click', () => {
+    const node = createNode(uniqueId(state.tree), {
+      x: 0,
+      y: state.selectedId === null ? 0 : 120,
+    })
+    addNode(state.tree, state.selectedId, node)
+    state.selectedId = node.id
+    state.dirty = true
+    setStatus(`Added ${node.id}`)
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
+  deleteBtn.addEventListener('click', () => {
+    if (state.selectedId === null) return
+    const removed = removeNode(state.tree, state.selectedId)
+    if (removed.length === 0) return
+    state.selectedId = null
+    state.dirty = true
+    setStatus(
+      removed.length === 1
+        ? `Deleted ${removed[0]}`
+        : `Deleted ${removed[0]} (+${removed.length - 1} descendant${removed.length > 2 ? 's' : ''})`,
+    )
     renderCanvasOnly()
     renderInspectorOnly()
   })

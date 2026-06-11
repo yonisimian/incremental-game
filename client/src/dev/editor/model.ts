@@ -89,3 +89,100 @@ export function prerequisiteRefs(node: TreeUpgradeNode): string[] {
   collect(node.prerequisites)
   return refs
 }
+
+// ─── Mutation ────────────────────────────────────────────────────────
+
+type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
+
+/**
+ * Set (or clear) a node's children. zod's recursive getter types `children`
+ * loosely, so the write goes through a narrow cast; an empty array is removed
+ * entirely to keep the serialized tree minimal (matches the authoring shape).
+ */
+function setChildren(node: TreeUpgradeNode, children: TreeUpgradeNode[]): void {
+  const mutable = node as { children?: TreeUpgradeNode[] }
+  if (children.length === 0) delete mutable.children
+  else mutable.children = children
+}
+
+/** A fresh, minimal-but-valid node at the given offset. */
+export function createNode(id: string, offset: { x: number; y: number }): TreeUpgradeNode {
+  return { id, cost: {}, purchaseLimit: 1, modifiers: [], offset }
+}
+
+/** Generate an id not already used in the tree (`base`, then `base-2`, …). */
+export function uniqueId(tree: TreeFile, base = 'node'): string {
+  const existing = new Set(collectIds(tree))
+  if (!existing.has(base)) return base
+  let n = 2
+  while (existing.has(`${base}-${n}`)) n++
+  return `${base}-${n}`
+}
+
+/**
+ * Append `node` as a child of `parentId`, or as a new root when `parentId` is
+ * `null` (or the parent can't be found). Mutates the tree in place.
+ */
+export function addNode(tree: TreeFile, parentId: string | null, node: TreeUpgradeNode): void {
+  const parent = parentId === null ? null : findNode(tree, parentId)
+  if (!parent) {
+    tree.upgrades.push(node)
+    return
+  }
+  setChildren(parent, [...childrenOf(parent), node])
+}
+
+/** All ids in the subtree rooted at `node` (the node itself plus descendants). */
+function subtreeIds(node: TreeUpgradeNode): string[] {
+  const ids = [node.id]
+  for (const child of childrenOf(node)) ids.push(...subtreeIds(child))
+  return ids
+}
+
+/** Drop references to any removed id from a prerequisite expression. */
+function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undefined {
+  if (expr.type === 'upgrade') return removed.has(expr.id) ? undefined : expr
+  const items = expr.items
+    .map((item) => prunePrereq(item, removed))
+    .filter((item): item is Prereq => item !== undefined)
+  if (items.length === 0) return undefined
+  return { type: expr.type, items }
+}
+
+/** Strip prerequisite references to any of `removed` across the whole tree. */
+function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
+  for (const { node } of walkPositioned(tree)) {
+    if (!node.prerequisites) continue
+    const pruned = prunePrereq(node.prerequisites, removed)
+    if (pruned) node.prerequisites = pruned
+    else delete (node as { prerequisites?: Prereq }).prerequisites
+  }
+}
+
+/**
+ * Remove the node with `id` (and its whole subtree) from the tree, then strip
+ * any prerequisite references to the removed ids so the result stays valid.
+ * Returns the removed ids, or `[]` if nothing matched.
+ */
+export function removeNode(tree: TreeFile, id: string): string[] {
+  let removed: string[] = []
+  const removeFrom = (list: TreeUpgradeNode[]): boolean => {
+    const idx = list.findIndex((n) => n.id === id)
+    if (idx >= 0) {
+      removed = subtreeIds(list[idx])
+      list.splice(idx, 1)
+      return true
+    }
+    for (const node of list) {
+      const kids = [...childrenOf(node)]
+      if (kids.length > 0 && removeFrom(kids)) {
+        setChildren(node, kids)
+        return true
+      }
+    }
+    return false
+  }
+  removeFrom(tree.upgrades)
+  if (removed.length > 0) pruneReferences(tree, new Set(removed))
+  return removed
+}

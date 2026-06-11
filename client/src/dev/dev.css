@@ -453,6 +453,13 @@ body {
   gap: 8px;
 }
 
+.ed-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--dev-border);
+}
+
 .ed-status {
   margin-left: auto;
   font-size: 0.85rem;
@@ -645,6 +652,12 @@ body {
 
 .ed-btn:hover {
   border-color: var(--dev-accent);
+}
+
+.ed-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--dev-border);
 }
 
 .ed-btn-remove {

@@ -6,6 +6,10 @@ import {
   findNode,
   collectIds,
   prerequisiteRefs,
+  createNode,
+  uniqueId,
+  addNode,
+  removeNode,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_W, NODE_H } from '../src/dev/editor/canvas.js'
 
@@ -69,6 +73,90 @@ describe('findNode', () => {
 describe('collectIds', () => {
   it('lists every node id', () => {
     expect(collectIds(makeTree()).sort()).toEqual(['a', 'b', 'c', 'd'])
+  })
+})
+
+// ─── uniqueId ────────────────────────────────────────────────────────
+
+describe('uniqueId', () => {
+  it('returns the base when it is unused', () => {
+    expect(uniqueId(makeTree(), 'fresh')).toBe('fresh')
+  })
+
+  it('suffixes a counter when the base collides', () => {
+    const tree = makeTree()
+    tree.upgrades.push(node('node', { x: 0, y: 0 }))
+    expect(uniqueId(tree, 'node')).toBe('node-2')
+  })
+})
+
+// ─── addNode ─────────────────────────────────────────────────────────
+
+describe('addNode', () => {
+  it('appends a new root when parentId is null', () => {
+    const tree = makeTree()
+    addNode(tree, null, createNode('root2', { x: 0, y: 0 }))
+    expect(tree.upgrades.map((n) => n.id)).toContain('root2')
+  })
+
+  it('appends a child to the named parent', () => {
+    const tree = makeTree()
+    addNode(tree, 'b', createNode('b-child', { x: 0, y: 50 }))
+    const parent = walkPositioned(tree).find((p) => p.node.id === 'b-child')?.parent
+    expect(parent?.id).toBe('b')
+  })
+
+  it('falls back to a root when the parent is missing', () => {
+    const tree = makeTree()
+    addNode(tree, 'ghost', createNode('orphan', { x: 0, y: 0 }))
+    expect(tree.upgrades.map((n) => n.id)).toContain('orphan')
+  })
+})
+
+// ─── removeNode ──────────────────────────────────────────────────────
+
+describe('removeNode', () => {
+  it('removes a leaf and returns its id', () => {
+    const tree = makeTree()
+    expect(removeNode(tree, 'd')).toEqual(['d'])
+    expect(collectIds(tree)).not.toContain('d')
+  })
+
+  it('removes a whole subtree and returns every removed id', () => {
+    const tree = makeTree()
+    expect(removeNode(tree, 'b').sort()).toEqual(['b', 'c'])
+    // 'd' is a sibling root, so it survives removing the b→c branch.
+    expect(collectIds(tree).sort()).toEqual(['a', 'd'])
+  })
+
+  it('prunes prerequisite references to removed nodes', () => {
+    const tree = makeTree()
+    // 'd' requires 'a'; removing 'a' should drop that dangling prerequisite.
+    removeNode(tree, 'a')
+    expect(findNode(tree, 'd')?.prerequisites).toBeUndefined()
+  })
+
+  it('keeps surviving references when pruning an all/any group', () => {
+    const tree = makeTree()
+    findNode(tree, 'd')!.prerequisites = {
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'c' },
+        { type: 'upgrade', id: 'a' },
+      ],
+    }
+    // Removing the leaf 'c' leaves the reference to 'a' (a sibling root) intact.
+    removeNode(tree, 'c')
+    expect(findNode(tree, 'd')?.prerequisites).toEqual({
+      type: 'all',
+      items: [{ type: 'upgrade', id: 'a' }],
+    })
+  })
+
+  it('returns [] when the id is not found', () => {
+    const tree = makeTree()
+    expect(removeNode(tree, 'nope')).toEqual([])
+    expect(collectIds(tree).sort()).toEqual(['a', 'b', 'c', 'd'])
   })
 })
 
