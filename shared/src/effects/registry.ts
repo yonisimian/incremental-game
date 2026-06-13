@@ -24,6 +24,11 @@ export function resolveEffect(type: string): EffectDef<unknown> | undefined {
   return registry.get(type)
 }
 
+/** Every registered effect type name, sorted — the source list for the editor's picker. */
+export function listEffectTypes(): string[] {
+  return [...registry.keys()].sort()
+}
+
 /**
  * Resolve and validate a ref once, caching the result by ref identity.
  *

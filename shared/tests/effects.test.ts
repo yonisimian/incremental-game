@@ -4,6 +4,7 @@ import {
   collectModifiers,
   createInitialState,
   getModeDefinition,
+  listEffectTypes,
   registerEffect,
   resolveEffect,
 } from '../src/index.js'
@@ -30,6 +31,10 @@ describe('effect registry', () => {
     expect(() => {
       registerEffect('highlightMultiplier', existing)
     }).toThrow(/already registered/iu)
+  })
+
+  it('lists registered effect types sorted', () => {
+    expect(listEffectTypes()).toEqual(['highlightMultiplier'])
   })
 })
 

@@ -413,10 +413,15 @@ typecheck + eslint + format + knip + lint:css clean.
   `modifiers`, `prerequisites` via an all/any checklist with a raw-JSON fallback for
   nested/min-level shapes, `choiceGroup`/`choiceLabel`). Import validates through
   `parseTreeFile`; export serializes through `serializeTree` (round-trip tested).
-- **6b — canvas drag** to move/re-parent nodes (write `offset` back).
-- **6c — schema-driven dynamic-effect forms** (dropdown of registered effect types →
-  form generated from each effect's zod param schema). Existing node `effects` are
-  preserved untouched until then.
+- **6b — canvas drag to move nodes — ✅ done.** Pointer-drag a node on the canvas snaps it
+  to a world-space grid and writes the new `offset` back (children follow).
+- **6c — schema-driven dynamic-effect forms — ✅ done.** The inspector lists a node's
+  `effects` and offers an "add effect" dropdown sourced from `listEffectTypes()` (only
+  registered effects). Each form is generated from the effect's zod param schema via a pure,
+  unit-tested introspection pass (`client/src/dev/editor/effect-schema.ts`): strict objects
+  of scalar fields, `optional`/`default` wrappers, and unions-of-objects (a variant picker).
+  Edits validate against the real schema before being written back. There is no raw-JSON
+  escape hatch — only schema-describable, registered effects are editable.
 
 ---
 

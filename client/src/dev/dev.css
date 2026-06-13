@@ -697,3 +697,31 @@ body {
   color: #ff6b6b;
   min-height: 1em;
 }
+
+.ed-effect {
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--dev-bg);
+}
+
+.ed-effect-header {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ed-effect-type {
+  font-size: 0.85rem;
+  color: var(--dev-accent);
+}
+
+.ed-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ed-effect-check {
+  flex: 0 0 auto;
+  width: auto;
+}
