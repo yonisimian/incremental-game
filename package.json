@@ -19,7 +19,6 @@
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:css": "tsx scripts/lint-css.ts",
     "lint:exports": "knip",
-    "emit:trees": "pnpm --filter @game/shared build && tsx scripts/emit-trees.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "deps:check": "pnpm outdated -r",

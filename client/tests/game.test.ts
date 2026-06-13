@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
 import { COUNTDOWN_SEC, getModeDefinition, ROUND_DURATION_SEC } from '@game/shared'
+import idlerTreeFile from '@game/shared/trees/idler.json'
 
 // ─── Module-level mocks ──────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ async function loadGame(): Promise<GameModule> {
   // resetModules wipes the runtime mode registry — re-register the tree on the
   // fresh module instance before importing code that reads it.
   const shared = await import('@game/shared')
-  shared.loadTree(shared.buildIdlerTreeFile())
+  shared.loadTree(idlerTreeFile)
   return await import('../src/game.js')
 }
 

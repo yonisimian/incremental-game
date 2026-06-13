@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildIdlerTreeFile, serializeTree } from '@game/shared'
+import { parseTreeFile, serializeTree } from '@game/shared'
+import idlerTreeFile from '@game/shared/trees/idler.json'
 import { importTreeFromFile } from '../src/dev/editor/io.js'
 
 function fileOf(contents: string, name = 'tree.json'): File {
@@ -8,7 +9,7 @@ function fileOf(contents: string, name = 'tree.json'): File {
 
 describe('importTreeFromFile', () => {
   it('round-trips a serialized idler tree back to an equal TreeFile', async () => {
-    const original = buildIdlerTreeFile()
+    const original = parseTreeFile(idlerTreeFile)
     const imported = await importTreeFromFile(fileOf(serializeTree(original)))
     expect(imported).toEqual(original)
   })

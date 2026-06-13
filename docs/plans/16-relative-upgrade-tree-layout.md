@@ -385,6 +385,15 @@ flavor-picker plugs into. Idler ships one flavor (`medieval`) for now.
 `getModeFlavor` resolution tests; full suite green (shared 168 / server 106 / client 134),
 typecheck + eslint + format + knip + lint:css clean.
 
+> **Superseded (source-of-truth inversion):** once the editor could author trees, **D12/D19
+> were reversed** — the JSON is now the **single source of truth**, not a build artifact. The
+> hand-authored TS tree (`shared/src/modes/idler.ts`), `toTreeFile`/`buildIdlerTreeFile`, the
+> `pnpm emit:trees` script, and the byte-identical drift-guard test were all removed. The
+> canonical file now lives at **`shared/trees/idler.json`** (edited via the dev-page editor's
+> export): the server resolves + serves it through the package's `exports` map, the dev page
+> and tests `import` it directly, and the only remaining guard is a "parses into a valid
+> runtime tree" check.
+
 ---
 
 ## Phase 6 — UI tree editor

@@ -9,46 +9,16 @@ import {
   toModeDefinition,
 } from '../src/index.js'
 import type { TreeFile } from '../src/index.js'
-import { idlerTree } from '../src/modes/idler.js'
-import type { UpgradeTreeNode } from '../src/modes/upgrade-tree.js'
+import idlerTreeFile from '../trees/idler.json' with { type: 'json' }
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
 /**
- * Convert a runtime authoring node to its serializable file form: map the
- * `Infinity` unlimited sentinel back to `null` (JSON cannot encode `Infinity`,
- * and the schema rejects it), recursing into layout children.
+ * The canonical idler tree file (single source of truth, shared with the
+ * server). Returned as `unknown` so the codec validates it like real input.
  */
-function toFileNode(node: UpgradeTreeNode): unknown {
-  const { purchaseLimit, children, ...rest } = node
-  const fileNode: Record<string, unknown> = {
-    ...rest,
-    purchaseLimit: Number.isFinite(purchaseLimit) ? purchaseLimit : null,
-  }
-  if (children) fileNode.children = children.map(toFileNode)
-  return fileNode
-}
-
-/** Build a tree file from the real, hand-authored idler mode + its nested tree. */
 function idlerTreeFileInput(): unknown {
-  const m = getModeDefinition('idler')
-  return {
-    version: CURRENT_TREE_VERSION,
-    id: 'idler',
-    resources: m.resources,
-    scoreResource: m.scoreResource,
-    clicksEnabled: m.clicksEnabled,
-    highlightEnabled: m.highlightEnabled,
-    highlightUnlockUpgrade: m.highlightUnlockUpgrade,
-    initialResources: m.initialResources,
-    initialMeta: m.initialMeta,
-    nativeModifiers: m.nativeModifiers,
-    effects: m.effects,
-    generators: m.generators,
-    goals: m.goals,
-    flavors: m.flavors,
-    upgrades: idlerTree.map(toFileNode),
-  }
+  return idlerTreeFile
 }
 
 /** A minimal, valid single-resource tree file used as a base for failure cases. */

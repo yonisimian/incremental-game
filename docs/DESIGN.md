@@ -484,6 +484,7 @@ incremental-game/
 ├── shared/                      ← @game/shared — types & constants
 │   ├── package.json
 │   ├── tsconfig.json
+│   ├── trees/                   ← canonical tree data (idler.json — single source of truth)
 │   └── src/
 │       ├── index.ts             ← barrel export
 │       ├── messages.ts          ← WebSocket message type definitions
@@ -495,10 +496,8 @@ incremental-game/
 │       │   ├── types.ts         ← Modifier, ModifierContext
 │       │   ├── pipeline.ts      ← computeClickIncome, computePassiveRates, applyPassiveTick
 │       │   └── index.ts         ← barrel re-export
-│       └── modes/               ← per-mode definitions & registry
+│       └── modes/               ← per-mode registry (modes loaded from tree JSON at runtime)
 │           ├── types.ts         ← ModeDefinition, ModeFlavor, ResourceFlavor, UpgradeFlavor, GeneratorFlavor
-│           ├── clicker.ts       ← clicker mode (abstract IDs, mechanics, clickerFlavor)
-│           ├── idler.ts         ← idler mode (abstract IDs, mechanics, idlerFlavor, dynamic modifiers)
 │           └── index.ts         ← AVAILABLE_MODES, getModeDefinition, collectModifiers, re-exports
 │
 ├── client/                      ← Vite vanilla-ts project
