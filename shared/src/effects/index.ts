@@ -5,5 +5,11 @@ import { highlightMultiplier } from './seed/highlight-multiplier.js'
 registerEffect('highlightMultiplier', highlightMultiplier)
 
 export type { EffectDef } from './types.js'
-export { applyEffect, prepareEffect, registerEffect, resolveEffect } from './registry.js'
+export {
+  applyEffect,
+  prepareEffect,
+  registerEffect,
+  resolveEffect,
+  listEffectTypes,
+} from './registry.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'

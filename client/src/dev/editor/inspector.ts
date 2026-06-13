@@ -4,11 +4,20 @@
  * the canvas and mark the document dirty.
  *
  * Covers the data-only fields (id, cost, purchaseLimit, modifiers,
- * prerequisites, choice group). Schema-driven dynamic-effect forms are a later
- * sub-phase; existing `effects` on a node are preserved untouched.
+ * prerequisites, choice group) plus dynamic `effects`, whose forms are
+ * generated from each registered effect's zod param schema.
  */
 
-import type { TreeUpgradeNode } from '@game/shared'
+import { listEffectTypes, resolveEffect, type TreeUpgradeNode } from '@game/shared'
+
+import {
+  defaultParamsForEffect,
+  defaultParamsForVariant,
+  describeEffectSchema,
+  matchVariant,
+  type EffectFormSpec,
+  type FieldSpec,
+} from './effect-schema.js'
 
 export interface InspectorContext {
   readonly node: TreeUpgradeNode
@@ -28,6 +37,7 @@ export interface Currency {
 
 type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
 type ModifierStage = TreeUpgradeNode['modifiers'][number]['stage']
+type EffectEntry = NonNullable<TreeUpgradeNode['effects']>[number]
 
 const MODIFIER_STAGES: readonly ModifierStage[] = ['additive', 'multiplicative', 'global']
 
@@ -342,6 +352,195 @@ function buildPrereqJsonFallback(ctx: InspectorContext): HTMLElement {
   return wrap
 }
 
+// ─── Effects ─────────────────────────────────────────────────────────
+//
+// Each registered effect carries a zod param schema; its form is generated
+// from that schema. Only registered effect types are offered or editable.
+
+/** zod's `safeParse` is all this section needs from a resolved effect schema. */
+interface ScalarSchema {
+  safeParse(value: unknown): { success: boolean; error?: { issues: { message: string }[] } }
+}
+
+function paramsOf(ref: EffectEntry): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(ref).filter(([key]) => key !== 'type'))
+}
+
+function buildEffectField(
+  spec: FieldSpec,
+  current: unknown,
+  onChange: () => void,
+): { row: HTMLElement; read: () => unknown } {
+  const label = spec.optional ? `${spec.key} (optional)` : spec.key
+  if (spec.kind === 'boolean') {
+    const input = el('input', 'ed-input ed-effect-check')
+    input.type = 'checkbox'
+    input.checked = current === true || (current === undefined && spec.defaultValue === true)
+    input.addEventListener('change', onChange)
+    return { row: field(label, input), read: () => input.checked }
+  }
+  const input = el('input', 'ed-input')
+  input.type = spec.kind === 'number' ? 'number' : 'text'
+  const initial = current ?? spec.defaultValue
+  if (typeof initial === 'number' || typeof initial === 'string' || typeof initial === 'boolean') {
+    input.value = String(initial)
+  }
+  input.addEventListener('change', onChange)
+  const read = (): unknown => {
+    const raw = input.value.trim()
+    if (raw === '') return undefined
+    return spec.kind === 'number' ? Number(raw) : raw
+  }
+  return { row: field(label, input), read }
+}
+
+function buildEffectBlock(
+  ctx: InspectorContext,
+  ref: EffectEntry,
+  index: number,
+  setEffects: (next: EffectEntry[]) => void,
+  rerender: () => void,
+): HTMLElement {
+  const block = el('div', 'ed-effect')
+  const header = el('div', 'ed-effect-header ed-row')
+  header.append(el('strong', 'ed-effect-type', ref.type))
+  const remove = el('button', 'ed-btn ed-btn-remove', '✕')
+  remove.type = 'button'
+  remove.addEventListener('click', () => {
+    setEffects((ctx.node.effects ?? []).filter((_, j) => j !== index))
+    rerender()
+  })
+  header.append(remove)
+  block.append(header)
+
+  const def = resolveEffect(ref.type)
+  if (!def) {
+    block.append(el('p', 'ed-hint', 'Unknown effect type — not editable.'))
+    return block
+  }
+  let spec: EffectFormSpec
+  try {
+    spec = describeEffectSchema(def.schema)
+  } catch {
+    block.append(el('p', 'ed-hint', 'Effect schema not editable.'))
+    return block
+  }
+  const schema: ScalarSchema = def.schema
+
+  let params = paramsOf(ref)
+  let variant = matchVariant(spec, params)
+  const fieldsWrap = el('div', 'ed-fields')
+  const error = el('p', 'ed-error')
+
+  const writeFrom = (values: Record<string, unknown>, silent = false): void => {
+    const result = schema.safeParse(values)
+    if (!result.success) {
+      error.textContent = silent ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
+      return
+    }
+    error.textContent = ''
+    setEffects(
+      (ctx.node.effects ?? []).map((r, j) => (j === index ? { type: ref.type, ...values } : r)),
+    )
+  }
+
+  const buildFields = (): void => {
+    fieldsWrap.replaceChildren()
+    const reads = new Map<string, () => unknown>()
+    const collect = (): Record<string, unknown> => {
+      const out: Record<string, unknown> = {}
+      for (const [key, read] of reads) {
+        const value = read()
+        if (value !== undefined) out[key] = value
+      }
+      return out
+    }
+    for (const fieldSpec of variant.fields) {
+      const { row, read } = buildEffectField(fieldSpec, params[fieldSpec.key], () => {
+        writeFrom(collect())
+      })
+      reads.set(fieldSpec.key, read)
+      fieldsWrap.append(row)
+    }
+  }
+  buildFields()
+
+  if (spec.variants.length > 1) {
+    const variantSelect = el('select', 'ed-input')
+    for (const option of spec.variants) {
+      const opt = el('option', undefined, option.label)
+      opt.value = String(option.index)
+      if (option.index === variant.index) opt.selected = true
+      variantSelect.append(opt)
+    }
+    variantSelect.addEventListener('change', () => {
+      const picked = spec.variants.find((v) => v.index === Number(variantSelect.value))
+      if (!picked) return
+      variant = picked
+      params = defaultParamsForVariant(picked)
+      buildFields()
+      // Seeded defaults for a stricter variant (e.g. an empty required id) may
+      // not parse yet; persist if valid but don't flash an error before the
+      // user has touched the new fields.
+      writeFrom(params, true)
+    })
+    block.append(field('Shape', variantSelect))
+  }
+
+  block.append(fieldsWrap, error)
+  return block
+}
+
+function buildEffectsSection(ctx: InspectorContext): HTMLElement {
+  const section = el('div', 'ed-section')
+  section.append(el('h4', 'ed-section-title', 'Effects'))
+  const rows = el('div', 'ed-rows')
+
+  const setEffects = (next: EffectEntry[]): void => {
+    ctx.node.effects = next.length > 0 ? next : undefined
+    ctx.onChange()
+  }
+
+  const render = (): void => {
+    rows.replaceChildren()
+    const effects = ctx.node.effects ?? []
+    effects.forEach((ref, index) => {
+      rows.append(buildEffectBlock(ctx, ref, index, setEffects, render))
+    })
+  }
+  render()
+
+  const types = listEffectTypes()
+  const addSelect = el('select', 'ed-input')
+  for (const type of types) {
+    const opt = el('option', undefined, type)
+    opt.value = type
+    addSelect.append(opt)
+  }
+  const add = el('button', 'ed-btn', '+ effect')
+  add.type = 'button'
+  add.disabled = types.length === 0
+  add.addEventListener('click', () => {
+    const def = resolveEffect(addSelect.value)
+    if (!def) return
+    let spec: EffectFormSpec
+    try {
+      spec = describeEffectSchema(def.schema)
+    } catch {
+      return
+    }
+    const schema: ScalarSchema = def.schema
+    const params = defaultParamsForEffect(spec, (p) => schema.safeParse(p).success)
+    setEffects([...(ctx.node.effects ?? []), { type: addSelect.value, ...params }])
+    render()
+  })
+
+  const addRow = el('div', 'ed-row')
+  addRow.append(addSelect, add)
+  section.append(rows, addRow)
+  return section
+}
+
 function buildChoiceSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Choice group'))
@@ -382,6 +581,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildPurchaseLimitSection(ctx),
     buildModifiersSection(ctx),
     buildPrerequisitesSection(ctx),
+    buildEffectsSection(ctx),
     buildChoiceSection(ctx),
   )
 }
