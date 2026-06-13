@@ -100,50 +100,84 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Cost'))
   const rows = el('div', 'ed-rows')
-
-  const sync = (): void => {
-    const next: Record<string, number> = {}
-    for (const row of rows.querySelectorAll<HTMLDivElement>('.ed-cost-row')) {
-      const key = row.querySelector<HTMLSelectElement>('.ed-cost-key')!.value.trim()
-      const amount = Number(row.querySelector<HTMLInputElement>('.ed-cost-amount')!.value)
-      if (key) next[key] = amount
-    }
-    ctx.node.cost = next
-    ctx.onChange()
-  }
-
-  const addRow = (key: string, amount: number): void => {
-    const row = el('div', 'ed-cost-row ed-row')
-    const keySelect = buildCurrencySelect(ctx.currencies, key)
-    keySelect.classList.add('ed-cost-key')
-    const amountInput = el('input', 'ed-input ed-cost-amount')
-    amountInput.type = 'number'
-    amountInput.value = String(amount)
-    const remove = el('button', 'ed-btn ed-btn-remove', '✕')
-    remove.type = 'button'
-    remove.addEventListener('click', () => {
-      row.remove()
-      sync()
-    })
-    keySelect.addEventListener('change', sync)
-    amountInput.addEventListener('change', sync)
-    row.append(keySelect, amountInput, remove)
-    rows.append(row)
-  }
-
-  for (const [key, amount] of Object.entries(ctx.node.cost)) addRow(key, amount)
-
   const add = el('button', 'ed-btn', '+ currency')
   add.type = 'button'
+
+  // The cost map is the model; rows are rebuilt from it after any structural
+  // change (currency picked, row added/removed) so each dropdown can exclude
+  // currencies already chosen in sibling rows — preventing duplicate keys that
+  // would otherwise silently merge on save.
+  const render = (): void => {
+    rows.replaceChildren()
+    const used = new Set(Object.keys(ctx.node.cost))
+    for (const [key, amount] of Object.entries(ctx.node.cost)) {
+      // Offer this row's own currency plus any not used by another row.
+      const available = ctx.currencies.filter((c) => c.key === key || !used.has(c.key))
+      rows.append(buildCostRow(ctx, key, amount, available, render))
+    }
+    // Disable adding when every currency is already in use (or none exist).
+    const free = ctx.currencies.filter((c) => !used.has(c.key))
+    add.disabled = free.length === 0
+  }
+
   add.addEventListener('click', () => {
-    addRow(ctx.currencies[0]?.key ?? '', 0)
+    const free = ctx.currencies.find((c) => !(c.key in ctx.node.cost))
+    if (!free) return
+    ctx.node.cost = { ...ctx.node.cost, [free.key]: 0 }
+    ctx.onChange()
+    render()
   })
+
+  render()
   section.append(rows, add)
   return section
 }
 
 /**
- * A `<select>` of the tree's currencies. If `value` isn't among them (e.g. a
+ * A single cost row (currency dropdown + amount). Mutates `ctx.node.cost` in
+ * place; structural edits (currency change, removal) call `rerender` so sibling
+ * rows can refresh their available currencies.
+ */
+function buildCostRow(
+  ctx: InspectorContext,
+  key: string,
+  amount: number,
+  available: readonly Currency[],
+  rerender: () => void,
+): HTMLDivElement {
+  const row = el('div', 'ed-cost-row ed-row')
+  const keySelect = buildCurrencySelect(available, key)
+  keySelect.classList.add('ed-cost-key')
+  const amountInput = el('input', 'ed-input ed-cost-amount')
+  amountInput.type = 'number'
+  amountInput.value = String(amount)
+  const remove = el('button', 'ed-btn ed-btn-remove', '✕')
+  remove.type = 'button'
+
+  // Renaming a currency: drop the old key, set the new one, then rebuild rows.
+  keySelect.addEventListener('change', () => {
+    const next: Record<string, number> = {}
+    for (const [k, v] of Object.entries(ctx.node.cost)) next[k === key ? keySelect.value : k] = v
+    ctx.node.cost = next
+    ctx.onChange()
+    rerender()
+  })
+  amountInput.addEventListener('change', () => {
+    ctx.node.cost = { ...ctx.node.cost, [key]: Number(amountInput.value) }
+    ctx.onChange()
+  })
+  remove.addEventListener('click', () => {
+    ctx.node.cost = Object.fromEntries(Object.entries(ctx.node.cost).filter(([k]) => k !== key))
+    ctx.onChange()
+    rerender()
+  })
+
+  row.append(keySelect, amountInput, remove)
+  return row
+}
+
+/**
+ * A `<select>` of the given currencies. If `value` isn't among them (e.g. a
  * cost referencing a since-removed resource), it's added as an option so the
  * existing value is preserved rather than silently dropped.
  */

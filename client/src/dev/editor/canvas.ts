@@ -97,9 +97,11 @@ function renderEdges(positioned: readonly PositionedNode[]): string {
     for (const refId of prerequisiteRefs(target.node)) {
       const source = byId.get(refId)
       if (!source) continue
-      // Positions are node centers, so edges connect coords directly.
+      // Positions are node centers, so edges connect coords directly. The
+      // non-scaling stroke keeps lines a constant width at any zoom (matches
+      // the production tree).
       lines.push(
-        `<line class="ed-edge" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" />`,
+        `<line class="ed-edge" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" vector-effect="non-scaling-stroke" />`,
       )
     }
   }
