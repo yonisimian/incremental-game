@@ -11,6 +11,7 @@
 import { listEffectTypes, resolveEffect, type TreeUpgradeNode } from '@game/shared'
 
 import {
+  defaultParamsForEffect,
   defaultParamsForVariant,
   describeEffectSchema,
   matchVariant,
@@ -365,14 +366,6 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
   return Object.fromEntries(Object.entries(ref).filter(([key]) => key !== 'type'))
 }
 
-function initialEffectRef(type: string, spec: EffectFormSpec, schema: ScalarSchema): EffectEntry {
-  for (const variant of spec.variants) {
-    const params = defaultParamsForVariant(variant)
-    if (schema.safeParse(params).success) return { type, ...params }
-  }
-  return { type, ...defaultParamsForVariant(spec.variants[0]) }
-}
-
 function buildEffectField(
   spec: FieldSpec,
   current: unknown,
@@ -439,10 +432,10 @@ function buildEffectBlock(
   const fieldsWrap = el('div', 'ed-fields')
   const error = el('p', 'ed-error')
 
-  const writeFrom = (values: Record<string, unknown>): void => {
+  const writeFrom = (values: Record<string, unknown>, silent = false): void => {
     const result = schema.safeParse(values)
     if (!result.success) {
-      error.textContent = result.error?.issues[0]?.message ?? 'Invalid params'
+      error.textContent = silent ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
       return
     }
     error.textContent = ''
@@ -486,7 +479,10 @@ function buildEffectBlock(
       variant = picked
       params = defaultParamsForVariant(picked)
       buildFields()
-      writeFrom(params)
+      // Seeded defaults for a stricter variant (e.g. an empty required id) may
+      // not parse yet; persist if valid but don't flash an error before the
+      // user has touched the new fields.
+      writeFrom(params, true)
     })
     block.append(field('Shape', variantSelect))
   }
@@ -534,7 +530,8 @@ function buildEffectsSection(ctx: InspectorContext): HTMLElement {
       return
     }
     const schema: ScalarSchema = def.schema
-    setEffects([...(ctx.node.effects ?? []), initialEffectRef(addSelect.value, spec, schema)])
+    const params = defaultParamsForEffect(spec, (p) => schema.safeParse(p).success)
+    setEffects([...(ctx.node.effects ?? []), { type: addSelect.value, ...params }])
     render()
   })
 

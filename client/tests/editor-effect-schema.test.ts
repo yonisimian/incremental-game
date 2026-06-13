@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolveEffect } from '@game/shared'
 import {
+  defaultParamsForEffect,
   defaultParamsForVariant,
   describeEffectSchema,
   matchVariant,
@@ -92,5 +93,23 @@ describe('defaultParamsForVariant', () => {
       object({ a: number, b: string, c: boolean, d: optional(number), e: withDefault(number, 7) }),
     )
     expect(defaultParamsForVariant(spec.variants[0])).toEqual({ a: 0, b: '', c: false, e: 7 })
+  })
+})
+
+describe('defaultParamsForEffect', () => {
+  const spec = describeEffectSchema(
+    union(object({ multiplier: number, boost: string }), object({ multiplier: number })),
+  )
+
+  it('prefers the first variant whose defaults pass the validity check', () => {
+    // The boost variant seeds an empty string, which a min(1) rule rejects;
+    // the narrow variant's defaults parse, so they win.
+    const isValid = (p: Record<string, unknown>): boolean =>
+      typeof p.boost !== 'string' || p.boost.length > 0
+    expect(defaultParamsForEffect(spec, isValid)).toEqual({ multiplier: 0 })
+  })
+
+  it('falls back to the first variant when none validate', () => {
+    expect(defaultParamsForEffect(spec, () => false)).toEqual({ multiplier: 0, boost: '' })
   })
 })

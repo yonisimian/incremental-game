@@ -160,3 +160,20 @@ export function defaultParamsForVariant(
   }
   return out
 }
+
+/**
+ * Default params for a newly-added effect: the first variant whose defaults the
+ * caller's `isValid` predicate accepts (so a union prefers a shape that parses
+ * cleanly), falling back to the first variant. `isValid` is the effect's real
+ * schema check, kept out of this module to avoid a zod dependency.
+ */
+export function defaultParamsForEffect(
+  spec: EffectFormSpec,
+  isValid: (params: Record<string, number | string | boolean>) => boolean,
+): Record<string, number | string | boolean> {
+  for (const variant of spec.variants) {
+    const params = defaultParamsForVariant(variant)
+    if (isValid(params)) return params
+  }
+  return defaultParamsForVariant(spec.variants[0])
+}
