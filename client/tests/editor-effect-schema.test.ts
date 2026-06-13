@@ -66,10 +66,8 @@ describe('describeEffectSchema', () => {
   it('describes the registered highlightMultiplier effect', () => {
     const def = resolveEffect('highlightMultiplier')!
     const spec = describeEffectSchema(def.schema)
-    expect(spec.variants).toHaveLength(2)
-    const fieldSets = spec.variants.map((v) => v.fields.map((f) => f.key).sort())
-    expect(fieldSets).toContainEqual(['boostUpgradeId', 'boostedMultiplier', 'multiplier'])
-    expect(fieldSets).toContainEqual(['multiplier'])
+    expect(spec.variants).toHaveLength(1)
+    expect(spec.variants[0].fields.map((f) => f.key)).toEqual(['multiplier'])
   })
 })
 

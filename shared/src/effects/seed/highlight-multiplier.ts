@@ -7,24 +7,15 @@ import type { EffectDef } from '../types.js'
 /**
  * Schema for the `highlightMultiplier` effect's params.
  *
- * Either a flat `multiplier`, or a `multiplier` plus a boost tier: owning
- * `boostUpgradeId` raises the value to `boostedMultiplier`. Both boost fields are
- * a discriminated pair — present together or not at all. Strict objects make the
- * pairing enforceable: a partial boost matches neither union member and is
- * rejected, so `apply` never has to assert the fields' presence.
- *
- * `z.number()` already rejects `NaN`/`Infinity`, so finiteness needs no extra guard.
+ * A single `multiplier` applied to the highlighted resource. Tiers are composed
+ * by distribution, not branching: a stronger tier is its own effect on a later
+ * upgrade whose multiplier stacks multiplicatively with this one (e.g. `uh`'s ×2
+ * and `uh2`'s ×1.5 combine to ×3). `z.number()` already rejects `NaN`/`Infinity`,
+ * so finiteness needs no extra guard.
  */
-const schema = z.union([
-  z.strictObject({
-    multiplier: z.number(),
-    boostUpgradeId: z.string().min(1),
-    boostedMultiplier: z.number(),
-  }),
-  z.strictObject({
-    multiplier: z.number(),
-  }),
-])
+const schema = z.strictObject({
+  multiplier: z.number(),
+})
 
 /** Params for the `highlightMultiplier` effect (inferred from its schema). */
 export type HighlightMultiplierParams = z.infer<typeof schema>
@@ -36,11 +27,7 @@ export type HighlightMultiplierParams = z.infer<typeof schema>
 function apply(p: HighlightMultiplierParams, state: Readonly<PlayerState>): Modifier | null {
   // `?? 'r0'` mirrors the prior idler default when no resource is highlighted.
   const highlight = (state.meta.highlight as string | undefined) ?? 'r0'
-  const value =
-    'boostUpgradeId' in p && (state.upgrades[p.boostUpgradeId] ?? 0) > 0
-      ? p.boostedMultiplier
-      : p.multiplier
-  return { stage: 'multiplicative', field: highlight, value }
+  return { stage: 'multiplicative', field: highlight, value: p.multiplier }
 }
 
 export const highlightMultiplier: EffectDef<HighlightMultiplierParams> = { schema, apply }

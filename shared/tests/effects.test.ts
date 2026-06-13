@@ -58,35 +58,10 @@ describe('highlightMultiplier params', () => {
     )
   })
 
-  it('rejects boostUpgradeId without boostedMultiplier', () => {
+  it('rejects unknown params (strict schema)', () => {
     expect(() =>
-      applyHighlight({
-        type: 'highlightMultiplier',
-        multiplier: 2,
-        boostUpgradeId: 'uh2',
-      }),
+      applyHighlight({ type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2' }),
     ).toThrow()
-  })
-
-  it('rejects boostedMultiplier without boostUpgradeId', () => {
-    expect(() =>
-      applyHighlight({
-        type: 'highlightMultiplier',
-        multiplier: 2,
-        boostedMultiplier: 3,
-      }),
-    ).toThrow()
-  })
-
-  it('rejects a non-finite boostedMultiplier', () => {
-    expect(() =>
-      applyHighlight({
-        type: 'highlightMultiplier',
-        multiplier: 2,
-        boostUpgradeId: 'uh2',
-        boostedMultiplier: Infinity,
-      }),
-    ).toThrow(/boostedMultiplier/u)
   })
 })
 
@@ -139,8 +114,13 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades.uh2 = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 3 })
-    expect(mods.some((m) => m.stage === 'multiplicative' && m.value === 2)).toBe(false)
+    // The boost is distributed: uh emits ×2 and uh2 emits ×1.5, stacking to ×3.
+    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 1.5 })
+    const r0Factor = mods
+      .filter((m) => m.stage === 'multiplicative' && m.field === 'r0')
+      .reduce((acc, m) => acc * m.value, 1)
+    expect(r0Factor).toBe(3)
   })
 
   it('applies the ×3 boost to the highlighted resource when it changes (r1)', () => {
@@ -150,7 +130,10 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades.uh2 = 1
     state.meta.highlight = 'r1'
     const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r1', value: 3 })
+    const r1Factor = mods
+      .filter((m) => m.stage === 'multiplicative' && m.field === 'r1')
+      .reduce((acc, m) => acc * m.value, 1)
+    expect(r1Factor).toBe(3)
     expect(mods.some((m) => m.stage === 'multiplicative' && m.field === 'r0')).toBe(false)
   })
 
@@ -160,7 +143,9 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades.uh2 = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
-    expect(mods.some((m) => m.stage === 'multiplicative')).toBe(false)
+    // uh2's ×1.5 still applies (it gates on its own ownership), but the ×2 base
+    // is absent without uh — and uh2's prerequisite makes this unreachable in play.
+    expect(mods.some((m) => m.stage === 'multiplicative' && m.value === 2)).toBe(false)
   })
 })
 

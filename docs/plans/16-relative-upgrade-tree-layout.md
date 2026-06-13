@@ -208,9 +208,7 @@ Tree / mode data carries declarative refs:
 
 ```ts
 // idler `uh` upgrade definition (data, not a closure)
-effects: [
-  { type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2', boostedMultiplier: 3 },
-]
+effects: [{ type: 'highlightMultiplier', multiplier: 2 }]
 ```
 
 ### Why `parse` instead of a zod schema (deferred)
@@ -228,9 +226,9 @@ is naturally a zod schema. We **deferred zod** for now because:
 
 ### Seed effect library
 
-| Effect type           | Replaces              | Params (as built)                                     |
-| --------------------- | --------------------- | ----------------------------------------------------- |
-| `highlightMultiplier` | `collectIdlerDynamic` | `{ multiplier, boostUpgradeId?, boostedMultiplier? }` |
+| Effect type           | Replaces              | Params (as built) |
+| --------------------- | --------------------- | ----------------- |
+| `highlightMultiplier` | `collectIdlerDynamic` | `{ multiplier }`  |
 
 Future effects (`bankedResourceBonus`, `dominantGenerator`, `balancedGenerators`,
 `timeGrowth`, …) are added to this table as Phase 3+ tree nodes require them.
@@ -264,8 +262,8 @@ extension point for **branch-level inheritance** (e.g. color a branch via its ro
 > `offset` equals their absolute position (**faithful conversion** — no fabricated
 > relationships). As a smoke test of the layout system, one real nested child was added:
 > `uh2` (Sharper Focus) is a layout child of `uh` (offset `0,150`) with a `prerequisites`
-> link to `uh`, and it raises the highlight multiplier 2 → 3 via a `boostUpgradeId` tier on
-> `uh`'s per-upgrade `highlightMultiplier` effect (co-located with the unlock it modifies).
+> link to `uh`, and it raises the highlight multiplier 2 → 3 via its own ×1.5
+> `highlightMultiplier` effect that stacks multiplicatively with `uh`'s ×2.
 > This exercises nesting, relative-offset
 > resolution, prerequisite-edge rendering, and effect tiering end-to-end.
 
@@ -338,8 +336,9 @@ effects, and the nested offset tree; **D15**) and `codec.ts`
 positions are stored as relative `offset`s flattened by Phase 3's `flattenUpgradeTree`.
 Effect params are now validated by **per-effect zod schemas** (**D14**): `EffectDef.parse`
 was replaced by `EffectDef.schema`, the registry strips the `type` discriminant and runs
-`schema.parse`, and `highlightMultiplier` is a strict `z.union` (the both-or-neither boost
-pairing is enforced structurally). Idler keeps its synchronous TS boot (**D16**); the
+`schema.parse`, and `highlightMultiplier` is a strict object (`{ multiplier }`; tiers are
+composed by distributing separate stacking effects across upgrades rather than branching).
+Idler keeps its synchronous TS boot (**D16**); the
 build-to-JSON emit + async fetch land in Phase 5.
 
 **Validation:** ✅ tree codec tests (idler `parseTree` ≡ hand-authored mode; serialize→parse

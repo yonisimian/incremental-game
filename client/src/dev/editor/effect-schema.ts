@@ -29,7 +29,7 @@ export interface VariantSpec {
   /** Index into the schema's union options (`0` for a non-union object). */
   readonly index: number
   readonly fields: readonly FieldSpec[]
-  /** Human label — the field names joined (e.g. `multiplier + boostUpgradeId`). */
+  /** Human label — the field names joined (e.g. `multiplier + boostedValue`). */
   readonly label: string
 }
 

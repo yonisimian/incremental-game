@@ -39,11 +39,10 @@ export const idlerTree: readonly UpgradeTreeNode[] = [
     offset: { x: 0, y: 0 },
     modifiers: [],
     // Highlight mechanic lives on its unlock upgrade: ×2 to the highlighted
-    // resource, raised to ×3 once the child `uh2` (Sharper Focus) is owned. The
-    // effect runs only while `uh` is owned (per-upgrade effects gate on ownership).
-    effects: [
-      { type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'uh2', boostedMultiplier: 3 },
-    ],
+    // resource. The boost to ×3 is distributed onto `uh2` as its own ×1.5 effect
+    // that stacks multiplicatively (2 × 1.5 = 3). Each effect runs only while its
+    // host upgrade is owned (per-upgrade effects gate on ownership).
+    effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
     children: [
       {
         id: 'uh2', // Sharper Focus — boosts the highlight multiplier 2 → 3
@@ -51,7 +50,9 @@ export const idlerTree: readonly UpgradeTreeNode[] = [
         purchaseLimit: 1,
         offset: { x: 0, y: 150 }, // relative to `uh` (0,0) → absolute (0, 150)
         prerequisites: { type: 'upgrade', id: 'uh' },
-        modifiers: [], // boost tier is declared on uh's highlightMultiplier effect
+        modifiers: [],
+        // ×1.5 on the highlighted resource, stacking with `uh`'s ×2 → ×3 total.
+        effects: [{ type: 'highlightMultiplier', multiplier: 1.5 }],
       },
     ],
   },

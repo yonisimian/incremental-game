@@ -195,7 +195,7 @@ describe('tree codec — validation failures', () => {
     expect(() => toModeDefinition(tree)).toThrow(/unknown effect type/iu)
   })
 
-  it('rejects malformed effect params (partial highlight boost)', () => {
+  it('rejects malformed effect params (unknown highlight key)', () => {
     const tree = minimalTree()
     tree.upgrades = [
       {

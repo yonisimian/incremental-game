@@ -168,9 +168,7 @@
       "effects": [
         {
           "type": "highlightMultiplier",
-          "multiplier": 2,
-          "boostUpgradeId": "uh2",
-          "boostedMultiplier": 3
+          "multiplier": 2
         }
       ],
       "offset": {
@@ -189,6 +187,12 @@
             "type": "upgrade",
             "id": "uh"
           },
+          "effects": [
+            {
+              "type": "highlightMultiplier",
+              "multiplier": 1.5
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 150
