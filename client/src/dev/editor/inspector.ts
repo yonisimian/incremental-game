@@ -14,8 +14,16 @@ export interface InspectorContext {
   readonly node: TreeUpgradeNode
   /** All node ids in the tree (for the prerequisite checklist). */
   readonly allIds: readonly string[]
+  /** Selectable cost currencies (the tree's resources), with display labels. */
+  readonly currencies: readonly Currency[]
   /** Called after any edit that changes the working tree. */
   readonly onChange: () => void
+}
+
+/** A selectable cost currency: the stable resource `key` plus a display `label`. */
+export interface Currency {
+  readonly key: string
+  readonly label: string
 }
 
 type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
@@ -96,7 +104,7 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   const sync = (): void => {
     const next: Record<string, number> = {}
     for (const row of rows.querySelectorAll<HTMLDivElement>('.ed-cost-row')) {
-      const key = row.querySelector<HTMLInputElement>('.ed-cost-key')!.value.trim()
+      const key = row.querySelector<HTMLSelectElement>('.ed-cost-key')!.value.trim()
       const amount = Number(row.querySelector<HTMLInputElement>('.ed-cost-amount')!.value)
       if (key) next[key] = amount
     }
@@ -106,10 +114,8 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
 
   const addRow = (key: string, amount: number): void => {
     const row = el('div', 'ed-cost-row ed-row')
-    const keyInput = el('input', 'ed-input ed-cost-key')
-    keyInput.type = 'text'
-    keyInput.placeholder = 'currency'
-    keyInput.value = key
+    const keySelect = buildCurrencySelect(ctx.currencies, key)
+    keySelect.classList.add('ed-cost-key')
     const amountInput = el('input', 'ed-input ed-cost-amount')
     amountInput.type = 'number'
     amountInput.value = String(amount)
@@ -119,9 +125,9 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
       row.remove()
       sync()
     })
-    keyInput.addEventListener('change', sync)
+    keySelect.addEventListener('change', sync)
     amountInput.addEventListener('change', sync)
-    row.append(keyInput, amountInput, remove)
+    row.append(keySelect, amountInput, remove)
     rows.append(row)
   }
 
@@ -130,10 +136,28 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   const add = el('button', 'ed-btn', '+ currency')
   add.type = 'button'
   add.addEventListener('click', () => {
-    addRow('', 0)
+    addRow(ctx.currencies[0]?.key ?? '', 0)
   })
   section.append(rows, add)
   return section
+}
+
+/**
+ * A `<select>` of the tree's currencies. If `value` isn't among them (e.g. a
+ * cost referencing a since-removed resource), it's added as an option so the
+ * existing value is preserved rather than silently dropped.
+ */
+function buildCurrencySelect(currencies: readonly Currency[], value: string): HTMLSelectElement {
+  const select = el('select', 'ed-input')
+  const known = currencies.some((c) => c.key === value)
+  const options = known || value === '' ? currencies : [{ key: value, label: value }, ...currencies]
+  for (const { key, label } of options) {
+    const opt = el('option', undefined, label)
+    opt.value = key
+    if (key === value) opt.selected = true
+    select.append(opt)
+  }
+  return select
 }
 
 function buildPurchaseLimitSection(ctx: InspectorContext): HTMLElement {

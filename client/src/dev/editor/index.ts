@@ -18,12 +18,24 @@ import {
   setNodePosition,
 } from './model.js'
 import { renderCanvas, GRID, type CanvasBounds } from './canvas.js'
-import { renderInspector, renderInspectorEmpty } from './inspector.js'
+import { renderInspector, renderInspectorEmpty, type Currency } from './inspector.js'
 import { exportTree, importTreeFromFile } from './io.js'
 
 const INITIAL_ZOOM = 0.6
 const MIN_ZOOM = 0.3
 const MAX_ZOOM = 2.5
+
+/**
+ * The tree's cost currencies, labelled with the default flavor's icon + name
+ * (e.g. `🪵 Wood (r0)`), falling back to the bare resource key.
+ */
+function treeCurrencies(tree: TreeFile): Currency[] {
+  const flavor = new Map((tree.flavors[0]?.resources ?? []).map((r) => [r.key, r]))
+  return tree.resources.map((key) => {
+    const f = flavor.get(key)
+    return { key, label: f ? `${f.icon} ${f.displayName} (${key})` : key }
+  })
+}
 
 interface EditorState {
   tree: TreeFile
@@ -139,6 +151,7 @@ export function initEditor(pane: HTMLElement): () => void {
     renderInspector(inspector, {
       node,
       allIds: collectIds(state.tree),
+      currencies: treeCurrencies(state.tree),
       onChange: () => {
         state.dirty = true
         setStatus('Unsaved changes')
