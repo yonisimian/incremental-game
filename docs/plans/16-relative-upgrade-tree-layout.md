@@ -404,6 +404,20 @@ typecheck + eslint + format + knip + lint:css clean.
 - **Save/Load:** `serializeTree`/`parseTree` (Phase 4); export/import JSON; load into a live
   game to playtest (reason #2 + #3 payoff).
 
+**Sub-phases:**
+
+- **6a — viewer + static editing + save/load — ✅ done.** A new **Editor** tab on the dev
+  page (`client/src/dev/editor/`, vanilla TS+DOM, dev-only). Renders the working `TreeFile`
+  on a pan/zoom canvas (nodes by accumulated `offset`, edges from `prerequisites`); the
+  inspector edits the data-only fields (`id`, `cost` map, `purchaseLimit`, static
+  `modifiers`, `prerequisites` via an all/any checklist with a raw-JSON fallback for
+  nested/min-level shapes, `choiceGroup`/`choiceLabel`). Import validates through
+  `parseTreeFile`; export serializes through `serializeTree` (round-trip tested).
+- **6b — canvas drag** to move/re-parent nodes (write `offset` back).
+- **6c — schema-driven dynamic-effect forms** (dropdown of registered effect types →
+  form generated from each effect's zod param schema). Existing node `effects` are
+  preserved untouched until then.
+
 ---
 
 ## Future directions (noted, not designed here)

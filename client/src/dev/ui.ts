@@ -19,6 +19,7 @@ import { renderChart, updateChart } from './chart.js'
 import type { ChartMarker } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
+import { initEditor } from './editor/index.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export function initDevPanel(root: HTMLElement): void {
   const tabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab')
   const simPane = root.querySelector<HTMLDivElement>('#pane-simulation')!
   const livePane = root.querySelector<HTMLDivElement>('#pane-live')!
+  const editorPane = root.querySelector<HTMLDivElement>('#pane-editor')!
 
   // ── Simulation pane wiring ──
   const modeSelect = root.querySelector<HTMLSelectElement>('#mode-select')!
@@ -64,10 +66,15 @@ export function initDevPanel(root: HTMLElement): void {
   const liveResourceCharts = root.querySelector<HTMLDivElement>('#live-chart-resources')!
 
   // ── Tab switching ──
-  function switchTab(tab: 'simulation' | 'live'): void {
+  // The editor is mounted lazily on first entry and torn down on leave (it owns
+  // pan/zoom listeners); `editorTeardown` is non-null only while it is mounted.
+  let editorTeardown: (() => void) | null = null
+
+  function switchTab(tab: 'simulation' | 'live' | 'editor'): void {
     tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab))
     simPane.classList.toggle('hidden', tab !== 'simulation')
     livePane.classList.toggle('hidden', tab !== 'live')
+    editorPane.classList.toggle('hidden', tab !== 'editor')
 
     if (tab === 'live') {
       startLiveListener((state) => {
@@ -81,11 +88,19 @@ export function initDevPanel(root: HTMLElement): void {
     } else {
       stopLiveListener()
     }
+
+    if (tab === 'editor') {
+      // Mount only once the pane is visible so pan/zoom sees real dimensions.
+      editorTeardown ??= initEditor(editorPane)
+    } else if (editorTeardown) {
+      editorTeardown()
+      editorTeardown = null
+    }
   }
 
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
-      switchTab(btn.dataset.tab as 'simulation' | 'live')
+      switchTab(btn.dataset.tab as 'simulation' | 'live' | 'editor')
     })
   })
 
@@ -150,6 +165,7 @@ function buildLayout(): string {
     <nav class="dev-tabs">
       <button class="dev-tab active" data-tab="simulation">Simulation</button>
       <button class="dev-tab" data-tab="live">Live</button>
+      <button class="dev-tab" data-tab="editor">Editor</button>
     </nav>
     <div id="pane-simulation">
       <section class="dev-controls">
@@ -204,6 +220,7 @@ function buildLayout(): string {
         <div id="live-chart-resources"></div>
       </section>
     </div>
+    <div id="pane-editor" class="hidden"></div>
   `
 }
 

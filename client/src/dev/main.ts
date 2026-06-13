@@ -1,10 +1,9 @@
 import 'uplot/dist/uPlot.min.css'
 import './dev.css'
-import { buildIdlerTreeFile, loadTree } from '@game/shared'
+// Register the bundled tree BEFORE importing ui.js — `strategies.ts` (pulled in
+// transitively) calls `getModeDefinition` at module-evaluation time, which
+// throws unless a tree is already loaded. Side-effect import order matters here.
+import './bootstrap.js'
 import { initDevPanel } from './ui.js'
-
-// The dev panel runs fully offline (no server), so it registers the bundled
-// tree directly instead of fetching it like the live client does.
-loadTree(buildIdlerTreeFile())
 
 initDevPanel(document.getElementById('dev-app')!)
