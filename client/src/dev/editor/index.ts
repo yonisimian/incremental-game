@@ -17,6 +17,9 @@ import {
   removeNode,
   nodePosition,
   setNodePosition,
+  parentOf,
+  subtreeIdsOf,
+  reparentNode,
 } from './model.js'
 import { renderCanvas, GRID, type CanvasBounds } from './canvas.js'
 import { renderInspector, renderInspectorEmpty, type Currency } from './inspector.js'
@@ -153,6 +156,17 @@ export function initEditor(pane: HTMLElement): () => void {
       node,
       allIds: collectIds(state.tree),
       currencies: treeCurrencies(state.tree),
+      parentId: parentOf(state.tree, node.id),
+      descendantIds: subtreeIdsOf(state.tree, node.id),
+      onReparent: (parentId) => {
+        if (!reparentNode(state.tree, node.id, parentId)) return
+        state.dirty = true
+        setStatus(
+          parentId === null ? `Made ${node.id} a root` : `Parented ${node.id} → ${parentId}`,
+        )
+        renderCanvasOnly()
+        renderInspectorOnly()
+      },
       onChange: () => {
         state.dirty = true
         setStatus('Unsaved changes')

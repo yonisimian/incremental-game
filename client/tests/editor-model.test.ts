@@ -13,6 +13,9 @@ import {
   removeNode,
   nodePosition,
   setNodePosition,
+  parentOf,
+  subtreeIdsOf,
+  reparentNode,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -203,6 +206,93 @@ describe('setNodePosition', () => {
     const tree = makeTree()
     setNodePosition(tree, 'nope', 0, 0)
     expect(nodePosition(tree, 'a')).toEqual({ x: 0, y: 0 })
+  })
+})
+
+// ─── parentOf / subtreeIdsOf ─────────────────────────────────────────
+
+describe('parentOf', () => {
+  it('returns the layout parent id', () => {
+    expect(parentOf(makeTree(), 'c')).toBe('b')
+  })
+
+  it('returns null for a root', () => {
+    expect(parentOf(makeTree(), 'a')).toBeNull()
+  })
+
+  it('returns null for an unknown id', () => {
+    expect(parentOf(makeTree(), 'nope')).toBeNull()
+  })
+})
+
+describe('subtreeIdsOf', () => {
+  it('lists the node and all its descendants', () => {
+    expect(subtreeIdsOf(makeTree(), 'a').sort()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('lists just the node for a leaf', () => {
+    expect(subtreeIdsOf(makeTree(), 'c')).toEqual(['c'])
+  })
+
+  it('returns [] for an unknown id', () => {
+    expect(subtreeIdsOf(makeTree(), 'nope')).toEqual([])
+  })
+})
+
+// ─── reparentNode ────────────────────────────────────────────────────
+
+describe('reparentNode', () => {
+  it('moves a root under a parent, preserving its absolute position', () => {
+    const tree = makeTree()
+    // 'd' is a root at (-40,20); parent it under 'b' (at (100,50)).
+    expect(reparentNode(tree, 'd', 'b')).toBe(true)
+    expect(parentOf(tree, 'd')).toBe('b')
+    expect(nodePosition(tree, 'd')).toEqual({ x: -40, y: 20 })
+    // Offset is now relative to 'b': (-40-100, 20-50) = (-140, -30).
+    expect(findNode(tree, 'd')!.offset).toEqual({ x: -140, y: -30 })
+  })
+
+  it('drags descendants along after reparenting (they keep their offsets)', () => {
+    const tree = makeTree()
+    reparentNode(tree, 'b', 'd') // 'b' (with child 'c') moves under 'd'
+    expect(nodePosition(tree, 'b')).toEqual({ x: 100, y: 50 })
+    expect(nodePosition(tree, 'c')).toEqual({ x: 110, y: 60 })
+    // Now moving 'd' shifts 'b' and 'c' with it.
+    setNodePosition(tree, 'd', 0, 0)
+    expect(nodePosition(tree, 'b')).toEqual({ x: 140, y: 30 })
+    expect(nodePosition(tree, 'c')).toEqual({ x: 150, y: 40 })
+  })
+
+  it('makes a node a root when the new parent is null', () => {
+    const tree = makeTree()
+    expect(reparentNode(tree, 'c', null)).toBe(true)
+    expect(parentOf(tree, 'c')).toBeNull()
+    // 'c' was at (110,60); as a root its offset equals its absolute position.
+    expect(nodePosition(tree, 'c')).toEqual({ x: 110, y: 60 })
+    expect(findNode(tree, 'c')!.offset).toEqual({ x: 110, y: 60 })
+  })
+
+  it('refuses to create a cycle (parenting a node under its own descendant)', () => {
+    const tree = makeTree()
+    expect(reparentNode(tree, 'a', 'c')).toBe(false)
+    expect(parentOf(tree, 'a')).toBeNull()
+    expect(parentOf(tree, 'c')).toBe('b')
+  })
+
+  it('refuses to parent a node under itself', () => {
+    const tree = makeTree()
+    expect(reparentNode(tree, 'b', 'b')).toBe(false)
+    expect(parentOf(tree, 'b')).toBe('a')
+  })
+
+  it('is a no-op when the parent is unchanged', () => {
+    const tree = makeTree()
+    expect(reparentNode(tree, 'c', 'b')).toBe(false)
+  })
+
+  it('returns false for an unknown id', () => {
+    const tree = makeTree()
+    expect(reparentNode(tree, 'nope', 'a')).toBe(false)
   })
 })
 

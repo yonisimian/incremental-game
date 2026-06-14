@@ -25,6 +25,12 @@ export interface InspectorContext {
   readonly allIds: readonly string[]
   /** Selectable cost currencies (the tree's resources), with display labels. */
   readonly currencies: readonly Currency[]
+  /** The node's current layout parent id, or `null` if it's a root. */
+  readonly parentId: string | null
+  /** Ids that can't be the node's parent (itself + its descendants). */
+  readonly descendantIds: readonly string[]
+  /** Re-parent the node (or make it a root when `null`). */
+  readonly onReparent: (parentId: string | null) => void
   /** Called after any edit that changes the working tree. */
   readonly onChange: () => void
 }
@@ -103,6 +109,34 @@ function buildIdSection(ctx: InspectorContext): HTMLElement {
   })
   const wrap = field('ID', input)
   wrap.append(el('p', 'ed-hint', 'Renaming does not rewrite prerequisite references.'))
+  return wrap
+}
+
+function buildParentSection(ctx: InspectorContext): HTMLElement {
+  const select = el('select', 'ed-input')
+  const root = el('option', undefined, '(root)')
+  root.value = ''
+  if (ctx.parentId === null) root.selected = true
+  select.append(root)
+
+  // Exclude the node itself and its descendants — those would make a cycle.
+  const excluded = new Set(ctx.descendantIds)
+  for (const id of ctx.allIds) {
+    if (excluded.has(id)) continue
+    const opt = el('option', undefined, id)
+    opt.value = id
+    if (id === ctx.parentId) opt.selected = true
+    select.append(opt)
+  }
+
+  select.addEventListener('change', () => {
+    ctx.onReparent(select.value === '' ? null : select.value)
+  })
+
+  const wrap = field('Parent', select)
+  wrap.append(
+    el('p', 'ed-hint', 'Reparenting keeps the node in place; it then moves with its parent.'),
+  )
   return wrap
 }
 
@@ -577,6 +611,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
   container.innerHTML = ''
   container.append(
     buildIdSection(ctx),
+    buildParentSection(ctx),
     buildCostSection(ctx),
     buildPurchaseLimitSection(ctx),
     buildModifiersSection(ctx),
