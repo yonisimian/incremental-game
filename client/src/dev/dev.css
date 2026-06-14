@@ -486,11 +486,15 @@ body {
   border: 1px solid var(--dev-border);
   border-radius: 6px;
   background: var(--dev-bg);
-  cursor: grab;
+  cursor: default;
   touch-action: none;
+  /* Left button selects/creates; a left drag must not start a native text
+     selection (which would feel like "grabbing" and swallow the click). */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.ed-canvas-viewport:active {
+.ed-canvas-viewport.panning {
   cursor: grabbing;
 }
 

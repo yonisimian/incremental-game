@@ -170,6 +170,9 @@ export function initEditor(pane: HTMLElement): () => void {
       initialState: centeredState(viewport, renderCanvas(state.tree, state.selectedId).bounds),
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
+      // Pan with the right button so the left button is free for selecting,
+      // dragging nodes, and double-click-to-create on the grid.
+      mousePanButton: 2,
     })
     renderInspectorOnly()
   }
@@ -249,7 +252,9 @@ export function initEditor(pane: HTMLElement): () => void {
 
   // Clicking empty grid deselects. Pan/zoom suppresses the trailing click after
   // a drag, so this only fires on a genuine (stationary) click on the backdrop.
-  canvas.addEventListener('click', (e) => {
+  // Listens on the viewport (not the content-sized canvas) so clicks anywhere
+  // in the visible area count.
+  viewport.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('.ed-node')) return
     if (state.selectedId === null) return
     state.selectedId = null
@@ -259,7 +264,7 @@ export function initEditor(pane: HTMLElement): () => void {
 
   // Double-clicking empty grid creates a new root node at the (snapped) cursor
   // position and selects it for immediate editing.
-  canvas.addEventListener('dblclick', (e) => {
+  viewport.addEventListener('dblclick', (e) => {
     if ((e.target as HTMLElement).closest('.ed-node')) return
     const { x, y } = canvasPoint(e)
     const node = createNode(uniqueId(state.tree), { x: snap(x), y: snap(y) })
