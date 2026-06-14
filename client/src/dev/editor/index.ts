@@ -23,7 +23,7 @@ import {
 } from './model.js'
 import { renderCanvas, GRID, type CanvasBounds } from './canvas.js'
 import { renderInspector, renderInspectorEmpty, type Currency } from './inspector.js'
-import { exportTree, importTreeFromFile } from './io.js'
+import { exportTree, importTreeFromFile, treeToJson } from './io.js'
 
 const INITIAL_ZOOM = 0.6
 const MIN_ZOOM = 0.3
@@ -58,6 +58,7 @@ function buildLayout(): string {
         <button id="ed-import-btn" class="ed-btn">📂 Import</button>
         <input type="file" id="ed-file" accept="application/json,.json" hidden />
         <button id="ed-export-btn" class="ed-btn">💾 Export</button>
+        <button id="ed-copy-btn" class="ed-btn">📋 Copy JSON</button>
         <button id="ed-reset-btn" class="ed-btn">↺ Reset to idler</button>
         <span id="ed-status" class="ed-status"></span>
       </div>
@@ -115,6 +116,7 @@ export function initEditor(pane: HTMLElement): () => void {
   const deleteBtn = pane.querySelector<HTMLButtonElement>('#ed-delete-btn')!
   const importBtn = pane.querySelector<HTMLButtonElement>('#ed-import-btn')!
   const exportBtn = pane.querySelector<HTMLButtonElement>('#ed-export-btn')!
+  const copyBtn = pane.querySelector<HTMLButtonElement>('#ed-copy-btn')!
   const resetBtn = pane.querySelector<HTMLButtonElement>('#ed-reset-btn')!
   const fileInput = pane.querySelector<HTMLInputElement>('#ed-file')!
 
@@ -369,6 +371,17 @@ export function initEditor(pane: HTMLElement): () => void {
     exportTree(state.tree)
     state.dirty = false
     setStatus(`Exported ${state.tree.id}.json`)
+  })
+
+  copyBtn.addEventListener('click', () => {
+    void navigator.clipboard
+      .writeText(treeToJson(state.tree))
+      .then(() => {
+        setStatus(`Copied ${state.tree.id}.json to clipboard`)
+      })
+      .catch(() => {
+        setStatus('Copy to clipboard failed', true)
+      })
   })
 
   resetBtn.addEventListener('click', () => {
