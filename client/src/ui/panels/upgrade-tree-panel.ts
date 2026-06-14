@@ -10,9 +10,9 @@ import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom
 // `INITIAL_ZOOM` is clamped to [MIN_ZOOM, MAX_ZOOM], so make sure it sits
 // inside the range or it'll snap to the nearest bound on mount.
 
-const INITIAL_ZOOM = 0.5
-const MIN_ZOOM = 0.5
+const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
+const INITIAL_ZOOM = MIN_ZOOM
 
 // ─── Module-local pan/zoom state ─────────────────────────────────────
 //

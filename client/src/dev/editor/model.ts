@@ -206,7 +206,9 @@ export function removeNode(tree: TreeFile, id: string): string[] {
   removeFrom(tree.upgrades)
   if (removed.length > 0) {
     tree.flavors = tree.flavors.map((flavor, index) =>
-      index === 0 ? { ...flavor, upgrades: flavorUpgrades.filter((entry) => !removed.includes(entry.id)) } : flavor,
+      index === 0
+        ? { ...flavor, upgrades: flavorUpgrades.filter((entry) => !removed.includes(entry.id)) }
+        : flavor,
     )
     pruneReferences(tree, new Set(removed))
   }
