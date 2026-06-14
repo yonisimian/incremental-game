@@ -131,6 +131,18 @@
           "name": "👑 Royal Throne",
           "icon": "👑",
           "description": "Carved from the finest oak. Cements your reign."
+        },
+        {
+          "id": "node",
+          "name": "Test upgrade",
+          "icon": "B",
+          "description": "Just a test"
+        },
+        {
+          "id": "node-2",
+          "name": "node-2",
+          "icon": "A",
+          "description": "Se"
         }
       ],
       "generators": [
@@ -160,6 +172,9 @@
   "upgrades": [
     {
       "id": "uh",
+      "flavorName": "🔦 Focus Training",
+      "flavorIcon": "🔦",
+      "flavorDescription": "Unlock highlighting (×2 to selected resource)",
       "cost": {
         "r0": 5
       },
@@ -178,6 +193,9 @@
       "children": [
         {
           "id": "uh2",
+          "flavorName": "🔬 Sharper Focus",
+          "flavorIcon": "🔬",
+          "flavorDescription": "Boost highlight to ×3 on the selected resource",
           "cost": {
             "r0": 100
           },
@@ -202,6 +220,9 @@
     },
     {
       "id": "u1",
+      "flavorName": "🌲 Heavy Logging",
+      "flavorIcon": "🌲",
+      "flavorDescription": "+5 base 🪵/sec",
       "cost": {
         "r0": 25
       },
@@ -220,6 +241,9 @@
     },
     {
       "id": "u5",
+      "flavorName": "👑 Royal Throne",
+      "flavorIcon": "👑",
+      "flavorDescription": "Carved from the finest oak. Cements your reign.",
       "cost": {
         "r0": 30000
       },
@@ -229,6 +253,32 @@
       "offset": {
         "x": 600,
         "y": 0
+      }
+    },
+    {
+      "id": "node",
+      "flavorName": "Test upgrade",
+      "flavorIcon": "B",
+      "flavorDescription": "Just a test",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 360,
+        "y": 120
+      }
+    },
+    {
+      "id": "node-2",
+      "flavorName": "node-2",
+      "flavorIcon": "A",
+      "flavorDescription": "Se",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 192,
+        "y": 144
       }
     }
   ]

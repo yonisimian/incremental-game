@@ -156,6 +156,7 @@ export function initEditor(pane: HTMLElement): () => void {
       return
     }
     renderInspector(inspector, {
+      tree: state.tree,
       node,
       allIds: collectIds(state.tree),
       currencies: treeCurrencies(state.tree),

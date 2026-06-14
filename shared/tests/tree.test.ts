@@ -79,7 +79,16 @@ describe('tree codec — purchaseLimit sentinel', () => {
   it('maps null to Infinity when assembling the runtime definition', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
+      {
+        id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
+        cost: { r0: 5 },
+        purchaseLimit: null,
+        modifiers: [],
+        offset: { x: 0, y: 0 },
+      },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(toModeDefinition(tree).upgrades[0].purchaseLimit).toBe(Infinity)
@@ -88,7 +97,16 @@ describe('tree codec — purchaseLimit sentinel', () => {
   it('preserves the null sentinel across a round-trip (Infinity is not JSON-encodable)', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
+      {
+        id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
+        cost: { r0: 5 },
+        purchaseLimit: null,
+        modifiers: [],
+        offset: { x: 0, y: 0 },
+      },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
@@ -123,7 +141,16 @@ describe('tree codec — validation failures', () => {
   it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 0 } },
+      {
+        id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
+        cost: { r0: 5 },
+        purchaseLimit: 1,
+        modifiers: [],
+        offset: { x: 0, y: 0 },
+      },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
@@ -136,12 +163,24 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
         cost: { r0: 5 },
         purchaseLimit: 1,
         modifiers: [],
         offset: { x: 0, y: 0 },
         children: [
-          { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 150 } },
+          {
+            id: 'a',
+            flavorName: 'A',
+            flavorIcon: 'x',
+            flavorDescription: 'desc',
+            cost: { r0: 5 },
+            purchaseLimit: 1,
+            modifiers: [],
+            offset: { x: 0, y: 150 },
+          },
         ],
       },
     ]
@@ -154,6 +193,9 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
         cost: { r0: 5 },
         purchaseLimit: 1,
         modifiers: [],
@@ -170,6 +212,9 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
+        flavorName: 'A',
+        flavorIcon: 'x',
+        flavorDescription: 'desc',
         cost: { r0: 5 },
         purchaseLimit: 1,
         modifiers: [],
