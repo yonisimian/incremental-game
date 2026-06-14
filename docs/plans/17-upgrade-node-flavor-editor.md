@@ -30,7 +30,7 @@ That means:
 
 ### In scope
 
-- Add optional flavor fields to each authored upgrade node
+- Add mandatory flavor fields to each authored upgrade node
 - Expose those fields in the dev editor inspector
 - Persist the values in the tree JSON format
 - Use the values in the runtime path for the default/only flavor in this pass
@@ -72,7 +72,7 @@ That means:
 
 ### Phase 1 — Extend the authoring schema
 
-Add optional node-level flavor fields to the upgrade-node authoring schema in [shared/src/tree/schema.ts](shared/src/tree/schema.ts).
+Add mandatory node-level flavor fields to the upgrade-node authoring schema in [shared/src/tree/schema.ts](shared/src/tree/schema.ts).
 
 Decision for this pass:
 
