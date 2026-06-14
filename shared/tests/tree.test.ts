@@ -57,7 +57,7 @@ const flavorFor = (id: string) => ({ id, name: id, icon: 'x', description: 'd' }
 // ─── Idler parity + round-trip ───────────────────────────────────────
 
 describe('tree codec — idler parity', () => {
-  it('parses the idler tree into a definition identical to the hand-authored mode', () => {
+  it('parses the canonical idler tree into a definition matching the registered mode', () => {
     expect(parseTree(idlerTreeFileInput())).toEqual(getModeDefinition('idler'))
   })
 
