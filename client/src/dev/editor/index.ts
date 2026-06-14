@@ -85,6 +85,7 @@ function canvasInnerHtml(edgesSvg: string, nodes: string, bounds: CanvasBounds):
          style="left:${offsetX}px; top:${offsetY}px; width:${width}px; height:${height}px;
                 background-size:${GRID}px ${GRID}px; background-position:${gridX}px ${gridY}px"></div>
     <svg class="ed-edges" width="${width}" height="${height}" overflow="visible"
+         viewBox="${offsetX} ${offsetY} ${width} ${height}"
          style="left:${offsetX}px; top:${offsetY}px">
       ${edgesSvg}
     </svg>
