@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
@@ -32,16 +32,16 @@ const PORT = Number(process.env.PORT) || 10000
 
 // ─── Mode trees (server-authoritative) ───────────────────────────────
 //
-// The server owns the canonical tree files (D13/D17): it reads each one from
-// disk at startup, validates + registers it as a runtime mode, and caches the
-// raw bytes to serve verbatim. Clients fetch the same bytes from `/trees/:mode`,
-// so both ends agree on the exact tree (multiplayer integrity). The path is
-// resolved relative to this module, so it works from both `src` (dev) and
-// `dist` (prod) — `../trees/` is a sibling of each.
-const treesDir = fileURLToPath(new URL('../trees/', import.meta.url))
+// The canonical tree files are the single source of truth, owned by the shared
+// package and edited via the dev-page tree editor (D12/D17). The server resolves
+// each one through the package's `exports` map (works from both `tsx` in dev and
+// `node dist` in prod), validates + registers it as a runtime mode, and caches
+// the raw bytes to serve verbatim. Clients fetch the same bytes from
+// `/trees/:mode`, so both ends agree on the exact tree (multiplayer integrity).
+const require = createRequire(import.meta.url)
 const rawTrees = new Map<GameMode, string>()
 for (const mode of AVAILABLE_MODES) {
-  const raw = readFileSync(`${treesDir}${mode}.json`, 'utf8')
+  const raw = readFileSync(require.resolve(`@game/shared/trees/${mode}.json`), 'utf8')
   loadTree(JSON.parse(raw) as unknown)
   rawTrees.set(mode, raw)
 }

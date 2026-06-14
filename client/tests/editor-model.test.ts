@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildIdlerTreeFile, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import { parseTreeFile, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import idlerTreeFile from '@game/shared/trees/idler.json'
 import {
   cloneTree,
   walkPositioned,
@@ -27,7 +28,7 @@ function node(
 
 /** A tree with known offsets: A→B→C plus a sibling D, all under the idler shell. */
 function makeTree(): TreeFile {
-  const tree = cloneTree(buildIdlerTreeFile())
+  const tree = cloneTree(parseTreeFile(idlerTreeFile))
   tree.upgrades = [
     node(
       'a',
@@ -269,7 +270,7 @@ describe('renderCanvas', () => {
   })
 
   it('escapes html in node ids', () => {
-    const tree = cloneTree(buildIdlerTreeFile())
+    const tree = cloneTree(parseTreeFile(idlerTreeFile))
     tree.upgrades = [node('<script>', { x: 0, y: 0 })]
     expect(renderCanvas(tree, null).nodes).not.toContain('<script>')
   })

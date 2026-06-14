@@ -4,7 +4,8 @@
  * import/export. Lives in the dev page (dev-only tooling).
  */
 
-import { buildIdlerTreeFile, type TreeFile } from '@game/shared'
+import { parseTreeFile, type TreeFile } from '@game/shared'
+import idlerTreeFile from '@game/shared/trees/idler.json'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../../ui/pan-zoom.js'
 import {
   cloneTree,
@@ -114,7 +115,7 @@ export function initEditor(pane: HTMLElement): () => void {
   const fileInput = pane.querySelector<HTMLInputElement>('#ed-file')!
 
   const state: EditorState = {
-    tree: cloneTree(buildIdlerTreeFile()),
+    tree: cloneTree(parseTreeFile(idlerTreeFile)),
     selectedId: null,
     dirty: false,
     panZoom: null,
@@ -293,7 +294,7 @@ export function initEditor(pane: HTMLElement): () => void {
   })
 
   resetBtn.addEventListener('click', () => {
-    state.tree = cloneTree(buildIdlerTreeFile())
+    state.tree = cloneTree(parseTreeFile(idlerTreeFile))
     state.selectedId = null
     state.dirty = false
     setStatus('Reset to idler tree')

@@ -2,6 +2,7 @@ dist
 node_modules
 pnpm-lock.yaml
 
-# Generated tree files — format is owned by `pnpm emit:trees` and drift-guarded
-# by a test, so Prettier must not reformat them.
-server/trees
+# Canonical tree files — the single source of truth, edited via the dev-page
+# tree editor. Their format is owned by `serializeTree` (the editor's export),
+# so Prettier must not reformat them.
+shared/trees

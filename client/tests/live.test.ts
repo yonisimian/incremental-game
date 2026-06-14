@@ -9,6 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import idlerTreeFile from '@game/shared/trees/idler.json'
 
 // ─── BroadcastChannel spy ────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ beforeEach(async () => {
   // afterEach resets modules, wiping the runtime mode registry — re-register
   // the tree on the fresh instance the dynamic imports will resolve to.
   const shared = await import('@game/shared')
-  shared.loadTree(shared.buildIdlerTreeFile())
+  shared.loadTree(idlerTreeFile)
 })
 
 afterEach(() => {
