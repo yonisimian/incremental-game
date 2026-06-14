@@ -7,6 +7,11 @@
 import type { TreeFile } from '@game/shared'
 import { parseTreeFile, serializeTree } from '@game/shared'
 
+/** Serialize the working tree to its canonical JSON string. */
+export function treeToJson(tree: TreeFile): string {
+  return serializeTree(tree)
+}
+
 /** Serialize the working tree and trigger a browser download. */
 export function exportTree(tree: TreeFile): void {
   const json = serializeTree(tree)

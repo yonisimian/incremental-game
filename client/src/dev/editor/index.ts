@@ -17,10 +17,13 @@ import {
   removeNode,
   nodePosition,
   setNodePosition,
+  parentOf,
+  subtreeIdsOf,
+  reparentNode,
 } from './model.js'
 import { renderCanvas, GRID, type CanvasBounds } from './canvas.js'
 import { renderInspector, renderInspectorEmpty, type Currency } from './inspector.js'
-import { exportTree, importTreeFromFile } from './io.js'
+import { exportTree, importTreeFromFile, treeToJson } from './io.js'
 
 const INITIAL_ZOOM = 0.6
 const MIN_ZOOM = 0.3
@@ -55,6 +58,7 @@ function buildLayout(): string {
         <button id="ed-import-btn" class="ed-btn">📂 Import</button>
         <input type="file" id="ed-file" accept="application/json,.json" hidden />
         <button id="ed-export-btn" class="ed-btn">💾 Export</button>
+        <button id="ed-copy-btn" class="ed-btn">📋 Copy JSON</button>
         <button id="ed-reset-btn" class="ed-btn">↺ Reset to idler</button>
         <span id="ed-status" class="ed-status"></span>
       </div>
@@ -82,6 +86,7 @@ function canvasInnerHtml(edgesSvg: string, nodes: string, bounds: CanvasBounds):
          style="left:${offsetX}px; top:${offsetY}px; width:${width}px; height:${height}px;
                 background-size:${GRID}px ${GRID}px; background-position:${gridX}px ${gridY}px"></div>
     <svg class="ed-edges" width="${width}" height="${height}" overflow="visible"
+         viewBox="${offsetX} ${offsetY} ${width} ${height}"
          style="left:${offsetX}px; top:${offsetY}px">
       ${edgesSvg}
     </svg>
@@ -111,6 +116,7 @@ export function initEditor(pane: HTMLElement): () => void {
   const deleteBtn = pane.querySelector<HTMLButtonElement>('#ed-delete-btn')!
   const importBtn = pane.querySelector<HTMLButtonElement>('#ed-import-btn')!
   const exportBtn = pane.querySelector<HTMLButtonElement>('#ed-export-btn')!
+  const copyBtn = pane.querySelector<HTMLButtonElement>('#ed-copy-btn')!
   const resetBtn = pane.querySelector<HTMLButtonElement>('#ed-reset-btn')!
   const fileInput = pane.querySelector<HTMLInputElement>('#ed-file')!
 
@@ -153,6 +159,17 @@ export function initEditor(pane: HTMLElement): () => void {
       node,
       allIds: collectIds(state.tree),
       currencies: treeCurrencies(state.tree),
+      parentId: parentOf(state.tree, node.id),
+      descendantIds: subtreeIdsOf(state.tree, node.id),
+      onReparent: (parentId) => {
+        if (!reparentNode(state.tree, node.id, parentId)) return
+        state.dirty = true
+        setStatus(
+          parentId === null ? `Made ${node.id} a root` : `Parented ${node.id} → ${parentId}`,
+        )
+        renderCanvasOnly()
+        renderInspectorOnly()
+      },
       onChange: () => {
         state.dirty = true
         setStatus('Unsaved changes')
@@ -170,6 +187,9 @@ export function initEditor(pane: HTMLElement): () => void {
       initialState: centeredState(viewport, renderCanvas(state.tree, state.selectedId).bounds),
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
+      // Pan with the right button so the left button is free for selecting,
+      // dragging nodes, and double-click-to-create on the grid.
+      mousePanButton: 2,
     })
     renderInspectorOnly()
   }
@@ -179,6 +199,20 @@ export function initEditor(pane: HTMLElement): () => void {
   // the viewport's pan/zoom doesn't also start, and listen on `window` so the
   // drag continues even if the cursor leaves the node. Positions snap to GRID.
   const snap = (v: number): number => Math.round(v / GRID) * GRID
+
+  // Convert a pointer event to world (canvas) coordinates, inverting the
+  // pan/zoom transform: `screen = pan + world * zoom` ⇒ `world = (screen - pan) / zoom`.
+  const canvasPoint = (e: { clientX: number; clientY: number }): { x: number; y: number } => {
+    const pz = state.panZoom?.getState()
+    const rect = viewport.getBoundingClientRect()
+    const zoom = pz?.zoom ?? INITIAL_ZOOM
+    const panX = pz?.panX ?? 0
+    const panY = pz?.panY ?? 0
+    return {
+      x: (e.clientX - rect.left - panX) / zoom,
+      y: (e.clientY - rect.top - panY) / zoom,
+    }
+  }
 
   let drag: {
     id: string
@@ -233,6 +267,32 @@ export function initEditor(pane: HTMLElement): () => void {
     window.addEventListener('pointerup', onDragEnd)
   })
 
+  // Clicking empty grid deselects. Pan/zoom suppresses the trailing click after
+  // a drag, so this only fires on a genuine (stationary) click on the backdrop.
+  // Listens on the viewport (not the content-sized canvas) so clicks anywhere
+  // in the visible area count.
+  viewport.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.ed-node')) return
+    if (state.selectedId === null) return
+    state.selectedId = null
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
+  // Double-clicking empty grid creates a new root node at the (snapped) cursor
+  // position and selects it for immediate editing.
+  viewport.addEventListener('dblclick', (e) => {
+    if ((e.target as HTMLElement).closest('.ed-node')) return
+    const { x, y } = canvasPoint(e)
+    const node = createNode(uniqueId(state.tree), { x: snap(x), y: snap(y) })
+    addNode(state.tree, null, node)
+    state.selectedId = node.id
+    state.dirty = true
+    setStatus(`Added ${node.id}`)
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
   // ── Add / delete nodes ──
   // Add a child of the selected node (placed just below it), or a new root when
   // nothing is selected. The new node is selected so it can be edited at once.
@@ -249,7 +309,7 @@ export function initEditor(pane: HTMLElement): () => void {
     renderInspectorOnly()
   })
 
-  deleteBtn.addEventListener('click', () => {
+  const deleteSelected = (): void => {
     if (state.selectedId === null) return
     const removed = removeNode(state.tree, state.selectedId)
     if (removed.length === 0) return
@@ -262,7 +322,27 @@ export function initEditor(pane: HTMLElement): () => void {
     )
     renderCanvasOnly()
     renderInspectorOnly()
-  })
+  }
+
+  deleteBtn.addEventListener('click', deleteSelected)
+
+  // Delete key removes the selection — but not while typing in an inspector
+  // field, where Delete should edit text as usual.
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== 'Delete') return
+    if (state.selectedId === null) return
+    const active = document.activeElement
+    if (
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement
+    ) {
+      return
+    }
+    e.preventDefault()
+    deleteSelected()
+  }
+  window.addEventListener('keydown', onKeyDown)
 
   // ── Toolbar ──
   importBtn.addEventListener('click', () => {
@@ -293,6 +373,17 @@ export function initEditor(pane: HTMLElement): () => void {
     setStatus(`Exported ${state.tree.id}.json`)
   })
 
+  copyBtn.addEventListener('click', () => {
+    void navigator.clipboard
+      .writeText(treeToJson(state.tree))
+      .then(() => {
+        setStatus(`Copied ${state.tree.id}.json to clipboard`)
+      })
+      .catch(() => {
+        setStatus('Copy to clipboard failed', true)
+      })
+  })
+
   resetBtn.addEventListener('click', () => {
     state.tree = cloneTree(parseTreeFile(idlerTreeFile))
     state.selectedId = null
@@ -306,6 +397,7 @@ export function initEditor(pane: HTMLElement): () => void {
   return () => {
     window.removeEventListener('pointermove', onDragMove)
     window.removeEventListener('pointerup', onDragEnd)
+    window.removeEventListener('keydown', onKeyDown)
     state.panZoom?.cleanup()
     state.panZoom = null
   }

@@ -26,6 +26,13 @@ interface PanZoomOptions {
   readonly zoomStep?: number
   /** Initial pan/zoom. Defaults: panX=0, panY=0, zoom=1.0. */
   readonly initialState?: Partial<PanZoomState>
+  /**
+   * Mouse button that drag-pans (`MouseEvent.button`): 0 = left (default),
+   * 2 = right. Right-button panning frees the left button for other gestures
+   * (e.g. the editor's double-click-to-create) and suppresses the context menu
+   * over the viewport. Touch/pen panning is unaffected.
+   */
+  readonly mousePanButton?: number
 }
 
 export interface PanZoomHandle {
@@ -50,6 +57,7 @@ export function setupPanZoom(
   const minZoom = options.minZoom ?? 0.5
   const maxZoom = options.maxZoom ?? 2.5
   const zoomStep = options.zoomStep ?? 0.1
+  const mousePanButton = options.mousePanButton ?? 0
   const init = options.initialState ?? {}
 
   const state: PanZoomState = {
@@ -149,6 +157,10 @@ export function setupPanZoom(
   // ─── Event handlers ──────────────────────────────────────────────
 
   function onPointerDown(e: PointerEvent): void {
+    // Mouse pans only with the configured button; ignore other buttons so
+    // gestures like left double-click aren't swallowed by a pan. Touch/pen
+    // (no meaningful `button`) always pans.
+    if (e.pointerType === 'mouse' && e.button !== mousePanButton) return
     const local = viewportLocal(e)
     pointers.set(e.pointerId, local)
 
@@ -233,8 +245,15 @@ export function setupPanZoom(
 
   // ─── Wire up ─────────────────────────────────────────────────────
 
+  // When panning with the right button, swallow the context menu over the
+  // viewport so a right-drag pans cleanly instead of popping the menu.
+  const onContextMenu = (e: MouseEvent): void => {
+    e.preventDefault()
+  }
+
   viewport.addEventListener('pointerdown', onPointerDown)
   viewport.addEventListener('wheel', onWheel, { passive: false })
+  if (mousePanButton === 2) viewport.addEventListener('contextmenu', onContextMenu)
 
   let cleanedUp = false
   return {
@@ -243,6 +262,7 @@ export function setupPanZoom(
       cleanedUp = true
       viewport.removeEventListener('pointerdown', onPointerDown)
       viewport.removeEventListener('wheel', onWheel)
+      viewport.removeEventListener('contextmenu', onContextMenu)
       detachDocumentListeners()
       viewport.classList.remove('panning')
       pointers.clear()

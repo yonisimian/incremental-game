@@ -205,3 +205,65 @@ export function removeNode(tree: TreeFile, id: string): string[] {
   if (removed.length > 0) pruneReferences(tree, new Set(removed))
   return removed
 }
+
+/** The id of a node's layout parent, or `null` if it's a root (or unknown). */
+export function parentOf(tree: TreeFile, id: string): string | null {
+  const p = walkPositioned(tree).find((n) => n.node.id === id)
+  return p?.parent?.id ?? null
+}
+
+/** Every id in the subtree rooted at `id` (inclusive), or `[]` if unknown. */
+export function subtreeIdsOf(tree: TreeFile, id: string): string[] {
+  const node = findNode(tree, id)
+  return node ? subtreeIds(node) : []
+}
+
+/** Detach `id` from wherever it sits and return its node, or `null` if absent. */
+function detachNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
+  let found: TreeUpgradeNode | null = null
+  const removeFrom = (list: TreeUpgradeNode[]): boolean => {
+    const idx = list.findIndex((n) => n.id === id)
+    if (idx >= 0) {
+      found = list[idx]
+      list.splice(idx, 1)
+      return true
+    }
+    for (const node of list) {
+      const kids = [...childrenOf(node)]
+      if (kids.length > 0 && removeFrom(kids)) {
+        setChildren(node, kids)
+        return true
+      }
+    }
+    return false
+  }
+  removeFrom(tree.upgrades)
+  return found
+}
+
+/**
+ * Re-parent `id` under `newParentId` (or make it a root when `null`), preserving
+ * the node's absolute canvas position by recomputing its offset — so its whole
+ * subtree stays put visually but now drags with the new parent. No-op (returns
+ * `false`) when the id is unknown, the parent is unchanged, or the move would
+ * create a cycle (the new parent is the node itself or one of its descendants).
+ */
+export function reparentNode(tree: TreeFile, id: string, newParentId: string | null): boolean {
+  if (id === newParentId) return false
+  if (parentOf(tree, id) === newParentId) return false
+  const node = findNode(tree, id)
+  if (!node) return false
+  if (newParentId !== null && subtreeIds(node).includes(newParentId)) return false
+
+  const abs = nodePosition(tree, id)
+  if (!abs) return false
+
+  detachNode(tree, id)
+
+  // Keep the absolute position fixed: offset = abs − parentAbs (origin for roots).
+  const base =
+    newParentId === null ? { x: 0, y: 0 } : (nodePosition(tree, newParentId) ?? { x: 0, y: 0 })
+  node.offset = { x: abs.x - base.x, y: abs.y - base.y }
+  addNode(tree, newParentId, node)
+  return true
+}
