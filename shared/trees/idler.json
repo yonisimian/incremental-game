@@ -131,18 +131,6 @@
           "name": "👑 Royal Throne",
           "icon": "👑",
           "description": "Carved from the finest oak. Cements your reign."
-        },
-        {
-          "id": "node",
-          "name": "Test upgrade",
-          "icon": "B",
-          "description": "Just a test"
-        },
-        {
-          "id": "node-2",
-          "name": "node-2",
-          "icon": "A",
-          "description": "Se"
         }
       ],
       "generators": [
@@ -253,32 +241,6 @@
       "offset": {
         "x": 600,
         "y": 0
-      }
-    },
-    {
-      "id": "node",
-      "flavorName": "Test upgrade",
-      "flavorIcon": "B",
-      "flavorDescription": "Just a test",
-      "cost": {},
-      "purchaseLimit": 1,
-      "modifiers": [],
-      "offset": {
-        "x": 360,
-        "y": 120
-      }
-    },
-    {
-      "id": "node-2",
-      "flavorName": "node-2",
-      "flavorIcon": "A",
-      "flavorDescription": "Se",
-      "cost": {},
-      "purchaseLimit": 1,
-      "modifiers": [],
-      "offset": {
-        "x": 192,
-        "y": 144
       }
     }
   ]

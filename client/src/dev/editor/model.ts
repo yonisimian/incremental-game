@@ -185,6 +185,8 @@ function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
  */
 export function removeNode(tree: TreeFile, id: string): string[] {
   let removed: string[] = []
+  const flavorUpgrades = tree.flavors[0]?.upgrades ?? []
+
   const removeFrom = (list: TreeUpgradeNode[]): boolean => {
     const idx = list.findIndex((n) => n.id === id)
     if (idx >= 0) {
@@ -202,7 +204,12 @@ export function removeNode(tree: TreeFile, id: string): string[] {
     return false
   }
   removeFrom(tree.upgrades)
-  if (removed.length > 0) pruneReferences(tree, new Set(removed))
+  if (removed.length > 0) {
+    tree.flavors = tree.flavors.map((flavor, index) =>
+      index === 0 ? { ...flavor, upgrades: flavorUpgrades.filter((entry) => !removed.includes(entry.id)) } : flavor,
+    )
+    pruneReferences(tree, new Set(removed))
+  }
   return removed
 }
 

@@ -142,6 +142,20 @@ describe('removeNode', () => {
     expect(findNode(tree, 'd')?.prerequisites).toBeUndefined()
   })
 
+  it('removes flavor entries for deleted nodes', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = [
+      { id: 'a', name: 'A', icon: 'A', description: 'Alpha' },
+      { id: 'd', name: 'D', icon: 'D', description: 'Delta' },
+    ]
+
+    removeNode(tree, 'd')
+
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'a', name: 'A', icon: 'A', description: 'Alpha' },
+    ])
+  })
+
   it('keeps surviving references when pruning an all/any group', () => {
     const tree = makeTree()
     findNode(tree, 'd')!.prerequisites = {
