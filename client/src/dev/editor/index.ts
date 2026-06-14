@@ -180,6 +180,20 @@ export function initEditor(pane: HTMLElement): () => void {
   // drag continues even if the cursor leaves the node. Positions snap to GRID.
   const snap = (v: number): number => Math.round(v / GRID) * GRID
 
+  // Convert a pointer event to world (canvas) coordinates, inverting the
+  // pan/zoom transform: `screen = pan + world * zoom` ⇒ `world = (screen - pan) / zoom`.
+  const canvasPoint = (e: { clientX: number; clientY: number }): { x: number; y: number } => {
+    const pz = state.panZoom?.getState()
+    const rect = viewport.getBoundingClientRect()
+    const zoom = pz?.zoom ?? INITIAL_ZOOM
+    const panX = pz?.panX ?? 0
+    const panY = pz?.panY ?? 0
+    return {
+      x: (e.clientX - rect.left - panX) / zoom,
+      y: (e.clientY - rect.top - panY) / zoom,
+    }
+  }
+
   let drag: {
     id: string
     startClientX: number
@@ -233,6 +247,30 @@ export function initEditor(pane: HTMLElement): () => void {
     window.addEventListener('pointerup', onDragEnd)
   })
 
+  // Clicking empty grid deselects. Pan/zoom suppresses the trailing click after
+  // a drag, so this only fires on a genuine (stationary) click on the backdrop.
+  canvas.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.ed-node')) return
+    if (state.selectedId === null) return
+    state.selectedId = null
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
+  // Double-clicking empty grid creates a new root node at the (snapped) cursor
+  // position and selects it for immediate editing.
+  canvas.addEventListener('dblclick', (e) => {
+    if ((e.target as HTMLElement).closest('.ed-node')) return
+    const { x, y } = canvasPoint(e)
+    const node = createNode(uniqueId(state.tree), { x: snap(x), y: snap(y) })
+    addNode(state.tree, null, node)
+    state.selectedId = node.id
+    state.dirty = true
+    setStatus(`Added ${node.id}`)
+    renderCanvasOnly()
+    renderInspectorOnly()
+  })
+
   // ── Add / delete nodes ──
   // Add a child of the selected node (placed just below it), or a new root when
   // nothing is selected. The new node is selected so it can be edited at once.
@@ -249,7 +287,7 @@ export function initEditor(pane: HTMLElement): () => void {
     renderInspectorOnly()
   })
 
-  deleteBtn.addEventListener('click', () => {
+  const deleteSelected = (): void => {
     if (state.selectedId === null) return
     const removed = removeNode(state.tree, state.selectedId)
     if (removed.length === 0) return
@@ -262,7 +300,27 @@ export function initEditor(pane: HTMLElement): () => void {
     )
     renderCanvasOnly()
     renderInspectorOnly()
-  })
+  }
+
+  deleteBtn.addEventListener('click', deleteSelected)
+
+  // Delete key removes the selection — but not while typing in an inspector
+  // field, where Delete should edit text as usual.
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== 'Delete') return
+    if (state.selectedId === null) return
+    const active = document.activeElement
+    if (
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement
+    ) {
+      return
+    }
+    e.preventDefault()
+    deleteSelected()
+  }
+  window.addEventListener('keydown', onKeyDown)
 
   // ── Toolbar ──
   importBtn.addEventListener('click', () => {
@@ -306,6 +364,7 @@ export function initEditor(pane: HTMLElement): () => void {
   return () => {
     window.removeEventListener('pointermove', onDragMove)
     window.removeEventListener('pointerup', onDragEnd)
+    window.removeEventListener('keydown', onKeyDown)
     state.panZoom?.cleanup()
     state.panZoom = null
   }
