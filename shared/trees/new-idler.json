@@ -523,7 +523,13 @@
       "flavorDescription": "+1 base 🪵/sec",
       "cost": {},
       "purchaseLimit": null,
-      "modifiers": [],
+      "modifiers": [
+        {
+          "stage": "additive",
+          "field": "r0",
+          "value": 1
+        }
+      ],
       "offset": {
         "x": 96,
         "y": 144
@@ -536,7 +542,13 @@
           "flavorDescription": "*1.1 base 🪵/sec",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [],
+          "modifiers": [
+            {
+              "stage": "multiplicative",
+              "field": "r0",
+              "value": 1.1
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "be-af-mr"
@@ -572,7 +584,13 @@
           "flavorDescription": "+1 base 🍺/sec",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [],
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "r1",
+              "value": 1
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "be-af-mr"
@@ -589,7 +607,13 @@
               "flavorDescription": "*1.1 base 🍺/sec",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "r1",
+                  "value": 1.1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "be-af-sr"
@@ -629,7 +653,18 @@
       "flavorDescription": "All resources gain *1.1/sec",
       "cost": {},
       "purchaseLimit": null,
-      "modifiers": [],
+      "modifiers": [
+        {
+          "stage": "multiplicative",
+          "field": "r0",
+          "value": 1.1
+        },
+        {
+          "stage": "multiplicative",
+          "field": "r1",
+          "value": 1.1
+        }
+      ],
       "offset": {
         "x": 240,
         "y": 144
@@ -1157,6 +1192,12 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "highlightMultiplier",
+              "multiplier": 2
+            }
+          ],
           "offset": {
             "x": 96,
             "y": 288
@@ -1174,6 +1215,12 @@
                 "type": "upgrade",
                 "id": "sh-unlock"
               },
+              "effects": [
+                {
+                  "type": "highlightMultiplier",
+                  "multiplier": 1.1
+                }
+              ],
               "offset": {
                 "x": 96,
                 "y": 96
