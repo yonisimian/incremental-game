@@ -41,6 +41,7 @@ export class IdlerBot implements BotStrategy {
 
     // Base plan — core economy upgrades
     const basePlan: { id: string; currency: string }[] = [
+      //{ id: 'sh-unlock', currency: 'r0' }, // Unlock Highlight (unlocks highlight mechanic)
       { id: 'uh', currency: 'r0' }, // Unlock Highlight (unlocks highlight mechanic)
       { id: 'u1', currency: 'r0' }, // Heavy Logging (costs wood)
     ]
