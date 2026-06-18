@@ -110,9 +110,6 @@ const ModeFlavorSchema = z.strictObject({
  */
 const UpgradeNodeSchema = z.strictObject({
   id: z.string(),
-  flavorName: z.string().min(1),
-  flavorIcon: z.string().min(1),
-  flavorDescription: z.string().min(1),
   cost: CostSchema,
   costScaling: CostScalingSchema.optional(),
   /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */

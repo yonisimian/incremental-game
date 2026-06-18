@@ -21,51 +21,10 @@ import type { TreeFile, TreeUpgradeNode } from './schema.js'
  */
 function migrateTreeFile(json: unknown): unknown {
   const version = (json as { version?: unknown } | null)?.version
-  if (version !== CURRENT_TREE_VERSION) {
-    throw new Error(
-      `Unsupported tree file version: ${String(version)} (expected ${String(CURRENT_TREE_VERSION)})`,
-    )
-  }
-
-  const tree = json as {
-    upgrades?: Array<{
-      id?: string
-      flavorName?: string
-      flavorIcon?: string
-      flavorDescription?: string
-      children?: unknown[]
-    }>
-    flavors?: Array<{
-      upgrades?: Array<{ id: string; name?: string; icon?: string; description?: string }>
-    }>
-  }
-
-  const flavorEntries = new Map(
-    (tree.flavors?.[0]?.upgrades ?? []).map((entry) => [entry.id, entry]),
+  if (version === CURRENT_TREE_VERSION) return json
+  throw new Error(
+    `Unsupported tree file version: ${String(version)} (expected ${String(CURRENT_TREE_VERSION)})`,
   )
-  const visit = (
-    nodes:
-      | Array<{
-          id?: string
-          flavorName?: string
-          flavorIcon?: string
-          flavorDescription?: string
-          children?: unknown[]
-        }>
-      | undefined,
-  ): void => {
-    if (!Array.isArray(nodes)) return
-    for (const node of nodes) {
-      const entry = node.id ? flavorEntries.get(node.id) : undefined
-      node.flavorName ??= entry?.name ?? node.id ?? 'Upgrade'
-      node.flavorIcon ??= entry?.icon ?? '•'
-      node.flavorDescription ??= entry?.description ?? ''
-      visit(node.children as typeof nodes)
-    }
-  }
-
-  visit(tree.upgrades)
-  return tree
 }
 
 // ─── Parse (JSON → validated authoring tree) ─────────────────────────
@@ -77,59 +36,8 @@ function migrateTreeFile(json: unknown): unknown {
  *
  * Callers pass an already-parsed JSON value (e.g. `await res.json()`).
  */
-function hydrateFlavorFields(tree: TreeFile): TreeFile {
-  const flavorMap = new Map((tree.flavors[0]?.upgrades ?? []).map((entry) => [entry.id, entry]))
-
-  const visit = (nodes: readonly TreeUpgradeNode[]): void => {
-    for (const node of nodes) {
-      const entry = flavorMap.get(node.id)
-      if (entry) {
-        if (node.flavorName === undefined) node.flavorName = entry.name
-        if (node.flavorIcon === undefined) node.flavorIcon = entry.icon
-        if (node.flavorDescription === undefined) node.flavorDescription = entry.description
-      }
-      if (node.children) visit(node.children)
-    }
-  }
-
-  visit(tree.upgrades)
-  return tree
-}
-
-function syncFlavorFields(tree: TreeFile): TreeFile {
-  const next = structuredClone(tree)
-  const flavorEntries = [...(next.flavors[0]?.upgrades ?? [])]
-
-  const visit = (nodes: readonly TreeUpgradeNode[]): void => {
-    for (const node of nodes) {
-      const existing = flavorEntries.find((entry) => entry.id === node.id)
-      const name = node.flavorName ?? existing?.name ?? node.id
-      const icon = node.flavorIcon ?? existing?.icon ?? '•'
-      const description = node.flavorDescription ?? existing?.description ?? ''
-
-      node.flavorName = name
-      node.flavorIcon = icon
-      node.flavorDescription = description
-
-      const index = flavorEntries.findIndex((entry) => entry.id === node.id)
-      const flavorEntry = { id: node.id, name, icon, description }
-      if (index >= 0) flavorEntries[index] = flavorEntry
-      else flavorEntries.push(flavorEntry)
-
-      if (node.children) visit(node.children)
-    }
-  }
-
-  visit(next.upgrades)
-  next.flavors = next.flavors.map((flavor, index) =>
-    index === 0 ? { ...flavor, upgrades: flavorEntries } : flavor,
-  )
-
-  return next
-}
-
 export function parseTreeFile(json: unknown): TreeFile {
-  return hydrateFlavorFields(TreeFileSchema.parse(migrateTreeFile(json)))
+  return TreeFileSchema.parse(migrateTreeFile(json))
 }
 
 // ─── Authoring tree → runtime mode definition ────────────────────────
@@ -204,5 +112,5 @@ export function loadTree(json: unknown): GameMode {
  * is structurally identical to `t`.
  */
 export function serializeTree(tree: TreeFile): string {
-  return JSON.stringify(TreeFileSchema.parse(syncFlavorFields(tree)), null, 2)
+  return JSON.stringify(TreeFileSchema.parse(tree), null, 2)
 }

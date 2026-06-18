@@ -8,13 +8,7 @@
  * generated from each registered effect's zod param schema.
  */
 
-import {
-  listEffectTypes,
-  resolveEffect,
-  type TreeFile,
-  type TreeUpgradeNode,
-  type UpgradeFlavor,
-} from '@game/shared'
+import { listEffectTypes, resolveEffect, type TreeFile, type TreeUpgradeNode } from '@game/shared'
 
 import {
   defaultParamsForEffect,
@@ -24,6 +18,8 @@ import {
   type EffectFormSpec,
   type FieldSpec,
 } from './effect-schema.js'
+
+import { nodeFlavor, setNodeFlavor } from './model.js'
 
 export interface InspectorContext {
   readonly tree: TreeFile
@@ -53,34 +49,6 @@ type ModifierStage = TreeUpgradeNode['modifiers'][number]['stage']
 type EffectEntry = NonNullable<TreeUpgradeNode['effects']>[number]
 
 const MODIFIER_STAGES: readonly ModifierStage[] = ['additive', 'multiplicative', 'global']
-
-export function getNodeFlavorValues(
-  tree: Pick<TreeFile, 'flavors'>,
-  node: Pick<TreeUpgradeNode, 'id' | 'flavorName' | 'flavorIcon' | 'flavorDescription'>,
-): { name: string; icon: string; description: string } {
-  const entry = (tree.flavors[0]?.upgrades ?? []).find((item) => item.id === node.id)
-  return {
-    name: entry?.name ?? node.flavorName ?? node.id,
-    icon: entry?.icon ?? node.flavorIcon ?? '•',
-    description: entry?.description ?? node.flavorDescription ?? '',
-  }
-}
-
-export function ensureFlavorEntry(entries: readonly UpgradeFlavor[], id: string): UpgradeFlavor[] {
-  const existing = entries.find((entry) => entry.id === id)
-  if (existing) return [...entries]
-  return [...entries, { id, name: id, icon: '?', description: '' }]
-}
-
-export function updateFlavorEntry(
-  entries: readonly UpgradeFlavor[],
-  id: string,
-  values: { name: string; icon: string; description: string },
-): UpgradeFlavor[] {
-  const next = entries.map((entry) => (entry.id === id ? { ...entry, ...values } : entry))
-  if (next.some((entry) => entry.id === id)) return next
-  return [...next, { id, ...values }]
-}
 
 // ─── Prerequisite representability ───────────────────────────────────
 //
@@ -614,33 +582,23 @@ function buildFlavorSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Flavor'))
 
-  const flavorValues = getNodeFlavorValues(ctx.tree, ctx.node)
+  const current = nodeFlavor(ctx.tree, ctx.node.id)
   const nameInput = el('input', 'ed-input')
   nameInput.type = 'text'
-  nameInput.value = flavorValues.name
+  nameInput.value = current.name
   const iconInput = el('input', 'ed-input')
   iconInput.type = 'text'
-  iconInput.value = flavorValues.icon
+  iconInput.value = current.icon
   const descriptionInput = el('textarea', 'ed-input ed-json')
   descriptionInput.rows = 3
-  descriptionInput.value = flavorValues.description
+  descriptionInput.value = current.description
 
   const sync = (): void => {
-    const name = nameInput.value.trim() || flavorValues.name
-    const icon = iconInput.value.trim() || flavorValues.icon
-    const description = descriptionInput.value.trim() || flavorValues.description
-
-    ctx.node.flavorName = name
-    ctx.node.flavorIcon = icon
-    ctx.node.flavorDescription = description
-
-    const flavorEntries = ensureFlavorEntry(ctx.tree.flavors[0]?.upgrades ?? [], ctx.node.id)
-    ctx.tree.flavors[0].upgrades = updateFlavorEntry(flavorEntries, ctx.node.id, {
-      name,
-      icon,
-      description,
+    setNodeFlavor(ctx.tree, ctx.node.id, {
+      name: nameInput.value.trim() || ctx.node.id,
+      icon: iconInput.value.trim() || current.icon,
+      description: descriptionInput.value.trim(),
     })
-
     ctx.onChange()
   }
 

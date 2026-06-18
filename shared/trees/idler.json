@@ -160,9 +160,6 @@
   "upgrades": [
     {
       "id": "uh",
-      "flavorName": "🔦 Focus Training",
-      "flavorIcon": "🔦",
-      "flavorDescription": "Unlock highlighting (×2 to selected resource)",
       "cost": {
         "r0": 5
       },
@@ -181,9 +178,6 @@
       "children": [
         {
           "id": "uh2",
-          "flavorName": "🔬 Sharper Focus",
-          "flavorIcon": "🔬",
-          "flavorDescription": "Boost highlight to ×3 on the selected resource",
           "cost": {
             "r0": 100
           },
@@ -208,9 +202,6 @@
     },
     {
       "id": "u1",
-      "flavorName": "🌲 Heavy Logging",
-      "flavorIcon": "🌲",
-      "flavorDescription": "+5 base 🪵/sec",
       "cost": {
         "r0": 25
       },
@@ -229,9 +220,6 @@
     },
     {
       "id": "u5",
-      "flavorName": "👑 Royal Throne",
-      "flavorIcon": "👑",
-      "flavorDescription": "Carved from the finest oak. Cements your reign.",
       "cost": {
         "r0": 30000
       },
