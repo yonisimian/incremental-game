@@ -1,5 +1,14 @@
-import type { GameMode } from '@game/shared'
-import { getModeDefinition, getModeFlavor, AVAILABLE_MODES } from '@game/shared'
+import type { GameMode, Goal } from '@game/shared'
+import {
+  getModeDefinition,
+  getModeFlavor,
+  AVAILABLE_MODES,
+  customizeGoal,
+  MIN_TARGET_SCORE,
+  MAX_TARGET_SCORE,
+  MIN_ROUND_DURATION_SEC,
+  MAX_ROUND_DURATION_SEC,
+} from '@game/shared'
 import type { GameState } from '../game.js'
 import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
@@ -87,8 +96,8 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
   const shareUrl = `${location.origin}${location.pathname}?room=${roomCode}`
   const playerSlots = renderPlayerSlots(roomPlayers)
   const settingsHtml = isRoomCreator
-    ? renderCreatorSettings(roomSettings.mode, roomSettings.goal.type)
-    : renderJoinerSettings(roomSettings.mode, roomSettings.goal.type)
+    ? renderCreatorSettings(roomSettings.mode, roomSettings.goal)
+    : renderJoinerSettings(roomSettings.mode, roomSettings.goal)
   const botBtnHtml = isRoomCreator && roomPlayers.length < 2 ? botButtonHtml('room-bot-btn') : ''
 
   app.innerHTML = `
@@ -143,8 +152,8 @@ export function updateRoomScreen(state: Readonly<GameState>): void {
   const settingsEl = document.getElementById('room-settings')
   if (settingsEl && state.roomSettings) {
     const newSettingsHtml = state.isRoomCreator
-      ? renderCreatorSettings(state.roomSettings.mode, state.roomSettings.goal.type)
-      : renderJoinerSettings(state.roomSettings.mode, state.roomSettings.goal.type)
+      ? renderCreatorSettings(state.roomSettings.mode, state.roomSettings.goal)
+      : renderJoinerSettings(state.roomSettings.mode, state.roomSettings.goal)
     settingsEl.outerHTML = newSettingsHtml
     if (state.isRoomCreator) {
       wireCreatorSettings(state.roomSettings.mode)
@@ -170,7 +179,7 @@ function renderPlayerSlots(players: string[]): string {
   `
 }
 
-function renderCreatorSettings(mode: GameMode, goalType: string): string {
+function renderCreatorSettings(mode: GameMode, goal: Goal): string {
   const modeDef = getModeDefinition(mode)
   // Hide the mode picker entirely when there's only one mode to choose from (D10).
   const modeRow =
@@ -190,7 +199,7 @@ function renderCreatorSettings(mode: GameMode, goalType: string): string {
 
   const goalChips = modeDef.goals
     .map((g) => {
-      const selected = g.type === goalType ? ' selected' : ''
+      const selected = g.type === goal.type ? ' selected' : ''
       return `<button class="goal-chip${selected}" data-goal-type="${g.type}">${escapeAttr(g.label)}</button>`
     })
     .join('')
@@ -201,14 +210,53 @@ function renderCreatorSettings(mode: GameMode, goalType: string): string {
         <span class="setting-label">Goal</span>
         <div class="goal-chips" id="goal-chips">${goalChips}</div>
       </div>
+      ${renderGoalTuningRow(goal)}
     </div>
   `
 }
 
-function renderJoinerSettings(mode: GameMode, goalType: string): string {
+/** Editable numeric input for the selected goal's tunable value (creator only). */
+function renderGoalTuningRow(goal: Goal): string {
+  if (goal.type === 'target-score') {
+    return `
+      <div class="setting-row">
+        <span class="setting-label">Target score</span>
+        <input
+          class="setting-input"
+          id="goal-target-input"
+          type="number"
+          inputmode="numeric"
+          min="${MIN_TARGET_SCORE}"
+          max="${MAX_TARGET_SCORE}"
+          step="1"
+          value="${goal.target}"
+        />
+      </div>`
+  }
+  if (goal.type === 'timed') {
+    return `
+      <div class="setting-row">
+        <span class="setting-label">Time (seconds)</span>
+        <input
+          class="setting-input"
+          id="goal-duration-input"
+          type="number"
+          inputmode="numeric"
+          min="${MIN_ROUND_DURATION_SEC}"
+          max="${MAX_ROUND_DURATION_SEC}"
+          step="1"
+          value="${goal.durationSec}"
+        />
+      </div>`
+  }
+  return ''
+}
+
+function renderJoinerSettings(mode: GameMode, goal: Goal): string {
   const modeDef = getModeDefinition(mode)
-  const goal = modeDef.goals.find((g) => g.type === goalType)
-  const goalLabel = goal?.label ?? goalType
+  const predefined = modeDef.goals.find((g) => g.type === goal.type)
+  const goalLabel = predefined?.label ?? goal.type
+  const detail = goalDetail(goal)
   return `
     <div class="room-settings" id="room-settings">
       <div class="setting-row">
@@ -217,10 +265,17 @@ function renderJoinerSettings(mode: GameMode, goalType: string): string {
       </div>
       <div class="setting-row">
         <span class="setting-label">Goal</span>
-        <span class="setting-value">${escapeAttr(goalLabel)}</span>
+        <span class="setting-value">${escapeAttr(goalLabel)}${detail ? ` · ${escapeAttr(detail)}` : ''}</span>
       </div>
     </div>
   `
+}
+
+/** Human-readable summary of a goal's tunable value, or '' if none. */
+function goalDetail(goal: Goal): string {
+  if (goal.type === 'target-score') return `${goal.target} pts`
+  if (goal.type === 'timed') return `${goal.durationSec}s`
+  return ''
 }
 
 function wireCreatorSettings(currentMode: GameMode): void {
@@ -244,6 +299,43 @@ function wireCreatorSettings(currentMode: GameMode): void {
       if (goal) updateRoomSettings({ goal })
     })
   })
+
+  // Goal tuning inputs (target score / duration). Commit on change/blur so the
+  // value is sent once the creator finishes editing rather than per keystroke.
+  wireGoalTuningInput('goal-target-input', currentMode, 'target-score', (g, value) => ({
+    ...g,
+    target: value,
+  }))
+  wireGoalTuningInput('goal-duration-input', currentMode, 'timed', (g, value) => ({
+    ...g,
+    durationSec: value,
+  }))
+}
+
+/**
+ * Wire a numeric goal-tuning input: on commit, rebuild the goal from the mode's
+ * predefined definition with the edited value, clamp it via the shared helper,
+ * and push the update. Clamping keeps the optimistic local value in sync with
+ * what the authoritative server will broadcast back.
+ */
+function wireGoalTuningInput(
+  inputId: string,
+  currentMode: GameMode,
+  goalType: Goal['type'],
+  withValue: (goal: Goal, value: number) => Goal,
+): void {
+  const input = document.getElementById(inputId) as HTMLInputElement | null
+  if (!input) return
+  const commit = (): void => {
+    const modeDef = getModeDefinition(currentMode)
+    const base = modeDef.goals.find((g) => g.type === goalType)
+    if (!base) return
+    const parsed = Number(input.value)
+    if (!Number.isFinite(parsed)) return
+    const goal = customizeGoal(base, withValue(base, parsed))
+    updateRoomSettings({ goal })
+  }
+  input.addEventListener('change', commit)
 }
 
 function hasShareApi(): boolean {

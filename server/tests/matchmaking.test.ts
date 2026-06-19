@@ -177,6 +177,42 @@ describe('rooms', () => {
     expect(res.ok).toBe(false)
   })
 
+  it('accepts a custom target score for the target-score goal', () => {
+    createRoom(player('p1'), noop)
+    const res = updateRoomSettings('p1', {
+      goal: { type: 'target-score', label: '🎯 Race to Score', target: 500, safetyCapSec: 300 },
+    })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.settings.goal.type).toBe('target-score')
+    if (res.settings.goal.type !== 'target-score') return
+    expect(res.settings.goal.target).toBe(500)
+  })
+
+  it('clamps an out-of-range custom target score', () => {
+    createRoom(player('p1'), noop)
+    const res = updateRoomSettings('p1', {
+      goal: { type: 'target-score', label: 'x', target: 99_999_999, safetyCapSec: 1 },
+    })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    if (res.settings.goal.type !== 'target-score') return
+    expect(res.settings.goal.target).toBe(100_000)
+    // Non-tunable fields come from the predefined goal, not the client payload.
+    expect(res.settings.goal.safetyCapSec).toBe(300)
+  })
+
+  it('accepts a custom duration for the timed goal', () => {
+    createRoom(player('p1'), noop)
+    const res = updateRoomSettings('p1', {
+      goal: { type: 'timed', label: '⏱ Timed', durationSec: 120 },
+    })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    if (res.settings.goal.type !== 'timed') return
+    expect(res.settings.goal.durationSec).toBe(120)
+  })
+
   it('resets goal when mode changes and goal is incompatible', () => {
     createRoom(player('p1'), noop)
     // Change to idler — goal should auto-reset if the current goal is

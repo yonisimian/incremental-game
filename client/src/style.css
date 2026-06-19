@@ -372,6 +372,23 @@ body {
   font-weight: 600;
 }
 
+.setting-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.setting-input:focus {
+  border-color: var(--accent);
+}
+
 .mode-chips,
 .goal-chips {
   width: 100%;

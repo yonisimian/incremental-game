@@ -5,6 +5,7 @@ import {
   ROOM_TTL_MS,
   getModeDefinition,
   getDefaultGoal,
+  customizeGoal,
   AVAILABLE_MODES,
 } from '@game/shared'
 
@@ -202,7 +203,7 @@ export function updateRoomSettings(
     const modeDef = getModeDefinition(room.mode)
     const predefined = modeDef.goals.find((g) => g.type === update.goal!.type)
     if (predefined) {
-      room.goal = predefined
+      room.goal = customizeGoal(predefined, update.goal)
     }
     // Silently ignore invalid goals
   }

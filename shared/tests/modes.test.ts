@@ -3,6 +3,7 @@ import {
   getAvailableUpgrades,
   getModeDefinition,
   getDefaultGoal,
+  customizeGoal,
   createInitialState,
   collectModifiers,
   applyPurchase,
@@ -27,6 +28,61 @@ describe('getDefaultGoal', () => {
   it('returns the first goal for idler', () => {
     const goal = getDefaultGoal('idler')
     expect(goal.type).toBe('buy-upgrade')
+  })
+})
+
+// ─── customizeGoal ───────────────────────────────────────────────────
+
+describe('customizeGoal', () => {
+  const targetBase: Goal = {
+    type: 'target-score',
+    label: '🎯 Race to Score',
+    target: 364,
+    safetyCapSec: 300,
+  }
+  const timedBase: Goal = { type: 'timed', label: '⏱ Timed', durationSec: 35 }
+
+  it('applies a custom target score', () => {
+    const g = customizeGoal(targetBase, { ...targetBase, target: 500 })
+    expect(g.type === 'target-score' && g.target).toBe(500)
+  })
+
+  it('applies a custom duration', () => {
+    const g = customizeGoal(timedBase, { ...timedBase, durationSec: 90 })
+    expect(g.type === 'timed' && g.durationSec).toBe(90)
+  })
+
+  it('clamps an out-of-range value to the bounds', () => {
+    const low = customizeGoal(targetBase, { ...targetBase, target: -10 })
+    const high = customizeGoal(targetBase, { ...targetBase, target: 10_000_000 })
+    expect(low.type === 'target-score' && low.target).toBe(10)
+    expect(high.type === 'target-score' && high.target).toBe(100_000)
+  })
+
+  it('rounds fractional values to integers', () => {
+    const g = customizeGoal(timedBase, { ...timedBase, durationSec: 42.7 })
+    expect(g.type === 'timed' && g.durationSec).toBe(43)
+  })
+
+  it('keeps non-tunable fields from the base goal', () => {
+    const g = customizeGoal(targetBase, {
+      type: 'target-score',
+      label: 'spoofed',
+      target: 500,
+      safetyCapSec: 1,
+    })
+    expect(g.label).toBe('🎯 Race to Score')
+    expect(g.type === 'target-score' && g.safetyCapSec).toBe(300)
+  })
+
+  it('returns the base unchanged for goal types without a tunable', () => {
+    const buyUpgrade: Goal = { type: 'buy-upgrade', label: '🏆 Race to Buy', safetyCapSec: 600 }
+    expect(customizeGoal(buyUpgrade, buyUpgrade)).toBe(buyUpgrade)
+  })
+
+  it('falls back to the minimum for non-finite input', () => {
+    const g = customizeGoal(targetBase, { ...targetBase, target: NaN })
+    expect(g.type === 'target-score' && g.target).toBe(10)
   })
 })
 
