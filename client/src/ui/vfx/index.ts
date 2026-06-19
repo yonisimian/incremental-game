@@ -4,6 +4,7 @@
  */
 
 import { hasDom, getLayer } from './shared.js'
+import { formatNumber } from '../format-number.js'
 
 // Re-export shared utilities used by external consumers
 export { shakeScreen } from './shared.js'
@@ -37,7 +38,10 @@ export function spawnClickPopup(income: number, anchorId?: string): void {
   const rect = btn.getBoundingClientRect()
   const el = document.createElement('span')
   el.className = 'vfx-popup'
-  el.textContent = `+${income}`
+  // Show up to 2 decimals for fractional gains (avoids float noise like
+  // 7.260000000000002), but keep whole-number gains clean ("+1", not "+1.00").
+  const isWhole = Math.abs(income - Math.round(income)) < 1e-9
+  el.textContent = `+${formatNumber(income, isWhole ? 0 : 2)}`
 
   // Position above the button center with random horizontal jitter
   const jitterX = (Math.random() - 0.5) * 80
