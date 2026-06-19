@@ -15,6 +15,14 @@ export const TARGET_SCORE_SAFETY_CAP_SEC = 300
 /** Safety cap for buy-upgrade matches (seconds). */
 export const BUY_UPGRADE_SAFETY_CAP_SEC = 600
 
+/** Bounds for a creator-customized target score (target-score goal). */
+export const MIN_TARGET_SCORE = 10
+export const MAX_TARGET_SCORE = 100_000
+
+/** Bounds for a creator-customized round duration (timed goal, seconds). */
+export const MIN_ROUND_DURATION_SEC = 10
+export const MAX_ROUND_DURATION_SEC = 600
+
 /** Countdown before round starts (seconds). */
 export const COUNTDOWN_SEC = 3
 

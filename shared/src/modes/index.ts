@@ -4,6 +4,12 @@ import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
+import {
+  MIN_TARGET_SCORE,
+  MAX_TARGET_SCORE,
+  MIN_ROUND_DURATION_SEC,
+  MAX_ROUND_DURATION_SEC,
+} from '../game-config.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, prepareEffect } from '../effects/index.js'
@@ -120,6 +126,30 @@ export const AVAILABLE_MODES: readonly GameMode[] = ['idler']
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {
   return getModeDefinition(mode).goals[0]
+}
+
+/**
+ * Apply a creator's custom value (target score / duration) onto a predefined
+ * goal, clamping it to safe bounds. Non-customizable fields (label, safety cap)
+ * always come from `base`, so the result is authoritative regardless of what
+ * the client sent. Returns `base` unchanged for goal types without a tunable.
+ */
+export function customizeGoal(base: Goal, requested: Goal): Goal {
+  if (base.type === 'target-score' && requested.type === 'target-score') {
+    return { ...base, target: clampInt(requested.target, MIN_TARGET_SCORE, MAX_TARGET_SCORE) }
+  }
+  if (base.type === 'timed' && requested.type === 'timed') {
+    return {
+      ...base,
+      durationSec: clampInt(requested.durationSec, MIN_ROUND_DURATION_SEC, MAX_ROUND_DURATION_SEC),
+    }
+  }
+  return base
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.round(value)))
 }
 
 /** Upgrades visible/valid under the given goal — filters out goal-tagged upgrades whose tag doesn't match. */
