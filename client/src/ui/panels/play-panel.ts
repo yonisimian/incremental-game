@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { setHighlight } from '../../game.js'
+import { doClick, setHighlight } from '../../game.js'
 import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
@@ -8,6 +8,7 @@ import {
   getModeFlavor,
   getResourceIcon,
   getResourceName,
+  isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
 
@@ -19,6 +20,18 @@ function getHighlight(state: Readonly<GameState>): string {
 }
 
 // ─── Play Panel ────────────────────────────────────────────────
+
+function renderClickButton(state: Readonly<GameState>): string {
+  const modeDef = getModeDefinition(state.mode!)
+  if (!isClickUnlocked(state.player, modeDef)) return ''
+  const flavor = getModeFlavor(modeDef)
+  const icon = getResourceIcon(flavor, modeDef.scoreResource)
+  return `
+    <button class="click-btn" id="click-btn" aria-label="Click for ${getResourceName(flavor, modeDef.scoreResource)}">
+      <span class="click-btn-emoji" aria-hidden="true">${icon}</span>
+      <span class="click-btn-hotkey" aria-hidden="true">Space</span>
+    </button>`
+}
 
 function renderIdlerContent(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
@@ -44,6 +57,7 @@ function renderIdlerContent(state: Readonly<GameState>): string {
       ${highlightUnlocked ? '<span class="cards-hotkey" aria-hidden="true">Tab</span>' : ''}
       ${cards}
     </div>
+    ${renderClickButton(state)}
   `
 }
 
@@ -62,6 +76,9 @@ export const playPanel: Panel = {
         setHighlight(key)
       })
     }
+    document.getElementById('click-btn')?.addEventListener('click', () => {
+      doClick()
+    })
   },
 
   update(state) {
@@ -94,6 +111,18 @@ export const playPanel: Panel = {
       } else if (!highlightUnlocked && hotkey) {
         hotkey.remove()
       }
+    }
+
+    // Inject the click button the moment clicking is unlocked (mid-match purchase).
+    const clickUnlocked = isClickUnlocked(state.player, modeDef)
+    const clickBtn = document.getElementById('click-btn')
+    if (clickUnlocked && !clickBtn && container) {
+      container.insertAdjacentHTML('afterend', renderClickButton(state))
+      document.getElementById('click-btn')?.addEventListener('click', () => {
+        doClick()
+      })
+    } else if (!clickUnlocked && clickBtn) {
+      clickBtn.remove()
     }
   },
 }

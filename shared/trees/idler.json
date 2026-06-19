@@ -6,9 +6,10 @@
     "r1"
   ],
   "scoreResource": "r0",
-  "clicksEnabled": false,
+  "clicksEnabled": true,
   "highlightEnabled": true,
   "highlightUnlockUpgrade": "sh-unlock",
+  "clickUnlockUpgrade": "sc-unlock",
   "initialResources": {
     "r0": 0,
     "r1": 0
@@ -1005,9 +1006,17 @@
     },
     {
       "id": "sc-unlock",
-      "cost": {},
+      "cost": {
+        "r0": 50
+      },
       "purchaseLimit": 1,
-      "modifiers": [],
+      "modifiers": [
+        {
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": 1
+        }
+      ],
       "offset": {
         "x": 792,
         "y": 144
@@ -1015,9 +1024,22 @@
       "children": [
         {
           "id": "sc-af-cp",
-          "cost": {},
+          "cost": {
+            "r0": 25
+          },
+          "costScaling": {
+            "type": "exponential",
+            "baseCost": 25,
+            "factor": 1.15
+          },
           "purchaseLimit": null,
-          "modifiers": [],
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "clickIncome",
+              "value": 1
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "sc-unlock"
@@ -1029,9 +1051,22 @@
           "children": [
             {
               "id": "sc-mf-cp",
-              "cost": {},
+              "cost": {
+                "r0": 200
+              },
+              "costScaling": {
+                "type": "exponential",
+                "baseCost": 200,
+                "factor": 1.5
+              },
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "clickIncome",
+                  "value": 1.1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "sc-af-cp"

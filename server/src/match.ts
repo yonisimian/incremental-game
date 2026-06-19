@@ -13,6 +13,7 @@ import {
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
 import type {
@@ -308,7 +309,7 @@ export class Match {
   private processActions(player: MatchPlayer, actions: PlayerAction[], seq: number): void {
     for (const action of actions) {
       if (action.type === 'click') {
-        if (!this.modeDef.clicksEnabled) continue
+        if (!isClickUnlocked(player.state, this.modeDef)) continue
         if (!isValidClick(player.recentClickTimestamps)) {
           continue
         }

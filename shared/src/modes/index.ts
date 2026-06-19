@@ -164,6 +164,13 @@ export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefini
   return (state.upgrades[mode.highlightUnlockUpgrade] ?? 0) > 0
 }
 
+/** Whether the click mechanic is currently active for this player. */
+export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
+  if (!mode.clicksEnabled) return false
+  if (!mode.clickUnlockUpgrade) return true
+  return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**
@@ -198,7 +205,10 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
           genState.multiplicative *= mod.value ** owned
         }
       } else {
-        modifiers.push({ stage: mod.stage, field: mod.field, value: mod.value * owned })
+        // Additive bonuses scale linearly with owned count; multiplicative and
+        // global factors compound (value ** owned), matching the generator path.
+        const value = mod.stage === 'additive' ? mod.value * owned : mod.value ** owned
+        modifiers.push({ stage: mod.stage, field: mod.field, value })
       }
     }
   }

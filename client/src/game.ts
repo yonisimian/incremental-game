@@ -25,6 +25,7 @@ import {
   isCostAffordable,
   getUpgradeNextCost,
   applyPurchase,
+  isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
 import {
@@ -331,7 +332,7 @@ export function doClick(): void {
   if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
-  if (!modeDef.clicksEnabled) return
+  if (!isClickUnlocked(state.player, modeDef)) return
 
   // Optimistic local update
   const income = computeClickIncome(state.player)

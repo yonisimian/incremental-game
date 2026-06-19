@@ -707,6 +707,58 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Click button (clicker upgrades) */
+
+.click-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+  transition:
+    transform 0.08s,
+    box-shadow 0.2s,
+    border-color 0.2s;
+  user-select: none;
+}
+
+.click-btn:hover {
+  border-color: var(--text);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
+}
+
+.click-btn:active {
+  transform: scale(0.97);
+}
+
+.click-btn-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.click-btn-hotkey {
+  font-size: 0.55rem;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  line-height: 1;
+}
+
 /* Scoreboard */
 
 .scoreboard {
