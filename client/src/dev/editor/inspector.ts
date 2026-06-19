@@ -281,7 +281,7 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
     const next: TreeUpgradeNode['modifiers'] = []
     for (const row of rows.querySelectorAll<HTMLDivElement>('.ed-mod-row')) {
       const stage = row.querySelector<HTMLSelectElement>('.ed-mod-stage')!.value as ModifierStage
-      const fieldName = row.querySelector<HTMLSelectElement>('.ed-mod-field')!.value.trim()
+      const fieldName = row.querySelector<HTMLSelectElement>('.ed-mod-field')!.value
       const value = Number(row.querySelector<HTMLInputElement>('.ed-mod-value')!.value)
       if (fieldName) next.push({ stage, field: fieldName, value })
     }
