@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
 import {
   COUNTDOWN_SEC,
+  getAvailableUpgrades,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -50,7 +51,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
-    config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
+    config: { mode: 'idler', goal: defaultTimedGoal },
     opponentName: '',
     vsBot: false,
     serverTime: Date.now(),
@@ -109,7 +110,7 @@ function enterPlaying(game: GameModule): void {
 function enterIdlerPlaying(game: GameModule): void {
   game.handleServerMessage(
     makeRoundStart({
-      config: { mode: 'idler', goal: defaultTimedGoal, upgrades: [...idlerDef.upgrades] },
+      config: { mode: 'idler', goal: defaultTimedGoal },
     }),
   )
   vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
@@ -176,7 +177,9 @@ describe('game.ts', () => {
       game.handleServerMessage(makeRoundStart({ matchId: 'm-123' }))
       const s = game.getState()
       expect(s.matchId).toBe('m-123')
-      expect(s.upgrades.length).toBe(idlerDef.upgrades.length)
+      // Upgrades are derived from the registered tree for this goal (the timed
+      // goal excludes the buy-upgrade trophy), not copied off the wire.
+      expect(s.upgrades.length).toBe(getAvailableUpgrades(idlerDef, defaultTimedGoal).length)
     })
 
     it('counts down from COUNTDOWN_SEC to playing', () => {
@@ -193,19 +196,12 @@ describe('game.ts', () => {
       expect(game.getState().screen).toBe('playing')
     })
 
-    it('restores Infinity purchaseLimit lost to JSON transport', () => {
-      // `Infinity` serializes to `null` over the wire. Simulate the mangled
-      // payload the client actually receives and confirm unlimited upgrades are
-      // not treated as maxed.
-      const wireUpgrades = idlerDef.upgrades.map((u) =>
-        isUnlimited(u) ? { ...u, purchaseLimit: null as unknown as number } : u,
-      )
+    it('derives upgrades from the registered tree with unlimited limits intact', () => {
+      // The client derives upgrades from its own registered tree rather than the
+      // wire, so `Infinity` purchase limits survive (they would otherwise be
+      // mangled to `null` by JSON transport) and are never treated as maxed.
       const unlimitedId = idlerDef.upgrades.find(isUnlimited)!.id
-      game.handleServerMessage(
-        makeRoundStart({
-          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: wireUpgrades },
-        }),
-      )
+      game.handleServerMessage(makeRoundStart())
       const stored = game.getState().upgrades.find((u) => u.id === unlimitedId)!
       expect(stored.purchaseLimit).toBe(Infinity)
       expect(isUnlimited(stored)).toBe(true)

@@ -1,11 +1,4 @@
-import type {
-  GameMode,
-  Goal,
-  MatchWinner,
-  PlayerAction,
-  PlayerState,
-  UpgradeDefinition,
-} from './types.js'
+import type { GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
@@ -119,7 +112,6 @@ export interface RoundStartMessage {
   config: {
     mode: GameMode
     goal: Goal
-    upgrades: readonly UpgradeDefinition[]
   }
   /** Opponent's display name (may be empty). */
   opponentName: string

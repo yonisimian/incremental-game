@@ -123,7 +123,6 @@ describe('Match', () => {
         label: '⏱ Timed',
         durationSec: ROUND_DURATION_SEC,
       })
-      expect(msg.config.upgrades.length).toBeGreaterThan(0)
       expect(msg.matchId).toBeDefined()
       expect(msg.serverTime).toBeGreaterThan(0)
     })
@@ -379,18 +378,6 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       expect(msg.config.mode).toBe('idler')
-    })
-
-    it('uses idler upgrades in config', () => {
-      const m = createIdlerMatch()
-      m.start()
-      const msg = sentOfType(ws1, 'ROUND_START')[0]
-      const ids = msg.config.upgrades.map((u) => u.id)
-      // Idler tree: highlight unlock, a base-economy upgrade, and the trophy
-      // (default idler goal is buy-upgrade, so the trophy is included).
-      expect(ids).toContain('sh-unlock')
-      expect(ids).toContain('be-af-mr')
-      expect(ids).toContain('goal')
     })
 
     it('produces r0 and r1 at 1/sec base rate (no highlight)', () => {
@@ -653,22 +640,6 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       expect(msg.config.goal).toEqual(buyGoal)
-    })
-
-    it('includes the trophy upgrade when goal is buy-upgrade', () => {
-      const m = createBuyMatch()
-      m.start()
-      const msg = sentOfType(ws1, 'ROUND_START')[0]
-      const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).toContain('goal') // Royal Throne
-    })
-
-    it('excludes the trophy upgrade for non-buy-upgrade goals', () => {
-      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', TIMED_GOAL)
-      m.start()
-      const msg = sentOfType(ws1, 'ROUND_START')[0]
-      const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).not.toContain('goal')
     })
 
     it('buying the trophy ends the match with the buyer as winner', () => {
