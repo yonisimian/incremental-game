@@ -150,7 +150,7 @@ describe('createInitialState', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     expect(state.score).toBe(0)
-    expect(state.resources).toEqual({ r0: 0, r1: 0 })
+    expect(state.resources).toEqual({ r0: 50, r1: 20 })
     expect(state.meta.highlight).toBe('r0')
   })
 
@@ -160,7 +160,7 @@ describe('createInitialState', () => {
     const b = createInitialState(def)
     a.resources.r0 = 999
     a.upgrades['sc-unlock'] = 1
-    expect(b.resources.r0).toBe(0)
+    expect(b.resources.r0).toBe(50)
     expect(b.upgrades['sc-unlock']).toBe(0)
   })
 })
