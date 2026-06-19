@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { getModeDefinition, isPrerequisiteSatisfied } from '@game/shared'
 import type { PlayerState } from '@game/shared'
-import { IDLER_STRATEGIES } from '../src/dev/strategies.js'
+import { IDLER_STRATEGIES, generateStrategies } from '../src/dev/strategies.js'
+import { stubMode } from './_stub-mode.js'
 
 const modeDef = getModeDefinition('idler')
 const timedUpgrades = modeDef.upgrades.filter((u) => !u.goalType)
@@ -13,9 +14,11 @@ describe('IDLER_STRATEGIES — auto-generated', () => {
   })
 
   it('generates a non-trivial number of strategies', () => {
-    // Phase-0 idler stub has 2 non-trophy upgrades (uh, u1); the generator still
-    // produces several highlight/buy permutations beyond the baselines.
-    expect(IDLER_STRATEGIES.length).toBeGreaterThanOrEqual(4)
+    // Enumeration only stays tractable for small trees; the large real tree is
+    // skipped (baseline only). Validate the generator against the synthetic stub
+    // (3 non-trophy upgrades: uh, uh2, u1) where several permutations are produced.
+    const strategies = generateStrategies(stubMode)
+    expect(strategies.length).toBeGreaterThanOrEqual(4)
   })
 
   it('every strategy starts with a set_highlight action', () => {

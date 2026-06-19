@@ -21,16 +21,24 @@ function getHighlight(state: Readonly<GameState>): string {
 
 // ─── Play Panel ────────────────────────────────────────────────
 
-function renderClickButton(state: Readonly<GameState>): string {
+function renderClickButtons(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
   if (!isClickUnlocked(state.player, modeDef)) return ''
   const flavor = getModeFlavor(modeDef)
-  const icon = getResourceIcon(flavor, modeDef.scoreResource)
-  return `
-    <button class="click-btn" id="click-btn" aria-label="Click for ${getResourceName(flavor, modeDef.scoreResource)}">
-      <span class="click-btn-emoji" aria-hidden="true">${icon}</span>
-      <span class="click-btn-hotkey" aria-hidden="true">Space</span>
-    </button>`
+
+  const cards = modeDef.resources
+    .map((key) => {
+      const isScore = key === modeDef.scoreResource
+      return `
+      <button class="click-card" id="click-btn-${key}" aria-label="Click for ${getResourceName(flavor, key)}">
+        ${isScore ? '<span class="click-card-hotkey" aria-hidden="true">Space</span>' : ''}
+        <span class="click-card-emoji" aria-hidden="true">${getResourceIcon(flavor, key)}</span>
+        <span class="click-card-name">${getResourceName(flavor, key)}</span>
+      </button>`
+    })
+    .join('')
+
+  return `<div class="click-cards">${cards}</div>`
 }
 
 function renderIdlerContent(state: Readonly<GameState>): string {
@@ -57,7 +65,7 @@ function renderIdlerContent(state: Readonly<GameState>): string {
       ${highlightUnlocked ? '<span class="cards-hotkey" aria-hidden="true">Tab</span>' : ''}
       ${cards}
     </div>
-    ${renderClickButton(state)}
+    ${renderClickButtons(state)}
   `
 }
 
@@ -75,10 +83,10 @@ export const playPanel: Panel = {
       document.getElementById(`card-${key}`)?.addEventListener('click', () => {
         setHighlight(key)
       })
+      document.getElementById(`click-btn-${key}`)?.addEventListener('click', () => {
+        doClick(key)
+      })
     }
-    document.getElementById('click-btn')?.addEventListener('click', () => {
-      doClick()
-    })
   },
 
   update(state) {
@@ -113,16 +121,18 @@ export const playPanel: Panel = {
       }
     }
 
-    // Inject the click button the moment clicking is unlocked (mid-match purchase).
+    // Inject the click cards the moment clicking is unlocked (mid-match purchase).
     const clickUnlocked = isClickUnlocked(state.player, modeDef)
-    const clickBtn = document.getElementById('click-btn')
-    if (clickUnlocked && !clickBtn && container) {
-      container.insertAdjacentHTML('afterend', renderClickButton(state))
-      document.getElementById('click-btn')?.addEventListener('click', () => {
-        doClick()
-      })
-    } else if (!clickUnlocked && clickBtn) {
-      clickBtn.remove()
+    const clickCards = document.querySelector('.click-cards')
+    if (clickUnlocked && !clickCards && container) {
+      container.insertAdjacentHTML('afterend', renderClickButtons(state))
+      for (const key of modeDef.resources) {
+        document.getElementById(`click-btn-${key}`)?.addEventListener('click', () => {
+          doClick(key)
+        })
+      }
+    } else if (!clickUnlocked && clickCards) {
+      clickCards.remove()
     }
   },
 }

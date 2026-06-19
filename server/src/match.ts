@@ -313,7 +313,7 @@ export class Match {
         if (!isValidClick(player.recentClickTimestamps)) {
           continue
         }
-        this.applyClick(player)
+        this.applyClick(player, action.resource)
       } else if (action.type === 'buy' && action.upgradeId) {
         if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue
         this.applyPurchase(player, action.upgradeId)
@@ -416,13 +416,16 @@ export class Match {
     this.broadcastState()
   }
 
-  private applyClick(player: MatchPlayer): void {
+  private applyClick(player: MatchPlayer, resource?: string): void {
     const modifiers = collectModifiers(player.state, this.modeDef)
     const income = computeClickIncome(modifiers)
 
-    const res = this.modeDef.scoreResource
+    // Credit the requested resource (defaults to score); only the score resource
+    // contributes to score, matching passive income.
+    const res =
+      resource && this.modeDef.resources.includes(resource) ? resource : this.modeDef.scoreResource
     player.state.resources[res] = (player.state.resources[res] ?? 0) + income
-    player.state.score += income
+    if (res === this.modeDef.scoreResource) player.state.score += income
     player.stats.totalClicks++
 
     // Update peak CPS (recentClickTimestamps already pruned by validation)

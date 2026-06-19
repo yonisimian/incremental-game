@@ -53,8 +53,8 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
 }
 
 const defaultUpgrades: Record<string, number> = {
-  uh: 0,
-  u1: 0,
+  'sh-unlock': 0,
+  'sc-unlock': 0,
 }
 
 function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpdateMessage {
@@ -299,7 +299,7 @@ describe('game.ts', () => {
           },
         }),
       )
-      game.doBuy('u1') // costs 25, optimistic
+      game.doBuy('sc-unlock') // costs 50, optimistic
 
       // Server acks all pending batches and reports the post-purchase state
       game.handleServerMessage(
@@ -307,8 +307,8 @@ describe('game.ts', () => {
           ackSeq: 999, // acks everything
           player: {
             score: 50,
-            resources: { r0: 25 },
-            upgrades: { ...defaultUpgrades, u1: 1 },
+            resources: { r0: 0 },
+            upgrades: { ...defaultUpgrades, 'sc-unlock': 1 },
             generators: {},
             meta: {},
           },
@@ -316,8 +316,8 @@ describe('game.ts', () => {
       )
 
       // No pending → adopts server state exactly
-      expect(game.getState().player.resources.r0).toBe(25)
-      expect(game.getState().player.upgrades.u1).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(0)
+      expect(game.getState().player.upgrades['sc-unlock']).toBe(1)
     })
 
     it('replays unacked purchases on top of server state', () => {
@@ -337,10 +337,10 @@ describe('game.ts', () => {
         }),
       )
 
-      // Buy u1 (costs 25) — optimistic
-      game.doBuy('u1')
-      expect(game.getState().player.upgrades.u1).toBe(1)
-      expect(game.getState().player.resources.r0).toBe(25)
+      // Buy sc-unlock (costs 50) — optimistic
+      game.doBuy('sc-unlock')
+      expect(game.getState().player.upgrades['sc-unlock']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(0)
 
       // Server sends update that hasn't seen the buy yet (ackSeq=0)
       game.handleServerMessage(
@@ -357,8 +357,8 @@ describe('game.ts', () => {
       )
 
       // Pending purchase should be replayed on top of server state
-      expect(game.getState().player.upgrades.u1).toBe(1)
-      expect(game.getState().player.resources.r0).toBe(30) // 55 - 25
+      expect(game.getState().player.upgrades['sc-unlock']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(5) // 55 - 50
     })
 
     it('replays unacked highlight on top of server state', () => {
@@ -370,7 +370,7 @@ describe('game.ts', () => {
           player: {
             score: 5,
             resources: { r0: 5, r1: 5 },
-            upgrades: { uh: 1 },
+            upgrades: { 'sh-unlock': 1 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -387,7 +387,7 @@ describe('game.ts', () => {
           player: {
             score: 5,
             resources: { r0: 5, r1: 5 },
-            upgrades: { uh: 1 },
+            upgrades: { 'sh-unlock': 1 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -540,7 +540,7 @@ describe('game.ts', () => {
           player: {
             score: 0,
             resources: { r0: 0, r1: 0 },
-            upgrades: { uh: 1 },
+            upgrades: { 'sh-unlock': 1 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -594,7 +594,7 @@ describe('game.ts', () => {
           player: {
             score: amount,
             resources: { r0: amount, r1: 0 },
-            upgrades: { uh: 1, u1: 0 },
+            upgrades: { 'sh-unlock': 1, 'sc-unlock': 0 },
             generators: {},
             meta: { highlight: 'r0' },
           },
@@ -605,9 +605,9 @@ describe('game.ts', () => {
     it('deducts r0 for r0-cost upgrades', () => {
       enterIdlerPlaying(game)
       giveR0(game, 50)
-      game.doBuy('u1') // costs 25 r0
-      expect(game.getState().player.upgrades.u1).toBe(1)
-      expect(game.getState().player.resources.r0).toBe(25)
+      game.doBuy('sc-unlock') // costs 50 r0
+      expect(game.getState().player.upgrades['sc-unlock']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(0)
     })
   })
 })

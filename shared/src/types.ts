@@ -121,6 +121,8 @@ export interface PlayerAction {
   generatorId?: string
   /** For 'set_highlight' actions: which resource to highlight. */
   highlight?: string
+  /** For 'click' actions: which resource the click credits (defaults to the score resource). */
+  resource?: string
 }
 
 // ─── Goal / Win Condition ────────────────────────────────────────────

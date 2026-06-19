@@ -82,14 +82,14 @@ describe('Match', () => {
 
   /**
    * Give a player a scoring lead. Both players earn symmetric passive income, so
-   * we grant the player the highlight unlock (uh → ×2 on the score resource r0)
+   * we grant the player the highlight unlock (sh-unlock → ×2 on the score resource r0)
    * so it out-produces the other over time. Resources are granted via the test
    * seam so the purchase is affordable immediately; advance time afterwards for
    * the lead to materialize.
    */
   function giveLead(match: Match, playerId: 'p1' | 'p2') {
-    match.grantResourcesForTest(playerId, { r0: 5 }) // afford uh (cost 5)
-    match.handleMessage(playerId, buyMsg('uh', 1))
+    match.grantResourcesForTest(playerId, { r0: 5 }) // sh-unlock is free; grant is harmless
+    match.handleMessage(playerId, buyMsg('sh-unlock', 1))
   }
 
   // ── Creation ─────────────────────────────────────────────────────
@@ -130,11 +130,11 @@ describe('Match', () => {
 
     it('ignores actions during countdown', () => {
       const m = startMatch()
-      m.grantResourcesForTest('p1', { r0: 100 }) // afford uh, isolating the phase gate
-      m.handleMessage('p1', buyMsg('uh', 1)) // sent during countdown — must be ignored
+      m.grantResourcesForTest('p1', { r0: 100 }) // afford sh-unlock, isolating the phase gate
+      m.handleMessage('p1', buyMsg('sh-unlock', 1)) // sent during countdown — must be ignored
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000 + BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades.uh).toBe(0)
+      expect(u.player.upgrades['sh-unlock']).toBe(0)
     })
 
     it('pauses and resumes the round timer', () => {
@@ -260,15 +260,15 @@ describe('Match', () => {
       m.handleMessage('p1', 'not json{{{')
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       // Message dropped: no upgrade purchased, no crash
-      expect(latestUpdate(ws1).player.upgrades.uh).toBe(0)
+      expect(latestUpdate(ws1).player.upgrades['sh-unlock']).toBe(0)
     })
 
     it('ignores messages from unknown player IDs', () => {
       const m = enterPlaying()
-      m.handleMessage('unknown', buyMsg('uh', 1))
+      m.handleMessage('unknown', buyMsg('sh-unlock', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-      expect(latestUpdate(ws1).player.upgrades.uh).toBe(0)
-      expect(latestUpdate(ws2).player.upgrades.uh).toBe(0)
+      expect(latestUpdate(ws1).player.upgrades['sh-unlock']).toBe(0)
+      expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
     })
   })
 
@@ -347,12 +347,12 @@ describe('Match', () => {
       return m
     }
 
-    /** Enter idler and buy the highlight-unlock upgrade (uh) so highlight tests work. */
+    /** Enter idler and buy the highlight-unlock upgrade (sh-unlock) so highlight tests work. */
     function enterIdlerWithHighlight() {
       const m = enterIdlerPlaying()
-      // Accumulate 5 r0 at base 1/sec (no highlight yet), then buy 'uh'
+      // Accumulate 5 r0 at base 1/sec (no highlight yet), then buy 'sh-unlock'
       vi.advanceTimersByTime(5000)
-      m.handleMessage('p1', buyMsg('uh', 1))
+      m.handleMessage('p1', buyMsg('sh-unlock', 1))
       ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       ;(ws2.send as ReturnType<typeof vi.fn>).mockClear()
       return m
@@ -386,11 +386,11 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      // Idler stub tree: unlock-highlight, a production upgrade, and the trophy
+      // Idler tree: highlight unlock, a base-economy upgrade, and the trophy
       // (default idler goal is buy-upgrade, so the trophy is included).
-      expect(ids).toContain('uh')
-      expect(ids).toContain('u1')
-      expect(ids).toContain('u5')
+      expect(ids).toContain('sh-unlock')
+      expect(ids).toContain('be-af-mr')
+      expect(ids).toContain('goal')
     })
 
     it('produces r0 and r1 at 1/sec base rate (no highlight)', () => {
@@ -459,11 +459,11 @@ describe('Match', () => {
       // Switch to r1 to build up only r1
       m.handleMessage('p1', highlightMsg('r1', 2))
       vi.advanceTimersByTime(10_000) // r1 ~= 20, r0 ~= 10
-      // Try to buy u1 (costs 25 r0) — should fail since player doesn't have enough r0
-      m.handleMessage('p1', buyMsg('u1', 3))
+      // Try to buy sc-unlock (costs 50 r0) — should fail since player doesn't have enough r0
+      m.handleMessage('p1', buyMsg('sc-unlock', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades.u1).toBe(0)
+      expect(u.player.upgrades['sc-unlock']).toBe(0)
     })
 
     it('rejects clicks in idler mode', () => {
@@ -622,7 +622,7 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).toContain('u5') // Royal Throne
+      expect(ids).toContain('goal') // Royal Throne
     })
 
     it('excludes the trophy upgrade for non-buy-upgrade goals', () => {
@@ -630,14 +630,14 @@ describe('Match', () => {
       m.start()
       const msg = sentOfType(ws1, 'ROUND_START')[0]
       const ids = msg.config.upgrades.map((u) => u.id)
-      expect(ids).not.toContain('u5')
+      expect(ids).not.toContain('goal')
     })
 
     it('buying the trophy ends the match with the buyer as winner', () => {
       const m = enterBuyPlaying()
-      // u5 (Royal Throne) costs 30000 — grant via the test seam (unreachable via passive income)
+      // goal (Royal Throne) costs 30000 — grant via the test seam (unreachable via passive income)
       m.grantResourcesForTest('p1', { r0: 30_000 })
-      m.handleMessage('p1', buyMsg('u5', 1))
+      m.handleMessage('p1', buyMsg('goal', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
@@ -650,7 +650,7 @@ describe('Match', () => {
     it('player 2 buying the trophy makes player 2 the winner', () => {
       const m = enterBuyPlaying()
       m.grantResourcesForTest('p2', { r0: 30_000 })
-      m.handleMessage('p2', buyMsg('u5', 1))
+      m.handleMessage('p2', buyMsg('goal', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
@@ -661,7 +661,7 @@ describe('Match', () => {
     it('buying a non-trophy upgrade does not end the match', () => {
       const m = enterBuyPlaying()
       m.grantResourcesForTest('p1', { r0: 5 })
-      m.handleMessage('p1', buyMsg('uh', 1)) // uh = Unlock Highlight, not a trophy
+      m.handleMessage('p1', buyMsg('sh-unlock', 1)) // sh-unlock = Unlock Highlight, not a trophy
 
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(0)
     })
@@ -708,8 +708,8 @@ describe('Match', () => {
           type: 'ACTION_BATCH',
           seq: 1,
           actions: [
-            { type: 'buy', timestamp: Date.now(), upgradeId: 'u5' },
-            { type: 'buy', timestamp: Date.now(), upgradeId: 'uh' },
+            { type: 'buy', timestamp: Date.now(), upgradeId: 'goal' },
+            { type: 'buy', timestamp: Date.now(), upgradeId: 'sh-unlock' },
           ],
         }),
       )

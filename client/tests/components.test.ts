@@ -1,20 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import {
-  COUNTDOWN_SEC,
-  ROUND_DURATION_SEC,
-  getModeDefinition,
-  getAvailableUpgrades,
-} from '@game/shared'
+import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getAvailableUpgrades } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
+import { stubMode, stubUpgrades } from './_stub-mode.js'
 
-// ─── Test fixture helpers ────────────────────────────────────────────
-
-const idlerDef = getModeDefinition('idler')
+// ─── Test fixture helpers ───────────────────────────────────
 
 function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): GameState {
   const goal = { type: 'timed' as const, label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
-  const upgrades = getAvailableUpgrades(idlerDef, goal)
+  const upgrades = getAvailableUpgrades(stubMode, goal)
   return {
     screen: 'playing',
     mode: 'idler',
@@ -103,7 +97,7 @@ describe('renderUpgradeTree', () => {
     const state = makeIdlerState({
       resources: { r0: 9999, r1: 9999 },
       upgrades: {
-        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+        ...Object.fromEntries(stubUpgrades.map((u) => [u.id, 0])),
         u1: 1, // one-shot, owned
       },
     })
@@ -138,7 +132,7 @@ describe('renderUpgradeTree', () => {
     const state = makeIdlerState({
       resources: { r0: 9999, r1: 9999 },
       upgrades: {
-        ...Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
+        ...Object.fromEntries(stubUpgrades.map((u) => [u.id, 0])),
         u1: 1, // one-shot, owned → maxed
       },
     })
