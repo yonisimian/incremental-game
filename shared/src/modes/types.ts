@@ -77,6 +77,8 @@ export interface ModeDefinition {
   readonly highlightEnabled: boolean
   /** If set, highlighting requires this upgrade to be purchased before it becomes active. */
   readonly highlightUnlockUpgrade?: string
+  /** If set, clicking requires this upgrade to be purchased before it becomes active. */
+  readonly clickUnlockUpgrade?: string
   /** Starting resource balances for a new round. */
   readonly initialResources: Readonly<Record<string, number>>
   /** Starting mode-specific metadata (e.g., idler highlight). */

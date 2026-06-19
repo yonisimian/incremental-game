@@ -17,7 +17,7 @@ describe('getModeDefinition', () => {
     const def = getModeDefinition('idler')
     expect(def.resources).toEqual(['r0', 'r1'])
     expect(def.scoreResource).toBe('r0')
-    expect(def.clicksEnabled).toBe(false)
+    expect(def.clicksEnabled).toBe(true)
   })
 })
 
@@ -103,9 +103,9 @@ describe('createInitialState', () => {
     const a = createInitialState(def)
     const b = createInitialState(def)
     a.resources.r0 = 999
-    a.upgrades.uh = 1
+    a.upgrades['sc-unlock'] = 1
     expect(b.resources.r0).toBe(0)
-    expect(b.upgrades.uh).toBe(0)
+    expect(b.upgrades['sc-unlock']).toBe(0)
   })
 })
 
@@ -130,11 +130,11 @@ describe('collectModifiers', () => {
     expect(scaledMod).toBeDefined()
   })
 
-  it('applies the highlight effect (per-upgrade on uh) for idler mode', () => {
+  it('applies the highlight effect (per-upgrade on sh-unlock) for idler mode', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
-    // Highlight requires the unlock upgrade (uh) to be purchased
-    state.upgrades.uh = 1
+    // Highlight requires the unlock upgrade (sh-unlock) to be purchased
+    state.upgrades['sh-unlock'] = 1
     const mods = collectModifiers(state, def)
     // Highlight mechanic should produce a multiplicative modifier
     expect(
@@ -154,9 +154,9 @@ describe('applyPurchase', () => {
     const def = getModeDefinition('idler')
     const state = makeState(def)
     state.resources.r0 = 100
-    applyPurchase(state, 'u1', def) // costs 25 r0
+    applyPurchase(state, 'sc-af-cp', def) // costs 25 r0
     expect(state.resources.r0).toBe(75)
-    expect(state.upgrades.u1).toBe(1)
+    expect(state.upgrades['sc-af-cp']).toBe(1)
   })
 
   it('increments count for unlimited upgrades', () => {
@@ -234,10 +234,10 @@ describe('purchase timestamps (state.meta.purchasedAt)', () => {
     const state = createInitialState(def)
     state.resources.r0 = 300
     state.meta.gameSec = 5
-    applyPurchase(state, 'u1', def) // costs 25 r0
-    expect(state.upgrades.u1).toBe(1)
+    applyPurchase(state, 'sc-af-cp', def) // costs 25 r0
+    expect(state.upgrades['sc-af-cp']).toBe(1)
     const purchasedAt = state.meta.purchasedAt as Record<string, number>
-    expect(purchasedAt.u1).toBe(5)
+    expect(purchasedAt['sc-af-cp']).toBe(5)
   })
 
   it('repeated purchase does not overwrite purchasedAt', () => {

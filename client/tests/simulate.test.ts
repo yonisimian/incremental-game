@@ -3,6 +3,7 @@ import { TICK_INTERVAL_MS, IDLER_ROUND_DURATION_SEC } from '@game/shared'
 import { simulate } from '../src/dev/simulate.js'
 import type { SimResult } from '../src/dev/simulate.js'
 import type { Strategy } from '../src/dev/strategies.js'
+import { stubMode } from './_stub-mode.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -50,7 +51,9 @@ describe('simulate — structure', () => {
 describe('simulate — no-upgrades idler baseline', () => {
   // Idler: buy uh first to unlock highlight, then highlight r0
   // base 1 r0/s, after uh bought: highlight r0 → ×2 → 2 r0/s + 1 r1/s
-  const result = simulate({ name: 'baseline', actions: [hl('r0'), buy('uh')] }, 'idler')
+  const result = simulate({ name: 'baseline', actions: [hl('r0'), buy('uh')] }, 'idler', {
+    modeDef: stubMode,
+  })
   const final = result.snapshots.at(-1)!
 
   it('accumulates correct score (with highlight unlock delay)', () => {
@@ -84,7 +87,9 @@ describe('simulate — no-upgrades idler baseline', () => {
 
 describe('simulate — highlight is immediate', () => {
   // Highlight ale instead of wood, with uh unlock: 1 r0/s until uh bought, then 1 r0/s + 2 r1/s
-  const result = simulate({ name: 'ale-hl', actions: [hl('r1'), buy('uh')] }, 'idler')
+  const result = simulate({ name: 'ale-hl', actions: [hl('r1'), buy('uh')] }, 'idler', {
+    modeDef: stubMode,
+  })
   const final = result.snapshots.at(-1)!
 
   it('score reflects unhighlighted r0 income (1 r0/s × 35s = 35)', () => {
@@ -103,7 +108,9 @@ describe('simulate — upgrade purchase', () => {
   // u1 = Heavy Logging: costs 25 r0, adds +5 r0/s
   // With hl('r0') + uh: base 1 r0/s until uh bought (5s), then 2 r0/s
   // After u1 buy: base 1 + 5 = 6 r0/s, highlight ×2 = 12 r0/s
-  const result = simulate({ name: 'HL only', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler')
+  const result = simulate({ name: 'HL only', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler', {
+    modeDef: stubMode,
+  })
 
   it('records the purchases in purchaseLog', () => {
     expect(result.purchaseLog.some((p) => p.id === 'u1')).toBe(true)
@@ -145,7 +152,9 @@ describe('simulate — upgrade purchase', () => {
 
 describe('simulate — multi-purchase strategy', () => {
   // uh→HL: buy uh (5 r0) first to unlock highlight, then u1 (25 r0)
-  const result = simulate({ name: 'uh→HL', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler')
+  const result = simulate({ name: 'uh→HL', actions: [hl('r0'), buy('uh'), buy('u1')] }, 'idler', {
+    modeDef: stubMode,
+  })
 
   it('records both purchases in order', () => {
     const buyIds = result.purchaseLog.map((p) => p.id)

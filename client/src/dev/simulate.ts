@@ -78,12 +78,17 @@ interface SimulateOptions {
    * Models player reaction time. Default: 0 (perfect play).
    */
   highlightDelaySec?: number
+  /**
+   * Override the mode definition instead of resolving `mode` from the registry.
+   * Used by unit tests to drive the engine with a small synthetic tree.
+   */
+  modeDef?: ModeDefinition
 }
 
 // ─── Simulate ────────────────────────────────────────────────────────
 
 export function simulate(strategy: Strategy, mode: GameMode, options?: SimulateOptions): SimResult {
-  const modeDef = getModeDefinition(mode)
+  const modeDef = options?.modeDef ?? getModeDefinition(mode)
   const state = createInitialState(modeDef)
   const highlightDelaySec = options?.highlightDelaySec ?? 0
 

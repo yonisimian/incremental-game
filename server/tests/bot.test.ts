@@ -24,11 +24,11 @@ describe('Bot', () => {
   // ── Bot Strategy Unit Tests ────────────────────────────────────
 
   describe('IdlerBot', () => {
-    // Synthetic upgrades. The bot's hardcoded base plan is uh(r0) → u1(r0);
-    // u0/u2 are kept here only as trophy-chain prereqs for the buy-upgrade test.
+    // Synthetic upgrades. The bot's hardcoded base plan is be-af-mr(r0);
+    // u0/u1/u2 are kept here only as trophy-chain prereqs for the buy-upgrade test.
     const idlerUpgrades: UpgradeDefinition[] = [
       {
-        id: 'uh' as const,
+        id: 'be-af-mr' as const,
         cost: { r0: 5 },
         purchaseLimit: 1,
         modifiers: [],
@@ -53,7 +53,7 @@ describe('Bot', () => {
       },
     ]
 
-    it('stays on r0 highlight first (for uh)', () => {
+    it('stays on r0 highlight first (for be-af-mr)', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
@@ -61,19 +61,19 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
-          uh: 0,
+          'be-af-mr': 0,
           u0: 0,
           u1: 0,
           u2: 0,
         },
       }
       const actions = bot.decide(state)
-      // First plan step is uh (costs r0), highlight should stay on r0
+      // First plan step is be-af-mr (costs r0), highlight should stay on r0
       const highlights = actions.filter((a) => a.type === 'set_highlight')
       expect(highlights).toHaveLength(0) // already on r0, no switch needed
     })
 
-    it('buys uh then u1 when r0 is sufficient', () => {
+    it('buys be-af-mr when r0 is sufficient', () => {
       const bot = new IdlerBot(idlerUpgrades)
       const state = {
         score: 0,
@@ -81,7 +81,7 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
-          uh: 0,
+          'be-af-mr': 0,
           u0: 0,
           u1: 0,
           u2: 0,
@@ -91,15 +91,10 @@ describe('Bot', () => {
       let actions = bot.decide(state)
       expect(actions.filter((a) => a.type === 'buy')).toHaveLength(0)
 
-      // Now with enough r0 for uh (costs 5)
+      // Now with enough r0 for be-af-mr (costs 5)
       state.resources.r0 = 5
       actions = bot.decide(state)
-      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'uh' })
-
-      // Next step: u1 (costs 25)
-      state.resources.r0 = 30
-      actions = bot.decide(state)
-      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'u1' })
+      expect(actions).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
     })
 
     it('returns empty actions after plan is exhausted', () => {
@@ -110,14 +105,14 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {
-          uh: 0,
+          'be-af-mr': 0,
           u0: 0,
           u1: 0,
           u2: 0,
         },
       }
 
-      // Buy through the entire base plan: uh, u1 (2 steps); extra calls are no-ops
+      // Buy through the entire base plan: be-af-mr (1 step); extra calls are no-ops
       for (let i = 0; i < 4; i++) {
         bot.decide(state)
       }
@@ -159,10 +154,10 @@ describe('Bot', () => {
         resources: { r0: 9999, r1: 9999 },
         generators: {},
         meta: { highlight: 'r0' as const },
-        upgrades: { uh: 0, u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
+        upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
       }
 
-      // Run through all plan steps (uh, u0, u1, u2, u4, u5 = 6 steps)
+      // Run through all plan steps (be-af-mr, u0, u1, u2, u4, u5 = 6 steps)
       const buyIds: string[] = []
       for (let i = 0; i < 10; i++) {
         const actions = bot.decide(state)

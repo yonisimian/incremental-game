@@ -11,15 +11,27 @@ export { shakeScreen } from './shared.js'
 // Re-export the shockwave effect
 export { shockwave } from './shockwave.js'
 
+/**
+ * Resolve the click button to anchor an effect to: the one with `anchorId` if
+ * present, otherwise the first click card (covers score-milestone effects that
+ * aren't tied to a specific button).
+ */
+function resolveClickButton(anchorId?: string): HTMLElement | null {
+  return (
+    (anchorId ? document.getElementById(anchorId) : null) ??
+    document.querySelector<HTMLElement>('.click-card')
+  )
+}
+
 // ─── Click Popup (+1, +2, etc.) ──────────────────────────────────────
 
 /**
  * Spawn a floating "+N" text that drifts up and fades out from the click button.
  * Uses randomized horizontal offset for visual variety.
  */
-export function spawnClickPopup(income: number): void {
+export function spawnClickPopup(income: number, anchorId?: string): void {
   if (!hasDom()) return
-  const btn = document.getElementById('click-btn')
+  const btn = resolveClickButton(anchorId)
   if (!btn) return
 
   const rect = btn.getBoundingClientRect()
@@ -51,9 +63,9 @@ export function spawnClickPopup(income: number): void {
 /**
  * Expanding ring ripple from the center of the click button.
  */
-export function spawnClickRipple(): void {
+export function spawnClickRipple(anchorId?: string): void {
   if (!hasDom()) return
-  const btn = document.getElementById('click-btn')
+  const btn = resolveClickButton(anchorId)
   if (!btn) return
 
   const rect = btn.getBoundingClientRect()
@@ -84,9 +96,9 @@ export function spawnClickRipple(): void {
 /**
  * Punchy scale pulse on the click button — squash on press, bounce on release.
  */
-export function pulseClickButton(): void {
+export function pulseClickButton(anchorId?: string): void {
   if (!hasDom()) return
-  const btn = document.getElementById('click-btn')
+  const btn = resolveClickButton(anchorId)
   if (!btn) return
 
   btn.animate(
@@ -193,7 +205,7 @@ function showCombo(count: number): void {
   }
 
   // Position near the click button
-  const btn = document.getElementById('click-btn')
+  const btn = resolveClickButton()
   if (btn) {
     const rect = btn.getBoundingClientRect()
     el.style.left = `${rect.right + 12}px`

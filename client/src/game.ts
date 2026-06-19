@@ -25,6 +25,7 @@ import {
   isCostAffordable,
   getUpgradeNextCost,
   applyPurchase,
+  isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
 import {
@@ -108,7 +109,8 @@ export interface GameState {
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
 interface PendingBatch {
   seq: number
-  clicks: number
+  /** Resource each click credited, in order (so reconciliation re-credits the right bucket). */
+  clicks: string[]
   purchases: string[]
   generatorPurchases: string[]
   highlight?: string
@@ -327,29 +329,32 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
 }
 
 /** Record a click action (optimistic). Only active when the mode enables clicks. */
-export function doClick(): void {
+export function doClick(target?: string): void {
   if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
-  if (!modeDef.clicksEnabled) return
+  if (!isClickUnlocked(state.player, modeDef)) return
+
+  // Resolve which resource the click credits (defaults to the score resource).
+  const resource = target && modeDef.resources.includes(target) ? target : modeDef.scoreResource
 
   // Optimistic local update
   const income = computeClickIncome(state.player)
-  state.player.score += income
-  state.player.resources[modeDef.scoreResource] =
-    (state.player.resources[modeDef.scoreResource] ?? 0) + income
+  state.player.resources[resource] = (state.player.resources[resource] ?? 0) + income
+  if (resource === modeDef.scoreResource) state.player.score += income
 
-  // Visual effects
-  spawnClickPopup(income)
-  spawnClickRipple()
-  pulseClickButton()
+  // Visual effects (anchored to the clicked button)
+  const anchorId = `click-btn-${resource}`
+  spawnClickPopup(income, anchorId)
+  spawnClickRipple(anchorId)
+  pulseClickButton(anchorId)
   trackCombo()
 
   checkMilestone()
 
   // Queue for server
-  queueAction({ type: 'click', timestamp: Date.now() })
-  trackPendingClick()
+  queueAction({ type: 'click', timestamp: Date.now(), resource })
+  trackPendingClick(resource)
   notify()
 }
 
@@ -547,12 +552,12 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const reconciled = clonePlayerState(msg.player)
   const modeDef = state.mode ? getModeDefinition(state.mode) : undefined
   for (const batch of pendingBatches) {
-    for (let i = 0; i < batch.clicks; i++) {
+    for (const resource of batch.clicks) {
       const income = computeClickIncome(reconciled)
-      reconciled.score += income
-      if (modeDef) {
-        reconciled.resources[modeDef.scoreResource] =
-          (reconciled.resources[modeDef.scoreResource] ?? 0) + income
+      const target = modeDef?.resources.includes(resource) ? resource : undefined
+      if (modeDef && target) {
+        reconciled.resources[target] = (reconciled.resources[target] ?? 0) + income
+        if (target === modeDef.scoreResource) reconciled.score += income
       }
     }
     for (const uid of batch.purchases) {
@@ -616,14 +621,14 @@ function getOrCreateBatch(): PendingBatch {
   const targetSeq = getSeq() + 1
   let batch = pendingBatches.find((b) => b.seq === targetSeq)
   if (!batch) {
-    batch = { seq: targetSeq, clicks: 0, purchases: [], generatorPurchases: [] }
+    batch = { seq: targetSeq, clicks: [], purchases: [], generatorPurchases: [] }
     pendingBatches.push(batch)
   }
   return batch
 }
 
-function trackPendingClick(): void {
-  getOrCreateBatch().clicks++
+function trackPendingClick(resource: string): void {
+  getOrCreateBatch().clicks.push(resource)
 }
 
 function trackPendingPurchase(upgradeId: string): void {

@@ -82,7 +82,7 @@ describe('highlightMultiplier behavior (golden)', () => {
   it('doubles the highlighted resource (r0) once the unlock is owned', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh = 1
+    state.upgrades['sh-unlock'] = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
     expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
@@ -91,7 +91,7 @@ describe('highlightMultiplier behavior (golden)', () => {
   it('follows the highlighted resource when it changes (r1)', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh = 1
+    state.upgrades['sh-unlock'] = 1
     state.meta.highlight = 'r1'
     const mods = collectModifiers(state, def)
     expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r1', value: 2 })
@@ -101,50 +101,50 @@ describe('highlightMultiplier behavior (golden)', () => {
   it('falls back to r0 when no resource is highlighted', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh = 1
+    state.upgrades['sh-unlock'] = 1
     delete state.meta.highlight
     const mods = collectModifiers(state, def)
     expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
   })
 
-  it('raises the highlight to ×3 once the boost upgrade (uh2) is owned', () => {
+  it('raises the highlight to ×2.2 once the boost upgrade (sh-mf-hp) is owned', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh = 1
-    state.upgrades.uh2 = 1
+    state.upgrades['sh-unlock'] = 1
+    state.upgrades['sh-mf-hp'] = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
-    // The boost is distributed: uh emits ×2 and uh2 emits ×1.5, stacking to ×3.
+    // The boost is distributed: sh-unlock emits ×2 and sh-mf-hp emits ×1.1, stacking to ×2.2.
     expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 1.5 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 1.1 })
     const r0Factor = mods
       .filter((m) => m.stage === 'multiplicative' && m.field === 'r0')
       .reduce((acc, m) => acc * m.value, 1)
-    expect(r0Factor).toBe(3)
+    expect(r0Factor).toBeCloseTo(2.2)
   })
 
-  it('applies the ×3 boost to the highlighted resource when it changes (r1)', () => {
+  it('applies the ×2.2 boost to the highlighted resource when it changes (r1)', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh = 1
-    state.upgrades.uh2 = 1
+    state.upgrades['sh-unlock'] = 1
+    state.upgrades['sh-mf-hp'] = 1
     state.meta.highlight = 'r1'
     const mods = collectModifiers(state, def)
     const r1Factor = mods
       .filter((m) => m.stage === 'multiplicative' && m.field === 'r1')
       .reduce((acc, m) => acc * m.value, 1)
-    expect(r1Factor).toBe(3)
+    expect(r1Factor).toBeCloseTo(2.2)
     expect(mods.some((m) => m.stage === 'multiplicative' && m.field === 'r0')).toBe(false)
   })
 
-  it('does not boost when uh2 is owned but the unlock (uh) is not', () => {
+  it('does not boost when sh-mf-hp is owned but the unlock (sh-unlock) is not', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
-    state.upgrades.uh2 = 1
+    state.upgrades['sh-mf-hp'] = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
-    // uh2's ×1.5 still applies (it gates on its own ownership), but the ×2 base
-    // is absent without uh — and uh2's prerequisite makes this unreachable in play.
+    // sh-mf-hp's ×1.1 still applies (it gates on its own ownership), but the ×2 base
+    // is absent without sh-unlock — and sh-mf-hp's prerequisite makes this unreachable in play.
     expect(mods.some((m) => m.stage === 'multiplicative' && m.value === 2)).toBe(false)
   })
 })
@@ -186,16 +186,16 @@ describe('collectModifiers effect wiring', () => {
     ) =>
       mods.filter((m) => m.field === f && m.stage === 'additive').reduce((s, m) => s + m.value, 0)
 
-    // Highlight a generator id (g1: produces r1 at rate 1) → uh's per-upgrade
+    // Highlight a generator id (g1: produces r1 at rate 1) → sh-unlock's per-upgrade
     // highlight effect emits a g1-targeted ×2, which must fold into g1's output.
     const hi = createInitialState(def)
-    hi.upgrades.uh = 1
+    hi.upgrades['sh-unlock'] = 1
     hi.generators.g1 = 1
     hi.meta.highlight = 'g1'
     const hiMods = collectModifiers(hi, def)
 
     const lo = createInitialState(def)
-    lo.upgrades.uh = 1
+    lo.upgrades['sh-unlock'] = 1
     lo.generators.g1 = 1
     lo.meta.highlight = 'r0'
     const loMods = collectModifiers(lo, def)

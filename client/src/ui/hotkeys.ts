@@ -10,7 +10,12 @@ import {
 import { canBuy } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
 import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
-import { getModeDefinition, getUpgradeCostTotal, isHighlightActive } from '@game/shared'
+import {
+  getModeDefinition,
+  getUpgradeCostTotal,
+  isClickUnlocked,
+  isHighlightActive,
+} from '@game/shared'
 
 /** Register global keyboard shortcuts. Call once at startup. */
 export function initHotkeys(): void {
@@ -91,7 +96,7 @@ export function initHotkeys(): void {
 
     // Space — click (clicks-enabled modes), unless focus is inside the tab grid
     if (e.key === ' ' || e.code === 'Space') {
-      if (inTabGrid || !modeDef.clicksEnabled) return
+      if (inTabGrid || !isClickUnlocked(state.player, modeDef)) return
       e.preventDefault() // prevent page scroll
       doClick()
       return

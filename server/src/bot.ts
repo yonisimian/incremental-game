@@ -40,10 +40,7 @@ export class IdlerBot implements BotStrategy {
     this.upgradeMap = new Map(upgrades.map((u) => [u.id, u]))
 
     // Base plan — core economy upgrades
-    const basePlan: { id: string; currency: string }[] = [
-      { id: 'uh', currency: 'r0' }, // Unlock Highlight (unlocks highlight mechanic)
-      { id: 'u1', currency: 'r0' }, // Heavy Logging (costs wood)
-    ]
+    const basePlan: { id: string; currency: string }[] = [{ id: 'be-af-mr', currency: 'r0' }]
 
     // If the trophy is available (buy-upgrade goal), append its prereq chain.
     // Walk the prerequisite edges backwards from the trophy to build a

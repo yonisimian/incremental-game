@@ -59,7 +59,7 @@ const MAX_ENUM_UPGRADES = 8
  * 3. Topologically sort by dependency depth then cost
  * 4. Insert highlight switches before currency transitions
  */
-function generateStrategies(modeDef: ModeDefinition): Strategy[] {
+export function generateStrategies(modeDef: ModeDefinition): Strategy[] {
   // Filter to timed-goal upgrades only (exclude trophy/buy-upgrade goals)
   const upgrades = modeDef.upgrades.filter((u) => !u.goalType)
 

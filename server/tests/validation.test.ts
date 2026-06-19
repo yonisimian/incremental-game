@@ -64,8 +64,8 @@ describe('isValidPurchase', () => {
       score: 0,
       resources: { r0: 50 },
       upgrades: {
-        uh: 0,
-        u1: 0,
+        'sh-unlock': 0,
+        'sc-unlock': 0,
       },
       generators: {},
       meta: {},
@@ -74,26 +74,32 @@ describe('isValidPurchase', () => {
   }
 
   it('accepts a valid purchase', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 5 } }), 'uh', testUpgradeMap)).toBe(true)
+    expect(isValidPurchase(makeState({ resources: { r0: 5 } }), 'sh-unlock', testUpgradeMap)).toBe(
+      true,
+    )
   })
 
   it('accepts at exact cost', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 25 } }), 'u1', testUpgradeMap)).toBe(true)
+    expect(isValidPurchase(makeState({ resources: { r0: 50 } }), 'sc-unlock', testUpgradeMap)).toBe(
+      true,
+    )
   })
 
   it('rejects if already owned', () => {
     const state = makeState({
       resources: { r0: 100 },
       upgrades: {
-        uh: 1,
-        u1: 0,
+        'sh-unlock': 1,
+        'sc-unlock': 0,
       },
     })
-    expect(isValidPurchase(state, 'uh', testUpgradeMap)).toBe(false)
+    expect(isValidPurchase(state, 'sh-unlock', testUpgradeMap)).toBe(false)
   })
 
   it('rejects if too expensive', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 24 } }), 'u1', testUpgradeMap)).toBe(false)
+    expect(isValidPurchase(makeState({ resources: { r0: 49 } }), 'sc-unlock', testUpgradeMap)).toBe(
+      false,
+    )
   })
 
   it('rejects an unknown upgrade ID', () => {
@@ -157,7 +163,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(idlerDef, timedGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'u5', filteredMap)).toBe(false)
+    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap)).toBe(false)
   })
 
   it('accepts the trophy under buy-upgrade goal when affordable', () => {
@@ -169,7 +175,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(idlerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'u5', filteredMap)).toBe(true)
+    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap)).toBe(true)
   })
 
   it('rejects the trophy under buy-upgrade goal when too expensive', () => {
@@ -183,7 +189,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     )
     const state = makeAffordableState()
     state.resources.r0 = 100 // trophy costs 30000
-    expect(isValidPurchase(state, 'u5', filteredMap)).toBe(false)
+    expect(isValidPurchase(state, 'goal', filteredMap)).toBe(false)
   })
 })
 

@@ -6,9 +6,10 @@
     "r1"
   ],
   "scoreResource": "r0",
-  "clicksEnabled": false,
+  "clicksEnabled": true,
   "highlightEnabled": true,
-  "highlightUnlockUpgrade": "uh",
+  "highlightUnlockUpgrade": "sh-unlock",
+  "clickUnlockUpgrade": "sc-unlock",
   "initialResources": {
     "r0": 0,
     "r1": 0
@@ -109,28 +110,370 @@
       "showClickStats": false,
       "upgrades": [
         {
-          "id": "uh",
-          "name": "🔦 Focus Training",
-          "icon": "🔦",
-          "description": "Unlock highlighting (×2 to selected resource)"
-        },
-        {
-          "id": "uh2",
-          "name": "🔬 Sharper Focus",
-          "icon": "🔬",
-          "description": "Boost highlight to ×3 on the selected resource"
-        },
-        {
-          "id": "u1",
-          "name": "🌲 Heavy Logging",
-          "icon": "🌲",
-          "description": "+5 base 🪵/sec"
-        },
-        {
-          "id": "u5",
+          "id": "goal",
           "name": "👑 Royal Throne",
           "icon": "👑",
           "description": "Carved from the finest oak. Cements your reign."
+        },
+        {
+          "id": "be-af-mr",
+          "name": "be-af-mr",
+          "icon": "🌱",
+          "description": "+1 base 🪵/sec"
+        },
+        {
+          "id": "be-mf-mr",
+          "name": "be-mf-mr",
+          "icon": "🌱",
+          "description": "*1.1 base 🪵/sec"
+        },
+        {
+          "id": "be-mr-bank",
+          "name": "be-mr-bank",
+          "icon": "🌱",
+          "description": "For each 1000 🪵 you have, gain 1% base 🪵/sec"
+        },
+        {
+          "id": "be-af-sr",
+          "name": "be-af-sr",
+          "icon": "🌱",
+          "description": "+1 base 🍺/sec"
+        },
+        {
+          "id": "be-mf-sr",
+          "name": "be-mf-sr",
+          "icon": "🌱",
+          "description": "*1.1 base 🍺/sec"
+        },
+        {
+          "id": "be-sr-bank",
+          "name": "be-sr-bank",
+          "icon": "🌱",
+          "description": "For each 1000 🍺 you have, gain 1% base 🍺/sec"
+        },
+        {
+          "id": "ae-mf-ar",
+          "name": "ae-mf-ar",
+          "icon": "🌳",
+          "description": "All resources gain *1.1/sec"
+        },
+        {
+          "id": "ae-mf-ar-time",
+          "name": "ae-mf-ar-time",
+          "icon": "🌳",
+          "description": "A global multiplier that increased as time pass after its purchase\n(minute gives 10% boost (base))"
+        },
+        {
+          "id": "ae-atf",
+          "name": "ae-atf",
+          "icon": "🌳",
+          "description": "Increase the time bonus factor for new seconds"
+        },
+        {
+          "id": "ae-tf-retro",
+          "name": "ae-tf-retro",
+          "icon": "🌳",
+          "description": "The better time factor now works retro which give big bonus."
+        },
+        {
+          "id": "g1-g2",
+          "name": "g1-g2",
+          "icon": "⚙️",
+          "description": "Unlock the Generators Panel and give access to G1 and G2."
+        },
+        {
+          "id": "g1-af",
+          "name": "g1-af",
+          "icon": "⚙️",
+          "description": "G1 doing +1/sec"
+        },
+        {
+          "id": "g1-mf",
+          "name": "g1-mf",
+          "icon": "⚙️",
+          "description": "G1 doing *1.1/sec"
+        },
+        {
+          "id": "g1-dp",
+          "name": "g1-dp",
+          "icon": "⚙️",
+          "description": "G1 price decrease by 5%"
+        },
+        {
+          "id": "g1-dpf",
+          "name": "g1-dpf",
+          "icon": "⚙️",
+          "description": "G1 price factor decrease by 2%"
+        },
+        {
+          "id": "g2-dpf",
+          "name": "g2-dpf",
+          "icon": "⚙️",
+          "description": "G2 price factor decrease by 2%"
+        },
+        {
+          "id": "g2-dp",
+          "name": "g2-dp",
+          "icon": "⚙️",
+          "description": "G2 price decrease by 5%"
+        },
+        {
+          "id": "g2-mf",
+          "name": "g2-mf",
+          "icon": "⚙️",
+          "description": "G2 doing *1.1/sec"
+        },
+        {
+          "id": "g2-af",
+          "name": "g2-af",
+          "icon": "⚙️",
+          "description": "G2 doing +1/sec"
+        },
+        {
+          "id": "g3-g4",
+          "name": "g3-g4",
+          "icon": "⚙️",
+          "description": "Give access to G3 and G4."
+        },
+        {
+          "id": "g3-af",
+          "name": "g3-af",
+          "icon": "⚙️",
+          "description": "G3 doing +1/sec"
+        },
+        {
+          "id": "g3-mf",
+          "name": "g3-mf",
+          "icon": "⚙️",
+          "description": "G3 doing *1.1/sec"
+        },
+        {
+          "id": "g3-dp",
+          "name": "g3-dp",
+          "icon": "⚙️",
+          "description": "G3 price decrease by 5%"
+        },
+        {
+          "id": "g3-dpf",
+          "name": "g3-dpf",
+          "icon": "⚙️",
+          "description": "G3 price factor decrease by 2%"
+        },
+        {
+          "id": "g4-af",
+          "name": "g4-af",
+          "icon": "⚙️",
+          "description": "G4 doing +1/sec"
+        },
+        {
+          "id": "g4-mf",
+          "name": "g4-mf",
+          "icon": "⚙️",
+          "description": "G4 doing *1.1/sec"
+        },
+        {
+          "id": "g4-dp",
+          "name": "g4-dp",
+          "icon": "⚙️",
+          "description": "G4 price decrease by 5%"
+        },
+        {
+          "id": "g4-dpf",
+          "name": "g4-dpf",
+          "icon": "⚙️",
+          "description": "G4 price factor decrease by 2%"
+        },
+        {
+          "id": "lower-g",
+          "name": "lower-g",
+          "icon": "⚙️",
+          "description": "Lower tier G give boost to higher tiers."
+        },
+        {
+          "id": "balance-g",
+          "name": "balance-g",
+          "icon": "⚙️",
+          "description": "Gain boost when all the generators have the same amount."
+        },
+        {
+          "id": "higher-g",
+          "name": "higher-g",
+          "icon": "⚙️",
+          "description": "The generator with the highest amount gain additional boost."
+        },
+        {
+          "id": "sc-unlock",
+          "name": "sc-unlock",
+          "icon": "🖱️",
+          "description": "Unlock clicking."
+        },
+        {
+          "id": "sc-af-cp",
+          "name": "sc-af-cp",
+          "icon": "🖱️",
+          "description": "Clicking give +1 more resource per click."
+        },
+        {
+          "id": "sc-mf-cp",
+          "name": "sc-mf-cp",
+          "icon": "🖱️",
+          "description": "Clicking give *1.1 more resource per click."
+        },
+        {
+          "id": "sc-clicking",
+          "name": "sc-clicking",
+          "icon": "🖱️",
+          "description": "Global production boosts clicking power."
+        },
+        {
+          "id": "sc-production",
+          "name": "sc-production",
+          "icon": "🖱️",
+          "description": "Clicks affects global production factor."
+        },
+        {
+          "id": "sh-unlock",
+          "name": "sh-unlock",
+          "icon": "🔎",
+          "description": "Unlock highlight."
+        },
+        {
+          "id": "sh-mf-hp",
+          "name": "sh-mf-hp",
+          "icon": "🔎",
+          "description": "Increase highlight factor."
+        },
+        {
+          "id": "shb-unlock",
+          "name": "shb-unlock",
+          "icon": "🔎",
+          "description": "Unlock highlight battery."
+        },
+        {
+          "id": "shb-bp",
+          "name": "node",
+          "icon": "🔎",
+          "description": "Increase battery factor."
+        },
+        {
+          "id": "shb-mc",
+          "name": "shb-mc",
+          "icon": "🔎",
+          "description": "Highlight battery increase max charge."
+        },
+        {
+          "id": "shb-mf-cs",
+          "name": "shb-mf-cs",
+          "icon": "🔎",
+          "description": "Increase battery charging speed."
+        },
+        {
+          "id": "shb-mf-ds",
+          "name": "shb-mf-ds",
+          "icon": "🔎",
+          "description": "Decrease battery draining speed."
+        },
+        {
+          "id": "shb-hcp",
+          "name": "shb-hcp",
+          "icon": "🔎",
+          "description": "High charge more power."
+        },
+        {
+          "id": "shb-lcp",
+          "name": "shb-lcp",
+          "icon": "🔎",
+          "description": "Low charge more power."
+        },
+        {
+          "id": "sb-unlock",
+          "name": "sb-unlock",
+          "icon": "🏛️",
+          "description": "Bank system"
+        },
+        {
+          "id": "a-unlock",
+          "name": "a-unlock",
+          "icon": "💥",
+          "description": "Unlock attack panel"
+        },
+        {
+          "id": "ir-unlock",
+          "name": "ir-unlock",
+          "icon": "🌍",
+          "description": "Unlock international relationship \npanel"
+        },
+        {
+          "id": "e-se-mr",
+          "name": "e-se-mr",
+          "icon": "🕵",
+          "description": "Unlock Espionage Panel and See enemy main resource (maybe move the espionage unlocks to the espionage panel itself)"
+        },
+        {
+          "id": "e-se-mr-ps",
+          "name": "e-se-mr-ps",
+          "icon": "🕵",
+          "description": "See enemy main resources per sec."
+        },
+        {
+          "id": "e-se-sr",
+          "name": "e-se-sr",
+          "icon": "🕵",
+          "description": "See enemy secondary resources."
+        },
+        {
+          "id": "e-se-sr-ps",
+          "name": "e-se-sr-ps",
+          "icon": "🕵",
+          "description": "See enemy secondary resources per sec."
+        },
+        {
+          "id": "e-se-cps",
+          "name": "e-se-cps",
+          "icon": "🕵",
+          "description": "See enemy clicks per second."
+        },
+        {
+          "id": "e-se-p",
+          "name": "e-se-p",
+          "icon": "🕵",
+          "description": "A popup when enemy purchase generator or upgrade."
+        },
+        {
+          "id": "e-p-ug",
+          "name": "e-p-ug",
+          "icon": "🕵",
+          "description": "The popup differs when enemy purchase upgrade or generator."
+        },
+        {
+          "id": "e-p-g",
+          "name": "e-p-g",
+          "icon": "🕵",
+          "description": "The popup tells which generator the enemy brought."
+        },
+        {
+          "id": "e-p-u",
+          "name": "e-p-u",
+          "icon": "🕵",
+          "description": "The popup tells which upgrade the enemy brought."
+        },
+        {
+          "id": "d-alert",
+          "name": "d-alert",
+          "icon": "🛡️",
+          "description": "Alert 5 seconds before enemy attacks. (Must be attack at least once to unlock)"
+        },
+        {
+          "id": "d-as",
+          "name": "d-as",
+          "icon": "🛡️",
+          "description": "Add one more second to the alert."
+        },
+        {
+          "id": "d-aa",
+          "name": "d-aa",
+          "icon": "🛡️",
+          "description": "The alert tells which attack incoming."
         }
       ],
       "generators": [
@@ -159,67 +502,7 @@
   ],
   "upgrades": [
     {
-      "id": "uh",
-      "cost": {
-        "r0": 5
-      },
-      "purchaseLimit": 1,
-      "modifiers": [],
-      "effects": [
-        {
-          "type": "highlightMultiplier",
-          "multiplier": 2
-        }
-      ],
-      "offset": {
-        "x": 0,
-        "y": 0
-      },
-      "children": [
-        {
-          "id": "uh2",
-          "cost": {
-            "r0": 100
-          },
-          "purchaseLimit": 1,
-          "modifiers": [],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "uh"
-          },
-          "effects": [
-            {
-              "type": "highlightMultiplier",
-              "multiplier": 1.5
-            }
-          ],
-          "offset": {
-            "x": 0,
-            "y": 150
-          }
-        }
-      ]
-    },
-    {
-      "id": "u1",
-      "cost": {
-        "r0": 25
-      },
-      "purchaseLimit": 1,
-      "modifiers": [
-        {
-          "stage": "additive",
-          "field": "r0",
-          "value": 5
-        }
-      ],
-      "offset": {
-        "x": 200,
-        "y": 0
-      }
-    },
-    {
-      "id": "u5",
+      "id": "goal",
       "cost": {
         "r0": 30000
       },
@@ -227,9 +510,960 @@
       "modifiers": [],
       "goalType": "buy-upgrade",
       "offset": {
-        "x": 600,
-        "y": 0
+        "x": 48,
+        "y": 48
       }
+    },
+    {
+      "id": "be-af-mr",
+      "cost": {},
+      "purchaseLimit": null,
+      "modifiers": [
+        {
+          "stage": "additive",
+          "field": "r0",
+          "value": 1
+        }
+      ],
+      "offset": {
+        "x": 96,
+        "y": 144
+      },
+      "children": [
+        {
+          "id": "be-mf-mr",
+          "cost": {},
+          "purchaseLimit": null,
+          "modifiers": [
+            {
+              "stage": "multiplicative",
+              "field": "r0",
+              "value": 1.1
+            }
+          ],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "be-af-mr"
+          },
+          "offset": {
+            "x": -48,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "be-mr-bank",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "be-mf-mr"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "be-af-sr",
+          "cost": {},
+          "purchaseLimit": null,
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "r1",
+              "value": 1
+            }
+          ],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "be-af-mr"
+          },
+          "offset": {
+            "x": 48,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "be-mf-sr",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "r1",
+                  "value": 1.1
+                }
+              ],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "be-af-sr"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "be-sr-bank",
+                  "cost": {},
+                  "purchaseLimit": 1,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "be-mf-sr"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ae-mf-ar",
+      "cost": {},
+      "purchaseLimit": null,
+      "modifiers": [
+        {
+          "stage": "multiplicative",
+          "field": "r0",
+          "value": 1.1
+        },
+        {
+          "stage": "multiplicative",
+          "field": "r1",
+          "value": 1.1
+        }
+      ],
+      "offset": {
+        "x": 240,
+        "y": 144
+      },
+      "children": [
+        {
+          "id": "ae-mf-ar-time",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "offset": {
+            "x": 0,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "ae-atf",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "ae-mf-ar-time"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "ae-tf-retro",
+                  "cost": {},
+                  "purchaseLimit": 1,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "ae-atf"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "g1-g2",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 336,
+        "y": 144
+      },
+      "children": [
+        {
+          "id": "g1-af",
+          "cost": {},
+          "purchaseLimit": null,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
+          "offset": {
+            "x": 120,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "g1-dp",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g1-af"
+              },
+              "offset": {
+                "x": 48,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "g1-dpf",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g1-dp"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  }
+                }
+              ]
+            },
+            {
+              "id": "g1-mf",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g1-af"
+              },
+              "offset": {
+                "x": -48,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "g2-af",
+          "cost": {},
+          "purchaseLimit": null,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
+          "offset": {
+            "x": 312,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "g2-mf",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g2-af"
+              },
+              "offset": {
+                "x": -48,
+                "y": 96
+              }
+            },
+            {
+              "id": "g2-dp",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g2-af"
+              },
+              "offset": {
+                "x": 48,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "g2-dpf",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g2-dp"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g3-g4",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
+          "offset": {
+            "x": 0,
+            "y": 288
+          },
+          "children": [
+            {
+              "id": "g3-af",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "offset": {
+                "x": 120,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "g3-mf",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g3-af"
+                  },
+                  "offset": {
+                    "x": -48,
+                    "y": 96
+                  }
+                },
+                {
+                  "id": "g3-dp",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g3-af"
+                  },
+                  "offset": {
+                    "x": 48,
+                    "y": 96
+                  },
+                  "children": [
+                    {
+                      "id": "g3-dpf",
+                      "cost": {},
+                      "purchaseLimit": null,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "g3-dp"
+                      },
+                      "offset": {
+                        "x": 0,
+                        "y": 96
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "g4-af",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "offset": {
+                "x": 312,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "g4-mf",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g4-af"
+                  },
+                  "offset": {
+                    "x": -48,
+                    "y": 96
+                  }
+                },
+                {
+                  "id": "g4-dp",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g4-af"
+                  },
+                  "offset": {
+                    "x": 48,
+                    "y": 96
+                  },
+                  "children": [
+                    {
+                      "id": "g4-dpf",
+                      "cost": {},
+                      "purchaseLimit": null,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "g4-dp"
+                      },
+                      "offset": {
+                        "x": 0,
+                        "y": 96
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "higher-g",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "choiceGroup": "g-choice",
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "offset": {
+                "x": -192,
+                "y": 120
+              }
+            },
+            {
+              "id": "balance-g",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "choiceGroup": "g-choice",
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "offset": {
+                "x": -96,
+                "y": 120
+              }
+            },
+            {
+              "id": "lower-g",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "choiceGroup": "g-choice",
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "offset": {
+                "x": 0,
+                "y": 120
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sc-unlock",
+      "cost": {
+        "r0": 50
+      },
+      "purchaseLimit": 1,
+      "modifiers": [
+        {
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": 1
+        }
+      ],
+      "offset": {
+        "x": 792,
+        "y": 144
+      },
+      "children": [
+        {
+          "id": "sc-af-cp",
+          "cost": {
+            "r0": 25
+          },
+          "costScaling": {
+            "type": "exponential",
+            "baseCost": 25,
+            "factor": 1.15
+          },
+          "purchaseLimit": null,
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "clickIncome",
+              "value": 1
+            }
+          ],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "sc-unlock"
+          },
+          "offset": {
+            "x": 0,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "sc-mf-cp",
+              "cost": {
+                "r0": 200
+              },
+              "costScaling": {
+                "type": "exponential",
+                "baseCost": 200,
+                "factor": 1.5
+              },
+              "purchaseLimit": null,
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "clickIncome",
+                  "value": 1.1
+                }
+              ],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sc-af-cp"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "sc-clicking",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "choiceGroup": "clicking-choice",
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "sc-unlock"
+          },
+          "offset": {
+            "x": 96,
+            "y": 96
+          }
+        },
+        {
+          "id": "sc-production",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "choiceGroup": "clicking-choice",
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "sc-unlock"
+          },
+          "offset": {
+            "x": 192,
+            "y": 96
+          }
+        },
+        {
+          "id": "sh-unlock",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "effects": [
+            {
+              "type": "highlightMultiplier",
+              "multiplier": 2
+            }
+          ],
+          "offset": {
+            "x": 96,
+            "y": 288
+          },
+          "children": [
+            {
+              "id": "sh-mf-hp",
+              "cost": {},
+              "purchaseLimit": null,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sh-unlock"
+              },
+              "effects": [
+                {
+                  "type": "highlightMultiplier",
+                  "multiplier": 1.1
+                }
+              ],
+              "offset": {
+                "x": 96,
+                "y": 96
+              }
+            },
+            {
+              "id": "shb-unlock",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sh-unlock"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "shb-bp",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "shb-unlock"
+                  },
+                  "offset": {
+                    "x": 96,
+                    "y": 96
+                  }
+                },
+                {
+                  "id": "shb-mc",
+                  "cost": {},
+                  "purchaseLimit": null,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "shb-unlock"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  },
+                  "children": [
+                    {
+                      "id": "shb-mf-cs",
+                      "cost": {},
+                      "purchaseLimit": null,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "shb-mc"
+                      },
+                      "offset": {
+                        "x": 48,
+                        "y": 96
+                      },
+                      "children": [
+                        {
+                          "id": "shb-lcp",
+                          "cost": {},
+                          "purchaseLimit": 1,
+                          "modifiers": [],
+                          "choiceGroup": "battery-choice",
+                          "prerequisites": {
+                            "type": "upgrade",
+                            "id": "shb-mf-cs"
+                          },
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "shb-mf-ds",
+                      "cost": {},
+                      "purchaseLimit": null,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "shb-mc"
+                      },
+                      "offset": {
+                        "x": -48,
+                        "y": 96
+                      },
+                      "children": [
+                        {
+                          "id": "shb-hcp",
+                          "cost": {},
+                          "purchaseLimit": 1,
+                          "modifiers": [],
+                          "choiceGroup": "battery-choice",
+                          "prerequisites": {
+                            "type": "upgrade",
+                            "id": "shb-mf-ds"
+                          },
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sb-unlock",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "offset": {
+            "x": 0,
+            "y": 768
+          }
+        }
+      ]
+    },
+    {
+      "id": "a-unlock",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 1176,
+        "y": 144
+      }
+    },
+    {
+      "id": "ir-unlock",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 1176,
+        "y": 528
+      }
+    },
+    {
+      "id": "e-se-mr",
+      "cost": {},
+      "purchaseLimit": 1,
+      "modifiers": [],
+      "offset": {
+        "x": 1416,
+        "y": 144
+      },
+      "children": [
+        {
+          "id": "e-se-sr",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "e-se-mr"
+          },
+          "offset": {
+            "x": 96,
+            "y": 96
+          }
+        },
+        {
+          "id": "e-se-mr-ps",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "e-se-mr"
+          },
+          "offset": {
+            "x": 0,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "e-se-sr-ps",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "all",
+                "items": [
+                  {
+                    "type": "upgrade",
+                    "id": "e-se-sr"
+                  },
+                  {
+                    "type": "upgrade",
+                    "id": "e-se-mr-ps"
+                  }
+                ]
+              },
+              "offset": {
+                "x": 96,
+                "y": 96
+              }
+            },
+            {
+              "id": "e-se-cps",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "e-se-mr-ps"
+              },
+              "offset": {
+                "x": -96,
+                "y": 96
+              }
+            },
+            {
+              "id": "e-se-p",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "e-se-mr-ps"
+              },
+              "offset": {
+                "x": 0,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "e-p-ug",
+                  "cost": {},
+                  "purchaseLimit": 1,
+                  "modifiers": [],
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "e-se-p"
+                  },
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  },
+                  "children": [
+                    {
+                      "id": "e-p-u",
+                      "cost": {},
+                      "purchaseLimit": 1,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "e-p-ug"
+                      },
+                      "offset": {
+                        "x": -48,
+                        "y": 96
+                      }
+                    },
+                    {
+                      "id": "e-p-g",
+                      "cost": {},
+                      "purchaseLimit": 1,
+                      "modifiers": [],
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "e-p-ug"
+                      },
+                      "offset": {
+                        "x": 48,
+                        "y": 96
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "d-alert",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "offset": {
+            "x": 0,
+            "y": 504
+          },
+          "children": [
+            {
+              "id": "d-as",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "d-alert"
+              },
+              "offset": {
+                "x": -48,
+                "y": 96
+              }
+            },
+            {
+              "id": "d-aa",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "d-alert"
+              },
+              "offset": {
+                "x": 48,
+                "y": 96
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

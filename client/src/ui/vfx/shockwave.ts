@@ -19,7 +19,7 @@ import { hasDom, getLayer, shakeScreen } from './shared.js'
  */
 export function shockwave(label: string): void {
   if (!hasDom()) return
-  const btn = document.getElementById('click-btn')
+  const btn = document.querySelector<HTMLElement>('.click-card')
   if (!btn) return
 
   const rect = btn.getBoundingClientRect()
