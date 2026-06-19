@@ -132,6 +132,7 @@
 - [ ] Simulate purchasing generators (not only upgrades)
 - [ ] Replace strategy checkboxes with auto-simulate-all: run every strategy, show top 5 by final score
 - [ ] Function-based strategies: allow "buy whichever is affordable first" / conditional logic
+- [ ] Scale strategy generation beyond brute-force subset enumeration — `generateStrategies` is `O(2^n)` and currently bails to the baseline (`MAX_ENUM_UPGRADES`) for large trees, so the idler tree gets no auto-strategies. Replace with a prerequisite-aware enumeration (or heuristic/beam search) that handles 50+ upgrades
 
 ### Charts & UX
 
