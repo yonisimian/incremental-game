@@ -89,10 +89,24 @@ export function updateCountdown(state: Readonly<GameState>): void {
 
 // ─── Room Screen ─────────────────────────────────────────────────────
 
+// Signature of the last-rendered room-settings block. Lets updateRoomScreen
+// skip re-rendering when nothing in the settings changed — important now that
+// the creator's goal-tuning input is focusable: an unrelated update (e.g. an
+// opponent joining) must not blow away an in-progress edit and steal focus.
+let lastSettingsSig: string | null = null
+
+/** Identifies everything the settings block renders from (role + mode + goal). */
+function settingsSignature(isCreator: boolean, mode: GameMode, goal: Goal): string {
+  const tunable =
+    goal.type === 'target-score' ? goal.target : goal.type === 'timed' ? goal.durationSec : ''
+  return `${isCreator ? 'c' : 'j'}|${mode}|${goal.type}|${tunable}`
+}
+
 export function renderRoomScreen(state: Readonly<GameState>): void {
   const { roomCode, roomSettings, roomPlayers, isRoomCreator } = state
   if (!roomCode || !roomSettings) return
 
+  lastSettingsSig = settingsSignature(isRoomCreator, roomSettings.mode, roomSettings.goal)
   const shareUrl = `${location.origin}${location.pathname}?room=${roomCode}`
   const playerSlots = renderPlayerSlots(roomPlayers)
   const settingsHtml = isRoomCreator
@@ -148,15 +162,25 @@ export function updateRoomScreen(state: Readonly<GameState>): void {
     playersEl.innerHTML = renderPlayerSlots(state.roomPlayers)
   }
 
-  // Settings section needs full re-render (mode/goal may have changed)
+  // Settings section: re-render only when its inputs would actually differ.
+  // Skipping no-op renders preserves an in-progress goal-tuning edit (and its
+  // focus) when an unrelated update — like an opponent joining — arrives.
   const settingsEl = document.getElementById('room-settings')
   if (settingsEl && state.roomSettings) {
-    const newSettingsHtml = state.isRoomCreator
-      ? renderCreatorSettings(state.roomSettings.mode, state.roomSettings.goal)
-      : renderJoinerSettings(state.roomSettings.mode, state.roomSettings.goal)
-    settingsEl.outerHTML = newSettingsHtml
-    if (state.isRoomCreator) {
-      wireCreatorSettings(state.roomSettings.mode)
+    const sig = settingsSignature(
+      state.isRoomCreator,
+      state.roomSettings.mode,
+      state.roomSettings.goal,
+    )
+    if (sig !== lastSettingsSig) {
+      lastSettingsSig = sig
+      const newSettingsHtml = state.isRoomCreator
+        ? renderCreatorSettings(state.roomSettings.mode, state.roomSettings.goal)
+        : renderJoinerSettings(state.roomSettings.mode, state.roomSettings.goal)
+      settingsEl.outerHTML = newSettingsHtml
+      if (state.isRoomCreator) {
+        wireCreatorSettings(state.roomSettings.mode)
+      }
     }
   }
 
