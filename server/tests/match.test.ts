@@ -56,11 +56,11 @@ describe('Match', () => {
     return m
   }
 
-  function clickMsg(seq: number) {
+  function clickMsg(seq: number, resource?: string) {
     return JSON.stringify({
       type: 'ACTION_BATCH',
       seq,
-      actions: [{ type: 'click', timestamp: Date.now() }],
+      actions: [{ type: 'click', timestamp: Date.now(), resource }],
     })
   }
 
@@ -472,6 +472,44 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
       expect(u.player.score).toBeLessThan(2)
+    })
+
+    it('credits a clicked non-score resource without adding to score', () => {
+      const m = enterIdlerPlaying()
+      vi.advanceTimersByTime(50_000) // accumulate ~50 r0
+      m.handleMessage('p1', buyMsg('sc-unlock', 1)) // clickIncome now +1
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // Baseline: r0 and r1 share the same passive rate (1/sec, no highlight),
+      // so over any interval their deltas match — unless a click lands.
+      const before = latestUpdate(ws1)
+      m.handleMessage('p1', clickMsg(2, 'r1')) // click credits r1, not score
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const after = latestUpdate(ws1)
+
+      const scoreDelta = after.player.score - before.player.score
+      const r1Delta = after.player.resources.r1 - before.player.resources.r1
+      // r1 got the shared passive plus exactly one click (income 1); score got
+      // only the passive (clicking r1 must not touch the score resource).
+      expect(r1Delta - scoreDelta).toBeCloseTo(1)
+    })
+
+    it('credits the score resource on click (adds to score)', () => {
+      const m = enterIdlerPlaying()
+      vi.advanceTimersByTime(50_000) // accumulate ~50 r0
+      m.handleMessage('p1', buyMsg('sc-unlock', 1)) // clickIncome now +1
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const before = latestUpdate(ws1)
+      m.handleMessage('p1', clickMsg(2, 'r0')) // r0 is the score resource
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const after = latestUpdate(ws1)
+
+      const scoreDelta = after.player.score - before.player.score
+      const r1Delta = after.player.resources.r1 - before.player.resources.r1
+      // Clicking the score resource adds the click income on top of the shared
+      // passive, so score outgrows the untouched r1 by exactly one click.
+      expect(scoreDelta - r1Delta).toBeCloseTo(1)
     })
 
     it('r0 resource is present, no extraneous keys in idler mode', () => {

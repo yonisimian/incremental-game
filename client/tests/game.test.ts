@@ -610,4 +610,61 @@ describe('game.ts', () => {
       expect(game.getState().player.resources.r0).toBe(0)
     })
   })
+
+  // ── Idler: doClick ─────────────────────────────────────────────────
+
+  describe('idler doClick', () => {
+    /** Unlock clicking (sc-unlock grants +1 clickIncome) with both buckets empty. */
+    function unlockClicking(g: GameModule): void {
+      g.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            meta: { highlight: 'r0' },
+          },
+        }),
+      )
+    }
+
+    it('credits a clicked non-score resource without adding to score', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.doClick('r1')
+      const s = game.getState()
+      expect(s.player.resources.r1).toBe(1) // click income credited to r1
+      expect(s.player.resources.r0).toBe(0) // score bucket untouched
+      expect(s.player.score).toBe(0) // clicking r1 never adds to score
+    })
+
+    it('credits the score resource and adds to score', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.doClick('r0') // r0 is the score resource
+      const s = game.getState()
+      expect(s.player.resources.r0).toBe(1)
+      expect(s.player.score).toBe(1)
+    })
+
+    it('defaults to the score resource when no target is given', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.doClick()
+      const s = game.getState()
+      expect(s.player.resources.r0).toBe(1)
+      expect(s.player.score).toBe(1)
+    })
+
+    it('falls back to the score resource for an unknown target', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.doClick('bogus')
+      const s = game.getState()
+      expect(s.player.resources.r0).toBe(1)
+      expect(s.player.score).toBe(1)
+      expect(s.player.resources.bogus).toBeUndefined()
+    })
+  })
 })
