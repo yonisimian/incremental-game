@@ -16,6 +16,8 @@ import {
   parentOf,
   subtreeIdsOf,
   reparentNode,
+  nodeFlavor,
+  setNodeFlavor,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -117,6 +119,27 @@ describe('addNode', () => {
     addNode(tree, 'ghost', createNode('orphan', { x: 0, y: 0 }))
     expect(tree.upgrades.map((n) => n.id)).toContain('orphan')
   })
+
+  it('seeds a default flavor entry for the new node in every flavor', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = []
+    addNode(tree, null, createNode('fresh', { x: 0, y: 0 }))
+    expect(tree.flavors[0].upgrades).toContainEqual({
+      id: 'fresh',
+      name: 'fresh',
+      icon: '❓',
+      description: '',
+    })
+  })
+
+  it('does not duplicate an existing flavor entry', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = [{ id: 'keep', name: 'Keep', icon: '★', description: 'kept' }]
+    addNode(tree, null, createNode('keep', { x: 0, y: 0 }))
+    expect(tree.flavors[0].upgrades.filter((e) => e.id === 'keep')).toEqual([
+      { id: 'keep', name: 'Keep', icon: '★', description: 'kept' },
+    ])
+  })
 })
 
 // ─── removeNode ──────────────────────────────────────────────────────
@@ -142,6 +165,20 @@ describe('removeNode', () => {
     expect(findNode(tree, 'd')?.prerequisites).toBeUndefined()
   })
 
+  it('removes flavor entries for deleted nodes', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = [
+      { id: 'a', name: 'A', icon: 'A', description: 'Alpha' },
+      { id: 'd', name: 'D', icon: 'D', description: 'Delta' },
+    ]
+
+    removeNode(tree, 'd')
+
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'a', name: 'A', icon: 'A', description: 'Alpha' },
+    ])
+  })
+
   it('keeps surviving references when pruning an all/any group', () => {
     const tree = makeTree()
     findNode(tree, 'd')!.prerequisites = {
@@ -163,6 +200,47 @@ describe('removeNode', () => {
     const tree = makeTree()
     expect(removeNode(tree, 'nope')).toEqual([])
     expect(collectIds(tree).sort()).toEqual(['a', 'b', 'c', 'd'])
+  })
+})
+
+// ─── nodeFlavor / setNodeFlavor ──────────────────────────────────────
+
+describe('nodeFlavor', () => {
+  it('returns the table entry for a node when one exists', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = [{ id: 'a', name: 'Axe', icon: '🪓', description: 'Cuts trees' }]
+    expect(nodeFlavor(tree, 'a')).toEqual({
+      id: 'a',
+      name: 'Axe',
+      icon: '🪓',
+      description: 'Cuts trees',
+    })
+  })
+
+  it('falls back to an id-derived default when no entry exists', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = []
+    expect(nodeFlavor(tree, 'a')).toEqual({ id: 'a', name: 'a', icon: '❓', description: '' })
+  })
+})
+
+describe('setNodeFlavor', () => {
+  it('updates an existing entry in place', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = [{ id: 'a', name: 'Old', icon: 'x', description: 'desc' }]
+    setNodeFlavor(tree, 'a', { name: 'Axe', icon: '🪓', description: 'Cuts trees' })
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'a', name: 'Axe', icon: '🪓', description: 'Cuts trees' },
+    ])
+  })
+
+  it('appends a new entry when the node has none', () => {
+    const tree = makeTree()
+    tree.flavors[0].upgrades = []
+    setNodeFlavor(tree, 'a', { name: 'Axe', icon: '🪓', description: 'Cuts trees' })
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'a', name: 'Axe', icon: '🪓', description: 'Cuts trees' },
+    ])
   })
 })
 

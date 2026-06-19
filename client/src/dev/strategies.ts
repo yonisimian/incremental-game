@@ -44,6 +44,13 @@ export const UPGRADE_ABBR: Record<string, string> = {
 // ─── Strategy Generator ──────────────────────────────────────────────
 
 /**
+ * Largest upgrade count for which exhaustive `2^n` subset enumeration stays
+ * tractable. Above this, `generateStrategies` skips generation rather than
+ * hanging the dev panel. `2^8 = 256` subsets is well within budget.
+ */
+const MAX_ENUM_UPGRADES = 8
+
+/**
  * Generate all valid strategies for a mode by enumerating upgrade subsets.
  *
  * For each subset:
@@ -70,12 +77,21 @@ function generateStrategies(modeDef: ModeDefinition): Strategy[] {
 
   const strategies: Strategy[] = []
 
-  // Always include the "no upgrades" baseline
-  strategies.push({ name: 'No upgrades (r0)', actions: [hl('r0')] })
-  strategies.push({ name: 'No upgrades (r1)', actions: [hl('r1')] })
+  // Always include the "no upgrades" baseline (highlight the score resource and
+  // idle). Every strategy starts with a highlight so the simulator/charts have a
+  // defined active resource from t=0.
+  strategies.push({ name: 'No upgrades', actions: [hl(modeDef.scoreResource)] })
 
-  // Enumerate subsets via bitmask (max ~2^10 = 1024 subsets)
+  // Enumerate subsets via bitmask. This is exponential (2^n), so it only stays
+  // tractable for small trees; beyond MAX_ENUM_UPGRADES it would hang the dev
+  // panel (and `1 << n` silently overflows JS's 32-bit bitwise math at n ≥ 31).
   const n = upgrades.length
+  if (n > MAX_ENUM_UPGRADES) {
+    console.warn(
+      `[strategies] ${n} upgrades → 2^${n} subsets is intractable; skipping auto-generation (cap ${MAX_ENUM_UPGRADES}).`,
+    )
+    return strategies
+  }
   for (let mask = 1; mask < 1 << n; mask++) {
     const subset = upgrades.filter((_, i) => mask & (1 << i))
     const subsetIds = new Set(subset.map((u) => u.id))

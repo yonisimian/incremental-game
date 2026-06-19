@@ -8,7 +8,7 @@
  * generated from each registered effect's zod param schema.
  */
 
-import { listEffectTypes, resolveEffect, type TreeUpgradeNode } from '@game/shared'
+import { listEffectTypes, resolveEffect, type TreeFile, type TreeUpgradeNode } from '@game/shared'
 
 import {
   defaultParamsForEffect,
@@ -19,7 +19,10 @@ import {
   type FieldSpec,
 } from './effect-schema.js'
 
+import { nodeFlavor, setNodeFlavor } from './model.js'
+
 export interface InspectorContext {
+  readonly tree: TreeFile
   readonly node: TreeUpgradeNode
   /** All node ids in the tree (for the prerequisite checklist). */
   readonly allIds: readonly string[]
@@ -575,6 +578,42 @@ function buildEffectsSection(ctx: InspectorContext): HTMLElement {
   return section
 }
 
+function buildFlavorSection(ctx: InspectorContext): HTMLElement {
+  const section = el('div', 'ed-section')
+  section.append(el('h4', 'ed-section-title', 'Flavor'))
+
+  const current = nodeFlavor(ctx.tree, ctx.node.id)
+  const nameInput = el('input', 'ed-input')
+  nameInput.type = 'text'
+  nameInput.value = current.name
+  const iconInput = el('input', 'ed-input')
+  iconInput.type = 'text'
+  iconInput.value = current.icon
+  const descriptionInput = el('textarea', 'ed-input ed-json')
+  descriptionInput.rows = 3
+  descriptionInput.value = current.description
+
+  const sync = (): void => {
+    setNodeFlavor(ctx.tree, ctx.node.id, {
+      name: nameInput.value.trim() || ctx.node.id,
+      icon: iconInput.value.trim() || current.icon,
+      description: descriptionInput.value.trim(),
+    })
+    ctx.onChange()
+  }
+
+  nameInput.addEventListener('change', sync)
+  iconInput.addEventListener('change', sync)
+  descriptionInput.addEventListener('change', sync)
+
+  section.append(
+    field('Name', nameInput),
+    field('Icon', iconInput),
+    field('Description', descriptionInput),
+  )
+  return section
+}
+
 function buildChoiceSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Choice group'))
@@ -617,6 +656,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildModifiersSection(ctx),
     buildPrerequisitesSection(ctx),
     buildEffectsSection(ctx),
+    buildFlavorSection(ctx),
     buildChoiceSection(ctx),
   )
 }

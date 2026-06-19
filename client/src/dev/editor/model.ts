@@ -9,6 +9,12 @@
 
 import type { TreeFile, TreeUpgradeNode } from '@game/shared'
 
+/** A node's display-flavor entry, as stored in the mode flavor table. */
+export type NodeFlavor = TreeFile['flavors'][number]['upgrades'][number]
+
+/** Default icon for a freshly seeded flavor entry (matches the canvas default). */
+const DEFAULT_FLAVOR_ICON = '❓'
+
 /** A node paired with its resolved absolute canvas position. */
 export interface PositionedNode {
   readonly node: TreeUpgradeNode
@@ -140,15 +146,77 @@ export function uniqueId(tree: TreeFile, base = 'node'): string {
 
 /**
  * Append `node` as a child of `parentId`, or as a new root when `parentId` is
- * `null` (or the parent can't be found). Mutates the tree in place.
+ * `null` (or the parent can't be found). Mutates the tree in place. Also seeds a
+ * default flavor entry for the node so the tree stays loadable (the runtime
+ * requires every upgrade to have one); idempotent, so re-parenting won't
+ * duplicate it.
  */
 export function addNode(tree: TreeFile, parentId: string | null, node: TreeUpgradeNode): void {
+  ensureNodeFlavor(tree, node.id)
   const parent = parentId === null ? null : findNode(tree, parentId)
   if (!parent) {
     tree.upgrades.push(node)
     return
   }
   setChildren(parent, [...childrenOf(parent), node])
+}
+
+// ─── Display flavor (the mode flavor table) ──────────────────────────
+//
+// Flavor lives solely in `flavors[].upgrades[]`; the runtime resolves names,
+// icons, and descriptions only from there. The editor reads/writes the primary
+// flavor (`flavors[0]`) and keeps every flavor's table in sync with the node set
+// so the tree stays valid (`validateModeDefinition` forbids missing/orphaned
+// entries in any flavor).
+
+/** The primary flavor's editable upgrade table, or `[]` if the tree has none. */
+function primaryFlavorUpgrades(tree: TreeFile): NodeFlavor[] {
+  return tree.flavors[0]?.upgrades ?? []
+}
+
+/** The display flavor for `id`, or a default derived from the id when absent. */
+export function nodeFlavor(tree: TreeFile, id: string): NodeFlavor {
+  return (
+    primaryFlavorUpgrades(tree).find((entry) => entry.id === id) ?? {
+      id,
+      name: id,
+      icon: DEFAULT_FLAVOR_ICON,
+      description: '',
+    }
+  )
+}
+
+/** Upsert the primary display flavor for `id`. Mutates the tree in place. */
+export function setNodeFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string; description: string },
+): void {
+  const table = primaryFlavorUpgrades(tree)
+  const existing = table.find((entry) => entry.id === id)
+  if (existing) {
+    existing.name = values.name
+    existing.icon = values.icon
+    existing.description = values.description
+  } else {
+    table.push({ id, ...values })
+  }
+}
+
+/** Ensure every flavor has an entry for `id` (default when missing). No-op if present. */
+function ensureNodeFlavor(tree: TreeFile, id: string): void {
+  for (const flavor of tree.flavors) {
+    if (!flavor.upgrades.some((entry) => entry.id === id)) {
+      flavor.upgrades.push({ id, name: id, icon: DEFAULT_FLAVOR_ICON, description: '' })
+    }
+  }
+}
+
+/** Drop flavor entries for any of `removed` from every flavor. */
+function pruneFlavors(tree: TreeFile, removed: ReadonlySet<string>): void {
+  for (const flavor of tree.flavors) {
+    flavor.upgrades = flavor.upgrades.filter((entry) => !removed.has(entry.id))
+  }
 }
 
 /** All ids in the subtree rooted at `node` (the node itself plus descendants). */
@@ -185,6 +253,7 @@ function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
  */
 export function removeNode(tree: TreeFile, id: string): string[] {
   let removed: string[] = []
+
   const removeFrom = (list: TreeUpgradeNode[]): boolean => {
     const idx = list.findIndex((n) => n.id === id)
     if (idx >= 0) {
@@ -202,7 +271,11 @@ export function removeNode(tree: TreeFile, id: string): string[] {
     return false
   }
   removeFrom(tree.upgrades)
-  if (removed.length > 0) pruneReferences(tree, new Set(removed))
+  if (removed.length > 0) {
+    const removedSet = new Set(removed)
+    pruneFlavors(tree, removedSet)
+    pruneReferences(tree, removedSet)
+  }
   return removed
 }
 

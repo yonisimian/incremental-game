@@ -128,7 +128,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
   // Pad each line endpoint by this many pixels so lines stop short of node
   // centers and never visually pass "behind" a node body (even when locked
   // styling reduces background opacity).
-  const NODE_CLEARANCE = 60
+  const NODE_CLEARANCE = 40
   const edgeLines: string[] = []
   for (const u of tree) {
     if (!u.position) continue
