@@ -24,7 +24,7 @@ export const MIN_ROUND_DURATION_SEC = 10
 export const MAX_ROUND_DURATION_SEC = 600
 
 /** Countdown before round starts (seconds). */
-export const COUNTDOWN_SEC = 3
+export const COUNTDOWN_SEC = 0
 
 // ─── Server Tick Rates ───────────────────────────────────────────────
 
