@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } from '@game/shared'
-import { COUNTDOWN_SEC, getModeDefinition, ROUND_DURATION_SEC } from '@game/shared'
+import {
+  COUNTDOWN_SEC,
+  getModeDefinition,
+  isMaxed,
+  isUnlimited,
+  ROUND_DURATION_SEC,
+} from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 
 // ─── Module-level mocks ──────────────────────────────────────────────
@@ -185,6 +191,26 @@ describe('game.ts', () => {
 
       vi.advanceTimersByTime(1000)
       expect(game.getState().screen).toBe('playing')
+    })
+
+    it('restores Infinity purchaseLimit lost to JSON transport', () => {
+      // `Infinity` serializes to `null` over the wire. Simulate the mangled
+      // payload the client actually receives and confirm unlimited upgrades are
+      // not treated as maxed.
+      const wireUpgrades = idlerDef.upgrades.map((u) =>
+        isUnlimited(u) ? { ...u, purchaseLimit: null as unknown as number } : u,
+      )
+      const unlimitedId = idlerDef.upgrades.find(isUnlimited)!.id
+      game.handleServerMessage(
+        makeRoundStart({
+          config: { mode: 'idler', goal: defaultTimedGoal, upgrades: wireUpgrades },
+        }),
+      )
+      const stored = game.getState().upgrades.find((u) => u.id === unlimitedId)!
+      expect(stored.purchaseLimit).toBe(Infinity)
+      expect(isUnlimited(stored)).toBe(true)
+      expect(isMaxed(stored, 0)).toBe(false)
+      expect(isMaxed(stored, 5)).toBe(false)
     })
   })
 
