@@ -1,7 +1,12 @@
 import type { GameState } from '../game.js'
 import { quitMatch, togglePause } from '../game.js'
-import { getModeDefinition, getModeFlavor } from '@game/shared'
-import type { ModeFlavor } from '@game/shared'
+import {
+  collectModifiers,
+  computePassiveRates,
+  getModeDefinition,
+  getModeFlavor,
+} from '@game/shared'
+import type { ModeDefinition, ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
 import {
   app,
@@ -32,16 +37,33 @@ import { getModeUI, type ModeUI } from './mode-ui.js'
 // Flavor objects are static constants, so stale refs don't leak allocations.
 let activeModeUI: ModeUI | null = null
 let activeFlavor: ModeFlavor | null = null
+let activeModeDef: ModeDefinition | null = null
+
+/** Idle production per resource — includes highlight, excludes click income. */
+function passiveRates(state: Readonly<GameState>): Record<string, number> {
+  if (!activeModeDef) return {}
+  return computePassiveRates(collectModifiers(state.player, activeModeDef), activeModeDef.resources)
+}
+
+/** Format an idle production rate for the header (e.g. "+2/s", "+0.5/s"). */
+function formatRate(rate: number): string {
+  const decimals = Number.isInteger(rate) ? 0 : 1
+  return `+${formatNumber(rate, decimals)}/s`
+}
 
 /** Resource bar shown in the header, visible across all tabs. */
 function renderResourceBar(state: Readonly<GameState>): string {
   if (!activeFlavor || activeFlavor.resources.length === 0) return ''
+  const rates = passiveRates(state)
   return `
     <div class="resource-bar" id="resource-bar">
       ${activeFlavor.resources
         .map((r) => {
           const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
-          return `<span class="${cls}">${r.icon} <span id="header-${r.key}">${formatNumber(state.player.resources[r.key])}</span></span>`
+          return `<span class="${cls}">
+            <span class="resource-amount">${r.icon} <span id="header-${r.key}">${formatNumber(state.player.resources[r.key])}</span></span>
+            <span class="resource-rate" id="rate-${r.key}">${formatRate(rates[r.key] ?? 0)}</span>
+          </span>`
         })
         .join('')}
     </div>
@@ -81,6 +103,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   prevPlayerScore = 0
   activeModeUI = state.mode ? getModeUI(state.mode) : null
   const modeDef = state.mode ? getModeDefinition(state.mode) : null
+  activeModeDef = modeDef
   activeFlavor = modeDef ? getModeFlavor(modeDef) : null
   configurePanels(activeModeUI?.panels ?? [])
 
@@ -154,8 +177,10 @@ export function updatePlaying(state: Readonly<GameState>): void {
 
   // Update resource bar (visible across all tabs)
   if (activeFlavor) {
+    const rates = passiveRates(state)
     for (const r of activeFlavor.resources) {
       setText(`header-${r.key}`, formatNumber(state.player.resources[r.key]))
+      setText(`rate-${r.key}`, formatRate(rates[r.key] ?? 0))
     }
   }
 

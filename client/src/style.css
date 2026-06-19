@@ -824,12 +824,29 @@ body {
 
 .resource-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 1.5rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-size: 1.1rem;
+}
+
+.resource-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+
+.resource-amount {
+  white-space: nowrap;
+}
+
+.resource-rate {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-dim);
 }
 
 .resource-item.gold {
