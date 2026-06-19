@@ -50,6 +50,12 @@ type EffectEntry = NonNullable<TreeUpgradeNode['effects']>[number]
 
 const MODIFIER_STAGES: readonly ModifierStage[] = ['additive', 'multiplicative', 'global']
 
+/**
+ * Modifier targets that aren't resources: the pipeline routes these to the
+ * `ModifierContext` directly instead of `rates[field]` (see modifiers/pipeline).
+ */
+const MODIFIER_SPECIAL_FIELDS: readonly string[] = ['clickIncome', 'globalMultiplier']
+
 // ─── Prerequisite representability ───────────────────────────────────
 //
 // The simple editor models "all/any of N upgrade ids". Anything richer
@@ -275,7 +281,7 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
     const next: TreeUpgradeNode['modifiers'] = []
     for (const row of rows.querySelectorAll<HTMLDivElement>('.ed-mod-row')) {
       const stage = row.querySelector<HTMLSelectElement>('.ed-mod-stage')!.value as ModifierStage
-      const fieldName = row.querySelector<HTMLInputElement>('.ed-mod-field')!.value.trim()
+      const fieldName = row.querySelector<HTMLSelectElement>('.ed-mod-field')!.value
       const value = Number(row.querySelector<HTMLInputElement>('.ed-mod-value')!.value)
       if (fieldName) next.push({ stage, field: fieldName, value })
     }
@@ -292,10 +298,7 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
       if (s === stage) opt.selected = true
       stageSelect.append(opt)
     }
-    const fieldInput = el('input', 'ed-input ed-mod-field')
-    fieldInput.type = 'text'
-    fieldInput.placeholder = 'field'
-    fieldInput.value = fieldName
+    const fieldSelect = buildModifierFieldSelect(ctx.currencies, fieldName)
     const valueInput = el('input', 'ed-input ed-mod-value')
     valueInput.type = 'number'
     valueInput.value = String(value)
@@ -306,9 +309,9 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
       sync()
     })
     stageSelect.addEventListener('change', sync)
-    fieldInput.addEventListener('change', sync)
+    fieldSelect.addEventListener('change', sync)
     valueInput.addEventListener('change', sync)
-    row.append(stageSelect, fieldInput, valueInput, remove)
+    row.append(stageSelect, fieldSelect, valueInput, remove)
     rows.append(row)
   }
 
@@ -321,6 +324,58 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
   })
   section.append(rows, add)
   return section
+}
+
+/**
+ * A `<select>` of modifier targets: the tree's resources plus the special
+ * pipeline fields (`clickIncome`, `globalMultiplier`). A leading blank marks an
+ * incomplete row (not persisted until a field is picked). An unrecognized value
+ * (e.g. a since-removed resource) is preserved as its own option rather than
+ * silently dropped, mirroring the cost-currency dropdown.
+ */
+function buildModifierFieldSelect(
+  currencies: readonly Currency[],
+  value: string,
+): HTMLSelectElement {
+  const select = el('select', 'ed-input ed-mod-field')
+
+  const blank = el('option', undefined, '(field)')
+  blank.value = ''
+  if (value === '') blank.selected = true
+  select.append(blank)
+
+  const resources = el('optgroup')
+  resources.label = 'Resources'
+  for (const { key, label } of currencies) {
+    const opt = el('option', undefined, label)
+    opt.value = key
+    if (key === value) opt.selected = true
+    resources.append(opt)
+  }
+  if (currencies.length > 0) select.append(resources)
+
+  const special = el('optgroup')
+  special.label = 'Special'
+  for (const fieldName of MODIFIER_SPECIAL_FIELDS) {
+    const opt = el('option', undefined, fieldName)
+    opt.value = fieldName
+    if (fieldName === value) opt.selected = true
+    special.append(opt)
+  }
+  select.append(special)
+
+  const known =
+    value === '' ||
+    currencies.some((c) => c.key === value) ||
+    MODIFIER_SPECIAL_FIELDS.includes(value)
+  if (!known) {
+    const opt = el('option', undefined, `${value} (unknown)`)
+    opt.value = value
+    opt.selected = true
+    select.append(opt)
+  }
+
+  return select
 }
 
 function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
