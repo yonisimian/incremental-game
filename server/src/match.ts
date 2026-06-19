@@ -121,7 +121,6 @@ export class Match {
     const config = {
       mode: this.mode,
       goal: this.goal,
-      upgrades: [...this.availableUpgrades],
     }
 
     for (let i = 0; i < this.players.length; i++) {

@@ -14,6 +14,7 @@ import {
   createInitialState,
   getDefaultGoal,
   getModeDefinition,
+  getAvailableUpgrades,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
   canAffordGenerator,
@@ -517,9 +518,9 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.matchId = msg.matchId
   state.mode = msg.config.mode
   state.goal = msg.config.goal
-  state.upgrades = msg.config.upgrades
-  state.opponentName = msg.opponentName
   const modeDef = getModeDefinition(msg.config.mode)
+  state.upgrades = getAvailableUpgrades(modeDef, msg.config.goal)
+  state.opponentName = msg.opponentName
   state.player = createInitialState(modeDef)
   state.opponent = createInitialState(modeDef)
   state.timeLeft =
