@@ -421,7 +421,12 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
       const box = row.querySelector<HTMLInputElement>('input[type=checkbox]')!
       if (!box.checked) continue
       const level = row.querySelector<HTMLInputElement>('.ed-prereq-level')!
-      const minLevel = Math.max(1, Math.floor(Number(level.value) || 1))
+      let minLevel = Math.max(1, Math.floor(Number(level.value) || 1))
+      // Clamp to the parent's purchase limit so we never author JSON the loader
+      // would reject; reflect the clamp back into the field.
+      const max = Number(level.max)
+      if (Number.isFinite(max) && max >= 1) minLevel = Math.min(minLevel, max)
+      if (String(minLevel) !== level.value) level.value = String(minLevel)
       items.push({ id: box.value, minLevel: minLevel > 1 ? minLevel : undefined })
     }
     ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', items })
