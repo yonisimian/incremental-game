@@ -6,8 +6,12 @@ import {
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
   applyGeneratorPurchase,
+  isGeneratorUnlocked,
+  collectGeneratorCostFactors,
+  applyGeneratorCostFactors,
+  resolveGeneratorDef,
 } from '../src/generators.js'
-import type { GeneratorDefinition, PlayerState } from '../src/types.js'
+import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -215,6 +219,159 @@ describe('applyGeneratorPurchase', () => {
     applyGeneratorPurchase(state, 'g0', mode)
 
     expect(state.resources.r0).toBe(15) // 20 - 5
+    expect(state.generators.g0).toBe(1)
+  })
+})
+
+// ─── isGeneratorUnlocked ─────────────────────────────────────────────
+
+describe('isGeneratorUnlocked', () => {
+  it('is always unlocked when no unlockUpgrade gate is set', () => {
+    const def = makeDef()
+    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def)).toBe(true)
+  })
+
+  it('is locked until the gating upgrade is owned', () => {
+    const def = makeDef({ unlockUpgrade: 'u-unlock' })
+    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def)).toBe(false)
+    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-unlock': 1 } }), def)).toBe(true)
+  })
+})
+
+// ─── Generator cost factors (dp / dpf) ───────────────────────────────
+
+function makeUpgrade(overrides: Partial<UpgradeDefinition>): UpgradeDefinition {
+  return {
+    id: 'u0',
+    cost: { r0: 10 },
+    purchaseLimit: 1,
+    modifiers: [],
+    ...overrides,
+  }
+}
+
+function makeModeWithUpgrades(
+  generators: GeneratorDefinition[],
+  upgrades: UpgradeDefinition[],
+): ModeDefinition {
+  return { ...makeMode(generators), upgrades }
+}
+
+describe('applyGeneratorCostFactors', () => {
+  it('returns the same definition for neutral factors', () => {
+    const def = makeDef()
+    expect(applyGeneratorCostFactors(def)).toBe(def)
+    expect(applyGeneratorCostFactors(def, { costFactor: 1, scalingFactor: 1 })).toBe(def)
+  })
+
+  it('scales base cost by costFactor', () => {
+    const def = makeDef({ baseCost: 100, costScaling: 1.5 })
+    const adjusted = applyGeneratorCostFactors(def, { costFactor: 0.95, scalingFactor: 1 })
+    expect(adjusted.baseCost).toBeCloseTo(95)
+    expect(adjusted.costScaling).toBe(1.5)
+  })
+
+  it('scales the growth portion of costScaling by scalingFactor', () => {
+    const def = makeDef({ baseCost: 100, costScaling: 1.5 })
+    // growth 0.5 * 0.98 = 0.49 → scaling 1.49
+    const adjusted = applyGeneratorCostFactors(def, { costFactor: 1, scalingFactor: 0.98 })
+    expect(adjusted.costScaling).toBeCloseTo(1.49)
+    expect(adjusted.baseCost).toBe(100)
+  })
+})
+
+describe('collectGeneratorCostFactors', () => {
+  it('returns an empty map when no owned upgrade reduces cost', () => {
+    const mode = makeModeWithUpgrades(
+      [makeDef()],
+      [makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }] })],
+    )
+    const state = makeState({ upgrades: {} }) // u0 not owned
+    expect(collectGeneratorCostFactors(state, mode).size).toBe(0)
+  })
+
+  it('aggregates factors from an owned upgrade', () => {
+    const mode = makeModeWithUpgrades(
+      [makeDef()],
+      [
+        makeUpgrade({
+          id: 'u0',
+          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9, scalingFactor: 0.98 }],
+        }),
+      ],
+    )
+    const state = makeState({ upgrades: { u0: 1 } })
+    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    expect(factors.costFactor).toBeCloseTo(0.9)
+    expect(factors.scalingFactor).toBeCloseTo(0.98)
+  })
+
+  it('compounds a repeatable upgrade by owned count (factor ** owned)', () => {
+    const mode = makeModeWithUpgrades(
+      [makeDef()],
+      [
+        makeUpgrade({
+          id: 'u0',
+          purchaseLimit: Infinity,
+          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }],
+        }),
+      ],
+    )
+    const state = makeState({ upgrades: { u0: 3 } })
+    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    expect(factors.costFactor).toBeCloseTo(0.9 ** 3)
+  })
+
+  it('stacks factors across multiple owned upgrades', () => {
+    const mode = makeModeWithUpgrades(
+      [makeDef()],
+      [
+        makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }] }),
+        makeUpgrade({ id: 'u1', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.5 }] }),
+      ],
+    )
+    const state = makeState({ upgrades: { u0: 1, u1: 1 } })
+    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    expect(factors.costFactor).toBeCloseTo(0.45)
+  })
+})
+
+describe('resolveGeneratorDef', () => {
+  it('applies the cost reduction granted by an owned upgrade', () => {
+    const def = makeDef({ baseCost: 100, costScaling: 1.5 })
+    const mode = makeModeWithUpgrades(
+      [def],
+      [
+        makeUpgrade({
+          id: 'u0',
+          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.95, scalingFactor: 0.98 }],
+        }),
+      ],
+    )
+    const resolved = resolveGeneratorDef(def, makeState({ upgrades: { u0: 1 } }), mode)
+    expect(resolved.baseCost).toBeCloseTo(95)
+    expect(resolved.costScaling).toBeCloseTo(1.49)
+  })
+
+  it('returns the original definition when no reduction applies', () => {
+    const def = makeDef()
+    const mode = makeModeWithUpgrades([def], [])
+    expect(resolveGeneratorDef(def, makeState(), mode)).toBe(def)
+  })
+})
+
+describe('applyGeneratorPurchase with cost reductions', () => {
+  it('charges the reduced base cost when a discount upgrade is owned', () => {
+    const def = makeDef({ baseCost: 100, costScaling: 1 })
+    const mode = makeModeWithUpgrades(
+      [def],
+      [makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.5 }] })],
+    )
+    const state = makeState({ resources: { r0: 100 }, upgrades: { u0: 1 }, generators: {} })
+
+    applyGeneratorPurchase(state, 'g0', mode)
+
+    expect(state.resources.r0).toBe(50) // 100 - (100 * 0.5)
     expect(state.generators.g0).toBe(1)
   })
 })

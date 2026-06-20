@@ -31,6 +31,27 @@ export interface EffectRef {
   readonly [param: string]: unknown
 }
 
+/**
+ * Declarative, static reduction of a generator's cost curve, granted while the
+ * owning upgrade is owned. Both factors stack multiplicatively across upgrades
+ * and compound with the owning upgrade's owned count (`factor ** owned`).
+ */
+export interface GeneratorCostModifier {
+  /** Which generator this reduction applies to (matches `GeneratorDefinition.id`). */
+  readonly generator: string
+  /**
+   * Multiplies the generator's base cost (e.g. `0.95` = 5% cheaper). Models a
+   * flat "price decrease". Defaults to `1` (no change) when omitted.
+   */
+  readonly costFactor?: number
+  /**
+   * Multiplies the *growth portion* of the cost curve, i.e. `costScaling - 1`
+   * (e.g. `0.98` = 2% slower price growth). Models a "price factor decrease".
+   * Defaults to `1` (no change) when omitted.
+   */
+  readonly scalingFactor?: number
+}
+
 /** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
@@ -76,6 +97,13 @@ export interface UpgradeDefinition {
    * Replaces the old `dynamicModifier` closure with pure, serializable data.
    */
   readonly effects?: readonly EffectRef[]
+  /**
+   * Declarative reductions to generator cost curves applied while this upgrade
+   * is owned (the "price decrease" / "price factor decrease" track). Consumed
+   * by `collectGeneratorCostFactors` / `resolveGeneratorDef`, not the modifier
+   * pipeline — generator costs live outside the income pipeline.
+   */
+  readonly generatorCostModifiers?: readonly GeneratorCostModifier[]
 }
 
 /** Static definition of a generator building (repeatable, scaling cost). */
@@ -91,6 +119,11 @@ export interface GeneratorDefinition {
     readonly resource: string
     readonly rate: number
   }
+  /**
+   * If set, this generator is hidden/locked until the named upgrade is owned
+   * (mirrors `ModeDefinition.highlightUnlockUpgrade`). Unset = always available.
+   */
+  readonly unlockUpgrade?: string
 }
 
 /** Full state of a single player within a match. */

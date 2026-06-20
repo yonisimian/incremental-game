@@ -76,6 +76,25 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
 
+  // Referential integrity for generator gating + cost reductions: a typo in an
+  // authored id would otherwise be silently ignored at runtime.
+  const upgradeIds = new Set(def.upgrades.map((u) => u.id))
+  const generatorIds = new Set(def.generators.map((g) => g.id))
+  for (const gen of def.generators) {
+    if (gen.unlockUpgrade !== undefined && !upgradeIds.has(gen.unlockUpgrade))
+      throw new Error(
+        `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
+      )
+  }
+  for (const u of def.upgrades) {
+    for (const cm of u.generatorCostModifiers ?? []) {
+      if (!generatorIds.has(cm.generator))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' generatorCostModifiers references unknown generator '${cm.generator}'`,
+        )
+    }
+  }
+
   // Effect refs: resolve + parse once up front, so unknown types or malformed
   // params fail at startup rather than mid-tick. Also warms the per-ref cache.
   for (const ref of def.effects ?? []) prepareEffect(ref)
@@ -255,18 +274,27 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
+  // Normalize an effect's single-or-array (or null) output and route each modifier.
+  // A single `Modifier` carries a `stage` discriminant; an array does not.
+  const routeEffect = (out: Modifier | readonly Modifier[] | null): void => {
+    if (!out) return
+    if ('stage' in out) {
+      routeModifier(out)
+    } else {
+      for (const mod of out) routeModifier(mod)
+    }
+  }
+
   // Mode-level effects — state-derived modifiers applied to every player.
   for (const ref of mode.effects ?? []) {
-    const mod = applyEffect(ref, state)
-    if (mod) routeModifier(mod)
+    routeEffect(applyEffect(ref, state, mode))
   }
 
   // Upgrade-level effects — per-upgrade state-derived bonuses (owned upgrades only).
   for (const upgrade of mode.upgrades) {
     if ((state.upgrades[upgrade.id] ?? 0) <= 0) continue
     for (const ref of upgrade.effects ?? []) {
-      const mod = applyEffect(ref, state)
-      if (mod) routeModifier(mod)
+      routeEffect(applyEffect(ref, state, mode))
     }
   }
 

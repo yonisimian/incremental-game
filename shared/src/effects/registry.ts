@@ -1,4 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
+import type { ModeDefinition } from '../modes/types.js'
 import type { EffectRef, PlayerState } from '../types.js'
 import type { EffectDef } from './types.js'
 
@@ -57,10 +58,14 @@ export function prepareEffect(ref: EffectRef): PreparedEffect {
 }
 
 /**
- * Run an effect for the given state, returning a modifier or `null`.
+ * Run an effect for the given state, returning modifier(s) or `null`.
  * Params are resolved + parsed once per ref (see `prepareEffect`).
  */
-export function applyEffect(ref: EffectRef, state: Readonly<PlayerState>): Modifier | null {
+export function applyEffect(
+  ref: EffectRef,
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): Modifier | readonly Modifier[] | null {
   const { def, params } = prepareEffect(ref)
-  return def.apply(params, state)
+  return def.apply(params, state, mode)
 }
