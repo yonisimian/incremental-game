@@ -284,7 +284,12 @@ describe('collectGeneratorCostFactors', () => {
   it('returns an empty map when no owned upgrade reduces cost', () => {
     const mode = makeModeWithUpgrades(
       [makeDef()],
-      [makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }] })],
+      [
+        makeUpgrade({
+          id: 'u0',
+          effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.9 }],
+        }),
+      ],
     )
     const state = makeState({ upgrades: {} }) // u0 not owned
     expect(collectGeneratorCostFactors(state, mode).size).toBe(0)
@@ -296,7 +301,9 @@ describe('collectGeneratorCostFactors', () => {
       [
         makeUpgrade({
           id: 'u0',
-          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9, scalingFactor: 0.98 }],
+          effects: [
+            { type: 'generatorCost', generator: 'g0', costFactor: 0.9, scalingFactor: 0.98 },
+          ],
         }),
       ],
     )
@@ -313,7 +320,7 @@ describe('collectGeneratorCostFactors', () => {
         makeUpgrade({
           id: 'u0',
           purchaseLimit: Infinity,
-          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }],
+          effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.9 }],
         }),
       ],
     )
@@ -326,8 +333,14 @@ describe('collectGeneratorCostFactors', () => {
     const mode = makeModeWithUpgrades(
       [makeDef()],
       [
-        makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.9 }] }),
-        makeUpgrade({ id: 'u1', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.5 }] }),
+        makeUpgrade({
+          id: 'u0',
+          effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.9 }],
+        }),
+        makeUpgrade({
+          id: 'u1',
+          effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.5 }],
+        }),
       ],
     )
     const state = makeState({ upgrades: { u0: 1, u1: 1 } })
@@ -344,7 +357,9 @@ describe('resolveGeneratorDef', () => {
       [
         makeUpgrade({
           id: 'u0',
-          generatorCostModifiers: [{ generator: 'g0', costFactor: 0.95, scalingFactor: 0.98 }],
+          effects: [
+            { type: 'generatorCost', generator: 'g0', costFactor: 0.95, scalingFactor: 0.98 },
+          ],
         }),
       ],
     )
@@ -365,7 +380,12 @@ describe('applyGeneratorPurchase with cost reductions', () => {
     const def = makeDef({ baseCost: 100, costScaling: 1 })
     const mode = makeModeWithUpgrades(
       [def],
-      [makeUpgrade({ id: 'u0', generatorCostModifiers: [{ generator: 'g0', costFactor: 0.5 }] })],
+      [
+        makeUpgrade({
+          id: 'u0',
+          effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.5 }],
+        }),
+      ],
     )
     const state = makeState({ resources: { r0: 100 }, upgrades: { u0: 1 }, generators: {} })
 

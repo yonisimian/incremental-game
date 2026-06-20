@@ -12,7 +12,8 @@ import {
 } from '../game-config.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
-import { applyEffect, prepareEffect } from '../effects/index.js'
+import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import type { EffectOutput } from '../effects/index.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -86,11 +87,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
       )
   }
+  // `generatorCost` effects name a generator by id; validate that ref up front
+  // (the generic effect schema only checks it's a string). This is the one
+  // effect that points at another mechanic, so the check is targeted by type.
   for (const u of def.upgrades) {
-    for (const cm of u.generatorCostModifiers ?? []) {
-      if (!generatorIds.has(cm.generator))
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'generatorCost') continue
+      const target = ref.generator
+      if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
-          `[${id}] upgrade '${u.id}' generatorCostModifiers references unknown generator '${cm.generator}'`,
+          `[${id}] upgrade '${u.id}' generatorCost effect references unknown generator '${target}'`,
         )
     }
   }
@@ -274,15 +280,11 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
-  // Normalize an effect's single-or-array (or null) output and route each modifier.
-  // A single `Modifier` carries a `stage` discriminant; an array does not.
-  const routeEffect = (out: Modifier | readonly Modifier[] | null): void => {
-    if (!out) return
-    if ('stage' in out) {
-      routeModifier(out)
-    } else {
-      for (const mod of out) routeModifier(mod)
-    }
+  // Route an effect's outputs: production `Modifier`s feed the pipeline;
+  // cost-track outputs (`GeneratorCostOutput`) belong to a different subsystem
+  // (`collectGeneratorCostFactors`) and are ignored here.
+  const routeEffect = (out: EffectOutput | readonly EffectOutput[] | null): void => {
+    for (const o of normalizeEffectOutputs(out)) if ('stage' in o) routeModifier(o)
   }
 
   // Mode-level effects — state-derived modifiers applied to every player.

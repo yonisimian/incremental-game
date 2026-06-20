@@ -72,13 +72,6 @@ const GeneratorSchema = z.strictObject({
   unlockUpgrade: z.string().optional(),
 })
 
-/** A declarative reduction to a generator's cost curve (see `GeneratorCostModifier`). */
-const GeneratorCostModifierSchema = z.strictObject({
-  generator: z.string(),
-  costFactor: z.number().optional(),
-  scalingFactor: z.number().optional(),
-})
-
 // ─── Flavor schemas ──────────────────────────────────────────────────
 
 const ResourceFlavorSchema = z.strictObject({
@@ -129,7 +122,6 @@ const UpgradeNodeSchema = z.strictObject({
   prerequisites: PrerequisiteSchema.optional(),
   goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
   effects: z.array(EffectRefSchema).optional(),
-  generatorCostModifiers: z.array(GeneratorCostModifierSchema).optional(),
   offset: PositionSchema,
   get children() {
     return z.array(UpgradeNodeSchema).optional()

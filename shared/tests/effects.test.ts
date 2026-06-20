@@ -46,6 +46,7 @@ describe('effect registry', () => {
     expect(listEffectTypes()).toEqual([
       'balancedGenerators',
       'dominantGenerator',
+      'generatorCost',
       'highlightMultiplier',
       'lowerTierBoost',
     ])
@@ -308,6 +309,31 @@ describe('balancedGenerators effect', () => {
     expect(
       applyEffect({ type: 'balancedGenerators', multiplier: 2 }, createInitialState(mode), mode),
     ).toBeNull()
+  })
+})
+
+describe('generatorCost effect', () => {
+  it('emits a generatorCost output carrying both factors', () => {
+    const mode = getModeDefinition('idler')
+    const gen = mode.generators[0].id
+    expect(
+      applyEffect(
+        { type: 'generatorCost', generator: gen, costFactor: 0.95, scalingFactor: 0.98 },
+        createInitialState(mode),
+        mode,
+      ),
+    ).toEqual({ kind: 'generatorCost', generator: gen, costFactor: 0.95, scalingFactor: 0.98 })
+  })
+
+  it('is ignored by the production pipeline (collectModifiers drops cost outputs)', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0].id
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'generatorCost', generator: gen, costFactor: 0.5 }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
   })
 })
 

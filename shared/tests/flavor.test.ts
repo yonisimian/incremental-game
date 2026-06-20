@@ -326,7 +326,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('throws when generatorCostModifiers reference an unknown generator', () => {
+  it('throws when a generatorCost effect references an unknown generator', () => {
     const def = makeValidDef({
       upgrades: [
         {
@@ -334,16 +334,16 @@ describe('validateModeDefinition — negative tests', () => {
           cost: { r0: 10 },
           purchaseLimit: 1,
           modifiers: [],
-          generatorCostModifiers: [{ generator: 'g-missing', costFactor: 0.95 }],
+          effects: [{ type: 'generatorCost', generator: 'g-missing', costFactor: 0.95 }],
         },
       ],
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/upgrade 'u0' generatorCostModifiers references unknown generator 'g-missing'/)
+    }).toThrow(/upgrade 'u0' generatorCost effect references unknown generator 'g-missing'/)
   })
 
-  it('accepts generatorCostModifiers that reference a real generator', () => {
+  it('accepts a generatorCost effect that references a real generator', () => {
     const base = makeValidDef()
     const def = withFlavor(
       {
@@ -363,7 +363,7 @@ describe('validateModeDefinition — negative tests', () => {
             cost: { r0: 10 },
             purchaseLimit: 1,
             modifiers: [],
-            generatorCostModifiers: [{ generator: 'g0', costFactor: 0.95 }],
+            effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.95 }],
           },
         ],
       },

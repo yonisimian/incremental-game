@@ -1,5 +1,9 @@
 import type { GeneratorDefinition, PlayerState } from './types.js'
 import type { ModeDefinition } from './modes/types.js'
+import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
+// Importing from the effects barrel ensures seed effects (incl. `generatorCost`)
+// are registered whenever cost factors are collected.
+import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
 
 /** Aggregated cost reductions for a single generator (1 = no reduction). */
 export interface GeneratorCostFactors {
@@ -12,7 +16,17 @@ export interface GeneratorCostFactors {
 const NEUTRAL_COST_FACTORS: GeneratorCostFactors = { costFactor: 1, scalingFactor: 1 }
 
 /**
- * Aggregate every owned upgrade's `generatorCostModifiers` into per-generator
+ * Whether an effect output is a generator cost reduction (vs a production
+ * `Modifier`). `GeneratorCostOutput` is currently the only non-`Modifier`
+ * output, so the `kind` tag alone discriminates; add an explicit
+ * `kind === 'generatorCost'` check here if more output kinds are introduced.
+ */
+function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
+  return 'kind' in out
+}
+
+/**
+ * Aggregate every owned upgrade's `generatorCost` effects into per-generator
  * cost factors. Factors stack multiplicatively and compound with the owning
  * upgrade's owned count (`factor ** owned`). Generators with no reductions are
  * absent from the map (callers fall back to {@link NEUTRAL_COST_FACTORS}).
@@ -25,11 +39,17 @@ export function collectGeneratorCostFactors(
   for (const upgrade of mode.upgrades) {
     const owned = state.upgrades[upgrade.id] ?? 0
     if (owned <= 0) continue
-    for (const mod of upgrade.generatorCostModifiers ?? []) {
-      const entry = factors.get(mod.generator) ?? { costFactor: 1, scalingFactor: 1 }
-      if (mod.costFactor !== undefined) entry.costFactor *= mod.costFactor ** owned
-      if (mod.scalingFactor !== undefined) entry.scalingFactor *= mod.scalingFactor ** owned
-      factors.set(mod.generator, entry)
+    for (const ref of upgrade.effects ?? []) {
+      // Skip non-cost effects without running them: only `generatorCost` yields
+      // a cost output, so there's no need to evaluate production effects here.
+      if (ref.type !== 'generatorCost') continue
+      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (!isCostOutput(o)) continue
+        const entry = factors.get(o.generator) ?? { costFactor: 1, scalingFactor: 1 }
+        if (o.costFactor !== undefined) entry.costFactor *= o.costFactor ** owned
+        if (o.scalingFactor !== undefined) entry.scalingFactor *= o.scalingFactor ** owned
+        factors.set(o.generator, entry)
+      }
     }
   }
   return factors
