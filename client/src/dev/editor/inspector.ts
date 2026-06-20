@@ -19,7 +19,7 @@ import {
   type FieldSpec,
 } from './effect-schema.js'
 
-import { nodeFlavor, setNodeFlavor } from './model.js'
+import { findNode, nodeFlavor, setNodeFlavor } from './model.js'
 
 export interface InspectorContext {
   readonly tree: TreeFile
@@ -58,28 +58,46 @@ const MODIFIER_SPECIAL_FIELDS: readonly string[] = ['clickIncome', 'globalMultip
 
 // ─── Prerequisite representability ───────────────────────────────────
 //
-// The simple editor models "all/any of N upgrade ids". Anything richer
-// (minLevel, nested groups) round-trips through a raw-JSON textarea instead.
+// The simple editor models "all/any of N upgrade ids", each with an optional
+// minimum level. Anything richer (nested groups) round-trips through a
+// raw-JSON textarea instead.
+
+/** A single required upgrade. `minLevel` of 1 (or omitted) means "owned". */
+interface SimplePrereqItem {
+  readonly id: string
+  readonly minLevel?: number
+}
 
 interface SimplePrereq {
   readonly mode: 'all' | 'any'
-  readonly ids: string[]
+  readonly items: SimplePrereqItem[]
 }
 
 function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
-  if (!prereq) return { mode: 'all', ids: [] }
+  if (!prereq) return { mode: 'all', items: [] }
   if (prereq.type === 'upgrade') {
-    return prereq.minLevel === undefined ? { mode: 'all', ids: [prereq.id] } : null
+    return { mode: 'all', items: [{ id: prereq.id, minLevel: prereq.minLevel }] }
   }
-  const flat = prereq.items.every((i) => i.type === 'upgrade' && i.minLevel === undefined)
+  const flat = prereq.items.every((i) => i.type === 'upgrade')
   if (!flat) return null
-  return { mode: prereq.type, ids: prereq.items.map((i) => (i as { id: string }).id) }
+  return {
+    mode: prereq.type,
+    items: prereq.items.map((i) => {
+      const u = i as { id: string; minLevel?: number }
+      return { id: u.id, minLevel: u.minLevel }
+    }),
+  }
 }
 
 function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
-  if (simple.ids.length === 0) return undefined
-  if (simple.ids.length === 1) return { type: 'upgrade', id: simple.ids[0] }
-  return { type: simple.mode, items: simple.ids.map((id) => ({ type: 'upgrade', id })) }
+  // A minLevel of 1 is the default ("owned"), so drop it to keep the JSON terse.
+  const toExpr = (item: SimplePrereqItem): Prereq =>
+    item.minLevel !== undefined && item.minLevel > 1
+      ? { type: 'upgrade', id: item.id, minLevel: item.minLevel }
+      : { type: 'upgrade', id: item.id }
+  if (simple.items.length === 0) return undefined
+  if (simple.items.length === 1) return toExpr(simple.items[0])
+  return { type: simple.mode, items: simple.items.map(toExpr) }
 }
 
 // ─── DOM helpers ─────────────────────────────────────────────────────
@@ -398,26 +416,49 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   const checklist = el('div', 'ed-checklist')
 
   const sync = (): void => {
-    const ids: string[] = []
-    for (const box of checklist.querySelectorAll<HTMLInputElement>('input:checked')) {
-      ids.push(box.value)
+    const items: SimplePrereqItem[] = []
+    for (const row of checklist.querySelectorAll<HTMLDivElement>('.ed-prereq-row')) {
+      const box = row.querySelector<HTMLInputElement>('input[type=checkbox]')!
+      if (!box.checked) continue
+      const level = row.querySelector<HTMLInputElement>('.ed-prereq-level')!
+      const minLevel = Math.max(1, Math.floor(Number(level.value) || 1))
+      items.push({ id: box.value, minLevel: minLevel > 1 ? minLevel : undefined })
     }
-    ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', ids })
+    ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', items })
     ctx.onChange()
   }
   modeSelect.addEventListener('change', sync)
 
-  const selected = new Set(simple.ids)
+  const selected = new Map(simple.items.map((i) => [i.id, i.minLevel ?? 1]))
   for (const id of ctx.allIds) {
     if (id === ctx.node.id) continue
+    const row = el('div', 'ed-prereq-row ed-row')
     const item = el('label', 'ed-checklist-item')
     const box = el('input')
     box.type = 'checkbox'
     box.value = id
     box.checked = selected.has(id)
-    box.addEventListener('change', sync)
     item.append(box, document.createTextNode(` ${id}`))
-    checklist.append(item)
+
+    // Per-prerequisite minimum level. Capped at the target's purchase limit so
+    // the form can't author a value the loader's validation would reject.
+    const level = el('input', 'ed-input ed-prereq-level')
+    level.type = 'number'
+    level.min = '1'
+    level.title = 'Minimum level'
+    const limit = findNode(ctx.tree, id)?.purchaseLimit
+    if (typeof limit === 'number') level.max = String(limit)
+    level.value = String(selected.get(id) ?? 1)
+    level.disabled = !box.checked
+
+    box.addEventListener('change', () => {
+      level.disabled = !box.checked
+      sync()
+    })
+    level.addEventListener('change', sync)
+
+    row.append(item, level)
+    checklist.append(row)
   }
 
   section.append(field('Require', modeSelect), checklist)
