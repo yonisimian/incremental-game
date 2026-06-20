@@ -23,7 +23,12 @@ export const MAX_TARGET_SCORE = 100_000
 export const MIN_ROUND_DURATION_SEC = 10
 export const MAX_ROUND_DURATION_SEC = 600
 
-/** Countdown before round starts (seconds). */
+/**
+ * Countdown before round starts (seconds).
+ *
+ * TODO: Temporarily 0 to skip the countdown during development. Restore to 3
+ * before publishing the game.
+ */
 export const COUNTDOWN_SEC = 0
 
 // ─── Server Tick Rates ───────────────────────────────────────────────

@@ -54,9 +54,14 @@ export const stubUpgrades: UpgradeDefinition[] = [
  * The real idler mode definition with its upgrade tree replaced by
  * `stubUpgrades` and the highlight-unlock pointed at `uh`. All other mechanics
  * (resources, native income, goals, tick wiring) come from the real mode.
+ *
+ * Starting funds are pinned to zero: these tests validate engine mechanics
+ * against a stable economy and must not couple to the real tree's seed funds,
+ * which are a balance concern that evolves independently.
  */
 export const stubMode: ModeDefinition = {
   ...getModeDefinition('idler'),
   highlightUnlockUpgrade: 'uh',
   upgrades: stubUpgrades,
+  initialResources: { r0: 0, r1: 0 },
 }

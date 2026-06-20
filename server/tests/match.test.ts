@@ -382,11 +382,15 @@ describe('Match', () => {
 
     it('produces r0 and r1 at 1/sec base rate (no highlight)', () => {
       enterIdlerPlaying()
+      // Players start with seed funds, so assert on the per-second delta rather
+      // than absolute balances. Without highlight unlock: both at base 1/sec.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
-      const u = latestUpdate(ws1)
-      // Without highlight unlock: both at base 1/sec
-      expect(u.player.resources.r0).toBeCloseTo(1, 1)
-      expect(u.player.resources.r1).toBeCloseTo(1, 1)
+      const after = latestUpdate(ws1)
+      expect(after.player.resources.r0 - before.player.resources.r0).toBeCloseTo(1, 1)
+      expect(after.player.resources.r1 - before.player.resources.r1).toBeCloseTo(1, 1)
     })
 
     it('highlight doubles production after unlock', () => {
@@ -443,14 +447,16 @@ describe('Match', () => {
 
     it('cannot buy r0 upgrade with r1', () => {
       const m = enterIdlerWithHighlight()
-      // Switch to r1 to build up only r1
-      m.handleMessage('p1', highlightMsg('r1', 2))
-      vi.advanceTimersByTime(10_000) // r1 ~= 20, r0 ~= 10
-      // Try to buy sc-unlock (costs 50 r0) — should fail since player doesn't have enough r0
-      m.handleMessage('p1', buyMsg('sc-unlock', 3))
+      // Drain the seed r0 (~55) by buying sc-unlock (50 r0), then build up only
+      // r1 by highlighting it. The player ends with ample r1 but little r0.
+      m.handleMessage('p1', buyMsg('sc-unlock', 2))
+      m.handleMessage('p1', highlightMsg('r1', 3))
+      vi.advanceTimersByTime(10_000) // r1 climbs (~45), r0 stays low (~15)
+      // sc-af-cp costs 25 r0 — unaffordable from r0 despite plentiful r1
+      m.handleMessage('p1', buyMsg('sc-af-cp', 4))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const u = latestUpdate(ws1)
-      expect(u.player.upgrades['sc-unlock']).toBe(0)
+      expect(u.player.upgrades['sc-af-cp']).toBe(0)
     })
 
     it('rejects clicks in idler mode', () => {
