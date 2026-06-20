@@ -11,8 +11,8 @@
   "highlightUnlockUpgrade": "sh-unlock",
   "clickUnlockUpgrade": "sc-unlock",
   "initialResources": {
-    "r0": 0,
-    "r1": 0
+    "r0": 50,
+    "r1": 20
   },
   "initialMeta": {
     "highlight": "r0"

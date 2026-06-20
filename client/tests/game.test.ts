@@ -103,7 +103,7 @@ function makeRoundEnd(overrides: Partial<RoundEndMessage> = {}): RoundEndMessage
 /** Advance into the 'playing' state by sending ROUND_START + ticking through countdown. */
 function enterPlaying(game: GameModule): void {
   game.handleServerMessage(makeRoundStart())
-  vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+  advancePastCountdown()
 }
 
 /** Enter idler-mode playing state. */
@@ -113,7 +113,17 @@ function enterIdlerPlaying(game: GameModule): void {
       config: { mode: 'idler', goal: defaultTimedGoal },
     }),
   )
-  vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+  advancePastCountdown()
+}
+
+/**
+ * Tick through the countdown into the playing phase. The countdown interval
+ * fires once per second and always needs at least one tick to transition (it
+ * decrements then checks `<= 0`), so advance at least 1s even when
+ * `COUNTDOWN_SEC` is 0.
+ */
+function advancePastCountdown(): void {
+  vi.advanceTimersByTime(Math.max(COUNTDOWN_SEC, 1) * 1000)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────

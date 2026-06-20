@@ -146,6 +146,14 @@ function removeFromRematchQueue(playerId: string): void {
   }
 }
 
+/** Look up a rematch-queue entry by player ID (for bot-request). */
+function getRematchEntry(playerId: string): RematchEntry | undefined {
+  for (const entry of rematchQueue.values()) {
+    if (entry.id === playerId) return entry
+  }
+  return undefined
+}
+
 /** Roll random settings for quick-match. */
 function rollRandomSettings(): { mode: GameMode; goal: Goal } {
   const mode = AVAILABLE_MODES[Math.floor(Math.random() * AVAILABLE_MODES.length)]
@@ -369,6 +377,26 @@ wss.on('connection', (ws: WebSocket) => {
         const bot = createBot(mode, modeDef, availableUpgrades)
         const match = new Match(
           { id: data.id, ws, name: queueEntry.name },
+          { id: botId, ws: null, name: 'Bot' },
+          mode,
+          goal,
+          bot,
+        )
+        startMatch(match)
+        return
+      }
+
+      // Try rematch queue (player clicked "play against a bot" after a rematch)
+      const rematchEntry = getRematchEntry(data.id)
+      if (rematchEntry) {
+        removeFromRematchQueue(data.id)
+        const { mode, goal, name } = rematchEntry
+        const botId = `bot-${randomUUID()}`
+        const modeDef = getModeDefinition(mode)
+        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
+        const bot = createBot(mode, modeDef, availableUpgrades)
+        const match = new Match(
+          { id: data.id, ws, name },
           { id: botId, ws: null, name: 'Bot' },
           mode,
           goal,

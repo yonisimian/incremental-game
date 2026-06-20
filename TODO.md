@@ -42,6 +42,7 @@
 - [x] Quick-match option (random game mode + game goal)
 - [ ] CPS encourager mechanism (see Trello)
 - [x] Unit tests for buy-upgrade match-end flow (trophy buy → winner; safety-cap → score-based)
+- [ ] Restore `COUNTDOWN_SEC` to 3 before publishing (temporarily 0 to skip the countdown during development)
 
 ## Progression Systems
 
