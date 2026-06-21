@@ -89,6 +89,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
 // ─── Generators Panel ────────────────────────────────────────────────
 
 export const generatorsPanel: Panel = {
+  id: 'generators',
   label: 'Generators',
   icon: '🏭',
 

@@ -146,7 +146,6 @@ export const TreeFileSchema = z.strictObject({
   highlightEnabled: z.boolean(),
   highlightUnlockUpgrade: z.string().optional(),
   clickUnlockUpgrade: z.string().optional(),
-  generatorPanelUnlockUpgrade: z.string().optional(),
   initialResources: z.record(z.string(), z.number()),
   initialMeta: z.record(z.string(), z.unknown()),
   nativeModifiers: z.array(ModifierSchema),

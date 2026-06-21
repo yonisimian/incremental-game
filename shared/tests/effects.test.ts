@@ -49,6 +49,7 @@ describe('effect registry', () => {
       'generatorCost',
       'highlightMultiplier',
       'lowerTierBoost',
+      'panelUnlock',
     ])
   })
 })
@@ -331,6 +332,25 @@ describe('generatorCost effect', () => {
     const withEffect: ModeDefinition = {
       ...base,
       effects: [{ type: 'generatorCost', generator: gen, costFactor: 0.5 }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+})
+
+describe('panelUnlock effect', () => {
+  it('emits a panelUnlock output naming the panel', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'panelUnlock', panel: 'generators' }, createInitialState(mode), mode),
+    ).toEqual({ kind: 'panelUnlock', panel: 'generators' })
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'panelUnlock', panel: 'generators' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))

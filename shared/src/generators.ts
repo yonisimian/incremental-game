@@ -16,13 +16,12 @@ export interface GeneratorCostFactors {
 const NEUTRAL_COST_FACTORS: GeneratorCostFactors = { costFactor: 1, scalingFactor: 1 }
 
 /**
- * Whether an effect output is a generator cost reduction (vs a production
- * `Modifier`). `GeneratorCostOutput` is currently the only non-`Modifier`
- * output, so the `kind` tag alone discriminates; add an explicit
- * `kind === 'generatorCost'` check here if more output kinds are introduced.
+ * Whether an effect output is a generator cost reduction. Other outputs carry a
+ * different `kind` (e.g. `panelUnlock`) or none at all (a production `Modifier`),
+ * so match the tag explicitly.
  */
 function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
-  return 'kind' in out
+  return 'kind' in out && out.kind === 'generatorCost'
 }
 
 /**

@@ -10,7 +10,6 @@
   "highlightEnabled": true,
   "highlightUnlockUpgrade": "sh-unlock",
   "clickUnlockUpgrade": "sc-unlock",
-  "generatorPanelUnlockUpgrade": "g1-g2",
   "initialResources": {
     "r0": 50,
     "r1": 20
@@ -701,6 +700,12 @@
       "cost": {},
       "purchaseLimit": 1,
       "modifiers": [],
+      "effects": [
+        {
+          "type": "panelUnlock",
+          "panel": "generators"
+        }
+      ],
       "offset": {
         "x": 336,
         "y": 144

@@ -23,12 +23,23 @@ export interface GeneratorCostOutput {
 }
 
 /**
- * What an effect's `apply` can emit: a production {@link Modifier} or a
- * {@link GeneratorCostOutput}. The two are routed to different subsystems
- * (`collectModifiers` vs `collectGeneratorCostFactors`); each consumer ignores
- * the outputs it doesn't own.
+ * Marks a UI panel as unlocked while the owning upgrade is held. Consumed by
+ * `isPanelUnlocked` (a panel with no such output for it is always available);
+ * carries no production weight, so the modifier pipeline ignores it.
  */
-export type EffectOutput = Modifier | GeneratorCostOutput
+export interface PanelUnlockOutput {
+  readonly kind: 'panelUnlock'
+  /** Stable panel id this upgrade reveals (matches the client `Panel.id`). */
+  readonly panel: string
+}
+
+/**
+ * What an effect's `apply` can emit: a production {@link Modifier}, a
+ * {@link GeneratorCostOutput}, or a {@link PanelUnlockOutput}. Each is routed to
+ * a different subsystem (`collectModifiers` / `collectGeneratorCostFactors` /
+ * `isPanelUnlocked`); every consumer ignores the outputs it doesn't own.
+ */
+export type EffectOutput = Modifier | GeneratorCostOutput | PanelUnlockOutput
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn

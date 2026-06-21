@@ -8,6 +8,7 @@ import {
   collectModifiers,
   applyPurchase,
   normalizeUpgrades,
+  isPanelUnlocked,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -165,8 +166,26 @@ describe('createInitialState', () => {
   })
 })
 
-// ─── collectModifiers ────────────────────────────────────────────────
+// ─── isPanelUnlocked ─────────────────────────────────────────────────
 
+describe('isPanelUnlocked', () => {
+  it('is always unlocked for a panel no upgrade gates', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    expect(isPanelUnlocked(state, def, 'play')).toBe(true)
+  })
+
+  it('is locked until the gating upgrade is owned', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // idler gates the generators panel behind the `g1-g2` upgrade.
+    expect(isPanelUnlocked(state, def, 'generators')).toBe(false)
+    state.upgrades['g1-g2'] = 1
+    expect(isPanelUnlocked(state, def, 'generators')).toBe(true)
+  })
+})
+
+// ─── collectModifiers ────────────────────────────────────────────────
 describe('collectModifiers', () => {
   it('scales unlimited upgrade modifiers by owned count', () => {
     const unlimitedUpgrade: UpgradeDefinition = {

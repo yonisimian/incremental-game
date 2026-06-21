@@ -62,6 +62,7 @@ function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): strin
 // ─── Panel ───────────────────────────────────────────────────────────
 
 export const upgradeTreePanel: Panel = {
+  id: 'upgrades',
   label: 'Upgrades',
   icon: '🌳',
 

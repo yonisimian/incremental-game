@@ -78,9 +78,6 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     ...(tree.clickUnlockUpgrade !== undefined
       ? { clickUnlockUpgrade: tree.clickUnlockUpgrade }
       : {}),
-    ...(tree.generatorPanelUnlockUpgrade !== undefined
-      ? { generatorPanelUnlockUpgrade: tree.generatorPanelUnlockUpgrade }
-      : {}),
     ...(tree.effects !== undefined ? { effects: tree.effects } : {}),
   }
   validateModeDefinition(tree.id, def)

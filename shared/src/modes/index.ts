@@ -87,13 +87,6 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
       )
   }
-  if (
-    def.generatorPanelUnlockUpgrade !== undefined &&
-    !upgradeIds.has(def.generatorPanelUnlockUpgrade)
-  )
-    throw new Error(
-      `[${id}] generatorPanelUnlockUpgrade references unknown upgrade '${def.generatorPanelUnlockUpgrade}'`,
-    )
   // `generatorCost` effects name a generator by id; validate that ref up front
   // (the generic effect schema only checks it's a string). This is the one
   // effect that points at another mechanic, so the check is targeted by type.
@@ -233,13 +226,28 @@ export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefiniti
   return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
 }
 
-/** Whether the generators panel/tab is currently accessible for this player. */
-export function isGeneratorPanelUnlocked(
+/**
+ * Whether a UI panel is currently accessible for this player. A panel is gated
+ * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
+ * such upgrade is owned. Panels that no upgrade unlocks are always available.
+ */
+export function isPanelUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
+  panelId: string,
 ): boolean {
-  if (!mode.generatorPanelUnlockUpgrade) return true
-  return (state.upgrades[mode.generatorPanelUnlockUpgrade] ?? 0) > 0
+  let gated = false
+  for (const upgrade of mode.upgrades) {
+    for (const ref of upgrade.effects ?? []) {
+      if (ref.type !== 'panelUnlock') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (!('kind' in out) || out.kind !== 'panelUnlock' || out.panel !== panelId) continue
+        if ((state.upgrades[upgrade.id] ?? 0) > 0) return true
+        gated = true
+      }
+    }
+  }
+  return !gated
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────

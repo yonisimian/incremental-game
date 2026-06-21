@@ -1,5 +1,5 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, isGeneratorPanelUnlocked } from '@game/shared'
+import { getModeDefinition, isPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
@@ -12,6 +12,9 @@ export interface ModeUI {
   /** Panels available in this mode, with their tab-grid slot indices. */
   readonly panels: readonly PanelSlot[]
 }
+
+/** Every panel that can appear in a mode — the source list for the editor's `panelUnlock` picker. */
+export const ALL_PANELS = [playPanel, upgradeTreePanel, generatorsPanel] as const
 
 // ─── Public API ──────────────────────────────────────────────────────
 
@@ -32,7 +35,7 @@ export function getModeUI(mode: GameMode): ModeUI {
     panels.push({
       index: panels.length,
       panel: generatorsPanel,
-      isUnlocked: (state) => isGeneratorPanelUnlocked(state.player, modeDef),
+      isUnlocked: (state) => isPanelUnlocked(state.player, modeDef, generatorsPanel.id),
     })
   }
 
