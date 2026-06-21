@@ -1,9 +1,12 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, isPanelUnlocked } from '@game/shared'
+import { getModeDefinition, isPanelGated, isPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
 import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
+import { attackPanel } from './panels/attack-panel.js'
+import { internationalRelationshipPanel } from './panels/international-relationship-panel.js'
+import { espionagePanel } from './panels/espionage-panel.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -14,7 +17,21 @@ export interface ModeUI {
 }
 
 /** Every panel that can appear in a mode — the source list for the editor's `panelUnlock` picker. */
-export const ALL_PANELS = [playPanel, upgradeTreePanel, generatorsPanel] as const
+export const ALL_PANELS = [
+  playPanel,
+  upgradeTreePanel,
+  generatorsPanel,
+  attackPanel,
+  internationalRelationshipPanel,
+  espionagePanel,
+] as const
+
+/**
+ * Panels that exist only when an upgrade unlocks them, in tab order. Each is
+ * surfaced (gated, locked until its `panelUnlock` upgrade is owned) only in
+ * modes whose tree actually unlocks it — see `getModeUI`.
+ */
+const UNLOCKABLE_PANELS = [attackPanel, internationalRelationshipPanel, espionagePanel] as const
 
 // ─── Public API ──────────────────────────────────────────────────────
 
@@ -36,6 +53,17 @@ export function getModeUI(mode: GameMode): ModeUI {
       index: panels.length,
       panel: generatorsPanel,
       isUnlocked: (state) => isPanelUnlocked(state.player, modeDef, generatorsPanel.id),
+    })
+  }
+
+  // Unlockable panels appear (locked) only in modes whose tree gates them with a
+  // `panelUnlock` upgrade, in their declared order.
+  for (const panel of UNLOCKABLE_PANELS) {
+    if (!isPanelGated(modeDef, panel.id)) continue
+    panels.push({
+      index: panels.length,
+      panel,
+      isUnlocked: (state) => isPanelUnlocked(state.player, modeDef, panel.id),
     })
   }
 
