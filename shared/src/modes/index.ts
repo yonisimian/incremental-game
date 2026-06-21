@@ -227,6 +227,49 @@ export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefiniti
 }
 
 /**
+ * Per-mode reverse index: panel id → ids of the upgrades whose `panelUnlock`
+ * effect gates it. This is derived topology (not authored data), so it lives in
+ * a WeakMap keyed by the mode rather than on `ModeDefinition`, and is dropped
+ * automatically when the mode is GC'd.
+ *
+ * `isPanelUnlocked` runs on every frame via the tab-lock refresh, so it must not
+ * scan every upgrade/effect (that grows with the whole tree). The index turns it
+ * into an O(gates-for-this-panel) ownership check — effectively O(1), since a
+ * panel is normally gated by one upgrade.
+ */
+const panelGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
+
+/**
+ * Build (or return the cached) panel-gate index for a mode. `panelUnlock` is
+ * state-independent — it echoes its authored panel id — so a throwaway initial
+ * state is enough to read which panel each effect names.
+ */
+function getPanelGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  const cached = panelGateIndex.get(mode)
+  if (cached) return cached
+
+  const index = new Map<string, string[]>()
+  const probe = createInitialState(mode)
+  for (const upgrade of mode.upgrades) {
+    for (const ref of upgrade.effects ?? []) {
+      if (ref.type !== 'panelUnlock') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
+        if (!('kind' in out) || out.kind !== 'panelUnlock') continue
+        const gates = index.get(out.panel)
+        if (gates) {
+          if (!gates.includes(upgrade.id)) gates.push(upgrade.id)
+        } else {
+          index.set(out.panel, [upgrade.id])
+        }
+      }
+    }
+  }
+
+  panelGateIndex.set(mode, index)
+  return index
+}
+
+/**
  * Whether a UI panel is currently accessible for this player. A panel is gated
  * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
  * such upgrade is owned. Panels that no upgrade unlocks are always available.
@@ -236,18 +279,9 @@ export function isPanelUnlocked(
   mode: ModeDefinition,
   panelId: string,
 ): boolean {
-  let gated = false
-  for (const upgrade of mode.upgrades) {
-    for (const ref of upgrade.effects ?? []) {
-      if (ref.type !== 'panelUnlock') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (!('kind' in out) || out.kind !== 'panelUnlock' || out.panel !== panelId) continue
-        if ((state.upgrades[upgrade.id] ?? 0) > 0) return true
-        gated = true
-      }
-    }
-  }
-  return !gated
+  const gates = getPanelGateIndex(mode).get(panelId)
+  if (!gates) return true // no upgrade gates this panel → always available
+  return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────

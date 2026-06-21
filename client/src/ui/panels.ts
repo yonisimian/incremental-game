@@ -65,6 +65,14 @@ export interface PanelSlot {
  */
 const prevLocked: boolean[] = Array.from<boolean>({ length: TOTAL_SLOTS }).fill(false)
 
+/**
+ * Slots still able to change locked→unlocked. Unlocks are monotonic, so a slot
+ * leaves this set permanently the moment it unlocks (and slots that start
+ * unlocked or have no gate are never added). Once empty, `refreshTabLocks` is a
+ * single set-size check. Seeded by `renderTabGrid`.
+ */
+const pendingSlots = new Set<number>()
+
 /** Whether a registered slot is currently locked by its unlock gate. */
 function isSlotLocked(index: number, state: Readonly<GameState>): boolean {
   const slot = slots[index]
@@ -80,6 +88,7 @@ function isSlotAvailable(index: number, state: Readonly<GameState> = getState())
 export function configurePanels(panelSlots: readonly PanelSlot[]): void {
   slots.fill(null)
   prevLocked.fill(false)
+  pendingSlots.clear()
   activeIndex = 0
   for (const { index, panel, isUnlocked } of panelSlots) {
     slots[index] = isUnlocked ? { panel, isUnlocked } : { panel }
@@ -91,8 +100,14 @@ export function configurePanels(panelSlots: readonly PanelSlot[]): void {
 /** Render the tab grid HTML (5×2 grid of buttons). */
 export function renderTabGrid(state: Readonly<GameState>): string {
   // Seed the locked-state cache first, so the map below is a pure read and
-  // `refreshTabLocks` has a correct baseline to diff against.
-  for (let i = 0; i < TOTAL_SLOTS; i++) prevLocked[i] = !slots[i] || isSlotLocked(i, state)
+  // `refreshTabLocks` has a correct baseline to diff against. A slot that is both
+  // populated and currently locked is the only kind that can still flip, so it's
+  // the only kind tracked for future refreshes.
+  pendingSlots.clear()
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    prevLocked[i] = !slots[i] || isSlotLocked(i, state)
+    if (slots[i] && prevLocked[i]) pendingSlots.add(i)
+  }
   return `
     <div class="tab-grid" id="tab-grid" role="tablist" aria-label="Game panels">
       ${slots
@@ -114,27 +129,33 @@ export function renderTabGrid(state: Readonly<GameState>): string {
 }
 
 /**
- * Re-evaluate per-slot unlock gates and update any tab whose locked state changed
- * (e.g. when the unlocking upgrade is purchased mid-match). Cheap to call every
- * frame — it only touches the DOM when a tab actually flips locked↔unlocked.
+ * Unlock any tab whose gating upgrade was just purchased. Cheap to call every
+ * frame: it only inspects slots that are still locked (`pendingSlots`) and, once
+ * every gate has opened, is a single set-size check.
  *
- * Assumes unlocks are monotonic (upgrades are permanent, so a panel never
- * re-locks); the active tab is therefore never pulled out from under the player.
+ * Relies on unlocks being monotonic (upgrades are permanent, so a panel never
+ * re-locks): each slot is handled once, on the frame it unlocks, then dropped
+ * from the pending set — so the active tab is never pulled out from under the
+ * player.
  */
 export function refreshTabLocks(state: Readonly<GameState>): void {
-  for (let i = 0; i < TOTAL_SLOTS; i++) {
+  if (pendingSlots.size === 0) return
+  for (const i of pendingSlots) {
     const slot = slots[i]
-    if (!slot) continue // empty slots never change
-    const locked = isSlotLocked(i, state)
-    if (locked === prevLocked[i]) continue
-    prevLocked[i] = locked
+    if (!slot) {
+      pendingSlots.delete(i)
+      continue
+    }
+    if (isSlotLocked(i, state)) continue // still locked; re-check next frame
+    // Unlocked — monotonic, so update the DOM once and stop tracking this slot.
+    prevLocked[i] = false
+    pendingSlots.delete(i)
     const btn = document.getElementById(`tab-${i}`)
     if (!btn) continue
-    btn.classList.toggle('locked', locked)
-    btn.textContent = locked ? '🔒' : slot.panel.icon
-    btn.setAttribute('title', `${slot.panel.label}${locked ? ' — Locked' : ''}`)
-    if (locked) btn.setAttribute('aria-disabled', 'true')
-    else btn.removeAttribute('aria-disabled')
+    btn.classList.remove('locked')
+    btn.textContent = slot.panel.icon
+    btn.setAttribute('title', slot.panel.label)
+    btn.removeAttribute('aria-disabled')
   }
 }
 
