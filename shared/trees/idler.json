@@ -583,7 +583,8 @@
           ],
           "prerequisites": {
             "type": "upgrade",
-            "id": "be-af-mr"
+            "id": "be-af-mr",
+            "minLevel": 5
           },
           "offset": {
             "x": 48,
