@@ -14,8 +14,8 @@ import type { EffectDef } from '../types.js'
  */
 const schema = z.strictObject({
   generator: z.string(),
-  costFactor: z.number().optional(),
-  scalingFactor: z.number().optional(),
+  costFactor: z.number().positive().optional(),
+  scalingFactor: z.number().positive().optional(),
 })
 
 /** Params for the `generatorCost` effect (inferred from its schema). */
