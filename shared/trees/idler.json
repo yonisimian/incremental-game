@@ -705,7 +705,13 @@
           "id": "g1-af",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [],
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "g0",
+              "value": 1
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "g1-g2"
@@ -724,6 +730,13 @@
                 "type": "upgrade",
                 "id": "g1-af"
               },
+              "effects": [
+                {
+                  "type": "generatorCost",
+                  "generator": "g0",
+                  "costFactor": 0.9
+                }
+              ],
               "offset": {
                 "x": 48,
                 "y": 96
@@ -738,6 +751,14 @@
                     "type": "upgrade",
                     "id": "g1-dp"
                   },
+                  "effects": [
+                    {
+                      "type": "generatorCost",
+                      "generator": "g0",
+                      "costFactor": 1,
+                      "scalingFactor": 0.9
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -749,7 +770,13 @@
               "id": "g1-mf",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "g0",
+                  "value": 1.1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g1-af"
@@ -765,7 +792,13 @@
           "id": "g2-af",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [],
+          "modifiers": [
+            {
+              "stage": "additive",
+              "field": "g1",
+              "value": 1
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "g1-g2"
@@ -779,7 +812,13 @@
               "id": "g2-mf",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "multiplicative",
+                  "field": "g1",
+                  "value": 1.1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g2-af"
@@ -798,6 +837,13 @@
                 "type": "upgrade",
                 "id": "g2-af"
               },
+              "effects": [
+                {
+                  "type": "generatorCost",
+                  "generator": "g1",
+                  "costFactor": 0.9
+                }
+              ],
               "offset": {
                 "x": 48,
                 "y": 96
@@ -812,6 +858,14 @@
                     "type": "upgrade",
                     "id": "g2-dp"
                   },
+                  "effects": [
+                    {
+                      "type": "generatorCost",
+                      "generator": "g1",
+                      "costFactor": 1,
+                      "scalingFactor": 0.9
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -839,7 +893,13 @@
               "id": "g3-af",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "additive",
+                  "field": "g2",
+                  "value": 1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g3-g4"
@@ -853,7 +913,13 @@
                   "id": "g3-mf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
+                  "modifiers": [
+                    {
+                      "stage": "multiplicative",
+                      "field": "g2",
+                      "value": 1.1
+                    }
+                  ],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g3-af"
@@ -872,6 +938,13 @@
                     "type": "upgrade",
                     "id": "g3-af"
                   },
+                  "effects": [
+                    {
+                      "type": "generatorCost",
+                      "generator": "g2",
+                      "costFactor": 0.9
+                    }
+                  ],
                   "offset": {
                     "x": 48,
                     "y": 96
@@ -886,6 +959,14 @@
                         "type": "upgrade",
                         "id": "g3-dp"
                       },
+                      "effects": [
+                        {
+                          "type": "generatorCost",
+                          "generator": "g0",
+                          "costFactor": 1,
+                          "scalingFactor": 0.9
+                        }
+                      ],
                       "offset": {
                         "x": 0,
                         "y": 96
@@ -899,7 +980,13 @@
               "id": "g4-af",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
+              "modifiers": [
+                {
+                  "stage": "additive",
+                  "field": "g3",
+                  "value": 1
+                }
+              ],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g3-g4"
@@ -913,7 +1000,13 @@
                   "id": "g4-mf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
+                  "modifiers": [
+                    {
+                      "stage": "multiplicative",
+                      "field": "g3",
+                      "value": 1.1
+                    }
+                  ],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g4-af"
@@ -932,6 +1025,13 @@
                     "type": "upgrade",
                     "id": "g4-af"
                   },
+                  "effects": [
+                    {
+                      "type": "generatorCost",
+                      "generator": "g0",
+                      "costFactor": 0.9
+                    }
+                  ],
                   "offset": {
                     "x": 48,
                     "y": 96
@@ -946,6 +1046,14 @@
                         "type": "upgrade",
                         "id": "g4-dp"
                       },
+                      "effects": [
+                        {
+                          "type": "generatorCost",
+                          "generator": "g0",
+                          "costFactor": 1,
+                          "scalingFactor": 0.9
+                        }
+                      ],
                       "offset": {
                         "x": 0,
                         "y": 96
