@@ -10,6 +10,7 @@
   "highlightEnabled": true,
   "highlightUnlockUpgrade": "sh-unlock",
   "clickUnlockUpgrade": "sc-unlock",
+  "generatorPanelUnlockUpgrade": "g1-g2",
   "initialResources": {
     "r0": 50,
     "r1": 20
@@ -38,7 +39,8 @@
       "production": {
         "resource": "r0",
         "rate": 0.5
-      }
+      },
+      "unlockUpgrade": "g1-g2"
     },
     {
       "id": "g1",
@@ -48,7 +50,8 @@
       "production": {
         "resource": "r1",
         "rate": 1
-      }
+      },
+      "unlockUpgrade": "g1-g2"
     },
     {
       "id": "g2",
@@ -58,7 +61,8 @@
       "production": {
         "resource": "r0",
         "rate": 5
-      }
+      },
+      "unlockUpgrade": "g3-g4"
     },
     {
       "id": "g3",
@@ -68,7 +72,8 @@
       "production": {
         "resource": "r1",
         "rate": 10
-      }
+      },
+      "unlockUpgrade": "g3-g4"
     }
   ],
   "goals": [

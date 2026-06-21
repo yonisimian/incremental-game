@@ -36,30 +36,60 @@ let activeIndex = 0
 export interface PanelSlot {
   readonly index: number
   readonly panel: Panel
+  /**
+   * Optional live unlock gate. When provided and it returns false, the tab is
+   * registered but rendered as locked (🔒) and is not navigable until it returns
+   * true (e.g. an upgrade is purchased). Omit for always-available panels.
+   */
+  readonly isUnlocked?: (state: Readonly<GameState>) => boolean
+}
+
+/** Per-slot unlock gates, parallel to `panels`. */
+const slotGate: ((state: Readonly<GameState>) => boolean)[] = Array.from<
+  (state: Readonly<GameState>) => boolean
+>({ length: TOTAL_SLOTS })
+/** Last-rendered locked state per slot, so `refreshTabLocks` only touches changed tabs. */
+const prevLocked: boolean[] = Array.from<boolean>({ length: TOTAL_SLOTS }).fill(false)
+
+/** Whether a registered slot is currently locked by its unlock gate. */
+function isSlotLocked(index: number, state: Readonly<GameState>): boolean {
+  const gate = slotGate[index] as ((s: Readonly<GameState>) => boolean) | undefined
+  return gate ? !gate(state) : false
+}
+
+/** Whether a slot holds a panel that is currently navigable (registered and unlocked). */
+function isSlotAvailable(index: number): boolean {
+  return panels[index] !== null && !isSlotLocked(index, getState())
 }
 
 /** Configure panels for the current mode. Clears all slots and resets to first tab. */
 export function configurePanels(slots: readonly PanelSlot[]): void {
   panels.fill(null)
+  slotGate.length = 0
+  slotGate.length = TOTAL_SLOTS
+  prevLocked.fill(false)
   activeIndex = 0
-  for (const { index, panel } of slots) {
+  for (const { index, panel, isUnlocked } of slots) {
     panels[index] = panel
+    if (isUnlocked) slotGate[index] = isUnlocked
   }
 }
 
 // ─── Rendering ───────────────────────────────────────────────────────
 
 /** Render the tab grid HTML (5×2 grid of buttons). */
-export function renderTabGrid(): string {
+export function renderTabGrid(state: Readonly<GameState>): string {
   return `
     <div class="tab-grid" id="tab-grid" role="tablist" aria-label="Game panels">
       ${panels
         .map((p, i) => {
-          const label = p?.icon ?? '🔒'
           const isActive = i === activeIndex
-          const locked = !p
+          // A slot is locked if it holds no panel, or its unlock gate is unmet.
+          const locked = !p || isSlotLocked(i, state)
+          prevLocked[i] = locked
+          const label = p && !locked ? p.icon : '🔒'
           const classes = `tab-btn${isActive ? ' active' : ''}${locked ? ' locked' : ''}`
-          const title = p?.label ?? `Tab ${i + 1} — Locked`
+          const title = p ? `${p.label}${locked ? ' — Locked' : ''}` : `Tab ${i + 1} — Locked`
           const tabindex = isActive ? '0' : '-1'
           const disabled = locked ? ' aria-disabled="true"' : ''
           return `<button class="${classes}" id="tab-${i}" role="tab" aria-selected="${isActive}" aria-controls="panel-container" tabindex="${tabindex}" data-tab="${i}" title="${title}"${disabled}>${label}</button>`
@@ -67,6 +97,28 @@ export function renderTabGrid(): string {
         .join('')}
     </div>
   `
+}
+
+/**
+ * Re-evaluate per-slot unlock gates and update any tab whose locked state changed
+ * (e.g. when the unlocking upgrade is purchased mid-match). Cheap to call every
+ * frame — it only touches the DOM when a tab actually flips locked↔unlocked.
+ */
+export function refreshTabLocks(state: Readonly<GameState>): void {
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    const p = panels[i]
+    if (!p) continue // empty slots never change
+    const locked = isSlotLocked(i, state)
+    if (locked === prevLocked[i]) continue
+    prevLocked[i] = locked
+    const btn = document.getElementById(`tab-${i}`)
+    if (!btn) continue
+    btn.classList.toggle('locked', locked)
+    btn.textContent = locked ? '🔒' : p.icon
+    btn.setAttribute('title', `${p.label}${locked ? ' — Locked' : ''}`)
+    if (locked) btn.setAttribute('aria-disabled', 'true')
+    else btn.removeAttribute('aria-disabled')
+  }
 }
 
 /** Render the panel container (empty div to be filled by the active panel). */
@@ -123,20 +175,23 @@ function switchToTab(idx: number): void {
 function findNextPanel(start: number, step: number): number {
   for (let i = 0; i < TOTAL_SLOTS; i++) {
     const idx = (((start + i * step) % TOTAL_SLOTS) + TOTAL_SLOTS) % TOTAL_SLOTS
-    if (panels[idx] && idx !== activeIndex) return idx
+    if (isSlotAvailable(idx) && idx !== activeIndex) return idx
   }
   return -1
 }
 
-/** Return the index of the first registered panel, or -1. */
+/** Return the index of the first available (registered + unlocked) panel, or -1. */
 function findFirstPanel(): number {
-  return panels.findIndex((p) => p !== null)
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    if (isSlotAvailable(i)) return i
+  }
+  return -1
 }
 
-/** Return the index of the last registered panel, or -1. */
+/** Return the index of the last available (registered + unlocked) panel, or -1. */
 function findLastPanel(): number {
   for (let i = TOTAL_SLOTS - 1; i >= 0; i--) {
-    if (panels[i]) return i
+    if (isSlotAvailable(i)) return i
   }
   return -1
 }
@@ -144,7 +199,7 @@ function findLastPanel(): number {
 /** Switch to a specific panel slot (0-indexed). No-ops if locked or already active. */
 export function switchToPanel(index: number): void {
   if (index < 0 || index >= TOTAL_SLOTS) return
-  if (!panels[index] || index === activeIndex) return
+  if (!isSlotAvailable(index) || index === activeIndex) return
   switchToTab(index)
 }
 

@@ -1,5 +1,5 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition } from '@game/shared'
+import { getModeDefinition, isGeneratorPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
@@ -24,12 +24,16 @@ export function getModeUI(mode: GameMode): ModeUI {
   const modeDef = getModeDefinition(mode)
   const panels: PanelSlot[] = [{ index: 0, panel: playPanel }]
 
-  if (modeDef.generators.length > 0) {
-    panels.push({ index: panels.length, panel: generatorsPanel })
-  }
-
   if (modeDef.upgrades.length > 0) {
     panels.push({ index: panels.length, panel: upgradeTreePanel })
+  }
+
+  if (modeDef.generators.length > 0) {
+    panels.push({
+      index: panels.length,
+      panel: generatorsPanel,
+      isUnlocked: (state) => isGeneratorPanelUnlocked(state.player, modeDef),
+    })
   }
 
   return { panels }

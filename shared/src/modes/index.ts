@@ -87,6 +87,13 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
       )
   }
+  if (
+    def.generatorPanelUnlockUpgrade !== undefined &&
+    !upgradeIds.has(def.generatorPanelUnlockUpgrade)
+  )
+    throw new Error(
+      `[${id}] generatorPanelUnlockUpgrade references unknown upgrade '${def.generatorPanelUnlockUpgrade}'`,
+    )
   // `generatorCost` effects name a generator by id; validate that ref up front
   // (the generic effect schema only checks it's a string). This is the one
   // effect that points at another mechanic, so the check is targeted by type.
@@ -224,6 +231,15 @@ export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefiniti
   if (!mode.clicksEnabled) return false
   if (!mode.clickUnlockUpgrade) return true
   return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
+}
+
+/** Whether the generators panel/tab is currently accessible for this player. */
+export function isGeneratorPanelUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): boolean {
+  if (!mode.generatorPanelUnlockUpgrade) return true
+  return (state.upgrades[mode.generatorPanelUnlockUpgrade] ?? 0) > 0
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────
