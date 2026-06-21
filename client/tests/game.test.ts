@@ -699,4 +699,77 @@ describe('game.ts', () => {
       expect(s.player.resources.bogus).toBeUndefined()
     })
   })
+
+  // ── Click target (cycled by the Z hotkey) ──────────────────────────
+
+  describe('click target', () => {
+    /** Unlock clicking with both buckets empty so the Z hotkey is active. */
+    function unlockClicking(g: GameModule): void {
+      g.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            meta: {},
+          },
+        }),
+      )
+    }
+
+    it('defaults to the score resource', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      expect(game.getClickTarget(idlerDef)).toBe('r0') // r0 is the score resource
+    })
+
+    it('cycleClickTarget advances to the next resource', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.cycleClickTarget()
+      expect(game.getClickTarget(idlerDef)).toBe('r1')
+    })
+
+    it('cycleClickTarget wraps back to the first resource', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.cycleClickTarget() // r0 -> r1
+      game.cycleClickTarget() // r1 -> r0 (wrap)
+      expect(game.getClickTarget(idlerDef)).toBe('r0')
+    })
+
+    it('doClick() with no target uses the cycled target', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.cycleClickTarget() // now targeting r1
+      game.doClick()
+      const s = game.getState()
+      expect(s.player.resources.r1).toBe(1) // credited the cycled target
+      expect(s.player.resources.r0).toBe(0) // score bucket untouched
+      expect(s.player.score).toBe(0) // r1 is not the score resource
+    })
+
+    it('an explicit doClick target still wins over the cycled target', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.cycleClickTarget() // targeting r1
+      game.doClick('r0') // explicit target overrides
+      const s = game.getState()
+      expect(s.player.resources.r0).toBe(1)
+      expect(s.player.score).toBe(1)
+    })
+
+    it('cycleClickTarget is a no-op when clicking is locked', () => {
+      enterIdlerPlaying(game) // sc-unlock not owned → clicking locked
+      game.cycleClickTarget()
+      expect(game.getClickTarget(idlerDef)).toBe('r0') // unchanged
+    })
+
+    it('cycleClickTarget is a no-op outside the playing screen', () => {
+      // Still on 'lobby'
+      game.cycleClickTarget()
+      expect(game.getClickTarget(idlerDef)).toBe('r0') // unchanged
+    })
+  })
 })
