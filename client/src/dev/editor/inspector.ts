@@ -69,12 +69,12 @@ interface SimplePrereqItem {
   readonly minLevel?: number
 }
 
-interface SimplePrereq {
+export interface SimplePrereq {
   readonly mode: 'all' | 'any'
   readonly items: SimplePrereqItem[]
 }
 
-function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
+export function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
   if (!prereq) return { mode: 'all', items: [] }
   if (prereq.type === 'upgrade') {
     return { mode: 'all', items: [{ id: prereq.id, minLevel: prereq.minLevel }] }
@@ -90,7 +90,7 @@ function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
   }
 }
 
-function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
+export function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
   // A minLevel of 1 is the default ("owned"), so drop it to keep the JSON terse.
   const toExpr = (item: SimplePrereqItem): Prereq =>
     item.minLevel !== undefined && item.minLevel > 1
