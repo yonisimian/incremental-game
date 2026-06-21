@@ -98,6 +98,8 @@ export function initHotkeys(): void {
     if (e.key === ' ' || e.code === 'Space') {
       if (inTabGrid || !isClickUnlocked(state.player, modeDef)) return
       e.preventDefault() // prevent page scroll
+      // Require discrete presses — ignore OS key-repeat from holding Space.
+      if (e.repeat) return
       doClick()
       return
     }
