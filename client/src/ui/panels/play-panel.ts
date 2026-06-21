@@ -75,6 +75,7 @@ function renderIdlerContent(state: Readonly<GameState>): string {
 }
 
 export const playPanel: Panel = {
+  id: 'play',
   label: 'Play',
   icon: '🎮',
 

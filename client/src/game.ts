@@ -21,6 +21,8 @@ import {
   canAffordGenerator,
   getMaxAffordableGeneratorCount,
   applyGeneratorPurchase,
+  isGeneratorUnlocked,
+  resolveGeneratorDef,
   isMaxed,
   isPrerequisiteSatisfied,
   isChoiceGroupAvailable,
@@ -445,7 +447,9 @@ export function doBuyGenerator(generatorId: string): void {
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
-  if (!canAffordGenerator(state.player, def)) return
+  if (!isGeneratorUnlocked(state.player, def)) return
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
   trackPendingGeneratorPurchase(generatorId)
@@ -458,12 +462,14 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
+  if (!isGeneratorUnlocked(state.player, def)) return
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
 
-  const quantity = getMaxAffordableGeneratorCount(state.player, def)
+  const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
   if (quantity <= 0) return
 
   for (let i = 0; i < quantity; i += 1) {
-    if (!canAffordGenerator(state.player, def)) break
+    if (!canAffordGenerator(state.player, effectiveDef)) break
     applyGeneratorPurchase(state.player, generatorId, modeDef)
     queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
     trackPendingGeneratorPurchase(generatorId)
@@ -624,7 +630,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       if (!modeDef) continue
       const gdef = modeDef.generators.find((g) => g.id === gid)
       if (!gdef) continue
-      if (!canAffordGenerator(reconciled, gdef)) continue
+      const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+      if (!canAffordGenerator(reconciled, effectiveGdef)) continue
       applyGeneratorPurchase(reconciled, gid, modeDef)
     }
   }

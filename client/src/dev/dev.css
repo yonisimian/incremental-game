@@ -690,6 +690,23 @@ body {
   cursor: pointer;
 }
 
+.ed-prereq-row {
+  gap: 4px;
+}
+
+.ed-prereq-row .ed-checklist-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-prereq-level {
+  flex: 0 0 auto;
+  width: 56px;
+}
+
 .ed-hint {
   font-size: 0.75rem;
   color: var(--dev-muted);

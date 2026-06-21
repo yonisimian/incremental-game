@@ -19,7 +19,8 @@ import {
   type FieldSpec,
 } from './effect-schema.js'
 
-import { nodeFlavor, setNodeFlavor } from './model.js'
+import { findNode, nodeFlavor, setNodeFlavor } from './model.js'
+import { ALL_PANELS } from '../../ui/mode-ui.js'
 
 export interface InspectorContext {
   readonly tree: TreeFile
@@ -58,28 +59,46 @@ const MODIFIER_SPECIAL_FIELDS: readonly string[] = ['clickIncome', 'globalMultip
 
 // ─── Prerequisite representability ───────────────────────────────────
 //
-// The simple editor models "all/any of N upgrade ids". Anything richer
-// (minLevel, nested groups) round-trips through a raw-JSON textarea instead.
+// The simple editor models "all/any of N upgrade ids", each with an optional
+// minimum level. Anything richer (nested groups) round-trips through a
+// raw-JSON textarea instead.
 
-interface SimplePrereq {
+/** A single required upgrade. `minLevel` of 1 (or omitted) means "owned". */
+interface SimplePrereqItem {
+  readonly id: string
+  readonly minLevel?: number
+}
+
+export interface SimplePrereq {
   readonly mode: 'all' | 'any'
-  readonly ids: string[]
+  readonly items: SimplePrereqItem[]
 }
 
-function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
-  if (!prereq) return { mode: 'all', ids: [] }
+export function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
+  if (!prereq) return { mode: 'all', items: [] }
   if (prereq.type === 'upgrade') {
-    return prereq.minLevel === undefined ? { mode: 'all', ids: [prereq.id] } : null
+    return { mode: 'all', items: [{ id: prereq.id, minLevel: prereq.minLevel }] }
   }
-  const flat = prereq.items.every((i) => i.type === 'upgrade' && i.minLevel === undefined)
+  const flat = prereq.items.every((i) => i.type === 'upgrade')
   if (!flat) return null
-  return { mode: prereq.type, ids: prereq.items.map((i) => (i as { id: string }).id) }
+  return {
+    mode: prereq.type,
+    items: prereq.items.map((i) => {
+      const u = i as { id: string; minLevel?: number }
+      return { id: u.id, minLevel: u.minLevel }
+    }),
+  }
 }
 
-function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
-  if (simple.ids.length === 0) return undefined
-  if (simple.ids.length === 1) return { type: 'upgrade', id: simple.ids[0] }
-  return { type: simple.mode, items: simple.ids.map((id) => ({ type: 'upgrade', id })) }
+export function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
+  // A minLevel of 1 is the default ("owned"), so drop it to keep the JSON terse.
+  const toExpr = (item: SimplePrereqItem): Prereq =>
+    item.minLevel !== undefined && item.minLevel > 1
+      ? { type: 'upgrade', id: item.id, minLevel: item.minLevel }
+      : { type: 'upgrade', id: item.id }
+  if (simple.items.length === 0) return undefined
+  if (simple.items.length === 1) return toExpr(simple.items[0])
+  return { type: simple.mode, items: simple.items.map(toExpr) }
 }
 
 // ─── DOM helpers ─────────────────────────────────────────────────────
@@ -298,7 +317,7 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
       if (s === stage) opt.selected = true
       stageSelect.append(opt)
     }
-    const fieldSelect = buildModifierFieldSelect(ctx.currencies, fieldName)
+    const fieldSelect = buildModifierFieldSelect(ctx.currencies, ctx.tree.generators, fieldName)
     const valueInput = el('input', 'ed-input ed-mod-value')
     valueInput.type = 'number'
     valueInput.value = String(value)
@@ -327,14 +346,20 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
 }
 
 /**
- * A `<select>` of modifier targets: the tree's resources plus the special
- * pipeline fields (`clickIncome`, `globalMultiplier`). A leading blank marks an
- * incomplete row (not persisted until a field is picked). An unrecognized value
- * (e.g. a since-removed resource) is preserved as its own option rather than
- * silently dropped, mirroring the cost-currency dropdown.
+ * A `<select>` of modifier targets: the tree's resources, its generators, and
+ * the special pipeline fields (`clickIncome`, `globalMultiplier`). A leading
+ * blank marks an incomplete row (not persisted until a field is picked). An
+ * unrecognized value (e.g. a since-removed resource) is preserved as its own
+ * option rather than silently dropped, mirroring the cost-currency dropdown.
+ *
+ * Generator targets route differently in the pipeline: a generator-targeted
+ * modifier folds into that generator's per-unit output (see `collectModifiers`),
+ * so `additive` is a flat bonus per owned generator and `multiplicative` scales
+ * the generator's total — both compounding with the upgrade's owned count.
  */
 function buildModifierFieldSelect(
   currencies: readonly Currency[],
+  generators: TreeFile['generators'],
   value: string,
 ): HTMLSelectElement {
   const select = el('select', 'ed-input ed-mod-field')
@@ -354,6 +379,16 @@ function buildModifierFieldSelect(
   }
   if (currencies.length > 0) select.append(resources)
 
+  const generatorGroup = el('optgroup')
+  generatorGroup.label = 'Generators'
+  for (const gen of generators) {
+    const opt = el('option', undefined, gen.id)
+    opt.value = gen.id
+    if (gen.id === value) opt.selected = true
+    generatorGroup.append(opt)
+  }
+  if (generators.length > 0) select.append(generatorGroup)
+
   const special = el('optgroup')
   special.label = 'Special'
   for (const fieldName of MODIFIER_SPECIAL_FIELDS) {
@@ -367,6 +402,7 @@ function buildModifierFieldSelect(
   const known =
     value === '' ||
     currencies.some((c) => c.key === value) ||
+    generators.some((g) => g.id === value) ||
     MODIFIER_SPECIAL_FIELDS.includes(value)
   if (!known) {
     const opt = el('option', undefined, `${value} (unknown)`)
@@ -398,26 +434,54 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   const checklist = el('div', 'ed-checklist')
 
   const sync = (): void => {
-    const ids: string[] = []
-    for (const box of checklist.querySelectorAll<HTMLInputElement>('input:checked')) {
-      ids.push(box.value)
+    const items: SimplePrereqItem[] = []
+    for (const row of checklist.querySelectorAll<HTMLDivElement>('.ed-prereq-row')) {
+      const box = row.querySelector<HTMLInputElement>('input[type=checkbox]')!
+      if (!box.checked) continue
+      const level = row.querySelector<HTMLInputElement>('.ed-prereq-level')!
+      let minLevel = Math.max(1, Math.floor(Number(level.value) || 1))
+      // Clamp to the parent's purchase limit so we never author JSON the loader
+      // would reject; reflect the clamp back into the field.
+      const max = Number(level.max)
+      if (Number.isFinite(max) && max >= 1) minLevel = Math.min(minLevel, max)
+      if (String(minLevel) !== level.value) level.value = String(minLevel)
+      items.push({ id: box.value, minLevel: minLevel > 1 ? minLevel : undefined })
     }
-    ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', ids })
+    ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', items })
     ctx.onChange()
   }
   modeSelect.addEventListener('change', sync)
 
-  const selected = new Set(simple.ids)
+  const selected = new Map(simple.items.map((i) => [i.id, i.minLevel ?? 1]))
   for (const id of ctx.allIds) {
     if (id === ctx.node.id) continue
+    const row = el('div', 'ed-prereq-row ed-row')
     const item = el('label', 'ed-checklist-item')
     const box = el('input')
     box.type = 'checkbox'
     box.value = id
     box.checked = selected.has(id)
-    box.addEventListener('change', sync)
     item.append(box, document.createTextNode(` ${id}`))
-    checklist.append(item)
+
+    // Per-prerequisite minimum level. Capped at the target's purchase limit so
+    // the form can't author a value the loader's validation would reject.
+    const level = el('input', 'ed-input ed-prereq-level')
+    level.type = 'number'
+    level.min = '1'
+    level.title = 'Minimum level'
+    const limit = findNode(ctx.tree, id)?.purchaseLimit
+    if (typeof limit === 'number') level.max = String(limit)
+    level.value = String(selected.get(id) ?? 1)
+    level.disabled = !box.checked
+
+    box.addEventListener('change', () => {
+      level.disabled = !box.checked
+      sync()
+    })
+    level.addEventListener('change', sync)
+
+    row.append(item, level)
+    checklist.append(row)
   }
 
   section.append(field('Require', modeSelect), checklist)
@@ -458,10 +522,31 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
   return Object.fromEntries(Object.entries(ref).filter(([key]) => key !== 'type'))
 }
 
+/**
+ * Fixed option set for an effect's string param, or `undefined` to render a free
+ * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
+ * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
+ * from the tree's generators, and `panelUnlock`'s `panel` from the known panels.
+ */
+function effectFieldOptions(
+  ctx: InspectorContext,
+  effectType: string,
+  fieldKey: string,
+): readonly string[] | undefined {
+  if (effectType === 'generatorCost' && fieldKey === 'generator') {
+    return ctx.tree.generators.map((g) => g.id)
+  }
+  if (effectType === 'panelUnlock' && fieldKey === 'panel') {
+    return ALL_PANELS.map((p) => p.id)
+  }
+  return undefined
+}
+
 function buildEffectField(
   spec: FieldSpec,
   current: unknown,
   onChange: () => void,
+  options?: readonly string[],
 ): { row: HTMLElement; read: () => unknown } {
   const label = spec.optional ? `${spec.key} (optional)` : spec.key
   if (spec.kind === 'boolean') {
@@ -470,6 +555,30 @@ function buildEffectField(
     input.checked = current === true || (current === undefined && spec.defaultValue === true)
     input.addEventListener('change', onChange)
     return { row: field(label, input), read: () => input.checked }
+  }
+  // A string field with a fixed option set renders as a picker (e.g. the
+  // `generatorCost` effect's `generator`). An unrecognized current value (a
+  // since-removed id) is preserved as its own option rather than silently lost.
+  if (spec.kind === 'string' && options) {
+    const select = el('select', 'ed-input')
+    const value = typeof current === 'string' ? current : ''
+    if (value !== '' && !options.includes(value)) {
+      const opt = el('option', undefined, `${value} (unknown)`)
+      opt.value = value
+      opt.selected = true
+      select.append(opt)
+    }
+    for (const id of options) {
+      const opt = el('option', undefined, id)
+      opt.value = id
+      if (id === value) opt.selected = true
+      select.append(opt)
+    }
+    select.addEventListener('change', onChange)
+    return {
+      row: field(label, select),
+      read: () => (select.value === '' ? undefined : select.value),
+    }
   }
   const input = el('input', 'ed-input')
   input.type = spec.kind === 'number' ? 'number' : 'text'
@@ -548,9 +657,14 @@ function buildEffectBlock(
       return out
     }
     for (const fieldSpec of variant.fields) {
-      const { row, read } = buildEffectField(fieldSpec, params[fieldSpec.key], () => {
-        writeFrom(collect())
-      })
+      const { row, read } = buildEffectField(
+        fieldSpec,
+        params[fieldSpec.key],
+        () => {
+          writeFrom(collect())
+        },
+        effectFieldOptions(ctx, ref.type, fieldSpec.key),
+      )
       reads.set(fieldSpec.key, read)
       fieldsWrap.append(row)
     }

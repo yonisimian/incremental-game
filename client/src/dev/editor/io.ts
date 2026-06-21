@@ -2,18 +2,33 @@
  * Editor save/load — the round-trip boundary. Export serializes the working
  * tree through the shared codec; import validates an uploaded file with
  * `parseTreeFile` (the same schema the engine uses) before it becomes editable.
+ *
+ * Both directions also run {@link toModeDefinition} — the engine's full
+ * load-time validation — so cross-node inconsistencies the zod schema can't see
+ * (e.g. a prerequisite `minLevel` above the referenced upgrade's `purchaseLimit`)
+ * are caught here rather than at game load.
  */
 
 import type { TreeFile } from '@game/shared'
-import { parseTreeFile, serializeTree } from '@game/shared'
+import { parseTreeFile, serializeTree, toModeDefinition } from '@game/shared'
+
+/**
+ * Run the engine's full load-time validation on the working tree. Throws with a
+ * human-readable message on any inconsistency; returns nothing on success.
+ */
+function assertLoadable(tree: TreeFile): void {
+  toModeDefinition(tree)
+}
 
 /** Serialize the working tree to its canonical JSON string. */
 export function treeToJson(tree: TreeFile): string {
+  assertLoadable(tree)
   return serializeTree(tree)
 }
 
 /** Serialize the working tree and trigger a browser download. */
 export function exportTree(tree: TreeFile): void {
+  assertLoadable(tree)
   const json = serializeTree(tree)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -37,5 +52,9 @@ export async function importTreeFromFile(file: File): Promise<TreeFile> {
     throw new Error('File is not valid JSON.')
   }
   // parseTreeFile throws a zod error if the shape is invalid; surface its message.
-  return parseTreeFile(json)
+  const tree = parseTreeFile(json)
+  // Then run the engine's full validation so cross-node issues (e.g. minLevel
+  // above the referenced upgrade's purchaseLimit) reject the file on import.
+  assertLoadable(tree)
+  return tree
 }

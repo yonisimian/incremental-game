@@ -256,7 +256,8 @@ describe('game.ts', () => {
           player: {
             score: 0,
             resources: { r1: 100 },
-            upgrades: { ...defaultUpgrades },
+            // g0 is gated behind the g1-g2 upgrade; grant it so buy-max applies.
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
             generators: {},
             meta: {},
           },

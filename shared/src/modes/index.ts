@@ -12,7 +12,8 @@ import {
 } from '../game-config.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
-import { applyEffect, prepareEffect } from '../effects/index.js'
+import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import type { EffectOutput } from '../effects/index.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -75,6 +76,30 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // highlightEnabled ↔ initialMeta consistency
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
+
+  // Referential integrity for generator gating + cost reductions: a typo in an
+  // authored id would otherwise be silently ignored at runtime.
+  const upgradeIds = new Set(def.upgrades.map((u) => u.id))
+  const generatorIds = new Set(def.generators.map((g) => g.id))
+  for (const gen of def.generators) {
+    if (gen.unlockUpgrade !== undefined && !upgradeIds.has(gen.unlockUpgrade))
+      throw new Error(
+        `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
+      )
+  }
+  // `generatorCost` effects name a generator by id; validate that ref up front
+  // (the generic effect schema only checks it's a string). This is the one
+  // effect that points at another mechanic, so the check is targeted by type.
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'generatorCost') continue
+      const target = ref.generator
+      if (typeof target === 'string' && !generatorIds.has(target))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' generatorCost effect references unknown generator '${target}'`,
+        )
+    }
+  }
 
   // Effect refs: resolve + parse once up front, so unknown types or malformed
   // params fail at startup rather than mid-tick. Also warms the per-ref cache.
@@ -201,6 +226,64 @@ export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefiniti
   return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
 }
 
+/**
+ * Per-mode reverse index: panel id → ids of the upgrades whose `panelUnlock`
+ * effect gates it. This is derived topology (not authored data), so it lives in
+ * a WeakMap keyed by the mode rather than on `ModeDefinition`, and is dropped
+ * automatically when the mode is GC'd.
+ *
+ * `isPanelUnlocked` runs on every frame via the tab-lock refresh, so it must not
+ * scan every upgrade/effect (that grows with the whole tree). The index turns it
+ * into an O(gates-for-this-panel) ownership check — effectively O(1), since a
+ * panel is normally gated by one upgrade.
+ */
+const panelGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
+
+/**
+ * Build (or return the cached) panel-gate index for a mode. `panelUnlock` is
+ * state-independent — it echoes its authored panel id — so a throwaway initial
+ * state is enough to read which panel each effect names.
+ */
+function getPanelGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  const cached = panelGateIndex.get(mode)
+  if (cached) return cached
+
+  const index = new Map<string, string[]>()
+  const probe = createInitialState(mode)
+  for (const upgrade of mode.upgrades) {
+    for (const ref of upgrade.effects ?? []) {
+      if (ref.type !== 'panelUnlock') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
+        if (!('kind' in out) || out.kind !== 'panelUnlock') continue
+        const gates = index.get(out.panel)
+        if (gates) {
+          if (!gates.includes(upgrade.id)) gates.push(upgrade.id)
+        } else {
+          index.set(out.panel, [upgrade.id])
+        }
+      }
+    }
+  }
+
+  panelGateIndex.set(mode, index)
+  return index
+}
+
+/**
+ * Whether a UI panel is currently accessible for this player. A panel is gated
+ * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
+ * such upgrade is owned. Panels that no upgrade unlocks are always available.
+ */
+export function isPanelUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  panelId: string,
+): boolean {
+  const gates = getPanelGateIndex(mode).get(panelId)
+  if (!gates) return true // no upgrade gates this panel → always available
+  return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**
@@ -255,18 +338,23 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
+  // Route an effect's outputs: production `Modifier`s feed the pipeline;
+  // cost-track outputs (`GeneratorCostOutput`) belong to a different subsystem
+  // (`collectGeneratorCostFactors`) and are ignored here.
+  const routeEffect = (out: EffectOutput | readonly EffectOutput[] | null): void => {
+    for (const o of normalizeEffectOutputs(out)) if ('stage' in o) routeModifier(o)
+  }
+
   // Mode-level effects — state-derived modifiers applied to every player.
   for (const ref of mode.effects ?? []) {
-    const mod = applyEffect(ref, state)
-    if (mod) routeModifier(mod)
+    routeEffect(applyEffect(ref, state, mode))
   }
 
   // Upgrade-level effects — per-upgrade state-derived bonuses (owned upgrades only).
   for (const upgrade of mode.upgrades) {
     if ((state.upgrades[upgrade.id] ?? 0) <= 0) continue
     for (const ref of upgrade.effects ?? []) {
-      const mod = applyEffect(ref, state)
-      if (mod) routeModifier(mod)
+      routeEffect(applyEffect(ref, state, mode))
     }
   }
 
