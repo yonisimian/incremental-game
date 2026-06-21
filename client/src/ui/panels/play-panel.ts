@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { doClick, setHighlight } from '../../game.js'
+import { doClick, setHighlight, getClickTarget } from '../../game.js'
 import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
@@ -26,19 +26,24 @@ function renderClickButtons(state: Readonly<GameState>): string {
   if (!isClickUnlocked(state.player, modeDef)) return ''
   const flavor = getModeFlavor(modeDef)
 
+  const clickTarget = getClickTarget(modeDef)
+  // The Space hotkey clicks one resource at a time; Z cycles which one. Show the
+  // Space badge on the active target, and a Z hint only when there's a choice.
+  const showCycleHint = modeDef.resources.length > 1
+
   const cards = modeDef.resources
     .map((key) => {
-      const isScore = key === modeDef.scoreResource
+      const isTarget = key === clickTarget
       return `
       <button class="click-card" id="click-btn-${key}" aria-label="Click for ${getResourceName(flavor, key)}">
-        ${isScore ? '<span class="click-card-hotkey" aria-hidden="true">Space</span>' : ''}
+        <span class="click-card-hotkey" aria-hidden="true"${isTarget ? '' : ' hidden'}>Space</span>
         <span class="click-card-emoji" aria-hidden="true">${getResourceIcon(flavor, key)}</span>
         <span class="click-card-name">${getResourceName(flavor, key)}</span>
       </button>`
     })
     .join('')
 
-  return `<div class="click-cards">${cards}</div>`
+  return `<div class="click-cards">${showCycleHint ? '<span class="click-cards-hotkey" aria-hidden="true">Z to switch</span>' : ''}${cards}</div>`
 }
 
 function renderIdlerContent(state: Readonly<GameState>): string {
@@ -118,6 +123,15 @@ export const playPanel: Panel = {
         )
       } else if (!highlightUnlocked && hotkey) {
         hotkey.remove()
+      }
+    }
+
+    // Move the Space badge to the currently-targeted click card (cycled via Z).
+    if (isClickUnlocked(state.player, modeDef)) {
+      const clickTarget = getClickTarget(modeDef)
+      for (const key of modeDef.resources) {
+        const badge = document.querySelector(`#click-btn-${key} .click-card-hotkey`)
+        if (badge) (badge as HTMLElement).hidden = key !== clickTarget
       }
     }
 

@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type ModeDefinition,
   type PlayerState,
   type RoomSettings,
   type RoomErrorReason,
@@ -159,6 +160,13 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 /** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
 let lastFiredMilestoneTier = 0
+
+/**
+ * Client-only: which resource the Space hotkey clicks. `null` falls back to the
+ * mode's score resource. Cycled with the `z` hotkey; not synced to the server
+ * (each click action already carries its own resource).
+ */
+let clickTarget: string | null = null
 
 // ─── Public API ──────────────────────────────────────────────────────
 
@@ -336,8 +344,9 @@ export function doClick(target?: string): void {
   const modeDef = getModeDefinition(state.mode)
   if (!isClickUnlocked(state.player, modeDef)) return
 
-  // Resolve which resource the click credits (defaults to the score resource).
-  const resource = target && modeDef.resources.includes(target) ? target : modeDef.scoreResource
+  // Resolve which resource the click credits. An explicit target (a click card)
+  // wins; otherwise (the Space hotkey) use the cycled click target.
+  const resource = target && modeDef.resources.includes(target) ? target : getClickTarget(modeDef)
 
   // Optimistic local update
   const income = computeClickIncome(state.player)
@@ -356,6 +365,31 @@ export function doClick(target?: string): void {
   // Queue for server
   queueAction({ type: 'click', timestamp: Date.now(), resource })
   trackPendingClick(resource)
+  notify()
+}
+
+/**
+ * The resource the Space hotkey currently clicks. Falls back to the score
+ * resource when nothing has been cycled or the stored target isn't valid for
+ * this mode (e.g. left over from a previous match).
+ */
+export function getClickTarget(modeDef: ModeDefinition): string {
+  return clickTarget && modeDef.resources.includes(clickTarget)
+    ? clickTarget
+    : modeDef.scoreResource
+}
+
+/** Cycle the Space hotkey's click target to the next clickable resource. */
+export function cycleClickTarget(): void {
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!isClickUnlocked(state.player, modeDef)) return
+  const { resources } = modeDef
+  if (resources.length < 2) return
+
+  const current = getClickTarget(modeDef)
+  const idx = resources.indexOf(current)
+  clickTarget = resources[(idx + 1) % resources.length]
   notify()
 }
 
