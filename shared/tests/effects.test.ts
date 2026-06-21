@@ -8,7 +8,13 @@ import {
   registerEffect,
   resolveEffect,
 } from '../src/index.js'
-import type { EffectRef, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
+import type {
+  EffectRef,
+  Modifier,
+  ModeDefinition,
+  PlayerState,
+  UpgradeDefinition,
+} from '../src/index.js'
 
 // ─── Registry ────────────────────────────────────────────────────────
 
@@ -22,8 +28,11 @@ describe('effect registry', () => {
   })
 
   it('throws when applying an unknown effect type', () => {
-    const state = createInitialState(getModeDefinition('idler'))
-    expect(() => applyEffect({ type: 'doesNotExist' }, state)).toThrow(/unknown effect type/iu)
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    expect(() => applyEffect({ type: 'doesNotExist' }, state, mode)).toThrow(
+      /unknown effect type/iu,
+    )
   })
 
   it('throws when registering a duplicate type', () => {
@@ -34,7 +43,14 @@ describe('effect registry', () => {
   })
 
   it('lists registered effect types sorted', () => {
-    expect(listEffectTypes()).toEqual(['highlightMultiplier'])
+    expect(listEffectTypes()).toEqual([
+      'balancedGenerators',
+      'dominantGenerator',
+      'generatorCost',
+      'highlightMultiplier',
+      'lowerTierBoost',
+      'panelUnlock',
+    ])
   })
 })
 
@@ -42,8 +58,9 @@ describe('effect registry', () => {
 
 describe('highlightMultiplier params', () => {
   function applyHighlight(ref: EffectRef): unknown {
-    const state = createInitialState(getModeDefinition('idler'))
-    return applyEffect(ref, state)
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    return applyEffect(ref, state, mode)
   }
 
   it('rejects a non-finite multiplier', () => {
@@ -221,5 +238,153 @@ describe('collectModifiers effect wiring', () => {
       field: 'r0',
       value: 5,
     })
+  })
+})
+
+// ─── Generator synergy effects ───────────────────────────────────────
+
+describe('lowerTierBoost effect', () => {
+  it('boosts higher tiers by the units owned in lower tiers', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    const [g0, g1] = mode.generators.map((g) => g.id)
+    state.generators[g0] = 2
+    state.generators[g1] = 3
+    const out = applyEffect({ type: 'lowerTierBoost', perUnit: 0.1 }, state, mode) as Modifier[]
+    // g1's two lower-tier units → ×(1 + 0.1 * 2) = ×1.2
+    expect(out).toContainEqual({ stage: 'multiplicative', field: g1, value: 1.2 })
+    // g0 has no lower tier to draw from.
+    expect(out.some((m) => m.field === g0)).toBe(false)
+  })
+
+  it('emits nothing when no lower-tier units are owned', () => {
+    const mode = getModeDefinition('idler')
+    const out = applyEffect({ type: 'lowerTierBoost', perUnit: 1 }, createInitialState(mode), mode)
+    expect(out).toEqual([])
+  })
+})
+
+describe('dominantGenerator effect', () => {
+  it('boosts every generator tied at the maximum owned count', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    const [g0, g1] = mode.generators.map((g) => g.id)
+    state.generators[g0] = 5
+    state.generators[g1] = 5
+    const out = applyEffect({ type: 'dominantGenerator', multiplier: 3 }, state, mode) as Modifier[]
+    expect(out).toHaveLength(2)
+    expect(out).toContainEqual({ stage: 'multiplicative', field: g0, value: 3 })
+    expect(out).toContainEqual({ stage: 'multiplicative', field: g1, value: 3 })
+  })
+
+  it('returns null when no generators are owned', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'dominantGenerator', multiplier: 3 }, createInitialState(mode), mode),
+    ).toBeNull()
+  })
+})
+
+describe('balancedGenerators effect', () => {
+  it('emits a single global multiplier when all generators are owned equally', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    for (const gen of mode.generators) state.generators[gen.id] = 4
+    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
+      stage: 'global',
+      field: 'globalMultiplier',
+      value: 2,
+    })
+  })
+
+  it('returns null when counts are unequal', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    for (const gen of mode.generators) state.generators[gen.id] = 4
+    state.generators[mode.generators[0].id] = 5
+    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toBeNull()
+  })
+
+  it('returns null when all generators are unowned', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'balancedGenerators', multiplier: 2 }, createInitialState(mode), mode),
+    ).toBeNull()
+  })
+})
+
+describe('generatorCost effect', () => {
+  it('emits a generatorCost output carrying both factors', () => {
+    const mode = getModeDefinition('idler')
+    const gen = mode.generators[0].id
+    expect(
+      applyEffect(
+        { type: 'generatorCost', generator: gen, costFactor: 0.95, scalingFactor: 0.98 },
+        createInitialState(mode),
+        mode,
+      ),
+    ).toEqual({ kind: 'generatorCost', generator: gen, costFactor: 0.95, scalingFactor: 0.98 })
+  })
+
+  it('is ignored by the production pipeline (collectModifiers drops cost outputs)', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0].id
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'generatorCost', generator: gen, costFactor: 0.5 }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+})
+
+describe('panelUnlock effect', () => {
+  it('emits a panelUnlock output naming the panel', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'panelUnlock', panel: 'generators' }, createInitialState(mode), mode),
+    ).toEqual({ kind: 'panelUnlock', panel: 'generators' })
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'panelUnlock', panel: 'generators' }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+})
+
+// ─── Multi-modifier array routing through collectModifiers ───────────
+
+describe('collectModifiers routes multi-modifier effects', () => {
+  const sumAdditive = (mods: readonly Modifier[], field: string): number =>
+    mods.filter((m) => m.field === field && m.stage === 'additive').reduce((s, m) => s + m.value, 0)
+
+  it('folds a synergy effect that returns several modifiers into generator output', () => {
+    const base = getModeDefinition('idler')
+    const [g0, g1] = base.generators.map((g) => g.id)
+    const g1Resource = base.generators[1].production.resource
+
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'lowerTierBoost', perUnit: 1 }],
+    }
+    const boosted = createInitialState(withEffect)
+    boosted.generators[g0] = 1
+    boosted.generators[g1] = 1
+    const boostedMods = collectModifiers(boosted, withEffect)
+
+    const baseline = createInitialState(base)
+    baseline.generators[g0] = 1
+    baseline.generators[g1] = 1
+    const baselineMods = collectModifiers(baseline, base)
+
+    // g1 gains ×(1 + 1·1) = ×2, so its production resource output strictly increases.
+    expect(sumAdditive(boostedMods, g1Resource)).toBeGreaterThan(
+      sumAdditive(baselineMods, g1Resource),
+    )
   })
 })

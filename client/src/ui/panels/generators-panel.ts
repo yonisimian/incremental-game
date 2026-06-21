@@ -10,6 +10,8 @@ import {
   getGeneratorBulkCost,
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
+  isGeneratorUnlocked,
+  resolveGeneratorDef,
   getResourceIcon,
   getGeneratorName,
   getGeneratorIcon,
@@ -69,12 +71,15 @@ function renderAllGenerators(state: Readonly<GameState>): string {
     `
   }
   const cards = modeDef.generators
+    .filter((def) => isGeneratorUnlocked(state.player, def))
     .map((def) => {
+      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
       const owned = state.player.generators[def.id] ?? 0
-      const nextCost = getGeneratorCost(def, owned)
-      const affordable = canAffordGenerator(state.player, def)
-      const maxAffordable = getMaxAffordableGeneratorCount(state.player, def)
-      const bulkCost = maxAffordable > 0 ? getGeneratorBulkCost(def, owned, maxAffordable) : 0
+      const nextCost = getGeneratorCost(effectiveDef, owned)
+      const affordable = canAffordGenerator(state.player, effectiveDef)
+      const maxAffordable = getMaxAffordableGeneratorCount(state.player, effectiveDef)
+      const bulkCost =
+        maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
       return renderGeneratorCard(def, owned, nextCost, affordable, maxAffordable, bulkCost, state)
     })
     .join('')
@@ -84,6 +89,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
 // ─── Generators Panel ────────────────────────────────────────────────
 
 export const generatorsPanel: Panel = {
+  id: 'generators',
   label: 'Generators',
   icon: '🏭',
 

@@ -369,14 +369,26 @@ export function initEditor(pane: HTMLElement): () => void {
   })
 
   exportBtn.addEventListener('click', () => {
-    exportTree(state.tree)
+    try {
+      exportTree(state.tree)
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Export failed', true)
+      return
+    }
     state.dirty = false
     setStatus(`Exported ${state.tree.id}.json`)
   })
 
   copyBtn.addEventListener('click', () => {
+    let json: string
+    try {
+      json = treeToJson(state.tree)
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Copy failed', true)
+      return
+    }
     void navigator.clipboard
-      .writeText(treeToJson(state.tree))
+      .writeText(json)
       .then(() => {
         setStatus(`Copied ${state.tree.id}.json to clipboard`)
       })

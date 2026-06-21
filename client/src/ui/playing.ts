@@ -26,6 +26,7 @@ import {
   updateActivePanel,
   bindTabEvents,
   configurePanels,
+  refreshTabLocks,
 } from './panels.js'
 import { getModeUI, type ModeUI } from './mode-ui.js'
 
@@ -123,7 +124,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
         <div class="paused-banner" id="pause-banner"${state.paused ? '' : ' hidden'}>PAUSED</div>
       </div>
 
-      ${renderTabGrid()}
+      ${renderTabGrid(state)}
       ${renderPanelContainer()}
     </div>
   `
@@ -183,6 +184,9 @@ export function updatePlaying(state: Readonly<GameState>): void {
       setText(`rate-${r.key}`, formatRate(rates[r.key] ?? 0))
     }
   }
+
+  // Reflect any tab that unlocked this frame (e.g. generators panel upgrade).
+  refreshTabLocks(state)
 
   // Delegate panel-specific updates to the active panel
   updateActivePanel(state)
