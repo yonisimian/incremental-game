@@ -755,7 +755,6 @@
                     {
                       "type": "generatorCost",
                       "generator": "g0",
-                      "costFactor": 1,
                       "scalingFactor": 0.9
                     }
                   ],
@@ -862,7 +861,6 @@
                     {
                       "type": "generatorCost",
                       "generator": "g1",
-                      "costFactor": 1,
                       "scalingFactor": 0.9
                     }
                   ],
@@ -962,8 +960,7 @@
                       "effects": [
                         {
                           "type": "generatorCost",
-                          "generator": "g0",
-                          "costFactor": 1,
+                          "generator": "g2",
                           "scalingFactor": 0.9
                         }
                       ],
@@ -1028,7 +1025,7 @@
                   "effects": [
                     {
                       "type": "generatorCost",
-                      "generator": "g0",
+                      "generator": "g3",
                       "costFactor": 0.9
                     }
                   ],
@@ -1049,8 +1046,7 @@
                       "effects": [
                         {
                           "type": "generatorCost",
-                          "generator": "g0",
-                          "costFactor": 1,
+                          "generator": "g3",
                           "scalingFactor": 0.9
                         }
                       ],
