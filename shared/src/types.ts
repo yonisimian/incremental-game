@@ -91,6 +91,11 @@ export interface GeneratorDefinition {
     readonly resource: string
     readonly rate: number
   }
+  /**
+   * If set, this generator is hidden/locked until the named upgrade is owned
+   * (mirrors `ModeDefinition.highlightUnlockUpgrade`). Unset = always available.
+   */
+  readonly unlockUpgrade?: string
 }
 
 /** Full state of a single player within a match. */

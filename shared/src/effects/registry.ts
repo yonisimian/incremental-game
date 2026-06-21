@@ -1,6 +1,6 @@
-import type { Modifier } from '../modifiers/types.js'
+import type { ModeDefinition } from '../modes/types.js'
 import type { EffectRef, PlayerState } from '../types.js'
-import type { EffectDef } from './types.js'
+import type { EffectDef, EffectOutput } from './types.js'
 
 const registry = new Map<string, EffectDef<unknown>>()
 
@@ -57,10 +57,27 @@ export function prepareEffect(ref: EffectRef): PreparedEffect {
 }
 
 /**
- * Run an effect for the given state, returning a modifier or `null`.
+ * Run an effect for the given state, returning output(s) or `null`.
  * Params are resolved + parsed once per ref (see `prepareEffect`).
  */
-export function applyEffect(ref: EffectRef, state: Readonly<PlayerState>): Modifier | null {
+export function applyEffect(
+  ref: EffectRef,
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): EffectOutput | readonly EffectOutput[] | null {
   const { def, params } = prepareEffect(ref)
-  return def.apply(params, state)
+  return def.apply(params, state, mode)
+}
+
+/**
+ * Normalize an effect's single-or-array (or `null`) output into a flat array,
+ * so consumers can iterate uniformly. A single {@link EffectOutput} is a tagged
+ * object (a `Modifier` carries `stage`; a `GeneratorCostOutput` carries `kind`),
+ * so the presence of either tag distinguishes it from an array.
+ */
+export function normalizeEffectOutputs(
+  out: EffectOutput | readonly EffectOutput[] | null,
+): readonly EffectOutput[] {
+  if (!out) return []
+  return 'stage' in out || 'kind' in out ? [out] : out
 }

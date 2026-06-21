@@ -68,6 +68,8 @@ const GeneratorSchema = z.strictObject({
   costScaling: z.number(),
   costCurrency: z.string(),
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
+  /** If set, the generator is locked until this upgrade is owned. */
+  unlockUpgrade: z.string().optional(),
 })
 
 // ─── Flavor schemas ──────────────────────────────────────────────────

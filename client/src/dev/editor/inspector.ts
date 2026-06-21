@@ -20,6 +20,7 @@ import {
 } from './effect-schema.js'
 
 import { nodeFlavor, setNodeFlavor } from './model.js'
+import { ALL_PANELS } from '../../ui/mode-ui.js'
 
 export interface InspectorContext {
   readonly tree: TreeFile
@@ -298,7 +299,7 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
       if (s === stage) opt.selected = true
       stageSelect.append(opt)
     }
-    const fieldSelect = buildModifierFieldSelect(ctx.currencies, fieldName)
+    const fieldSelect = buildModifierFieldSelect(ctx.currencies, ctx.tree.generators, fieldName)
     const valueInput = el('input', 'ed-input ed-mod-value')
     valueInput.type = 'number'
     valueInput.value = String(value)
@@ -327,14 +328,20 @@ function buildModifiersSection(ctx: InspectorContext): HTMLElement {
 }
 
 /**
- * A `<select>` of modifier targets: the tree's resources plus the special
- * pipeline fields (`clickIncome`, `globalMultiplier`). A leading blank marks an
- * incomplete row (not persisted until a field is picked). An unrecognized value
- * (e.g. a since-removed resource) is preserved as its own option rather than
- * silently dropped, mirroring the cost-currency dropdown.
+ * A `<select>` of modifier targets: the tree's resources, its generators, and
+ * the special pipeline fields (`clickIncome`, `globalMultiplier`). A leading
+ * blank marks an incomplete row (not persisted until a field is picked). An
+ * unrecognized value (e.g. a since-removed resource) is preserved as its own
+ * option rather than silently dropped, mirroring the cost-currency dropdown.
+ *
+ * Generator targets route differently in the pipeline: a generator-targeted
+ * modifier folds into that generator's per-unit output (see `collectModifiers`),
+ * so `additive` is a flat bonus per owned generator and `multiplicative` scales
+ * the generator's total — both compounding with the upgrade's owned count.
  */
 function buildModifierFieldSelect(
   currencies: readonly Currency[],
+  generators: TreeFile['generators'],
   value: string,
 ): HTMLSelectElement {
   const select = el('select', 'ed-input ed-mod-field')
@@ -354,6 +361,16 @@ function buildModifierFieldSelect(
   }
   if (currencies.length > 0) select.append(resources)
 
+  const generatorGroup = el('optgroup')
+  generatorGroup.label = 'Generators'
+  for (const gen of generators) {
+    const opt = el('option', undefined, gen.id)
+    opt.value = gen.id
+    if (gen.id === value) opt.selected = true
+    generatorGroup.append(opt)
+  }
+  if (generators.length > 0) select.append(generatorGroup)
+
   const special = el('optgroup')
   special.label = 'Special'
   for (const fieldName of MODIFIER_SPECIAL_FIELDS) {
@@ -367,6 +384,7 @@ function buildModifierFieldSelect(
   const known =
     value === '' ||
     currencies.some((c) => c.key === value) ||
+    generators.some((g) => g.id === value) ||
     MODIFIER_SPECIAL_FIELDS.includes(value)
   if (!known) {
     const opt = el('option', undefined, `${value} (unknown)`)
@@ -458,10 +476,31 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
   return Object.fromEntries(Object.entries(ref).filter(([key]) => key !== 'type'))
 }
 
+/**
+ * Fixed option set for an effect's string param, or `undefined` to render a free
+ * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
+ * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
+ * from the tree's generators, and `panelUnlock`'s `panel` from the known panels.
+ */
+function effectFieldOptions(
+  ctx: InspectorContext,
+  effectType: string,
+  fieldKey: string,
+): readonly string[] | undefined {
+  if (effectType === 'generatorCost' && fieldKey === 'generator') {
+    return ctx.tree.generators.map((g) => g.id)
+  }
+  if (effectType === 'panelUnlock' && fieldKey === 'panel') {
+    return ALL_PANELS.map((p) => p.id)
+  }
+  return undefined
+}
+
 function buildEffectField(
   spec: FieldSpec,
   current: unknown,
   onChange: () => void,
+  options?: readonly string[],
 ): { row: HTMLElement; read: () => unknown } {
   const label = spec.optional ? `${spec.key} (optional)` : spec.key
   if (spec.kind === 'boolean') {
@@ -470,6 +509,30 @@ function buildEffectField(
     input.checked = current === true || (current === undefined && spec.defaultValue === true)
     input.addEventListener('change', onChange)
     return { row: field(label, input), read: () => input.checked }
+  }
+  // A string field with a fixed option set renders as a picker (e.g. the
+  // `generatorCost` effect's `generator`). An unrecognized current value (a
+  // since-removed id) is preserved as its own option rather than silently lost.
+  if (spec.kind === 'string' && options) {
+    const select = el('select', 'ed-input')
+    const value = typeof current === 'string' ? current : ''
+    if (value !== '' && !options.includes(value)) {
+      const opt = el('option', undefined, `${value} (unknown)`)
+      opt.value = value
+      opt.selected = true
+      select.append(opt)
+    }
+    for (const id of options) {
+      const opt = el('option', undefined, id)
+      opt.value = id
+      if (id === value) opt.selected = true
+      select.append(opt)
+    }
+    select.addEventListener('change', onChange)
+    return {
+      row: field(label, select),
+      read: () => (select.value === '' ? undefined : select.value),
+    }
   }
   const input = el('input', 'ed-input')
   input.type = spec.kind === 'number' ? 'number' : 'text'
@@ -548,9 +611,14 @@ function buildEffectBlock(
       return out
     }
     for (const fieldSpec of variant.fields) {
-      const { row, read } = buildEffectField(fieldSpec, params[fieldSpec.key], () => {
-        writeFrom(collect())
-      })
+      const { row, read } = buildEffectField(
+        fieldSpec,
+        params[fieldSpec.key],
+        () => {
+          writeFrom(collect())
+        },
+        effectFieldOptions(ctx, ref.type, fieldSpec.key),
+      )
       reads.set(fieldSpec.key, read)
       fieldsWrap.append(row)
     }
