@@ -732,6 +732,9 @@ body {
   width: 100%;
   margin-top: 1rem;
   position: relative;
+  /* Horizontal breathing room so the edge cards' click pulse (scale 1.08 +
+     glow) isn't clipped by the panel container's `overflow-x: clip`. */
+  padding-inline: 1.5rem;
 }
 
 .click-card {

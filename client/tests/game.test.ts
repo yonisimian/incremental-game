@@ -772,5 +772,15 @@ describe('game.ts', () => {
       game.cycleClickTarget()
       expect(game.getClickTarget(idlerDef)).toBe('r0') // unchanged
     })
+
+    it('resets to the score resource when a new round starts', () => {
+      enterIdlerPlaying(game)
+      unlockClicking(game)
+      game.cycleClickTarget() // now targeting r1
+      expect(game.getClickTarget(idlerDef)).toBe('r1')
+
+      game.handleServerMessage(makeRoundStart()) // fresh match
+      expect(game.getClickTarget(idlerDef)).toBe('r0') // back to the default
+    })
   })
 })

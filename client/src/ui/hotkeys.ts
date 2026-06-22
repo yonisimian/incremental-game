@@ -107,7 +107,7 @@ export function initHotkeys(): void {
 
     // Z — cycle which resource the Space hotkey clicks (clicks-enabled modes)
     if (e.key === 'z' || e.key === 'Z') {
-      if (!isClickUnlocked(state.player, modeDef)) return
+      if (inTabGrid || e.repeat || !isClickUnlocked(state.player, modeDef)) return
       cycleClickTarget()
       return
     }

@@ -515,6 +515,7 @@ export function togglePause(): void {
 export function resetForMatch(): void {
   resetCombo()
   lastFiredMilestoneTier = 0
+  clickTarget = null
   state.screen = 'lobby'
   state.mode = null
   state.goal = null
@@ -571,6 +572,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.endData = null
   pendingBatches.length = 0
   lastFiredMilestoneTier = 0
+  clickTarget = null
   resetSeq()
   notify()
 
