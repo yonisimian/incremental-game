@@ -185,6 +185,6 @@
 - [x] Game stays on 0:00 for ~5 seconds before showing the end screen
 - [ ] "Cancel" / "Leave" button is too far above the title on waiting/room screens — move closer
 - [ ] `C` hotkey (buy cheapest) works in idler but has no visible hint after play-panel upgrades were removed
-- [ ] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
+- [x] Holding Space in clicker mode triggers repeated clicks (should require discrete presses)
 - [x] "Race To Buy" goal in idler mode is impossible — no global/trophy upgrade exists since 9885e31 (fix in separate PR)
 - [ ] "Ctrl + N" Hotkeys (switching panels) don't work on MacOS since Cmd + N is reserved for "New Window"

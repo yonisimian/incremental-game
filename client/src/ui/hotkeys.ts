@@ -2,6 +2,7 @@ import {
   doClick,
   doBuy,
   setHighlight,
+  cycleClickTarget,
   getState,
   togglePause,
   cancelQueue,
@@ -98,7 +99,16 @@ export function initHotkeys(): void {
     if (e.key === ' ' || e.code === 'Space') {
       if (inTabGrid || !isClickUnlocked(state.player, modeDef)) return
       e.preventDefault() // prevent page scroll
+      // Require discrete presses — ignore OS key-repeat from holding Space.
+      if (e.repeat) return
       doClick()
+      return
+    }
+
+    // Z — cycle which resource the Space hotkey clicks (clicks-enabled modes)
+    if (e.key === 'z' || e.key === 'Z') {
+      if (inTabGrid || e.repeat || !isClickUnlocked(state.player, modeDef)) return
+      cycleClickTarget()
       return
     }
 
