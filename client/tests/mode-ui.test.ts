@@ -8,9 +8,16 @@ function playerWith(upgrades: Record<string, number>): GameState {
 }
 
 describe('getModeUI', () => {
-  it('surfaces the play, upgrades, and generators panels for idler', () => {
+  it('surfaces the base panels plus the unlockable panels, in order', () => {
     const ui = getModeUI('idler')
-    expect(ui.panels.map((p) => p.panel.id)).toEqual(['play', 'upgrades', 'generators'])
+    expect(ui.panels.map((p) => p.panel.id)).toEqual([
+      'play',
+      'upgrades',
+      'generators',
+      'attack',
+      'international-relationship',
+      'espionage',
+    ])
   })
 
   it('gates the generators panel on its panelUnlock effect', () => {
@@ -19,5 +26,12 @@ describe('getModeUI', () => {
     const generators = getModeUI('idler').panels.find((p) => p.panel.id === 'generators')
     expect(generators?.isUnlocked?.(playerWith({}))).toBe(false)
     expect(generators?.isUnlocked?.(playerWith({ 'g1-g2': 1 }))).toBe(true)
+  })
+
+  it('locks the attack panel until its unlock upgrade is owned', () => {
+    // The idler tree gates the attack panel behind the `a-unlock` upgrade.
+    const attack = getModeUI('idler').panels.find((p) => p.panel.id === 'attack')
+    expect(attack?.isUnlocked?.(playerWith({}))).toBe(false)
+    expect(attack?.isUnlocked?.(playerWith({ 'a-unlock': 1 }))).toBe(true)
   })
 })
