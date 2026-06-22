@@ -9,7 +9,6 @@ import {
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
-  isPanelGated,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -183,32 +182,6 @@ describe('isPanelUnlocked', () => {
     expect(isPanelUnlocked(state, def, 'generators')).toBe(false)
     state.upgrades['g1-g2'] = 1
     expect(isPanelUnlocked(state, def, 'generators')).toBe(true)
-  })
-})
-
-// ─── isPanelGated ────────────────────────────────────────────────────
-
-describe('isPanelGated', () => {
-  // Controlled upgrade lists (independent of the live idler tree's gates).
-  const base = getModeDefinition('idler')
-
-  it('reports false for a panel no upgrade unlocks', () => {
-    const def: ModeDefinition = { ...base, upgrades: [] }
-    expect(isPanelGated(def, 'attack')).toBe(false)
-  })
-
-  it('reports true once an upgrade carries a panelUnlock effect for the panel', () => {
-    const unlockUpgrade: UpgradeDefinition = {
-      id: 'unlock-attack',
-      cost: {},
-      purchaseLimit: 1,
-      modifiers: [],
-      effects: [{ type: 'panelUnlock', panel: 'attack' }],
-    }
-    const def: ModeDefinition = { ...base, upgrades: [unlockUpgrade] }
-    expect(isPanelGated(def, 'attack')).toBe(true)
-    // Gating one panel doesn't gate the others.
-    expect(isPanelGated(def, 'espionage')).toBe(false)
   })
 })
 

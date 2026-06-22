@@ -284,16 +284,6 @@ export function isPanelUnlocked(
   return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
 }
 
-/**
- * Whether any upgrade in this mode carries a `panelUnlock` effect naming the
- * given panel. Used by the client to surface a gated-but-optional panel only in
- * modes whose tree actually unlocks it (so it never shows as an always-available
- * empty tab in unrelated modes).
- */
-export function isPanelGated(mode: ModeDefinition, panelId: string): boolean {
-  return getPanelGateIndex(mode).has(panelId)
-}
-
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**

@@ -1,5 +1,5 @@
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, isPanelGated, isPanelUnlocked } from '@game/shared'
+import { getModeDefinition, isPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
@@ -56,10 +56,9 @@ export function getModeUI(mode: GameMode): ModeUI {
     })
   }
 
-  // Unlockable panels appear (locked) only in modes whose tree gates them with a
-  // `panelUnlock` upgrade, in their declared order.
+  // Unlockable panels, in declared order — each locked until a `panelUnlock`
+  // upgrade reveals it (panels no upgrade gates are always available).
   for (const panel of UNLOCKABLE_PANELS) {
-    if (!isPanelGated(modeDef, panel.id)) continue
     panels.push({
       index: panels.length,
       panel,
