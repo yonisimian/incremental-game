@@ -26,13 +26,6 @@ export const ALL_PANELS = [
   espionagePanel,
 ] as const
 
-/**
- * Panels that exist only when an upgrade unlocks them, in tab order. Each is
- * surfaced (gated, locked until its `panelUnlock` upgrade is owned) only in
- * modes whose tree actually unlocks it — see `getModeUI`.
- */
-const UNLOCKABLE_PANELS = [attackPanel, internationalRelationshipPanel, espionagePanel] as const
-
 // ─── Public API ──────────────────────────────────────────────────────
 
 /**
@@ -48,17 +41,16 @@ export function getModeUI(mode: GameMode): ModeUI {
     panels.push({ index: panels.length, panel: upgradeTreePanel })
   }
 
-  if (modeDef.generators.length > 0) {
-    panels.push({
-      index: panels.length,
-      panel: generatorsPanel,
-      isUnlocked: (state) => isPanelUnlocked(state.player, modeDef, generatorsPanel.id),
-    })
-  }
-
-  // Unlockable panels, in declared order — each locked until a `panelUnlock`
-  // upgrade reveals it (panels no upgrade gates are always available).
-  for (const panel of UNLOCKABLE_PANELS) {
+  // Gated panels, in tab order — each locked until a `panelUnlock` upgrade
+  // reveals it (a panel no upgrade gates is always available). Generators only
+  // exists when the mode declares any.
+  const gatedPanels = [
+    ...(modeDef.generators.length > 0 ? [generatorsPanel] : []),
+    attackPanel,
+    internationalRelationshipPanel,
+    espionagePanel,
+  ]
+  for (const panel of gatedPanels) {
     panels.push({
       index: panels.length,
       panel,
