@@ -18,6 +18,7 @@ import {
   reparentNode,
   nodeFlavor,
   setNodeFlavor,
+  renameNode,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -241,6 +242,42 @@ describe('setNodeFlavor', () => {
     expect(tree.flavors[0].upgrades).toEqual([
       { id: 'a', name: 'Axe', icon: '🪓', description: 'Cuts trees' },
     ])
+  })
+})
+
+// ─── renameNode ──────────────────────────────────────────────────────
+
+describe('renameNode', () => {
+  it('renames the node and its flavor entry across every flavor', () => {
+    const tree = makeTree()
+    tree.flavors = [
+      {
+        ...tree.flavors[0],
+        upgrades: [{ id: 'b', name: 'Bee', icon: '🐝', description: 'buzz' }],
+      },
+      {
+        ...tree.flavors[0],
+        id: 'alt',
+        upgrades: [{ id: 'b', name: 'Bravo', icon: 'B', description: 'alt' }],
+      },
+    ]
+    renameNode(tree, 'b', 'bravo')
+    expect(findNode(tree, 'bravo')).toBeTruthy()
+    expect(findNode(tree, 'b')).toBeNull()
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'bravo', name: 'Bee', icon: '🐝', description: 'buzz' },
+    ])
+    expect(tree.flavors[1].upgrades).toEqual([
+      { id: 'bravo', name: 'Bravo', icon: 'B', description: 'alt' },
+    ])
+  })
+
+  it('is a no-op when the id is unchanged or the node is absent', () => {
+    const tree = makeTree()
+    const before = cloneTree(tree)
+    renameNode(tree, 'b', 'b')
+    renameNode(tree, 'nope', 'whatever')
+    expect(tree).toEqual(before)
   })
 })
 

@@ -19,7 +19,7 @@ import {
   type FieldSpec,
 } from './effect-schema.js'
 
-import { findNode, nodeFlavor, setNodeFlavor } from './model.js'
+import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
 import { ALL_PANELS } from '../../ui/mode-ui.js'
 
 export interface InspectorContext {
@@ -128,8 +128,8 @@ function buildIdSection(ctx: InspectorContext): HTMLElement {
   input.value = ctx.node.id
   input.addEventListener('change', () => {
     const next = input.value.trim()
-    if (next) {
-      ctx.node.id = next
+    if (next && next !== ctx.node.id) {
+      renameNode(ctx.tree, ctx.node.id, next)
       ctx.onChange()
     } else {
       input.value = ctx.node.id

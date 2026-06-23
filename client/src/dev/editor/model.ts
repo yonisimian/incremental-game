@@ -203,6 +203,23 @@ export function setNodeFlavor(
   }
 }
 
+/**
+ * Rename a node's id, keeping every flavor's table in sync (the runtime forbids
+ * missing/orphaned flavor entries, so a bare `node.id =` would invalidate the
+ * tree). Prerequisite references are intentionally left untouched. No-op when
+ * the node is absent or the id is unchanged.
+ */
+export function renameNode(tree: TreeFile, oldId: string, newId: string): void {
+  if (oldId === newId) return
+  const node = findNode(tree, oldId)
+  if (!node) return
+  node.id = newId
+  for (const flavor of tree.flavors) {
+    const entry = flavor.upgrades.find((e) => e.id === oldId)
+    if (entry) entry.id = newId
+  }
+}
+
 /** Ensure every flavor has an entry for `id` (default when missing). No-op if present. */
 function ensureNodeFlavor(tree: TreeFile, id: string): void {
   for (const flavor of tree.flavors) {
