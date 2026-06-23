@@ -480,8 +480,8 @@
           "description": "The alert tells which attack incoming."
         },
         {
-          "id": "node",
-          "name": "node",
+          "id": "sc-pcps",
+          "name": "sc-pcps",
           "icon": "🖱️",
           "description": "Gain additional click income as your peak cps."
         }
@@ -1386,7 +1386,7 @@
           }
         },
         {
-          "id": "node",
+          "id": "sc-pcps",
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
