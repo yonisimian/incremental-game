@@ -34,12 +34,43 @@ export interface PanelUnlockOutput {
 }
 
 /**
- * What an effect's `apply` can emit: a production {@link Modifier}, a
- * {@link GeneratorCostOutput}, or a {@link PanelUnlockOutput}. Each is routed to
- * a different subsystem (`collectModifiers` / `collectGeneratorCostFactors` /
- * `isPanelUnlocked`); every consumer ignores the outputs it doesn't own.
+ * Marks a generator as unlocked while the owning upgrade is held. Consumed by
+ * `isGeneratorUnlocked` (a generator that no such output names is gated only by
+ * its legacy `unlockUpgrade` field, if any); carries no production weight, so
+ * the modifier pipeline ignores it.
  */
-export type EffectOutput = Modifier | GeneratorCostOutput | PanelUnlockOutput
+export interface GeneratorUnlockOutput {
+  readonly kind: 'generatorUnlock'
+  /** Stable generator id this upgrade reveals (matches `GeneratorDefinition.id`). */
+  readonly generator: string
+}
+
+/**
+ * Marks an input system (clicking / highlighting) as unlocked while the owning
+ * upgrade is held. Consumed by `isClickUnlocked` / `isHighlightActive` (a system
+ * that no such output names is gated only by its legacy mode field, if any);
+ * carries no production weight, so the modifier pipeline ignores it.
+ */
+export interface SystemUnlockOutput {
+  readonly kind: 'systemUnlock'
+  /** Which input system this upgrade reveals (`'click'` or `'highlight'`). */
+  readonly system: string
+}
+
+/**
+ * What an effect's `apply` can emit: a production {@link Modifier}, a
+ * {@link GeneratorCostOutput}, or one of the unlock outputs ({@link
+ * PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link SystemUnlockOutput}).
+ * Each is routed to a different subsystem (`collectModifiers` /
+ * `collectGeneratorCostFactors` / the unlock gates); every consumer ignores the
+ * outputs it doesn't own.
+ */
+export type EffectOutput =
+  | Modifier
+  | GeneratorCostOutput
+  | PanelUnlockOutput
+  | GeneratorUnlockOutput
+  | SystemUnlockOutput
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn

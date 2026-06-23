@@ -47,9 +47,11 @@ describe('effect registry', () => {
       'balancedGenerators',
       'dominantGenerator',
       'generatorCost',
+      'generatorUnlock',
       'highlightMultiplier',
       'lowerTierBoost',
       'panelUnlock',
+      'systemUnlock',
     ])
   })
 })
@@ -351,6 +353,44 @@ describe('panelUnlock effect', () => {
     const withEffect: ModeDefinition = {
       ...base,
       effects: [{ type: 'panelUnlock', panel: 'generators' }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+})
+
+describe('generatorUnlock effect', () => {
+  it('emits a generatorUnlock output naming the generator', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'generatorUnlock', generator: 'g1' }, createInitialState(mode), mode),
+    ).toEqual({ kind: 'generatorUnlock', generator: 'g1' })
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'generatorUnlock', generator: 'g1' }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+})
+
+describe('systemUnlock effect', () => {
+  it('emits a systemUnlock output naming the system', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'systemUnlock', system: 'click' }, createInitialState(mode), mode),
+    ).toEqual({ kind: 'systemUnlock', system: 'click' })
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'systemUnlock', system: 'highlight' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))

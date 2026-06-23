@@ -14,6 +14,7 @@ import {
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
 import type { EffectOutput } from '../effects/index.js'
+import { anyOwned, panelGateUpgrades, systemGateUpgrades } from '../unlock-gates.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -212,76 +213,52 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
 
 // ─── Highlight ────────────────────────────────────────────────────────
 
+/**
+ * Whether an input system is unlocked, combining its legacy mode field with any
+ * `systemUnlock` effect naming it (OR semantics). A system with neither gate is
+ * always unlocked; otherwise owning the legacy upgrade or any gating upgrade
+ * satisfies it. Callers check the relevant `*Enabled` flag first.
+ */
+function isSystemUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  system: string,
+  legacyUpgrade: string | undefined,
+): boolean {
+  const effectGates = systemGateUpgrades(mode, system)
+  if (!legacyUpgrade && !effectGates) return true
+  if (legacyUpgrade && (state.upgrades[legacyUpgrade] ?? 0) > 0) return true
+  return anyOwned(state, effectGates)
+}
+
 /** Whether the highlight mechanic is currently active for this player. */
 export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.highlightEnabled) return false
-  if (!mode.highlightUnlockUpgrade) return true
-  return (state.upgrades[mode.highlightUnlockUpgrade] ?? 0) > 0
+  return isSystemUnlocked(state, mode, 'highlight', mode.highlightUnlockUpgrade)
 }
 
 /** Whether the click mechanic is currently active for this player. */
 export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.clicksEnabled) return false
-  if (!mode.clickUnlockUpgrade) return true
-  return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
-}
-
-/**
- * Per-mode reverse index: panel id → ids of the upgrades whose `panelUnlock`
- * effect gates it. This is derived topology (not authored data), so it lives in
- * a WeakMap keyed by the mode rather than on `ModeDefinition`, and is dropped
- * automatically when the mode is GC'd.
- *
- * `isPanelUnlocked` runs on every frame via the tab-lock refresh, so it must not
- * scan every upgrade/effect (that grows with the whole tree). The index turns it
- * into an O(gates-for-this-panel) ownership check — effectively O(1), since a
- * panel is normally gated by one upgrade.
- */
-const panelGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
-
-/**
- * Build (or return the cached) panel-gate index for a mode. `panelUnlock` is
- * state-independent — it echoes its authored panel id — so a throwaway initial
- * state is enough to read which panel each effect names.
- */
-function getPanelGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
-  const cached = panelGateIndex.get(mode)
-  if (cached) return cached
-
-  const index = new Map<string, string[]>()
-  const probe = createInitialState(mode)
-  for (const upgrade of mode.upgrades) {
-    for (const ref of upgrade.effects ?? []) {
-      if (ref.type !== 'panelUnlock') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
-        if (!('kind' in out) || out.kind !== 'panelUnlock') continue
-        const gates = index.get(out.panel)
-        if (gates) {
-          if (!gates.includes(upgrade.id)) gates.push(upgrade.id)
-        } else {
-          index.set(out.panel, [upgrade.id])
-        }
-      }
-    }
-  }
-
-  panelGateIndex.set(mode, index)
-  return index
+  return isSystemUnlocked(state, mode, 'click', mode.clickUnlockUpgrade)
 }
 
 /**
  * Whether a UI panel is currently accessible for this player. A panel is gated
  * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
  * such upgrade is owned. Panels that no upgrade unlocks are always available.
+ * (See `unlock-gates` for the reverse index this and the other unlock gates
+ * share — `isPanelUnlocked` runs every frame via the tab-lock refresh, so the
+ * check is an O(gates-for-this-panel) ownership lookup, not a full tree scan.)
  */
 export function isPanelUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   panelId: string,
 ): boolean {
-  const gates = getPanelGateIndex(mode).get(panelId)
+  const gates = panelGateUpgrades(mode, panelId)
   if (!gates) return true // no upgrade gates this panel → always available
-  return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
+  return anyOwned(state, gates)
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────

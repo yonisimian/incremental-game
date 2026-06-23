@@ -9,6 +9,8 @@ import {
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
+  isClickUnlocked,
+  isHighlightActive,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -182,6 +184,66 @@ describe('isPanelUnlocked', () => {
     expect(isPanelUnlocked(state, def, 'generators')).toBe(false)
     state.upgrades['g1-g2'] = 1
     expect(isPanelUnlocked(state, def, 'generators')).toBe(true)
+  })
+})
+
+// ─── system unlock via the systemUnlock effect ──────────────────────
+
+describe('systemUnlock effect gating', () => {
+  const gateUpgrade = (system: string): UpgradeDefinition => ({
+    id: `u-${system}`,
+    cost: {},
+    purchaseLimit: 1,
+    modifiers: [],
+    effects: [{ type: 'systemUnlock', system }],
+  })
+
+  it('locks clicking until an upgrade with a click systemUnlock effect is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: true,
+      clickUnlockUpgrade: undefined,
+      upgrades: [gateUpgrade('click')],
+    }
+    const state = createInitialState(def)
+    expect(isClickUnlocked(state, def)).toBe(false)
+    state.upgrades['u-click'] = 1
+    expect(isClickUnlocked(state, def)).toBe(true)
+  })
+
+  it('locks highlighting until an upgrade with a highlight systemUnlock effect is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      highlightEnabled: true,
+      highlightUnlockUpgrade: undefined,
+      upgrades: [gateUpgrade('highlight')],
+    }
+    const state = createInitialState(def)
+    expect(isHighlightActive(state, def)).toBe(false)
+    state.upgrades['u-highlight'] = 1
+    expect(isHighlightActive(state, def)).toBe(true)
+  })
+
+  it('stays locked when the mechanic is disabled, even if the gating upgrade is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: false,
+      clickUnlockUpgrade: undefined,
+      upgrades: [gateUpgrade('click')],
+    }
+    const state = createInitialState(def)
+    state.upgrades['u-click'] = 1
+    expect(isClickUnlocked(state, def)).toBe(false)
+  })
+
+  it('is unlocked when the mechanic is enabled and nothing gates it', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: true,
+      clickUnlockUpgrade: undefined,
+      upgrades: [],
+    }
+    expect(isClickUnlocked(createInitialState(def), def)).toBe(true)
   })
 })
 

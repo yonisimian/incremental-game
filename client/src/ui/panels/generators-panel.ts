@@ -71,7 +71,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
     `
   }
   const cards = modeDef.generators
-    .filter((def) => isGeneratorUnlocked(state.player, def))
+    .filter((def) => isGeneratorUnlocked(state.player, def, modeDef))
     .map((def) => {
       const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
       const owned = state.player.generators[def.id] ?? 0

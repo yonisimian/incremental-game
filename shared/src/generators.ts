@@ -4,6 +4,7 @@ import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 // Importing from the effects barrel ensures seed effects (incl. `generatorCost`)
 // are registered whenever cost factors are collected.
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
+import { anyOwned, generatorGateUpgrades } from './unlock-gates.js'
 
 /** Aggregated cost reductions for a single generator (1 = no reduction). */
 export interface GeneratorCostFactors {
@@ -144,16 +145,21 @@ export function canAffordGenerator(
 }
 
 /**
- * Is this generator available to the player yet?
- * Generators without an `unlockUpgrade` gate are always unlocked; otherwise the
- * named upgrade must be owned (mirrors the highlight/click unlock gates).
+ * Is this generator available to the player yet? Combines the legacy
+ * `unlockUpgrade` field with any `generatorUnlock` effect naming this generator
+ * (OR semantics, mirroring the highlight/click gates): a generator with neither
+ * gate is always unlocked; otherwise owning the named upgrade or any gating
+ * upgrade reveals it.
  */
 export function isGeneratorUnlocked(
   state: Readonly<PlayerState>,
   gen: GeneratorDefinition,
+  mode: ModeDefinition,
 ): boolean {
-  if (!gen.unlockUpgrade) return true
-  return (state.upgrades[gen.unlockUpgrade] ?? 0) > 0
+  const effectGates = generatorGateUpgrades(mode, gen.id)
+  if (!gen.unlockUpgrade && !effectGates) return true
+  if (gen.unlockUpgrade && (state.upgrades[gen.unlockUpgrade] ?? 0) > 0) return true
+  return anyOwned(state, effectGates)
 }
 
 /** Deduct cost and increment owned count for a generator. */

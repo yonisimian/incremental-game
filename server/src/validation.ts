@@ -69,6 +69,6 @@ export function isValidGeneratorPurchase(
 ): boolean {
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return false
-  if (!isGeneratorUnlocked(state, def)) return false
+  if (!isGeneratorUnlocked(state, def, mode)) return false
   return canAffordGenerator(state, resolveGeneratorDef(def, state, mode))
 }
