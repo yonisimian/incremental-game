@@ -84,7 +84,9 @@ function renderPauseButton(state: Readonly<GameState>): string {
 
 /** Shared scoreboard HTML for both modes. */
 function renderScoreboard(state: Readonly<GameState>): string {
-  if (state.goal?.type === 'target-score') return ''
+  // No score race to show: 'target-score' uses progress bars instead, and
+  // 'buy-upgrade' (Race to Buy) is won by buying the goal upgrade, not by score.
+  if (state.goal?.type === 'target-score' || state.goal?.type === 'buy-upgrade') return ''
   return `
     <div class="scoreboard">
       <div class="player-col you">
