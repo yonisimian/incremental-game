@@ -1412,6 +1412,12 @@
       "cost": {},
       "purchaseLimit": 1,
       "modifiers": [],
+      "effects": [
+        {
+          "type": "panelUnlock",
+          "panel": "attack"
+        }
+      ],
       "offset": {
         "x": 1176,
         "y": 144
@@ -1422,6 +1428,12 @@
       "cost": {},
       "purchaseLimit": 1,
       "modifiers": [],
+      "effects": [
+        {
+          "type": "panelUnlock",
+          "panel": "international-relationship"
+        }
+      ],
       "offset": {
         "x": 1176,
         "y": 528
@@ -1432,6 +1444,12 @@
       "cost": {},
       "purchaseLimit": 1,
       "modifiers": [],
+      "effects": [
+        {
+          "type": "panelUnlock",
+          "panel": "espionage"
+        }
+      ],
       "offset": {
         "x": 1416,
         "y": 144

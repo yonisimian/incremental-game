@@ -732,6 +732,9 @@ body {
   width: 100%;
   margin-top: 1rem;
   position: relative;
+  /* Horizontal breathing room so the edge cards' click pulse (scale 1.08 +
+     glow) isn't clipped by the panel container's `overflow-x: clip`. */
+  padding-inline: 1.5rem;
 }
 
 .click-card {
@@ -791,6 +794,24 @@ body {
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
   line-height: 1;
+}
+
+.click-cards-hotkey {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.55rem;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  line-height: 1;
+  box-shadow: 0 1px 0 var(--border);
+  z-index: 1;
 }
 
 /* Scoreboard */
