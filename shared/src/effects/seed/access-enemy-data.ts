@@ -5,13 +5,14 @@ import type { EffectDef, EnemyDataAccessOutput } from '../types.js'
 /**
  * Schema for the `accessEnemyData` effect's params.
  *
- * While the owning upgrade is held, the named opponent resource (`data` is a
- * resource key, e.g. `'r0'`) becomes visible in the espionage panel. The editor
- * offers the tree's resource keys as a dropdown. Like `generatorCost`'s
- * `generator`, the field is a plain `z.string()` (not a `z.enum`) so the
- * schema-driven editor form can introspect it — the valid set is enforced by
- * the dropdown and tolerated by `hasEnemyDataAccess` (an unknown key reveals
- * nothing rather than erroring).
+ * While the owning upgrade is held, the named slice of opponent intel becomes
+ * visible in the espionage panel: a resource key (e.g. `'r0'`) reveals that
+ * resource's stockpile, and a `':rate'`-suffixed key (e.g. `'r0:rate'`) reveals
+ * its per-second production. The editor offers both per resource as a dropdown.
+ * Like `generatorCost`'s `generator`, the field is a plain `z.string()` (not a
+ * `z.enum`) so the schema-driven editor form can introspect it — the valid set
+ * is enforced by the dropdown and tolerated by `hasEnemyDataAccess` (an unknown
+ * key reveals nothing rather than erroring).
  */
 const schema = z.strictObject({
   data: z.string(),

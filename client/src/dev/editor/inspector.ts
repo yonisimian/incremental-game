@@ -527,7 +527,8 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
  * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
- * `accessEnemyData`'s `data` from the tree's resource keys.
+ * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
+ * `:rate` variant per resource (per-second production).
  */
 function effectFieldOptions(
   ctx: InspectorContext,
@@ -541,7 +542,7 @@ function effectFieldOptions(
     return ALL_PANELS.map((p) => p.id)
   }
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
-    return ctx.tree.resources
+    return ctx.tree.resources.flatMap((key) => [key, `${key}:rate`])
   }
   return undefined
 }

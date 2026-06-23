@@ -207,6 +207,18 @@ describe('hasEnemyDataAccess', () => {
     state.upgrades['e-se-sr'] = 1
     expect(hasEnemyDataAccess(state, def, 'r1')).toBe(true)
   })
+
+  it('gates per-second production behind its own `:rate` upgrades', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // Per-sec rates are a separate grant (`<key>:rate`) from the stockpile.
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(false)
+    state.upgrades['e-se-mr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(true)
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(false)
+    state.upgrades['e-se-sr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(true)
+  })
 })
 
 // ─── collectModifiers ────────────────────────────────────────────────

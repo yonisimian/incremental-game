@@ -40,12 +40,14 @@ export interface PanelUnlockOutput {
  * weight, so the modifier pipeline ignores it.
  *
  * Opponent state is already broadcast in full each tick, so this gates
- * *visibility* (UI), not delivery. `data` is a resource key (e.g. `'r0'`) —
- * each espionage upgrade reveals one of the opponent's resources in the panel.
+ * *visibility* (UI), not delivery. `data` keys a slice of opponent intel: a
+ * resource key (e.g. `'r0'`) reveals that resource's stockpile, and the
+ * `':rate'`-suffixed form (e.g. `'r0:rate'`) reveals its per-second production
+ * (derived client-side from the opponent's broadcast state).
  */
 export interface EnemyDataAccessOutput {
   readonly kind: 'enemyDataAccess'
-  /** Which slice of opponent intel this upgrade reveals (a resource key). */
+  /** Which slice of opponent intel this upgrade reveals (e.g. `'r0'` or `'r0:rate'`). */
   readonly data: string
 }
 

@@ -1458,6 +1458,12 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "accessEnemyData",
+              "data": "r0:rate"
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"
@@ -1472,6 +1478,12 @@
               "cost": {},
               "purchaseLimit": 1,
               "modifiers": [],
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "r1:rate"
+                }
+              ],
               "prerequisites": {
                 "type": "all",
                 "items": [

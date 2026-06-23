@@ -1259,6 +1259,16 @@ body {
   border-collapse: collapse;
 }
 
+.espionage-table th {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, var(--text));
+}
+
 .espionage-table td {
   padding: 0.25rem 0;
   border-bottom: 1px solid var(--border);

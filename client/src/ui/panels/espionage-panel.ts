@@ -2,6 +2,8 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import {
+  collectModifiers,
+  computePassiveRates,
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
@@ -14,6 +16,21 @@ import {
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
 
+/** Suffix marking an `accessEnemyData` grant as the per-second rate (vs stockpile). */
+const RATE_SUFFIX = ':rate'
+
+/** Masks a cell whose specific intel the viewer hasn't unlocked yet. */
+const LOCKED_CELL = '🔒'
+
+/** One resource row's unlock state: which of its metrics the viewer can see. */
+interface ResourceIntel {
+  readonly key: string
+  /** Stockpile unlocked via `accessEnemyData: <key>`. */
+  readonly amount: boolean
+  /** Per-second rate unlocked via `accessEnemyData: <key>:rate`. */
+  readonly rate: boolean
+}
+
 /** Locked teaser shown until the viewer owns an `accessEnemyData` upgrade. */
 function renderLocked(): string {
   return `
@@ -25,20 +42,28 @@ function renderLocked(): string {
 }
 
 /**
- * A read-only table of the opponent's resource stockpiles, limited to the
- * resource keys the viewer has unlocked via `accessEnemyData` (each espionage
- * upgrade reveals one resource — e.g. main/Wood, then secondary/Ale).
+ * A table of the opponent's resources — current stockpile and per-second
+ * production — limited to the metrics the viewer has unlocked via
+ * `accessEnemyData`. Each cell is masked until its specific grant is owned, so
+ * the table fills in as espionage is researched (main/Wood, secondary/Ale, then
+ * their per-sec rates).
  */
-function renderResources(state: Readonly<GameState>, resourceKeys: readonly string[]): string {
+function renderResources(
+  state: Readonly<GameState>,
+  rows: readonly ResourceIntel[],
+  rates: Record<string, number>,
+): string {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
-  const rows = resourceKeys
-    .map((key) => {
-      const amount = state.opponent.resources[key] ?? 0
+  const body = rows
+    .map(({ key, amount, rate }) => {
+      const amountCell = amount ? formatNumber(state.opponent.resources[key] ?? 0) : LOCKED_CELL
+      const rateCell = rate ? `${formatNumber(rates[key] ?? 0, 1)}/s` : LOCKED_CELL
       return `
         <tr>
           <td class="espionage-res-name">${getResourceIcon(flavor, key)} ${getResourceName(flavor, key)}</td>
-          <td class="espionage-res-value">${formatNumber(amount)}</td>
+          <td class="espionage-res-value">${amountCell}</td>
+          <td class="espionage-res-value">${rateCell}</td>
         </tr>
       `
     })
@@ -47,7 +72,14 @@ function renderResources(state: Readonly<GameState>, resourceKeys: readonly stri
     <section class="espionage-section">
       <h3 class="espionage-heading">Enemy Resources</h3>
       <table class="espionage-table">
-        <tbody>${rows}</tbody>
+        <thead>
+          <tr>
+            <th class="espionage-res-name">Resource</th>
+            <th class="espionage-res-value">Amount</th>
+            <th class="espionage-res-value">Per sec</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
       </table>
     </section>
   `
@@ -56,9 +88,19 @@ function renderResources(state: Readonly<GameState>, resourceKeys: readonly stri
 function renderEspionage(state: Readonly<GameState>): string {
   if (!state.mode) return ''
   const modeDef = getModeDefinition(state.mode)
-  // Show the resources the viewer has unlocked, in the mode's declared order.
-  const unlocked = modeDef.resources.filter((key) => hasEnemyDataAccess(state.player, modeDef, key))
-  return unlocked.length > 0 ? renderResources(state, unlocked) : renderLocked()
+  // In the mode's declared order, keep resources the viewer has any intel on.
+  const rows: ResourceIntel[] = modeDef.resources
+    .map((key) => ({
+      key,
+      amount: hasEnemyDataAccess(state.player, modeDef, key),
+      rate: hasEnemyDataAccess(state.player, modeDef, `${key}${RATE_SUFFIX}`),
+    }))
+    .filter((r) => r.amount || r.rate)
+  if (rows.length === 0) return renderLocked()
+  // Production is derived from the opponent's own state, broadcast each tick —
+  // the same pipeline the local player uses (no extra data needed).
+  const rates = computePassiveRates(collectModifiers(state.opponent, modeDef), modeDef.resources)
+  return renderResources(state, rows, rates)
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────
