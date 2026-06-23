@@ -68,8 +68,6 @@ const GeneratorSchema = z.strictObject({
   costScaling: z.number(),
   costCurrency: z.string(),
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
-  /** If set, the generator is locked until this upgrade is owned. */
-  unlockUpgrade: z.string().optional(),
 })
 
 // ─── Flavor schemas ──────────────────────────────────────────────────
@@ -144,8 +142,6 @@ export const TreeFileSchema = z.strictObject({
   scoreResource: z.string(),
   clicksEnabled: z.boolean(),
   highlightEnabled: z.boolean(),
-  highlightUnlockUpgrade: z.string().optional(),
-  clickUnlockUpgrade: z.string().optional(),
   initialResources: z.record(z.string(), z.number()),
   initialMeta: z.record(z.string(), z.unknown()),
   nativeModifiers: z.array(ModifierSchema),

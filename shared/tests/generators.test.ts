@@ -226,16 +226,9 @@ describe('applyGeneratorPurchase', () => {
 // ─── isGeneratorUnlocked ─────────────────────────────────────────────
 
 describe('isGeneratorUnlocked', () => {
-  it('is always unlocked when no gate is set', () => {
+  it('is always unlocked when no upgrade gates it', () => {
     const def = makeDef()
     expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, makeMode([def]))).toBe(true)
-  })
-
-  it('is locked until the legacy unlockUpgrade is owned', () => {
-    const def = makeDef({ unlockUpgrade: 'u-unlock' })
-    const mode = makeMode([def])
-    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, mode)).toBe(false)
-    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-unlock': 1 } }), def, mode)).toBe(true)
   })
 
   it('is locked until an upgrade with a generatorUnlock effect is owned', () => {
@@ -248,17 +241,17 @@ describe('isGeneratorUnlocked', () => {
     expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-gen': 1 } }), def, mode)).toBe(true)
   })
 
-  it('unlocks via the legacy field OR a generatorUnlock effect (whichever fires)', () => {
-    const def = makeDef({ unlockUpgrade: 'u-legacy' })
+  it('unlocks when any upgrade naming it is owned', () => {
+    const def = makeDef()
     const mode = makeModeWithUpgrades(
       [def],
-      [makeUpgrade({ id: 'u-gen', effects: [{ type: 'generatorUnlock', generator: 'g0' }] })],
+      [
+        makeUpgrade({ id: 'u-a', effects: [{ type: 'generatorUnlock', generator: 'g0' }] }),
+        makeUpgrade({ id: 'u-b', effects: [{ type: 'generatorUnlock', generator: 'g0' }] }),
+      ],
     )
     expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, mode)).toBe(false)
-    // Legacy gate alone satisfies it…
-    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-legacy': 1 } }), def, mode)).toBe(true)
-    // …and so does the effect gate alone.
-    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-gen': 1 } }), def, mode)).toBe(true)
+    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-b': 1 } }), def, mode)).toBe(true)
   })
 })
 

@@ -72,12 +72,6 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
     // Optional fields are assigned only when present so the result stays minimal.
-    ...(tree.highlightUnlockUpgrade !== undefined
-      ? { highlightUnlockUpgrade: tree.highlightUnlockUpgrade }
-      : {}),
-    ...(tree.clickUnlockUpgrade !== undefined
-      ? { clickUnlockUpgrade: tree.clickUnlockUpgrade }
-      : {}),
     ...(tree.effects !== undefined ? { effects: tree.effects } : {}),
   }
   validateModeDefinition(tree.id, def)

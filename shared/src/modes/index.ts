@@ -78,26 +78,19 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
 
-  // Referential integrity for generator gating + cost reductions: a typo in an
-  // authored id would otherwise be silently ignored at runtime.
-  const upgradeIds = new Set(def.upgrades.map((u) => u.id))
+  // Referential integrity for generator-targeting effects: `generatorCost` and
+  // `generatorUnlock` both name a generator by id (the generic effect schema
+  // only checks it's a string), so a typo would otherwise be silently ignored
+  // at runtime. These are the effects that point at another mechanic, so the
+  // check is targeted by type.
   const generatorIds = new Set(def.generators.map((g) => g.id))
-  for (const gen of def.generators) {
-    if (gen.unlockUpgrade !== undefined && !upgradeIds.has(gen.unlockUpgrade))
-      throw new Error(
-        `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
-      )
-  }
-  // `generatorCost` effects name a generator by id; validate that ref up front
-  // (the generic effect schema only checks it's a string). This is the one
-  // effect that points at another mechanic, so the check is targeted by type.
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
-      if (ref.type !== 'generatorCost') continue
+      if (ref.type !== 'generatorCost' && ref.type !== 'generatorUnlock') continue
       const target = ref.generator
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
-          `[${id}] upgrade '${u.id}' generatorCost effect references unknown generator '${target}'`,
+          `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
         )
     }
   }
@@ -214,33 +207,31 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
 // ─── Highlight ────────────────────────────────────────────────────────
 
 /**
- * Whether an input system is unlocked, combining its legacy mode field with any
- * `systemUnlock` effect naming it (OR semantics). A system with neither gate is
- * always unlocked; otherwise owning the legacy upgrade or any gating upgrade
- * satisfies it. Callers check the relevant `*Enabled` flag first.
+ * Whether an input system is unlocked: gated by any upgrade carrying a
+ * `systemUnlock` effect naming it (locked until one is owned). A system that no
+ * upgrade gates is always unlocked. Callers check the relevant `*Enabled` flag
+ * first.
  */
 function isSystemUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   system: string,
-  legacyUpgrade: string | undefined,
 ): boolean {
-  const effectGates = systemGateUpgrades(mode, system)
-  if (!legacyUpgrade && !effectGates) return true
-  if (legacyUpgrade && (state.upgrades[legacyUpgrade] ?? 0) > 0) return true
-  return anyOwned(state, effectGates)
+  const gates = systemGateUpgrades(mode, system)
+  if (!gates) return true // no upgrade gates this system → always available
+  return anyOwned(state, gates)
 }
 
 /** Whether the highlight mechanic is currently active for this player. */
 export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.highlightEnabled) return false
-  return isSystemUnlocked(state, mode, 'highlight', mode.highlightUnlockUpgrade)
+  return isSystemUnlocked(state, mode, 'highlight')
 }
 
 /** Whether the click mechanic is currently active for this player. */
 export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.clicksEnabled) return false
-  return isSystemUnlocked(state, mode, 'click', mode.clickUnlockUpgrade)
+  return isSystemUnlocked(state, mode, 'click')
 }
 
 /**

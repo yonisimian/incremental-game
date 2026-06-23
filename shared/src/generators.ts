@@ -145,21 +145,18 @@ export function canAffordGenerator(
 }
 
 /**
- * Is this generator available to the player yet? Combines the legacy
- * `unlockUpgrade` field with any `generatorUnlock` effect naming this generator
- * (OR semantics, mirroring the highlight/click gates): a generator with neither
- * gate is always unlocked; otherwise owning the named upgrade or any gating
- * upgrade reveals it.
+ * Is this generator available to the player yet? A generator is gated by any
+ * upgrade carrying a `generatorUnlock` effect naming it: locked until one such
+ * upgrade is owned. A generator that no upgrade unlocks is always available.
  */
 export function isGeneratorUnlocked(
   state: Readonly<PlayerState>,
   gen: GeneratorDefinition,
   mode: ModeDefinition,
 ): boolean {
-  const effectGates = generatorGateUpgrades(mode, gen.id)
-  if (!gen.unlockUpgrade && !effectGates) return true
-  if (gen.unlockUpgrade && (state.upgrades[gen.unlockUpgrade] ?? 0) > 0) return true
-  return anyOwned(state, effectGates)
+  const gates = generatorGateUpgrades(mode, gen.id)
+  if (!gates) return true // no upgrade gates this generator → always available
+  return anyOwned(state, gates)
 }
 
 /** Deduct cost and increment owned count for a generator. */

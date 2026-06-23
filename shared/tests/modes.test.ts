@@ -202,7 +202,6 @@ describe('systemUnlock effect gating', () => {
     const def: ModeDefinition = {
       ...getModeDefinition('idler'),
       clicksEnabled: true,
-      clickUnlockUpgrade: undefined,
       upgrades: [gateUpgrade('click')],
     }
     const state = createInitialState(def)
@@ -215,7 +214,6 @@ describe('systemUnlock effect gating', () => {
     const def: ModeDefinition = {
       ...getModeDefinition('idler'),
       highlightEnabled: true,
-      highlightUnlockUpgrade: undefined,
       upgrades: [gateUpgrade('highlight')],
     }
     const state = createInitialState(def)
@@ -228,7 +226,6 @@ describe('systemUnlock effect gating', () => {
     const def: ModeDefinition = {
       ...getModeDefinition('idler'),
       clicksEnabled: false,
-      clickUnlockUpgrade: undefined,
       upgrades: [gateUpgrade('click')],
     }
     const state = createInitialState(def)
@@ -240,7 +237,6 @@ describe('systemUnlock effect gating', () => {
     const def: ModeDefinition = {
       ...getModeDefinition('idler'),
       clicksEnabled: true,
-      clickUnlockUpgrade: undefined,
       upgrades: [],
     }
     expect(isClickUnlocked(createInitialState(def), def)).toBe(true)
