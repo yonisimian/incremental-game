@@ -1422,6 +1422,10 @@
         {
           "type": "panelUnlock",
           "panel": "espionage"
+        },
+        {
+          "type": "accessEnemyData",
+          "data": "r0"
         }
       ],
       "offset": {
@@ -1434,6 +1438,12 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "accessEnemyData",
+              "data": "r1"
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"

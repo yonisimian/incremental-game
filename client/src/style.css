@@ -1232,6 +1232,51 @@ body {
   width: 100%;
 }
 
+.espionage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.espionage-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.6rem 1rem;
+}
+
+.espionage-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, var(--text));
+}
+
+.espionage-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.espionage-table td {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.espionage-table tr:last-child td {
+  border-bottom: none;
+}
+
+.espionage-res-name {
+  text-align: left;
+}
+
+.espionage-res-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .generator-card {
   display: flex;
   flex-direction: column;

@@ -284,6 +284,62 @@ export function isPanelUnlocked(
   return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
 }
 
+/**
+ * Per-mode reverse index: enemy-data key → ids of the upgrades whose
+ * `accessEnemyData` effect grants it. Mirrors {@link getPanelGateIndex}: derived
+ * topology, cached in a `WeakMap` keyed by the mode, so `hasEnemyDataAccess`
+ * stays an O(grants-for-this-key) ownership check on the espionage refresh path.
+ */
+const enemyDataGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
+
+/**
+ * Build (or return the cached) enemy-data gate index for a mode.
+ * `accessEnemyData` is state-independent — it echoes its authored key — so a
+ * throwaway initial state is enough to read which key each effect names.
+ */
+function getEnemyDataGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  const cached = enemyDataGateIndex.get(mode)
+  if (cached) return cached
+
+  const index = new Map<string, string[]>()
+  const probe = createInitialState(mode)
+  for (const upgrade of mode.upgrades) {
+    for (const ref of upgrade.effects ?? []) {
+      if (ref.type !== 'accessEnemyData') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
+        if (!('kind' in out) || out.kind !== 'enemyDataAccess') continue
+        const grants = index.get(out.data)
+        if (grants) {
+          if (!grants.includes(upgrade.id)) grants.push(upgrade.id)
+        } else {
+          index.set(out.data, [upgrade.id])
+        }
+      }
+    }
+  }
+
+  enemyDataGateIndex.set(mode, index)
+  return index
+}
+
+/**
+ * Whether the viewing player may see a slice of opponent intel (e.g.
+ * `'resources'`) in the espionage panel. Granted by any owned upgrade carrying
+ * an `accessEnemyData` effect naming that key. Unlike `isPanelUnlocked`, an
+ * ungranted key is *hidden* by default (a key no upgrade grants is never
+ * visible). `state` is the *viewer's* own state — the spy unlocks visibility
+ * into the opponent.
+ */
+export function hasEnemyDataAccess(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  dataKey: string,
+): boolean {
+  const grants = getEnemyDataGateIndex(mode).get(dataKey)
+  if (!grants) return false // no upgrade grants this key → never visible
+  return grants.some((id) => (state.upgrades[id] ?? 0) > 0)
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**

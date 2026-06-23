@@ -1,4 +1,5 @@
 import { registerEffect } from './registry.js'
+import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
 import { generatorCost } from './seed/generator-cost.js'
@@ -13,9 +14,15 @@ registerEffect('dominantGenerator', dominantGenerator)
 registerEffect('balancedGenerators', balancedGenerators)
 registerEffect('generatorCost', generatorCost)
 registerEffect('panelUnlock', panelUnlock)
+registerEffect('accessEnemyData', accessEnemyData)
 
 export type { EffectDef } from './types.js'
-export type { EffectOutput, GeneratorCostOutput, PanelUnlockOutput } from './types.js'
+export type {
+  EffectOutput,
+  GeneratorCostOutput,
+  PanelUnlockOutput,
+  EnemyDataAccessOutput,
+} from './types.js'
 export {
   applyEffect,
   prepareEffect,
@@ -30,3 +37,4 @@ export type { DominantGeneratorParams } from './seed/dominant-generator.js'
 export type { BalancedGeneratorsParams } from './seed/balanced-generators.js'
 export type { GeneratorCostParams } from './seed/generator-cost.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
+export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
