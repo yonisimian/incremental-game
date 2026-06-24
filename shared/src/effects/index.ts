@@ -6,6 +6,7 @@ import { generatorCost } from './seed/generator-cost.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { panelUnlock } from './seed/panel-unlock.js'
+import { peakCpsClickBonus } from './seed/peak-cps-click-bonus.js'
 
 // Register seed effects exactly once, at module load.
 registerEffect('highlightMultiplier', highlightMultiplier)
@@ -15,6 +16,7 @@ registerEffect('balancedGenerators', balancedGenerators)
 registerEffect('generatorCost', generatorCost)
 registerEffect('panelUnlock', panelUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
+registerEffect('peakCpsClickBonus', peakCpsClickBonus)
 
 export type { EffectDef } from './types.js'
 export type {
@@ -38,3 +40,4 @@ export type { BalancedGeneratorsParams } from './seed/balanced-generators.js'
 export type { GeneratorCostParams } from './seed/generator-cost.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
 export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
+export type { PeakCpsClickBonusParams } from './seed/peak-cps-click-bonus.js'

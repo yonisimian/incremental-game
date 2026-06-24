@@ -18,6 +18,7 @@ import {
   reparentNode,
   nodeFlavor,
   setNodeFlavor,
+  renameNode,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -241,6 +242,95 @@ describe('setNodeFlavor', () => {
     expect(tree.flavors[0].upgrades).toEqual([
       { id: 'a', name: 'Axe', icon: '🪓', description: 'Cuts trees' },
     ])
+  })
+})
+
+// ─── renameNode ──────────────────────────────────────────────────────
+
+describe('renameNode', () => {
+  it('renames the node and its flavor entry across every flavor', () => {
+    const tree = makeTree()
+    tree.flavors = [
+      {
+        ...tree.flavors[0],
+        upgrades: [{ id: 'b', name: 'Bee', icon: '🐝', description: 'buzz' }],
+      },
+      {
+        ...tree.flavors[0],
+        id: 'alt',
+        upgrades: [{ id: 'b', name: 'Bravo', icon: 'B', description: 'alt' }],
+      },
+    ]
+    expect(renameNode(tree, 'b', 'bravo')).toBe(true)
+    expect(findNode(tree, 'bravo')).toBeTruthy()
+    expect(findNode(tree, 'b')).toBeNull()
+    expect(tree.flavors[0].upgrades).toEqual([
+      { id: 'bravo', name: 'Bee', icon: '🐝', description: 'buzz' },
+    ])
+    expect(tree.flavors[1].upgrades).toEqual([
+      { id: 'bravo', name: 'Bravo', icon: 'B', description: 'alt' },
+    ])
+  })
+
+  it('rewrites prerequisite references to the renamed node across the tree', () => {
+    const tree = makeTree()
+    // `d` requires `a`; also nest `a` inside an AND group on `c` to exercise depth.
+    findNode(tree, 'c')!.prerequisites = {
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'a', minLevel: 2 },
+        { type: 'upgrade', id: 'b' },
+      ],
+    }
+    expect(renameNode(tree, 'a', 'alpha')).toBe(true)
+    expect(findNode(tree, 'd')!.prerequisites).toEqual({ type: 'upgrade', id: 'alpha' })
+    expect(findNode(tree, 'c')!.prerequisites).toEqual({
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'alpha', minLevel: 2 },
+        { type: 'upgrade', id: 'b' },
+      ],
+    })
+  })
+
+  it("rewrites generators' unlockUpgrade references to the renamed node", () => {
+    const tree = makeTree()
+    tree.generators = [
+      {
+        id: 'g0',
+        baseCost: 10,
+        costScaling: 1.15,
+        costCurrency: 'r1',
+        production: { resource: 'r0', rate: 0.5 },
+        unlockUpgrade: 'b',
+      },
+      {
+        id: 'g1',
+        baseCost: 20,
+        costScaling: 1.2,
+        costCurrency: 'r1',
+        production: { resource: 'r0', rate: 1 },
+      },
+    ]
+    expect(renameNode(tree, 'b', 'bravo')).toBe(true)
+    expect(tree.generators[0].unlockUpgrade).toBe('bravo')
+    expect(tree.generators[1].unlockUpgrade).toBeUndefined()
+  })
+
+  it('refuses to rename onto an existing id and leaves the tree untouched', () => {
+    const tree = makeTree()
+    const before = cloneTree(tree)
+    expect(renameNode(tree, 'b', 'd')).toBe(false)
+    expect(renameNode(tree, 'b', '')).toBe(false)
+    expect(tree).toEqual(before)
+  })
+
+  it('is a no-op when the id is unchanged or the node is absent', () => {
+    const tree = makeTree()
+    const before = cloneTree(tree)
+    expect(renameNode(tree, 'b', 'b')).toBe(true)
+    expect(renameNode(tree, 'nope', 'whatever')).toBe(false)
+    expect(tree).toEqual(before)
   })
 })
 

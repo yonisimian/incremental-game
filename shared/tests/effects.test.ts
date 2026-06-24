@@ -51,6 +51,7 @@ describe('effect registry', () => {
       'highlightMultiplier',
       'lowerTierBoost',
       'panelUnlock',
+      'peakCpsClickBonus',
     ])
   })
 })
@@ -387,5 +388,68 @@ describe('collectModifiers routes multi-modifier effects', () => {
     expect(sumAdditive(boostedMods, g1Resource)).toBeGreaterThan(
       sumAdditive(baselineMods, g1Resource),
     )
+  })
+})
+
+// ─── peakCpsClickBonus effect ────────────────────────────────────────
+
+describe('peakCpsClickBonus effect', () => {
+  function applyPeakCps(ref: EffectRef, peakCps?: number): unknown {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    if (peakCps !== undefined) state.meta.peakCps = peakCps
+    return applyEffect(ref, state, mode)
+  }
+
+  it('adds peak CPS to click income (perCps defaults to 1)', () => {
+    expect(applyPeakCps({ type: 'peakCpsClickBonus' }, 13)).toEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 13,
+    })
+  })
+
+  it('scales the bonus by perCps', () => {
+    expect(applyPeakCps({ type: 'peakCpsClickBonus', perCps: 0.5 }, 10)).toEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 5,
+    })
+  })
+
+  it('is inactive until peak CPS is positive', () => {
+    expect(applyPeakCps({ type: 'peakCpsClickBonus' })).toBeNull() // no peakCps in meta
+    expect(applyPeakCps({ type: 'peakCpsClickBonus' }, 0)).toBeNull()
+  })
+
+  it('rejects a non-positive perCps', () => {
+    expect(() => applyPeakCps({ type: 'peakCpsClickBonus', perCps: 0 }, 5)).toThrow(/perCps/u)
+    expect(() => applyPeakCps({ type: 'peakCpsClickBonus', perCps: -1 }, 5)).toThrow(/perCps/u)
+  })
+
+  it('feeds click income through collectModifiers when the upgrade is owned', () => {
+    const base = getModeDefinition('idler')
+    const customUpgrade: UpgradeDefinition = {
+      id: 'uPeak',
+      cost: { r0: 10 },
+      purchaseLimit: 1,
+      modifiers: [],
+      effects: [{ type: 'peakCpsClickBonus', perCps: 1 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }
+
+    const owned = createInitialState(def)
+    owned.upgrades.uPeak = 1
+    owned.meta.peakCps = 7
+    expect(collectModifiers(owned, def)).toContainEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 7,
+    })
+
+    // Unowned upgrade → no click-income bonus even with peak CPS set.
+    const unowned = createInitialState(def)
+    unowned.meta.peakCps = 7
+    expect(collectModifiers(unowned, def).some((m) => m.field === 'clickIncome')).toBe(false)
   })
 })
