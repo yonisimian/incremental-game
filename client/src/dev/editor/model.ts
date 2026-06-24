@@ -205,9 +205,10 @@ export function setNodeFlavor(
 
 /**
  * Rename a node's id, keeping the rest of the tree referentially valid: every
- * flavor entry and every prerequisite reference to the old id is rewritten in
- * lockstep (the runtime rejects orphaned flavor entries and dangling
- * prerequisite references alike, so a bare `node.id =` would invalidate the
+ * flavor entry, every prerequisite reference, and every generator's
+ * `unlockUpgrade` pointing at the old id is rewritten in lockstep (the runtime
+ * rejects orphaned flavor entries, dangling prerequisite references, and unknown
+ * `unlockUpgrade` targets alike, so a bare `node.id =` would invalidate the
  * tree). Returns `true` when the rename is applied; fails without mutating when
  * the new id is blank, already in use, or the node is absent. An unchanged id is
  * a successful no-op.
@@ -225,6 +226,9 @@ export function renameNode(tree: TreeFile, oldId: string, newId: string): boolea
   }
   for (const { node: ref } of walkPositioned(tree)) {
     if (ref.prerequisites) ref.prerequisites = renamePrereqRef(ref.prerequisites, oldId, newId)
+  }
+  for (const gen of tree.generators) {
+    if (gen.unlockUpgrade === oldId) gen.unlockUpgrade = newId
   }
   return true
 }
