@@ -8,7 +8,13 @@
  * generated from each registered effect's zod param schema.
  */
 
-import { listEffectTypes, resolveEffect, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import {
+  enemyDataKeysFor,
+  listEffectTypes,
+  resolveEffect,
+  type TreeFile,
+  type TreeUpgradeNode,
+} from '@game/shared'
 
 import {
   defaultParamsForEffect,
@@ -539,7 +545,7 @@ function effectFieldOptions(
     return ALL_PANELS.map((p) => p.id)
   }
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
-    return ctx.tree.resources.flatMap((key) => [key, `${key}:rate`])
+    return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
   }
   return undefined
 }

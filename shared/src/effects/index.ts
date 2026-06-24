@@ -40,4 +40,9 @@ export type { BalancedGeneratorsParams } from './seed/balanced-generators.js'
 export type { GeneratorCostParams } from './seed/generator-cost.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
 export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
+export {
+  ENEMY_DATA_RATE_SUFFIX,
+  enemyDataKeysFor,
+  enemyDataResourceKey,
+} from './seed/access-enemy-data.js'
 export type { PeakCpsClickBonusParams } from './seed/peak-cps-click-bonus.js'

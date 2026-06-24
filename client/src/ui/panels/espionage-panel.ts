@@ -4,20 +4,19 @@ import { formatNumber } from '../format-number.js'
 import {
   collectModifiers,
   computePassiveRates,
+  enemyDataKeysFor,
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
   getResourceName,
   hasEnemyDataAccess,
 } from '@game/shared'
+import type { ModeFlavor } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
-
-/** Suffix marking an `accessEnemyData` grant as the per-second rate (vs stockpile). */
-const RATE_SUFFIX = ':rate'
 
 /** Masks a cell whose specific intel the viewer hasn't unlocked yet. */
 const LOCKED_CELL = '🔒'
@@ -50,11 +49,10 @@ function renderLocked(): string {
  */
 function renderResources(
   state: Readonly<GameState>,
+  flavor: ModeFlavor,
   rows: readonly ResourceIntel[],
   rates: Record<string, number>,
 ): string {
-  const modeDef = getModeDefinition(state.mode!)
-  const flavor = getModeFlavor(modeDef)
   const body = rows
     .map(({ key, amount, rate }) => {
       const amountCell = amount ? formatNumber(state.opponent.resources[key] ?? 0) : LOCKED_CELL
@@ -90,17 +88,23 @@ function renderEspionage(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode)
   // In the mode's declared order, keep resources the viewer has any intel on.
   const rows: ResourceIntel[] = modeDef.resources
-    .map((key) => ({
-      key,
-      amount: hasEnemyDataAccess(state.player, modeDef, key),
-      rate: hasEnemyDataAccess(state.player, modeDef, `${key}${RATE_SUFFIX}`),
-    }))
+    .map((key) => {
+      const [amountKey, rateKey] = enemyDataKeysFor(key)
+      return {
+        key,
+        amount: hasEnemyDataAccess(state.player, modeDef, amountKey),
+        rate: hasEnemyDataAccess(state.player, modeDef, rateKey),
+      }
+    })
     .filter((r) => r.amount || r.rate)
   if (rows.length === 0) return renderLocked()
   // Production is derived from the opponent's own state, broadcast each tick —
-  // the same pipeline the local player uses (no extra data needed).
-  const rates = computePassiveRates(collectModifiers(state.opponent, modeDef), modeDef.resources)
-  return renderResources(state, rows, rates)
+  // the same pipeline the local player uses (no extra data needed). Only needed
+  // when a per-second metric is actually unlocked.
+  const rates = rows.some((r) => r.rate)
+    ? computePassiveRates(collectModifiers(state.opponent, modeDef), modeDef.resources)
+    : {}
+  return renderResources(state, getModeFlavor(modeDef), rows, rates)
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import {
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import { enemyDataResourceKey } from '../effects/index.js'
 import type { EffectOutput } from '../effects/index.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
@@ -97,6 +98,21 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
           `[${id}] upgrade '${u.id}' generatorCost effect references unknown generator '${target}'`,
+        )
+    }
+  }
+
+  // `accessEnemyData` effects name a resource (optionally `:rate`-suffixed) by
+  // key; validate it the same way so an authored typo fails loudly instead of
+  // silently revealing nothing at runtime.
+  const resourceKeys = new Set(def.resources)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'accessEnemyData') continue
+      const target = ref.data
+      if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
         )
     }
   }
