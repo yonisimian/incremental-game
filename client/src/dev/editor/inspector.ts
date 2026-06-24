@@ -8,7 +8,13 @@
  * generated from each registered effect's zod param schema.
  */
 
-import { listEffectTypes, resolveEffect, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import {
+  enemyDataKeysFor,
+  listEffectTypes,
+  resolveEffect,
+  type TreeFile,
+  type TreeUpgradeNode,
+} from '@game/shared'
 
 import {
   defaultParamsForEffect,
@@ -523,7 +529,9 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
  * Fixed option set for an effect's string param, or `undefined` to render a free
  * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
- * from the tree's generators, and `panelUnlock`'s `panel` from the known panels.
+ * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
+ * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
+ * `:rate` variant per resource (per-second production).
  */
 function effectFieldOptions(
   ctx: InspectorContext,
@@ -535,6 +543,9 @@ function effectFieldOptions(
   }
   if (effectType === 'panelUnlock' && fieldKey === 'panel') {
     return ALL_PANELS.map((p) => p.id)
+  }
+  if (effectType === 'accessEnemyData' && fieldKey === 'data') {
+    return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
   }
   return undefined
 }

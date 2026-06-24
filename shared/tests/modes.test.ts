@@ -9,6 +9,7 @@ import {
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
+  hasEnemyDataAccess,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -182,6 +183,41 @@ describe('isPanelUnlocked', () => {
     expect(isPanelUnlocked(state, def, 'generators')).toBe(false)
     state.upgrades['g1-g2'] = 1
     expect(isPanelUnlocked(state, def, 'generators')).toBe(true)
+  })
+})
+
+// ─── hasEnemyDataAccess ──────────────────────────────────────────────
+
+describe('hasEnemyDataAccess', () => {
+  it('hides intel for a key no upgrade grants', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    expect(hasEnemyDataAccess(state, def, 'nonexistent')).toBe(false)
+  })
+
+  it('reveals each resource only once its granting upgrade is owned', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // idler grants the main resource (r0) via `e-se-mr`, secondary (r1) via `e-se-sr`.
+    expect(hasEnemyDataAccess(state, def, 'r0')).toBe(false)
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(false)
+    state.upgrades['e-se-mr'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r0')).toBe(true)
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(false)
+    state.upgrades['e-se-sr'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(true)
+  })
+
+  it('gates per-second production behind its own `:rate` upgrades', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // Per-sec rates are a separate grant (`<key>:rate`) from the stockpile.
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(false)
+    state.upgrades['e-se-mr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(true)
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(false)
+    state.upgrades['e-se-sr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(true)
   })
 })
 
