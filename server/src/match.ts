@@ -413,6 +413,12 @@ export class Match {
   }
 
   private applyClick(player: MatchPlayer, resource?: string): void {
+    // Update peak CPS first (recentClickTimestamps already pruned/pushed by
+    // validation) and mirror it into player state so the modifier pipeline can
+    // read it — e.g. the `peakCpsClickBonus` effect adds peak CPS to click income.
+    player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
+    player.state.meta.peakCps = player.stats.peakCps
+
     const modifiers = collectModifiers(player.state, this.modeDef)
     const income = computeClickIncome(modifiers)
 
@@ -423,9 +429,6 @@ export class Match {
     player.state.resources[res] = (player.state.resources[res] ?? 0) + income
     if (res === this.modeDef.scoreResource) player.state.score += income
     player.stats.totalClicks++
-
-    // Update peak CPS (recentClickTimestamps already pruned by validation)
-    player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
   }
 
   private applyPurchase(player: MatchPlayer, upgradeId: string): void {
