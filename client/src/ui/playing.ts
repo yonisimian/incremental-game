@@ -82,11 +82,18 @@ function renderPauseButton(state: Readonly<GameState>): string {
   return `<button class="pause-btn" id="pause-btn" aria-label="${label}" title="${label}">${icon}</button>`
 }
 
+/**
+ * Whether the head-to-head scoreboard applies to this goal. 'target-score' uses
+ * progress bars instead, and 'buy-upgrade' (Race to Buy) is won by buying the
+ * goal upgrade, not by score — neither shows a score race.
+ */
+function showsScoreboard(goal: GameState['goal']): boolean {
+  return goal?.type !== 'target-score' && goal?.type !== 'buy-upgrade'
+}
+
 /** Shared scoreboard HTML for both modes. */
 function renderScoreboard(state: Readonly<GameState>): string {
-  // No score race to show: 'target-score' uses progress bars instead, and
-  // 'buy-upgrade' (Race to Buy) is won by buying the goal upgrade, not by score.
-  if (state.goal?.type === 'target-score' || state.goal?.type === 'buy-upgrade') return ''
+  if (!showsScoreboard(state.goal)) return ''
   return `
     <div class="scoreboard">
       <div class="player-col you">
@@ -156,7 +163,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
     setText('player-bar-score', formatScore(state.player.score, state))
     setText('opponent-bar-score', formatScore(state.opponent.score, state))
     if (scoreChanged) bumpScore('player-bar-score')
-  } else {
+  } else if (showsScoreboard(state.goal)) {
     setText('player-score', formatScore(state.player.score, state))
     setText('opponent-score', formatScore(state.opponent.score, state))
     if (scoreChanged) bumpScore('player-score')
