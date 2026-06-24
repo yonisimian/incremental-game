@@ -349,7 +349,7 @@
         },
         {
           "id": "shb-bp",
-          "name": "node",
+          "name": "shb-bp",
           "icon": "🔎",
           "description": "Increase battery factor."
         },
@@ -472,6 +472,12 @@
           "name": "d-aa",
           "icon": "🛡️",
           "description": "The alert tells which attack incoming."
+        },
+        {
+          "id": "sc-pcps",
+          "name": "sc-pcps",
+          "icon": "🖱️",
+          "description": "Gain additional click income as your peak cps."
         }
       ],
       "generators": [
@@ -1400,6 +1406,26 @@
             "x": 0,
             "y": 768
           }
+        },
+        {
+          "id": "sc-pcps",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "sc-unlock"
+          },
+          "effects": [
+            {
+              "type": "peakCpsClickBonus",
+              "perCps": 1
+            }
+          ],
+          "offset": {
+            "x": 192,
+            "y": 0
+          }
         }
       ]
     },
@@ -1444,6 +1470,10 @@
         {
           "type": "panelUnlock",
           "panel": "espionage"
+        },
+        {
+          "type": "accessEnemyData",
+          "data": "r0"
         }
       ],
       "offset": {
@@ -1456,6 +1486,12 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "accessEnemyData",
+              "data": "r1"
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"
@@ -1470,6 +1506,12 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "accessEnemyData",
+              "data": "r0:rate"
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"
@@ -1484,6 +1526,12 @@
               "cost": {},
               "purchaseLimit": 1,
               "modifiers": [],
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "r1:rate"
+                }
+              ],
               "prerequisites": {
                 "type": "all",
                 "items": [

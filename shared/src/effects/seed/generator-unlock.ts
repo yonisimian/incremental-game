@@ -7,8 +7,7 @@ import type { EffectDef, GeneratorUnlockOutput } from '../types.js'
  *
  * While the owning upgrade is held, the named generator becomes available. The
  * generator id matches `GeneratorDefinition.id`. A generator that no owned
- * upgrade unlocks falls back to its legacy `unlockUpgrade` gate (if any); see
- * `isGeneratorUnlocked`.
+ * upgrade unlocks is always available; see `isGeneratorUnlocked`.
  */
 const schema = z.strictObject({
   generator: z.string(),

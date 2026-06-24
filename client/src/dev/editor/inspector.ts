@@ -9,6 +9,7 @@
  */
 
 import {
+  enemyDataKeysFor,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
@@ -25,7 +26,7 @@ import {
   type FieldSpec,
 } from './effect-schema.js'
 
-import { findNode, nodeFlavor, setNodeFlavor } from './model.js'
+import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
 import { ALL_PANELS } from '../../ui/mode-ui.js'
 
 export interface InspectorContext {
@@ -134,16 +135,13 @@ function buildIdSection(ctx: InspectorContext): HTMLElement {
   input.value = ctx.node.id
   input.addEventListener('change', () => {
     const next = input.value.trim()
-    if (next) {
-      ctx.node.id = next
+    if (next !== ctx.node.id && renameNode(ctx.tree, ctx.node.id, next)) {
       ctx.onChange()
     } else {
       input.value = ctx.node.id
     }
   })
-  const wrap = field('ID', input)
-  wrap.append(el('p', 'ed-hint', 'Renaming does not rewrite prerequisite references.'))
-  return wrap
+  return field('ID', input)
 }
 
 function buildParentSection(ctx: InspectorContext): HTMLElement {
@@ -532,7 +530,9 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
  * Fixed option set for an effect's string param, or `undefined` to render a free
  * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
- * from the tree's generators, and `panelUnlock`'s `panel` from the known panels.
+ * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
+ * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
+ * `:rate` variant per resource (per-second production).
  */
 function effectFieldOptions(
   ctx: InspectorContext,
@@ -550,6 +550,9 @@ function effectFieldOptions(
   }
   if (effectType === 'systemUnlock' && fieldKey === 'system') {
     return [...UNLOCKABLE_SYSTEMS]
+  }
+  if (effectType === 'accessEnemyData' && fieldKey === 'data') {
+    return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
   }
   return undefined
 }

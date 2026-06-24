@@ -344,6 +344,60 @@ describe('validateModeDefinition — negative tests', () => {
       validateModeDefinition('test', def)
     }).not.toThrow()
   })
+
+  it('throws when an accessEnemyData effect references an unknown resource', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [{ type: 'accessEnemyData', data: 'r-missing' }],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' accessEnemyData effect references unknown resource 'r-missing'/)
+  })
+
+  it('throws when an accessEnemyData :rate key names an unknown resource', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [{ type: 'accessEnemyData', data: 'r-missing:rate' }],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' accessEnemyData effect references unknown resource 'r-missing:rate'/)
+  })
+
+  it('accepts accessEnemyData effects naming a real resource (stockpile and :rate)', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [
+            { type: 'accessEnemyData', data: 'r0' },
+            { type: 'accessEnemyData', data: 'r0:rate' },
+          ],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
 })
 
 // ─── getModeFlavor resolution ────────────────────────────────────────

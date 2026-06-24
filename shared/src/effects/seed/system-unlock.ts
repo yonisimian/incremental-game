@@ -9,8 +9,8 @@ import type { EffectDef, SystemUnlockOutput } from '../types.js'
  * system is `'click'` or `'highlight'` (see `UNLOCKABLE_SYSTEMS`). Modelled as a
  * plain string — like `panelUnlock`'s `panel` — so the editor renders it as a
  * picker (a value naming no real system simply gates nothing). A system that no
- * owned upgrade unlocks falls back to its legacy mode field (if any); see
- * `isClickUnlocked` / `isHighlightActive`.
+ * owned upgrade unlocks is always available; see `isClickUnlocked` /
+ * `isHighlightActive`.
  */
 const schema = z.strictObject({
   system: z.string(),
