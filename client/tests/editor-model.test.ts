@@ -261,7 +261,7 @@ describe('renameNode', () => {
         upgrades: [{ id: 'b', name: 'Bravo', icon: 'B', description: 'alt' }],
       },
     ]
-    renameNode(tree, 'b', 'bravo')
+    expect(renameNode(tree, 'b', 'bravo')).toBe(true)
     expect(findNode(tree, 'bravo')).toBeTruthy()
     expect(findNode(tree, 'b')).toBeNull()
     expect(tree.flavors[0].upgrades).toEqual([
@@ -272,11 +272,40 @@ describe('renameNode', () => {
     ])
   })
 
+  it('rewrites prerequisite references to the renamed node across the tree', () => {
+    const tree = makeTree()
+    // `d` requires `a`; also nest `a` inside an AND group on `c` to exercise depth.
+    findNode(tree, 'c')!.prerequisites = {
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'a', minLevel: 2 },
+        { type: 'upgrade', id: 'b' },
+      ],
+    }
+    expect(renameNode(tree, 'a', 'alpha')).toBe(true)
+    expect(findNode(tree, 'd')!.prerequisites).toEqual({ type: 'upgrade', id: 'alpha' })
+    expect(findNode(tree, 'c')!.prerequisites).toEqual({
+      type: 'all',
+      items: [
+        { type: 'upgrade', id: 'alpha', minLevel: 2 },
+        { type: 'upgrade', id: 'b' },
+      ],
+    })
+  })
+
+  it('refuses to rename onto an existing id and leaves the tree untouched', () => {
+    const tree = makeTree()
+    const before = cloneTree(tree)
+    expect(renameNode(tree, 'b', 'd')).toBe(false)
+    expect(renameNode(tree, 'b', '')).toBe(false)
+    expect(tree).toEqual(before)
+  })
+
   it('is a no-op when the id is unchanged or the node is absent', () => {
     const tree = makeTree()
     const before = cloneTree(tree)
-    renameNode(tree, 'b', 'b')
-    renameNode(tree, 'nope', 'whatever')
+    expect(renameNode(tree, 'b', 'b')).toBe(true)
+    expect(renameNode(tree, 'nope', 'whatever')).toBe(false)
     expect(tree).toEqual(before)
   })
 })
