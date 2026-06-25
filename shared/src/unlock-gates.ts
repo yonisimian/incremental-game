@@ -20,9 +20,11 @@ import type { EffectOutput } from './effects/index.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { PlayerState } from './types.js'
 
-/** The input systems an upgrade can unlock via a `systemUnlock` effect. */
-export const UNLOCKABLE_SYSTEMS = ['click', 'highlight'] as const
-export type UnlockableSystem = (typeof UNLOCKABLE_SYSTEMS)[number]
+// Re-exported from the `systemUnlock` seed (its schema owns the canonical enum,
+// so the list and the load-time validation can't drift). Kept here too since
+// the gate helpers below are the other natural home for "what can be unlocked".
+export { UNLOCKABLE_SYSTEMS } from './effects/seed/system-unlock.js'
+export type { UnlockableSystem } from './effects/seed/system-unlock.js'
 
 // mode → effect type → (gate key → ids of the upgrades whose effect names it).
 const gateCache = new WeakMap<ModeDefinition, Map<string, ReadonlyMap<string, readonly string[]>>>()

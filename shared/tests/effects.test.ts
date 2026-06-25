@@ -397,6 +397,13 @@ describe('systemUnlock effect', () => {
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
   })
+
+  it('rejects a system outside the unlockable set (closed enum)', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'systemUnlock', system: 'highlite' }, createInitialState(mode), mode),
+    ).toThrow()
+  })
 })
 
 // ─── Multi-modifier array routing through collectModifiers ───────────

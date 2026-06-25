@@ -2,18 +2,21 @@ import { z } from 'zod'
 
 import type { EffectDef, SystemUnlockOutput } from '../types.js'
 
+/** The input systems an upgrade can unlock via a `systemUnlock` effect. */
+export const UNLOCKABLE_SYSTEMS = ['click', 'highlight'] as const
+export type UnlockableSystem = (typeof UNLOCKABLE_SYSTEMS)[number]
+
 /**
  * Schema for the `systemUnlock` effect's params.
  *
  * While the owning upgrade is held, the named input system becomes active. The
- * system is `'click'` or `'highlight'` (see `UNLOCKABLE_SYSTEMS`). Modelled as a
- * plain string — like `panelUnlock`'s `panel` — so the editor renders it as a
- * picker (a value naming no real system simply gates nothing). A system that no
- * owned upgrade unlocks is always available; see `isClickUnlocked` /
- * `isHighlightActive`.
+ * system is one of `UNLOCKABLE_SYSTEMS` (`'click'` / `'highlight'`); a closed
+ * enum, so an authored typo is rejected at load time (the editor also renders it
+ * as a picker). A system that no owned upgrade unlocks is always available; see
+ * `isClickUnlocked` / `isHighlightActive`.
  */
 const schema = z.strictObject({
-  system: z.string(),
+  system: z.enum(UNLOCKABLE_SYSTEMS),
 })
 
 /** Params for the `systemUnlock` effect (inferred from its schema). */
