@@ -280,50 +280,21 @@ describe('validateModeDefinition — negative tests', () => {
     return { id: genId, name: genId, icon: '⚙️' }
   }
 
-  it('throws when a generator unlockUpgrade references an unknown upgrade', () => {
-    const base = makeValidDef()
-    const def = withFlavor(
-      {
-        ...base,
-        generators: [
-          {
-            id: 'g0',
-            baseCost: 10,
-            costScaling: 1.5,
-            costCurrency: 'r0',
-            production: { resource: 'r0', rate: 1 },
-            unlockUpgrade: 'u-missing',
-          },
-        ],
-      },
-      { generators: [genFlavorEntry('g0')] },
-    )
+  it('throws when a generatorUnlock effect references an unknown generator', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [{ type: 'generatorUnlock', generator: 'g-missing' }],
+        },
+      ],
+    })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/generator 'g0' unlockUpgrade references unknown upgrade 'u-missing'/)
-  })
-
-  it('accepts a generator unlockUpgrade that references a real upgrade', () => {
-    const base = makeValidDef()
-    const def = withFlavor(
-      {
-        ...base,
-        generators: [
-          {
-            id: 'g0',
-            baseCost: 10,
-            costScaling: 1.5,
-            costCurrency: 'r0',
-            production: { resource: 'r0', rate: 1 },
-            unlockUpgrade: 'u0',
-          },
-        ],
-      },
-      { generators: [genFlavorEntry('g0')] },
-    )
-    expect(() => {
-      validateModeDefinition('test', def)
-    }).not.toThrow()
+    }).toThrow(/upgrade 'u0' generatorUnlock effect references unknown generator 'g-missing'/)
   })
 
   it('throws when a generatorCost effect references an unknown generator', () => {

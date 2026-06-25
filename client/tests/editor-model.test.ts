@@ -293,30 +293,6 @@ describe('renameNode', () => {
     })
   })
 
-  it("rewrites generators' unlockUpgrade references to the renamed node", () => {
-    const tree = makeTree()
-    tree.generators = [
-      {
-        id: 'g0',
-        baseCost: 10,
-        costScaling: 1.15,
-        costCurrency: 'r1',
-        production: { resource: 'r0', rate: 0.5 },
-        unlockUpgrade: 'b',
-      },
-      {
-        id: 'g1',
-        baseCost: 20,
-        costScaling: 1.2,
-        costCurrency: 'r1',
-        production: { resource: 'r0', rate: 1 },
-      },
-    ]
-    expect(renameNode(tree, 'b', 'bravo')).toBe(true)
-    expect(tree.generators[0].unlockUpgrade).toBe('bravo')
-    expect(tree.generators[1].unlockUpgrade).toBeUndefined()
-  })
-
   it('refuses to rename onto an existing id and leaves the tree untouched', () => {
     const tree = makeTree()
     const before = cloneTree(tree)

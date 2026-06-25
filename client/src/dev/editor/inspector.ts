@@ -12,6 +12,7 @@ import {
   enemyDataKeysFor,
   listEffectTypes,
   resolveEffect,
+  UNLOCKABLE_SYSTEMS,
   type TreeFile,
   type TreeUpgradeNode,
 } from '@game/shared'
@@ -538,11 +539,17 @@ function effectFieldOptions(
   effectType: string,
   fieldKey: string,
 ): readonly string[] | undefined {
-  if (effectType === 'generatorCost' && fieldKey === 'generator') {
+  if (
+    (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&
+    fieldKey === 'generator'
+  ) {
     return ctx.tree.generators.map((g) => g.id)
   }
   if (effectType === 'panelUnlock' && fieldKey === 'panel') {
     return ALL_PANELS.map((p) => p.id)
+  }
+  if (effectType === 'systemUnlock' && fieldKey === 'system') {
+    return [...UNLOCKABLE_SYSTEMS]
   }
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
     return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))

@@ -3,10 +3,12 @@ import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
 import { generatorCost } from './seed/generator-cost.js'
+import { generatorUnlock } from './seed/generator-unlock.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { peakCpsClickBonus } from './seed/peak-cps-click-bonus.js'
+import { systemUnlock } from './seed/system-unlock.js'
 
 // Register seed effects exactly once, at module load.
 registerEffect('highlightMultiplier', highlightMultiplier)
@@ -15,6 +17,8 @@ registerEffect('dominantGenerator', dominantGenerator)
 registerEffect('balancedGenerators', balancedGenerators)
 registerEffect('generatorCost', generatorCost)
 registerEffect('panelUnlock', panelUnlock)
+registerEffect('generatorUnlock', generatorUnlock)
+registerEffect('systemUnlock', systemUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('peakCpsClickBonus', peakCpsClickBonus)
 
@@ -23,6 +27,8 @@ export type {
   EffectOutput,
   GeneratorCostOutput,
   PanelUnlockOutput,
+  GeneratorUnlockOutput,
+  SystemUnlockOutput,
   EnemyDataAccessOutput,
 } from './types.js'
 export {
@@ -39,6 +45,8 @@ export type { DominantGeneratorParams } from './seed/dominant-generator.js'
 export type { BalancedGeneratorsParams } from './seed/balanced-generators.js'
 export type { GeneratorCostParams } from './seed/generator-cost.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
+export type { GeneratorUnlockParams } from './seed/generator-unlock.js'
+export type { SystemUnlockParams } from './seed/system-unlock.js'
 export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
 export {
   ENEMY_DATA_RATE_SUFFIX,

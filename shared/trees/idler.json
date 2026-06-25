@@ -8,8 +8,6 @@
   "scoreResource": "r0",
   "clicksEnabled": true,
   "highlightEnabled": true,
-  "highlightUnlockUpgrade": "sh-unlock",
-  "clickUnlockUpgrade": "sc-unlock",
   "initialResources": {
     "r0": 50,
     "r1": 20
@@ -38,8 +36,7 @@
       "production": {
         "resource": "r0",
         "rate": 0.5
-      },
-      "unlockUpgrade": "g1-g2"
+      }
     },
     {
       "id": "g1",
@@ -49,8 +46,7 @@
       "production": {
         "resource": "r1",
         "rate": 1
-      },
-      "unlockUpgrade": "g1-g2"
+      }
     },
     {
       "id": "g2",
@@ -60,8 +56,7 @@
       "production": {
         "resource": "r0",
         "rate": 5
-      },
-      "unlockUpgrade": "g3-g4"
+      }
     },
     {
       "id": "g3",
@@ -71,8 +66,7 @@
       "production": {
         "resource": "r1",
         "rate": 10
-      },
-      "unlockUpgrade": "g3-g4"
+      }
     }
   ],
   "goals": [
@@ -711,6 +705,14 @@
         {
           "type": "panelUnlock",
           "panel": "generators"
+        },
+        {
+          "type": "generatorUnlock",
+          "generator": "g0"
+        },
+        {
+          "type": "generatorUnlock",
+          "generator": "g1"
         }
       ],
       "offset": {
@@ -895,6 +897,16 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "effects": [
+            {
+              "type": "generatorUnlock",
+              "generator": "g2"
+            },
+            {
+              "type": "generatorUnlock",
+              "generator": "g3"
+            }
+          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "g1-g2"
@@ -1138,6 +1150,12 @@
           "value": 1
         }
       ],
+      "effects": [
+        {
+          "type": "systemUnlock",
+          "system": "click"
+        }
+      ],
       "offset": {
         "x": 792,
         "y": 144
@@ -1238,6 +1256,10 @@
             {
               "type": "highlightMultiplier",
               "multiplier": 2
+            },
+            {
+              "type": "systemUnlock",
+              "system": "highlight"
             }
           ],
           "offset": {
