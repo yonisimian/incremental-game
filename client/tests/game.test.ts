@@ -117,13 +117,12 @@ function enterIdlerPlaying(game: GameModule): void {
 }
 
 /**
- * Tick through the countdown into the playing phase. The countdown interval
- * fires once per second and always needs at least one tick to transition (it
- * decrements then checks `<= 0`), so advance at least 1s even when
- * `COUNTDOWN_SEC` is 0.
+ * Tick through the countdown into the playing phase. When `COUNTDOWN_SEC` is 0
+ * the transition is synchronous (no interval), so advancing time is a harmless
+ * no-op; otherwise the interval fires once per second until it elapses.
  */
 function advancePastCountdown(): void {
-  vi.advanceTimersByTime(Math.max(COUNTDOWN_SEC, 1) * 1000)
+  vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -178,9 +177,13 @@ describe('game.ts', () => {
   // ── ROUND_START → countdown ──────────────────────────────────────
 
   describe('ROUND_START', () => {
-    it('transitions to countdown screen', () => {
+    it('enters playing immediately when no countdown is configured', () => {
+      // COUNTDOWN_SEC is 0, so there is no pre-match countdown: the round starts
+      // the instant ROUND_START arrives. The server begins its clock at the same
+      // moment, so waiting any longer here would silently eat the first second.
+      expect(COUNTDOWN_SEC).toBe(0)
       game.handleServerMessage(makeRoundStart())
-      expect(game.getState().screen).toBe('countdown')
+      expect(game.getState().screen).toBe('playing')
     })
 
     it('stores matchId and upgrade definitions', () => {
@@ -521,13 +524,6 @@ describe('game.ts', () => {
       game.quitMatch()
       expect(game.getState().screen).toBe('lobby')
       expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
-    })
-
-    it('transitions to lobby from countdown', () => {
-      game.handleServerMessage(makeRoundStart())
-      expect(game.getState().screen).toBe('countdown')
-      game.quitMatch()
-      expect(game.getState().screen).toBe('lobby')
     })
 
     it('is a no-op on lobby screen', () => {
