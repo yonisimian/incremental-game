@@ -702,10 +702,6 @@ body {
   opacity: 0.7;
 }
 
-.currency-cards.locked .currency-card:hover {
-  border-color: var(--border);
-}
-
 .card-emoji {
   font-size: 1.8rem;
 }
