@@ -954,6 +954,16 @@ body {
   grid-row: 2;
 }
 
+/* Play panel content wrapper: stacks the selector + click cards, preserving the
+   centered column layout the panel container gives its direct children. */
+.play-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
 .panel-placeholder {
   display: flex;
   flex-direction: column;

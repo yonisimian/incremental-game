@@ -81,9 +81,14 @@ function renderCurrencyCards(state: Readonly<GameState>): string {
 }
 
 function renderIdlerContent(state: Readonly<GameState>): string {
+  // Wrap in the panel's own stable root (like the other panels' inner lists) so
+  // update() has a fixed anchor for the cards it injects/removes — the cards
+  // themselves come and go as their gates flip, so they can't be the anchor.
   return `
-    ${renderCurrencyCards(state)}
-    ${renderClickButtons(state)}
+    <div class="play-content" id="play-content">
+      ${renderCurrencyCards(state)}
+      ${renderClickButtons(state)}
+    </div>
   `
 }
 
@@ -122,7 +127,7 @@ export const playPanel: Panel = {
 
   update(state) {
     const modeDef = getModeDefinition(state.mode!)
-    const root = document.getElementById('panel-container')
+    const root = document.getElementById('play-content')
     if (!root) return
 
     // Highlight selector cards: present only while highlighting is unlocked.
