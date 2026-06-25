@@ -32,7 +32,7 @@ export function setText(id: string, text: string): void {
  * Below this many seconds remaining, the timer switches to a tense
  * `seconds:centiseconds` readout (e.g. `9:99` … `0:00`) instead of `M:SS`.
  */
-export const TIMER_CENTISECONDS_BELOW_SEC = 10
+const TIMER_CENTISECONDS_BELOW_SEC = 10
 
 export function formatTime(seconds: number): string {
   const clamped = Math.max(0, seconds)

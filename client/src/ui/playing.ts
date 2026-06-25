@@ -12,7 +12,6 @@ import {
   app,
   setText,
   formatTime,
-  TIMER_CENTISECONDS_BELOW_SEC,
   formatScore,
   updateProgressBar,
   playerDisplayName,
@@ -147,11 +146,12 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
 
 // ─── Timer interpolation ─────────────────────────────────────────────
 //
-// The server only broadcasts `timeLeft` every 500ms, which is too coarse for
-// the centisecond readout the timer shows in its final 10 seconds. So we anchor
-// to the latest authoritative value and interpolate locally with rAF, counting
-// elapsed wall-clock time since the anchor. The anchor re-syncs on every fresh
-// broadcast (and on resume), so server time stays authoritative and drift never
+// The server only broadcasts `timeLeft` every 500ms, which is too coarse for a
+// smooth countdown — especially the centisecond readout shown in the final 10
+// seconds. So while a match is playing we run a rAF loop that anchors to the
+// latest authoritative value and interpolates locally, counting elapsed
+// wall-clock time since the anchor. The anchor re-syncs on every fresh broadcast
+// (and on resume), so server time stays authoritative and drift never
 // accumulates beyond one broadcast interval.
 
 let timerRafId: number | null = null
@@ -186,18 +186,13 @@ function tickTimerLoop(): void {
     timerRafId = null
     return
   }
-  const remaining = predictedTimeLeft(state)
-  setText('timer', formatTime(remaining))
-  // Keep animating only inside the centisecond window; above it the 500ms server
-  // cadence is plenty and we fall back to event-driven updates.
-  timerRafId =
-    remaining < TIMER_CENTISECONDS_BELOW_SEC ? requestAnimationFrame(tickTimerLoop) : null
+  setText('timer', formatTime(predictedTimeLeft(state)))
+  timerRafId = requestAnimationFrame(tickTimerLoop)
 }
 
-/** Start the rAF loop if we're in the centisecond window and not already running. */
+/** Start the rAF loop while playing and unpaused, if not already running. */
 function ensureTimerLoop(state: Readonly<GameState>): void {
   if (timerRafId !== null || state.paused || state.screen !== 'playing') return
-  if (predictedTimeLeft(state) >= TIMER_CENTISECONDS_BELOW_SEC) return
   timerRafId = requestAnimationFrame(tickTimerLoop)
 }
 
@@ -206,8 +201,8 @@ function ensureTimerLoop(state: Readonly<GameState>): void {
 let prevPlayerScore = 0
 
 export function updatePlaying(state: Readonly<GameState>): void {
-  // Update timer / safety-cap timer. Inside the final 10s a rAF loop takes over
-  // for smooth centiseconds; here we render the predicted value and (re)start it.
+  // Re-anchor the timer to the latest broadcast and (re)start the rAF loop that
+  // keeps it smooth; the loop owns the readout while playing, this covers pause.
   syncTimerAnchor(state)
   setText('timer', formatTime(predictedTimeLeft(state)))
   ensureTimerLoop(state)
