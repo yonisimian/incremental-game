@@ -15,7 +15,13 @@ import {
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
 import { enemyDataResourceKey } from '../effects/index.js'
 import type { EffectOutput } from '../effects/index.js'
-import { anyOwned, panelGateUpgrades, systemGateUpgrades } from '../unlock-gates.js'
+import {
+  allAttackIds,
+  anyOwned,
+  attackGateUpgrades,
+  panelGateUpgrades,
+  systemGateUpgrades,
+} from '../unlock-gates.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -266,6 +272,26 @@ export function isPanelUnlocked(
   const gates = panelGateUpgrades(mode, panelId)
   if (!gates) return true // no upgrade gates this panel → always available
   return anyOwned(state, gates)
+}
+
+/**
+ * Whether an attack is available to this player. Granted by any owned upgrade
+ * carrying an `unlockAttack` effect naming it. Unlike `isPanelUnlocked`, an
+ * attack no upgrade unlocks is *hidden* by default (attacks only appear once
+ * unlocked). The attack itself has no behavior yet — this gates its appearance
+ * in the attack panel.
+ */
+export function isAttackUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  attackId: string,
+): boolean {
+  return anyOwned(state, attackGateUpgrades(mode, attackId))
+}
+
+/** The attack ids this player has unlocked, in mode declaration order. */
+export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefinition): string[] {
+  return allAttackIds(mode).filter((id) => isAttackUnlocked(state, mode, id))
 }
 
 /**

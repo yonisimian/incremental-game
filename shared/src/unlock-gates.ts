@@ -1,10 +1,11 @@
 /**
  * Effect-driven unlock gates.
  *
- * A family of effects (`panelUnlock`, `generatorUnlock`, `systemUnlock`) carry
- * no production weight — instead, while the owning upgrade is held they mark a
- * UI panel, a generator, or an input system (clicking / highlighting) as
- * unlocked. Each shares the same shape: build a reverse index — gate key → ids
+ * A family of effects (`panelUnlock`, `generatorUnlock`, `systemUnlock`,
+ * `unlockAttack`) carry no production weight — instead, while the owning upgrade
+ * is held they mark a UI panel, a generator, an input system (clicking /
+ * highlighting), or an attack as unlocked. Each shares the same shape: build a
+ * reverse index — gate key → ids
  * of the upgrades whose effect names it — so an "is this unlocked?" check is an
  * O(gates-for-this-key) ownership lookup rather than a full scan of every
  * upgrade/effect (which runs on every frame via the tab-lock refresh).
@@ -105,6 +106,26 @@ export function systemGateUpgrades(
   return gateIndex(mode, 'systemUnlock', (out) =>
     'kind' in out && out.kind === 'systemUnlock' ? out.system : null,
   ).get(system)
+}
+
+/** The reverse index for `unlockAttack`: attack id → ids of the upgrades that unlock it. */
+function attackGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  return gateIndex(mode, 'unlockAttack', (out) =>
+    'kind' in out && out.kind === 'attackUnlock' ? out.attack : null,
+  )
+}
+
+/** Ids of the upgrades whose `unlockAttack` effect gates `attackId`, or `undefined` if none. */
+export function attackGateUpgrades(
+  mode: ModeDefinition,
+  attackId: string,
+): readonly string[] | undefined {
+  return attackGateIndex(mode).get(attackId)
+}
+
+/** Every attack id any `unlockAttack` effect in the mode names (declaration order). */
+export function allAttackIds(mode: ModeDefinition): readonly string[] {
+  return [...attackGateIndex(mode).keys()]
 }
 
 /** Whether the player owns at least one of `ids` (false for an empty/absent gate). */
