@@ -262,7 +262,6 @@ function makeUpgrade(overrides: Partial<UpgradeDefinition>): UpgradeDefinition {
     id: 'u0',
     cost: { r0: 10 },
     purchaseLimit: 1,
-    modifiers: [],
     ...overrides,
   }
 }

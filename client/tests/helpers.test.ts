@@ -11,7 +11,6 @@ function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinit
     id: 'test-upgrade',
     cost: { r0: 10 },
     purchaseLimit: 1,
-    modifiers: [],
     ...overrides,
   }
 }

@@ -7,7 +7,7 @@ function node(
   offset: { x: number; y: number },
   extra: Partial<UpgradeTreeNode> = {},
 ): UpgradeTreeNode {
-  return { id, cost: { r0: 1 }, purchaseLimit: 1, modifiers: [], offset, ...extra }
+  return { id, cost: { r0: 1 }, purchaseLimit: 1, offset, ...extra }
 }
 
 describe('flattenUpgradeTree', () => {
@@ -70,8 +70,10 @@ describe('flattenUpgradeTree', () => {
           purchaseLimit: Infinity,
           goalType: 'buy-upgrade',
           prerequisites: { type: 'upgrade', id: 'x' },
-          modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
-          effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+          effects: [
+            { type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 },
+            { type: 'highlightMultiplier', multiplier: 2 },
+          ],
           children: [node('b', { x: 1, y: 1 })],
         },
       ),
@@ -83,8 +85,10 @@ describe('flattenUpgradeTree', () => {
       purchaseLimit: Infinity,
       goalType: 'buy-upgrade',
       prerequisites: { type: 'upgrade', id: 'x' },
-      modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
-      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      effects: [
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 },
+        { type: 'highlightMultiplier', multiplier: 2 },
+      ],
       position: { x: 5, y: 5 },
     })
     expect('offset' in a).toBe(false)

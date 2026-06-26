@@ -3,9 +3,9 @@ import type { PlayerState, UpgradeDefinition } from '../src/types.js'
 import { isChoiceGroupAvailable, validateUpgradeChoiceGroups } from '../src/upgrade-groups.js'
 
 const choiceUpgrades: readonly UpgradeDefinition[] = [
-  { id: 'choice-a', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
-  { id: 'choice-b', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
-  { id: 'normal', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [] },
+  { id: 'choice-a', cost: { r0: 1 }, purchaseLimit: 1, choiceGroup: 'branch' },
+  { id: 'choice-b', cost: { r0: 1 }, purchaseLimit: 1, choiceGroup: 'branch' },
+  { id: 'normal', cost: { r0: 1 }, purchaseLimit: 1 },
 ]
 
 function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
@@ -50,7 +50,7 @@ describe('validateUpgradeChoiceGroups', () => {
 
   it('rejects an empty choiceGroup identifier', () => {
     const invalid: UpgradeDefinition[] = [
-      { id: 'bad', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [], choiceGroup: '' },
+      { id: 'bad', cost: { r0: 1 }, purchaseLimit: 1, choiceGroup: '' },
     ]
     expect(() => {
       validateUpgradeChoiceGroups(invalid)

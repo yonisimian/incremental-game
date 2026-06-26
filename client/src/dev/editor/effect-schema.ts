@@ -22,6 +22,8 @@ export interface FieldSpec {
   readonly kind: FieldKind
   readonly optional: boolean
   readonly defaultValue?: number | string | boolean
+  /** Fixed value set for an enum field (kind `string`), rendered as a picker. */
+  readonly options?: readonly string[]
 }
 
 /** One object shape of an effect's params (a union member, or the lone object). */
@@ -64,6 +66,8 @@ interface ZodDef {
   readonly shape?: Readonly<Record<string, SchemaNode>>
   readonly innerType?: SchemaNode
   readonly defaultValue?: unknown
+  /** zod v4 `enum` values, keyed by member name (e.g. `{ additive: 'additive' }`). */
+  readonly entries?: Readonly<Record<string, string>>
 }
 
 function defOf(schema: SchemaNode): ZodDef {
@@ -99,7 +103,15 @@ function unwrap(schema: SchemaNode): {
 
 function describeField(key: string, schema: SchemaNode): FieldSpec {
   const { inner, optional, defaultValue } = unwrap(schema)
-  const type = defOf(inner).type
+  const def = defOf(inner)
+  // An enum renders as a string-valued picker over its fixed members; its
+  // default is the authored default, else the first member (so a freshly-added
+  // effect parses cleanly).
+  if (def.type === 'enum' && def.entries) {
+    const options = Object.values(def.entries)
+    return { key, kind: 'string', optional, defaultValue: defaultValue ?? options[0], options }
+  }
+  const type = def.type
   if (type !== 'number' && type !== 'string' && type !== 'boolean') {
     throw new UnsupportedEffectSchemaError(`Field '${key}' has unsupported type '${type}'`)
   }
