@@ -691,15 +691,6 @@ function trackPendingGeneratorPurchase(generatorId: string): void {
 
 function startCountdown(): void {
   stopCountdown()
-  // With no countdown configured (COUNTDOWN_SEC === 0) start playing right away.
-  // The server begins its round clock the instant the countdown elapses, so
-  // waiting a full 1000ms interval here would silently swallow the match's first
-  // second — the player would see the timer "start" already ~1s in.
-  if (state.countdown <= 0) {
-    state.screen = 'playing'
-    notify()
-    return
-  }
   countdownTimer = setInterval(() => {
     state.countdown--
     if (state.countdown <= 0) {

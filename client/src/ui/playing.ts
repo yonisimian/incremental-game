@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { quitMatch, togglePause, getState } from '../game.js'
+import { quitMatch, togglePause } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
@@ -144,68 +144,13 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   renderActivePanel(state)
 }
 
-// ─── Timer interpolation ─────────────────────────────────────────────
-//
-// The server only broadcasts `timeLeft` every 500ms, which is too coarse for a
-// smooth countdown — especially the centisecond readout shown in the final 10
-// seconds. So while a match is playing we run a rAF loop that anchors to the
-// latest authoritative value and interpolates locally, counting elapsed
-// wall-clock time since the anchor. The anchor re-syncs on every fresh broadcast
-// (and on resume), so server time stays authoritative and drift never
-// accumulates beyond one broadcast interval.
-
-let timerRafId: number | null = null
-let timerAnchorPerf = 0
-let timerAnchorValue = Number.NaN
-let timerPrevPaused = false
-
-/** Predicted seconds remaining: the anchor value minus elapsed time (frozen while paused). */
-function predictedTimeLeft(state: Readonly<GameState>): number {
-  if (state.paused) return state.timeLeft
-  const elapsed = (performance.now() - timerAnchorPerf) / 1000
-  return Math.max(0, timerAnchorValue - elapsed)
-}
-
-/**
- * Re-anchor whenever the authoritative `timeLeft` changes (a fresh broadcast) or
- * when resuming from pause, so interpolation only ever counts time forward from
- * a known-good value and never advances during a pause.
- */
-function syncTimerAnchor(state: Readonly<GameState>): void {
-  const resumed = timerPrevPaused && !state.paused
-  if (state.timeLeft !== timerAnchorValue || resumed) {
-    timerAnchorValue = state.timeLeft
-    timerAnchorPerf = performance.now()
-  }
-  timerPrevPaused = state.paused
-}
-
-function tickTimerLoop(): void {
-  const state = getState()
-  if (state.screen !== 'playing' || state.paused) {
-    timerRafId = null
-    return
-  }
-  setText('timer', formatTime(predictedTimeLeft(state)))
-  timerRafId = requestAnimationFrame(tickTimerLoop)
-}
-
-/** Start the rAF loop while playing and unpaused, if not already running. */
-function ensureTimerLoop(state: Readonly<GameState>): void {
-  if (timerRafId !== null || state.paused || state.screen !== 'playing') return
-  timerRafId = requestAnimationFrame(tickTimerLoop)
-}
-
 // ─── In-place Update ─────────────────────────────────────────────────
 
 let prevPlayerScore = 0
 
 export function updatePlaying(state: Readonly<GameState>): void {
-  // Re-anchor the timer to the latest broadcast and (re)start the rAF loop that
-  // keeps it smooth; the loop owns the readout while playing, this covers pause.
-  syncTimerAnchor(state)
-  setText('timer', formatTime(predictedTimeLeft(state)))
-  ensureTimerLoop(state)
+  // Update timer / safety-cap timer
+  setText('timer', formatTime(state.timeLeft))
 
   const scoreChanged = state.player.score !== prevPlayerScore
   prevPlayerScore = state.player.score

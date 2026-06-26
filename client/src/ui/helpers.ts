@@ -28,22 +28,10 @@ export function setText(id: string, text: string): void {
   if (el) el.textContent = text
 }
 
-/**
- * Below this many seconds remaining, the timer switches to a tense
- * `seconds:centiseconds` readout (e.g. `9:99` … `0:00`) instead of `M:SS`.
- */
-const TIMER_CENTISECONDS_BELOW_SEC = 10
-
 export function formatTime(seconds: number): string {
-  const clamped = Math.max(0, seconds)
-  if (clamped < TIMER_CENTISECONDS_BELOW_SEC) {
-    const sec = Math.floor(clamped)
-    const centi = Math.floor((clamped - sec) * 100)
-    return `${sec}:${centi.toString().padStart(2, '0')}`
-  }
-  const total = Math.floor(clamped)
-  const min = Math.floor(total / 60)
-  const sec = total % 60
+  const s = Math.max(0, Math.floor(seconds))
+  const min = Math.floor(s / 60)
+  const sec = s % 60
   return `${min}:${sec.toString().padStart(2, '0')}`
 }
 

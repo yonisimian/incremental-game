@@ -27,19 +27,7 @@ export const MAX_ROUND_DURATION_SEC = 600
  * Countdown before round starts (seconds).
  *
  * TODO: Temporarily 0 to skip the countdown during development. Restore to 3
- * before publishing the game. When restoring, also remove the block in game.ts
- * function startCountdown:
- * ```
- *   // With no countdown configured (COUNTDOWN_SEC === 0) start playing right away.
- *   // The server begins its round clock the instant the countdown elapses, so
- *   // waiting a full 1000ms interval here would silently swallow the match's first
- *   // second — the player would see the timer "start" already ~1s in.
- *   if (state.countdown <= 0) {
- *     state.screen = 'playing'
- *     notify()
- *     return
- *   }
- * ```
+ * before publishing the game.
  */
 export const COUNTDOWN_SEC = 0
 
