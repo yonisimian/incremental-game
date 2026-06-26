@@ -9,6 +9,9 @@ import {
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
+  isClickUnlocked,
+  isHighlightActive,
+  hasEnemyDataAccess,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -182,6 +185,97 @@ describe('isPanelUnlocked', () => {
     expect(isPanelUnlocked(state, def, 'generators')).toBe(false)
     state.upgrades['g1-g2'] = 1
     expect(isPanelUnlocked(state, def, 'generators')).toBe(true)
+  })
+})
+
+// ─── system unlock via the systemUnlock effect ──────────────────────
+
+describe('systemUnlock effect gating', () => {
+  const gateUpgrade = (system: string): UpgradeDefinition => ({
+    id: `u-${system}`,
+    cost: {},
+    purchaseLimit: 1,
+    modifiers: [],
+    effects: [{ type: 'systemUnlock', system }],
+  })
+
+  it('locks clicking until an upgrade with a click systemUnlock effect is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: true,
+      upgrades: [gateUpgrade('click')],
+    }
+    const state = createInitialState(def)
+    expect(isClickUnlocked(state, def)).toBe(false)
+    state.upgrades['u-click'] = 1
+    expect(isClickUnlocked(state, def)).toBe(true)
+  })
+
+  it('locks highlighting until an upgrade with a highlight systemUnlock effect is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      highlightEnabled: true,
+      upgrades: [gateUpgrade('highlight')],
+    }
+    const state = createInitialState(def)
+    expect(isHighlightActive(state, def)).toBe(false)
+    state.upgrades['u-highlight'] = 1
+    expect(isHighlightActive(state, def)).toBe(true)
+  })
+
+  it('stays locked when the mechanic is disabled, even if the gating upgrade is owned', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: false,
+      upgrades: [gateUpgrade('click')],
+    }
+    const state = createInitialState(def)
+    state.upgrades['u-click'] = 1
+    expect(isClickUnlocked(state, def)).toBe(false)
+  })
+
+  it('is unlocked when the mechanic is enabled and nothing gates it', () => {
+    const def: ModeDefinition = {
+      ...getModeDefinition('idler'),
+      clicksEnabled: true,
+      upgrades: [],
+    }
+    expect(isClickUnlocked(createInitialState(def), def)).toBe(true)
+  })
+})
+
+// ─── hasEnemyDataAccess ──────────────────────────────────────────────
+
+describe('hasEnemyDataAccess', () => {
+  it('hides intel for a key no upgrade grants', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    expect(hasEnemyDataAccess(state, def, 'nonexistent')).toBe(false)
+  })
+
+  it('reveals each resource only once its granting upgrade is owned', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // idler grants the main resource (r0) via `e-se-mr`, secondary (r1) via `e-se-sr`.
+    expect(hasEnemyDataAccess(state, def, 'r0')).toBe(false)
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(false)
+    state.upgrades['e-se-mr'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r0')).toBe(true)
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(false)
+    state.upgrades['e-se-sr'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r1')).toBe(true)
+  })
+
+  it('gates per-second production behind its own `:rate` upgrades', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    // Per-sec rates are a separate grant (`<key>:rate`) from the stockpile.
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(false)
+    state.upgrades['e-se-mr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r0:rate')).toBe(true)
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(false)
+    state.upgrades['e-se-sr-ps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(true)
   })
 })
 

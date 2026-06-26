@@ -203,6 +203,32 @@ export function setNodeFlavor(
   }
 }
 
+/**
+ * Rename a node's id, keeping the rest of the tree referentially valid: every
+ * flavor entry and every prerequisite reference pointing at the old id is
+ * rewritten in lockstep (the runtime rejects orphaned flavor entries and
+ * dangling prerequisite references alike, so a bare `node.id =` would invalidate
+ * the tree). Returns `true` when the rename is applied; fails without mutating
+ * when the new id is blank, already in use, or the node is absent. An unchanged
+ * id is a successful no-op.
+ */
+export function renameNode(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || findNode(tree, newId)) return false
+  const node = findNode(tree, oldId)
+  if (!node) return false
+
+  node.id = newId
+  for (const flavor of tree.flavors) {
+    const entry = flavor.upgrades.find((e) => e.id === oldId)
+    if (entry) entry.id = newId
+  }
+  for (const { node: ref } of walkPositioned(tree)) {
+    if (ref.prerequisites) ref.prerequisites = renamePrereqRef(ref.prerequisites, oldId, newId)
+  }
+  return true
+}
+
 /** Ensure every flavor has an entry for `id` (default when missing). No-op if present. */
 function ensureNodeFlavor(tree: TreeFile, id: string): void {
   for (const flavor of tree.flavors) {
@@ -234,6 +260,12 @@ function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undef
     .filter((item): item is Prereq => item !== undefined)
   if (items.length === 0) return undefined
   return { type: expr.type, items }
+}
+
+/** Rewrite every reference to `oldId` as `newId` within a prerequisite expression. */
+function renamePrereqRef(expr: Prereq, oldId: string, newId: string): Prereq {
+  if (expr.type === 'upgrade') return expr.id === oldId ? { ...expr, id: newId } : expr
+  return { type: expr.type, items: expr.items.map((item) => renamePrereqRef(item, oldId, newId)) }
 }
 
 /** Strip prerequisite references to any of `removed` across the whole tree. */

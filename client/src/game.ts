@@ -447,7 +447,7 @@ export function doBuyGenerator(generatorId: string): void {
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
-  if (!isGeneratorUnlocked(state.player, def)) return
+  if (!isGeneratorUnlocked(state.player, def, modeDef)) return
   const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
@@ -462,7 +462,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
-  if (!isGeneratorUnlocked(state.player, def)) return
+  if (!isGeneratorUnlocked(state.player, def, modeDef)) return
   const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)

@@ -13,7 +13,9 @@ import {
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import { enemyDataResourceKey } from '../effects/index.js'
 import type { EffectOutput } from '../effects/index.js'
+import { anyOwned, panelGateUpgrades, systemGateUpgrades } from '../unlock-gates.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -77,26 +79,34 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
 
-  // Referential integrity for generator gating + cost reductions: a typo in an
-  // authored id would otherwise be silently ignored at runtime.
-  const upgradeIds = new Set(def.upgrades.map((u) => u.id))
+  // Referential integrity for generator-targeting effects: `generatorCost` and
+  // `generatorUnlock` both name a generator by id (the generic effect schema
+  // only checks it's a string), so a typo would otherwise be silently ignored
+  // at runtime. These are the effects that point at another mechanic, so the
+  // check is targeted by type.
   const generatorIds = new Set(def.generators.map((g) => g.id))
-  for (const gen of def.generators) {
-    if (gen.unlockUpgrade !== undefined && !upgradeIds.has(gen.unlockUpgrade))
-      throw new Error(
-        `[${id}] generator '${gen.id}' unlockUpgrade references unknown upgrade '${gen.unlockUpgrade}'`,
-      )
-  }
-  // `generatorCost` effects name a generator by id; validate that ref up front
-  // (the generic effect schema only checks it's a string). This is the one
-  // effect that points at another mechanic, so the check is targeted by type.
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
-      if (ref.type !== 'generatorCost') continue
+      if (ref.type !== 'generatorCost' && ref.type !== 'generatorUnlock') continue
       const target = ref.generator
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
-          `[${id}] upgrade '${u.id}' generatorCost effect references unknown generator '${target}'`,
+          `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
+        )
+    }
+  }
+
+  // `accessEnemyData` effects name a resource (optionally `:rate`-suffixed) by
+  // key; validate it the same way so an authored typo fails loudly instead of
+  // silently revealing nothing at runtime.
+  const resourceKeys = new Set(def.resources)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'accessEnemyData') continue
+      const target = ref.data
+      if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
         )
     }
   }
@@ -212,76 +222,106 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
 
 // ─── Highlight ────────────────────────────────────────────────────────
 
+/**
+ * Whether an input system is unlocked: gated by any upgrade carrying a
+ * `systemUnlock` effect naming it (locked until one is owned). A system that no
+ * upgrade gates is always unlocked. Callers check the relevant `*Enabled` flag
+ * first.
+ */
+function isSystemUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  system: string,
+): boolean {
+  const gates = systemGateUpgrades(mode, system)
+  if (!gates) return true // no upgrade gates this system → always available
+  return anyOwned(state, gates)
+}
+
 /** Whether the highlight mechanic is currently active for this player. */
 export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.highlightEnabled) return false
-  if (!mode.highlightUnlockUpgrade) return true
-  return (state.upgrades[mode.highlightUnlockUpgrade] ?? 0) > 0
+  return isSystemUnlocked(state, mode, 'highlight')
 }
 
 /** Whether the click mechanic is currently active for this player. */
 export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.clicksEnabled) return false
-  if (!mode.clickUnlockUpgrade) return true
-  return (state.upgrades[mode.clickUnlockUpgrade] ?? 0) > 0
-}
-
-/**
- * Per-mode reverse index: panel id → ids of the upgrades whose `panelUnlock`
- * effect gates it. This is derived topology (not authored data), so it lives in
- * a WeakMap keyed by the mode rather than on `ModeDefinition`, and is dropped
- * automatically when the mode is GC'd.
- *
- * `isPanelUnlocked` runs on every frame via the tab-lock refresh, so it must not
- * scan every upgrade/effect (that grows with the whole tree). The index turns it
- * into an O(gates-for-this-panel) ownership check — effectively O(1), since a
- * panel is normally gated by one upgrade.
- */
-const panelGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
-
-/**
- * Build (or return the cached) panel-gate index for a mode. `panelUnlock` is
- * state-independent — it echoes its authored panel id — so a throwaway initial
- * state is enough to read which panel each effect names.
- */
-function getPanelGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
-  const cached = panelGateIndex.get(mode)
-  if (cached) return cached
-
-  const index = new Map<string, string[]>()
-  const probe = createInitialState(mode)
-  for (const upgrade of mode.upgrades) {
-    for (const ref of upgrade.effects ?? []) {
-      if (ref.type !== 'panelUnlock') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
-        if (!('kind' in out) || out.kind !== 'panelUnlock') continue
-        const gates = index.get(out.panel)
-        if (gates) {
-          if (!gates.includes(upgrade.id)) gates.push(upgrade.id)
-        } else {
-          index.set(out.panel, [upgrade.id])
-        }
-      }
-    }
-  }
-
-  panelGateIndex.set(mode, index)
-  return index
+  return isSystemUnlocked(state, mode, 'click')
 }
 
 /**
  * Whether a UI panel is currently accessible for this player. A panel is gated
  * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
  * such upgrade is owned. Panels that no upgrade unlocks are always available.
+ * (See `unlock-gates` for the reverse index this and the other unlock gates
+ * share — `isPanelUnlocked` runs every frame via the tab-lock refresh, so the
+ * check is an O(gates-for-this-panel) ownership lookup, not a full tree scan.)
  */
 export function isPanelUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   panelId: string,
 ): boolean {
-  const gates = getPanelGateIndex(mode).get(panelId)
+  const gates = panelGateUpgrades(mode, panelId)
   if (!gates) return true // no upgrade gates this panel → always available
-  return gates.some((id) => (state.upgrades[id] ?? 0) > 0)
+  return anyOwned(state, gates)
+}
+
+/**
+ * Per-mode reverse index: enemy-data key → ids of the upgrades whose
+ * `accessEnemyData` effect grants it. Mirrors {@link getPanelGateIndex}: derived
+ * topology, cached in a `WeakMap` keyed by the mode, so `hasEnemyDataAccess`
+ * stays an O(grants-for-this-key) ownership check on the espionage refresh path.
+ */
+const enemyDataGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
+
+/**
+ * Build (or return the cached) enemy-data gate index for a mode.
+ * `accessEnemyData` is state-independent — it echoes its authored key — so a
+ * throwaway initial state is enough to read which key each effect names.
+ */
+function getEnemyDataGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  const cached = enemyDataGateIndex.get(mode)
+  if (cached) return cached
+
+  const index = new Map<string, string[]>()
+  const probe = createInitialState(mode)
+  for (const upgrade of mode.upgrades) {
+    for (const ref of upgrade.effects ?? []) {
+      if (ref.type !== 'accessEnemyData') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
+        if (!('kind' in out) || out.kind !== 'enemyDataAccess') continue
+        const grants = index.get(out.data)
+        if (grants) {
+          if (!grants.includes(upgrade.id)) grants.push(upgrade.id)
+        } else {
+          index.set(out.data, [upgrade.id])
+        }
+      }
+    }
+  }
+
+  enemyDataGateIndex.set(mode, index)
+  return index
+}
+
+/**
+ * Whether the viewing player may see a slice of opponent intel (e.g.
+ * `'resources'`) in the espionage panel. Granted by any owned upgrade carrying
+ * an `accessEnemyData` effect naming that key. Unlike `isPanelUnlocked`, an
+ * ungranted key is *hidden* by default (a key no upgrade grants is never
+ * visible). `state` is the *viewer's* own state — the spy unlocks visibility
+ * into the opponent.
+ */
+export function hasEnemyDataAccess(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  dataKey: string,
+): boolean {
+  const grants = getEnemyDataGateIndex(mode).get(dataKey)
+  if (!grants) return false // no upgrade grants this key → never visible
+  return grants.some((id) => (state.upgrades[id] ?? 0) > 0)
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────

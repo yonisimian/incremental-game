@@ -226,15 +226,32 @@ describe('applyGeneratorPurchase', () => {
 // ─── isGeneratorUnlocked ─────────────────────────────────────────────
 
 describe('isGeneratorUnlocked', () => {
-  it('is always unlocked when no unlockUpgrade gate is set', () => {
+  it('is always unlocked when no upgrade gates it', () => {
     const def = makeDef()
-    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def)).toBe(true)
+    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, makeMode([def]))).toBe(true)
   })
 
-  it('is locked until the gating upgrade is owned', () => {
-    const def = makeDef({ unlockUpgrade: 'u-unlock' })
-    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def)).toBe(false)
-    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-unlock': 1 } }), def)).toBe(true)
+  it('is locked until an upgrade with a generatorUnlock effect is owned', () => {
+    const def = makeDef()
+    const mode = makeModeWithUpgrades(
+      [def],
+      [makeUpgrade({ id: 'u-gen', effects: [{ type: 'generatorUnlock', generator: 'g0' }] })],
+    )
+    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, mode)).toBe(false)
+    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-gen': 1 } }), def, mode)).toBe(true)
+  })
+
+  it('unlocks when any upgrade naming it is owned', () => {
+    const def = makeDef()
+    const mode = makeModeWithUpgrades(
+      [def],
+      [
+        makeUpgrade({ id: 'u-a', effects: [{ type: 'generatorUnlock', generator: 'g0' }] }),
+        makeUpgrade({ id: 'u-b', effects: [{ type: 'generatorUnlock', generator: 'g0' }] }),
+      ],
+    )
+    expect(isGeneratorUnlocked(makeState({ upgrades: {} }), def, mode)).toBe(false)
+    expect(isGeneratorUnlocked(makeState({ upgrades: { 'u-b': 1 } }), def, mode)).toBe(true)
   })
 })
 

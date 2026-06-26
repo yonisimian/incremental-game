@@ -34,12 +34,61 @@ export interface PanelUnlockOutput {
 }
 
 /**
- * What an effect's `apply` can emit: a production {@link Modifier}, a
- * {@link GeneratorCostOutput}, or a {@link PanelUnlockOutput}. Each is routed to
- * a different subsystem (`collectModifiers` / `collectGeneratorCostFactors` /
- * `isPanelUnlocked`); every consumer ignores the outputs it doesn't own.
+ * Marks a generator as unlocked while the owning upgrade is held. Consumed by
+ * `isGeneratorUnlocked` (a generator that no such output names is always
+ * available); carries no production weight, so the modifier pipeline ignores it.
  */
-export type EffectOutput = Modifier | GeneratorCostOutput | PanelUnlockOutput
+export interface GeneratorUnlockOutput {
+  readonly kind: 'generatorUnlock'
+  /** Stable generator id this upgrade reveals (matches `GeneratorDefinition.id`). */
+  readonly generator: string
+}
+
+/**
+ * Marks an input system (clicking / highlighting) as unlocked while the owning
+ * upgrade is held. Consumed by `isClickUnlocked` / `isHighlightActive` (a system
+ * that no such output names is always available); carries no production weight,
+ * so the modifier pipeline ignores it.
+ */
+export interface SystemUnlockOutput {
+  readonly kind: 'systemUnlock'
+  /** Which input system this upgrade reveals (`'click'` or `'highlight'`). */
+  readonly system: string
+}
+
+/**
+ * Grants the viewer visibility into one slice of the opponent's state while the
+ * owning upgrade is held. Consumed by `hasEnemyDataAccess` (which checks the
+ * *viewer's* owned upgrades, mirroring `isPanelUnlocked`); carries no production
+ * weight, so the modifier pipeline ignores it.
+ *
+ * Opponent state is already broadcast in full each tick, so this gates
+ * *visibility* (UI), not delivery. `data` keys a slice of opponent intel: a
+ * resource key (e.g. `'r0'`) reveals that resource's stockpile, and the
+ * `':rate'`-suffixed form (e.g. `'r0:rate'`) reveals its per-second production
+ * (derived client-side from the opponent's broadcast state).
+ */
+export interface EnemyDataAccessOutput {
+  readonly kind: 'enemyDataAccess'
+  /** Which slice of opponent intel this upgrade reveals (e.g. `'r0'` or `'r0:rate'`). */
+  readonly data: string
+}
+
+/**
+ * What an effect's `apply` can emit: a production {@link Modifier}, a
+ * {@link GeneratorCostOutput}, one of the unlock outputs ({@link
+ * PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link SystemUnlockOutput}),
+ * or an {@link EnemyDataAccessOutput}. Each is routed to a different subsystem
+ * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
+ * `hasEnemyDataAccess`); every consumer ignores the outputs it doesn't own.
+ */
+export type EffectOutput =
+  | Modifier
+  | GeneratorCostOutput
+  | PanelUnlockOutput
+  | GeneratorUnlockOutput
+  | SystemUnlockOutput
+  | EnemyDataAccessOutput
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn
