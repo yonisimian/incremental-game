@@ -103,7 +103,7 @@ function renderScoreboard(state: Readonly<GameState>): string {
       <div class="vs">vs</div>
       <div class="player-col opponent">
         <span class="label">${opponentDisplayName(state)}</span>
-        <span class="score" id="opponent-score">${formatScore(state.opponent.score, state)}</span>
+        <span class="score" id="opponent-score">${formatScore(state.opponent.score ?? 0, state)}</span>
       </div>
     </div>
   `
@@ -159,13 +159,13 @@ export function updatePlaying(state: Readonly<GameState>): void {
   if (state.goal?.type === 'target-score') {
     const target = state.goal.target
     updateProgressBar('player-progress', state.player.score, target)
-    updateProgressBar('opponent-progress', state.opponent.score, target)
+    updateProgressBar('opponent-progress', state.opponent.score ?? 0, target)
     setText('player-bar-score', formatScore(state.player.score, state))
-    setText('opponent-bar-score', formatScore(state.opponent.score, state))
+    setText('opponent-bar-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-bar-score')
   } else if (showsScoreboard(state.goal)) {
     setText('player-score', formatScore(state.player.score, state))
-    setText('opponent-score', formatScore(state.opponent.score, state))
+    setText('opponent-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-score')
   }
 

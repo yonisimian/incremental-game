@@ -658,7 +658,8 @@ function handleRoundEnd(msg: RoundEndMessage): void {
   state.endData = msg
   state.paused = false
   state.player.score = msg.finalScores.player
-  state.opponent.score = msg.finalScores.opponent
+  // Omitted for buy-upgrade (opponent score is never revealed in race-to-buy).
+  if (msg.finalScores.opponent !== undefined) state.opponent.score = msg.finalScores.opponent
   pendingBatches.length = 0
   stopCountdown()
   recorderRoundEnd(msg.finalScores.player)

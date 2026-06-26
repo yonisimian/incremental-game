@@ -196,7 +196,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'opponent',
       reason: 'quit',
-      finalScores: { player: quitter.state.score, opponent: opponent.state.score },
+      finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
       stats: quitter.stats,
     })
 
@@ -204,7 +204,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'player',
       reason: 'quit',
-      finalScores: { player: opponent.state.score, opponent: quitter.state.score },
+      finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
       stats: opponent.stats,
     })
 
@@ -472,10 +472,15 @@ export class Match {
    * never included, so a client can't read hidden data in devtools. Per-second
    * rates are computed here (the client can no longer derive them without the
    * opponent's full state) and included only for unlocked keys.
+   *
+   * Score is public for timed / target-score goals (it's the win condition and
+   * shown live), and omitted for `buy-upgrade`, where it isn't shown.
    */
   private opponentViewFor(viewer: MatchPlayer, opponent: MatchPlayer): OpponentView {
     const mode = this.modeDef
-    const view: OpponentView = { score: opponent.state.score, resources: {}, rates: {} }
+    const view: OpponentView = { resources: {}, rates: {} }
+
+    if (this.goal.type !== 'buy-upgrade') view.score = opponent.state.score
 
     let rates: Record<string, number> | null = null
     for (const key of mode.resources) {
@@ -490,6 +495,20 @@ export class Match {
     }
 
     return view
+  }
+
+  /**
+   * Final scores for a ROUND_END message addressed to the player whose score is
+   * `playerScore`. The opponent's score is omitted for `buy-upgrade` goals, where
+   * it's irrelevant to the result and never revealed.
+   */
+  private finalScoresFor(
+    playerScore: number,
+    opponentScore: number,
+  ): { player: number; opponent?: number } {
+    return this.goal.type === 'buy-upgrade'
+      ? { player: playerScore }
+      : { player: playerScore, opponent: opponentScore }
   }
 
   // ─── Private: ending ───────────────────────────────────────────────
@@ -518,7 +537,7 @@ export class Match {
       type: 'ROUND_END',
       winner: winnerForP1,
       reason,
-      finalScores: { player: p1.state.score, opponent: p2.state.score },
+      finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
       stats: p1.stats,
     })
 
@@ -526,7 +545,7 @@ export class Match {
       type: 'ROUND_END',
       winner: winnerForP2,
       reason,
-      finalScores: { player: p2.state.score, opponent: p1.state.score },
+      finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
       stats: p2.stats,
     })
 
@@ -546,7 +565,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'player',
       reason: 'forfeit',
-      finalScores: { player: winner.state.score, opponent: loser.state.score },
+      finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
       stats: winner.stats,
     })
 

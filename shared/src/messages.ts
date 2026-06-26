@@ -94,8 +94,12 @@ export type ClientMessage =
  * carries only the values the viewer's `accessEnemyData` upgrades grant.
  */
 export interface OpponentView {
-  /** The opponent's score (the win condition — shown live). */
-  score: number
+  /**
+   * The opponent's score. Public for timed / target-score goals (the win
+   * condition, shown live); omitted for `buy-upgrade`, where score is neither
+   * the win condition nor displayed.
+   */
+  score?: number
   /** Opponent stockpiles, keyed by resource — only keys the viewer has unlocked. */
   resources: Record<string, number>
   /** Opponent per-second production, keyed by resource — only unlocked keys. */
@@ -144,7 +148,11 @@ export interface RoundEndMessage {
   type: 'ROUND_END'
   winner: MatchWinner
   reason: RoundEndReason
-  finalScores: { player: number; opponent: number }
+  /**
+   * Final scores. `opponent` is omitted for `buy-upgrade` goals, where the
+   * opponent's score is irrelevant to the result and never revealed.
+   */
+  finalScores: { player: number; opponent?: number }
   stats: {
     totalClicks: number
     peakCps: number
