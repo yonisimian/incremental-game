@@ -79,9 +79,7 @@ function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpda
     opponent: {
       score: 0,
       resources: { r0: 0 },
-      upgrades: { ...defaultUpgrades },
-      generators: {},
-      meta: {},
+      rates: {},
     },
     timeLeft: 55,
     paused: false,
@@ -264,9 +262,7 @@ describe('game.ts', () => {
           opponent: {
             score: 0,
             resources: { r0: 0 },
-            upgrades: { ...defaultUpgrades },
-            generators: {},
-            meta: {},
+            rates: {},
           },
           timeLeft: 55,
         }),
@@ -303,9 +299,7 @@ describe('game.ts', () => {
           opponent: {
             score: 3,
             resources: { r0: 3 },
-            upgrades: { ...defaultUpgrades },
-            generators: {},
-            meta: {},
+            rates: {},
           },
           timeLeft: 50,
         }),

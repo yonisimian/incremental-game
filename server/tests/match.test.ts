@@ -183,6 +183,36 @@ describe('Match', () => {
       expect(u2.opponent.score).toBeCloseTo(u1.player.score, 5)
       expect(u2.opponent.score).toBeGreaterThan(u2.player.score)
     })
+
+    it("omits the opponent's upgrades, generators, and meta from the wire", () => {
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const opp = latestUpdate(ws1).opponent
+      // The raw opponent state is never shipped — only score (+ unlocked intel).
+      expect('upgrades' in opp).toBe(false)
+      expect('generators' in opp).toBe(false)
+      expect('meta' in opp).toBe(false)
+      // No espionage unlocked → no resource/rate intel.
+      expect(opp.resources).toEqual({})
+      expect(opp.rates).toEqual({})
+    })
+
+    it('reveals an opponent resource only to a viewer who unlocked it', () => {
+      const m = enterPlaying()
+      m.grantResourcesForTest('p2', { r0: 42 }) // opponent stockpile to spy on
+      // e-se-mr is free, unprereq'd, and grants `accessEnemyData: r0`.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // p1 unlocked r0 → its view of p2 carries p2's actual r0 stockpile.
+      expect(latestUpdate(ws1).opponent.resources.r0).toBeCloseTo(
+        latestUpdate(ws2).player.resources.r0,
+        5,
+      )
+      // p2 unlocked nothing → no intel on p1.
+      expect(latestUpdate(ws2).opponent.resources).toEqual({})
+    })
   })
 
   // ── Round end ────────────────────────────────────────────────────

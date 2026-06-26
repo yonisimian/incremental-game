@@ -9,10 +9,13 @@ import {
   getModeDefinition,
   createInitialState,
   collectModifiers,
+  computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  hasEnemyDataAccess,
+  enemyDataKeysFor,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -22,6 +25,7 @@ import type {
   Goal,
   MatchWinner,
   ModeDefinition,
+  OpponentView,
   PlayerAction,
   PlayerState,
   RoundEndReason,
@@ -446,7 +450,7 @@ export class Match {
       tick: this.tick,
       ackSeq: p1.ackSeq,
       player: p1.state,
-      opponent: p2.state,
+      opponent: this.opponentViewFor(p1, p2),
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -456,10 +460,36 @@ export class Match {
       tick: this.tick,
       ackSeq: p2.ackSeq,
       player: p2.state,
-      opponent: p1.state,
+      opponent: this.opponentViewFor(p2, p1),
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
+  }
+
+  /**
+   * Build the redacted opponent view for `viewer`: only the intel `viewer` has
+   * unlocked via `accessEnemyData`. The opponent's upgrades/generators/meta are
+   * never included, so a client can't read hidden data in devtools. Per-second
+   * rates are computed here (the client can no longer derive them without the
+   * opponent's full state) and included only for unlocked keys.
+   */
+  private opponentViewFor(viewer: MatchPlayer, opponent: MatchPlayer): OpponentView {
+    const mode = this.modeDef
+    const view: OpponentView = { score: opponent.state.score, resources: {}, rates: {} }
+
+    let rates: Record<string, number> | null = null
+    for (const key of mode.resources) {
+      const [amountKey, rateKey] = enemyDataKeysFor(key)
+      if (hasEnemyDataAccess(viewer.state, mode, amountKey)) {
+        view.resources[key] = opponent.state.resources[key] ?? 0
+      }
+      if (hasEnemyDataAccess(viewer.state, mode, rateKey)) {
+        rates ??= computePassiveRates(collectModifiers(opponent.state, mode), mode.resources)
+        view.rates[key] = rates[key] ?? 0
+      }
+    }
+
+    return view
   }
 
   // ─── Private: ending ───────────────────────────────────────────────

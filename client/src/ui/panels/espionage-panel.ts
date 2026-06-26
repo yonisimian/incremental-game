@@ -2,8 +2,6 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import {
-  collectModifiers,
-  computePassiveRates,
   enemyDataKeysFor,
   getModeDefinition,
   getModeFlavor,
@@ -98,13 +96,10 @@ function renderEspionage(state: Readonly<GameState>): string {
     })
     .filter((r) => r.amount || r.rate)
   if (rows.length === 0) return renderLocked()
-  // Production is derived from the opponent's own state, broadcast each tick —
-  // the same pipeline the local player uses (no extra data needed). Only needed
-  // when a per-second metric is actually unlocked.
-  const rates = rows.some((r) => r.rate)
-    ? computePassiveRates(collectModifiers(state.opponent, modeDef), modeDef.resources)
-    : {}
-  return renderResources(state, getModeFlavor(modeDef), rows, rates)
+  // Stockpiles and per-second rates are projected by the server into the
+  // redacted opponent view — only the keys this viewer has unlocked are present
+  // (the opponent's full state is never sent), so we read them directly.
+  return renderResources(state, getModeFlavor(modeDef), rows, state.opponent.rates)
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────
