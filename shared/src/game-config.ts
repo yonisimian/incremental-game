@@ -64,3 +64,12 @@ export const ROOM_TTL_MS = 10 * 60 * 1000
 
 /** How often the server broadcasts SERVER_STATUS to all clients (ms). */
 export const SERVER_STATUS_INTERVAL_MS = 5_000
+
+// ─── Client / UI ─────────────────────────────────────────────────────
+
+/**
+ * Below this many seconds remaining, the round timer switches from `M:SS` to a
+ * tense `seconds:centiseconds` readout (e.g. `9:99` … `0:00`). The client also
+ * interpolates the timer locally (via rAF) only inside this window.
+ */
+export const TIMER_CENTISECONDS_BELOW_SEC = 10

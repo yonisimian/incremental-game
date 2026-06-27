@@ -5,6 +5,7 @@ import {
   computePassiveRates,
   getModeDefinition,
   getModeFlavor,
+  TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
@@ -12,7 +13,6 @@ import {
   app,
   setText,
   formatTime,
-  TIMER_CENTISECONDS_BELOW_SEC,
   formatScore,
   updateProgressBar,
   playerDisplayName,
