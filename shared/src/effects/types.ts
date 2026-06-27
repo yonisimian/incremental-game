@@ -91,13 +91,26 @@ export interface BaseModifierOutput {
 }
 
 /**
+ * Marks an attack as unlocked while the owning upgrade is held. Consumed by
+ * `isAttackUnlocked` (an attack that no owned upgrade names is locked — unlike
+ * panels, attacks are hidden by default); carries no production weight, so the
+ * modifier pipeline ignores it. The attack itself has no behavior yet — this
+ * only gates its appearance in the attack panel.
+ */
+export interface AttackUnlockOutput {
+  readonly kind: 'attackUnlock'
+  /** Stable attack id this upgrade reveals. */
+  readonly attack: string
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
- * SystemUnlockOutput}), or an {@link EnemyDataAccessOutput}. Each is routed to a
- * different subsystem (`collectModifiers` / `collectGeneratorCostFactors` / the
- * unlock gates / `hasEnemyDataAccess`); every consumer ignores the outputs it
- * doesn't own.
+ * SystemUnlockOutput}, {@link AttackUnlockOutput}), or an {@link
+ * EnemyDataAccessOutput}. Each is routed to a different subsystem
+ * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
+ * `hasEnemyDataAccess`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -106,6 +119,7 @@ export type EffectOutput =
   | PanelUnlockOutput
   | GeneratorUnlockOutput
   | SystemUnlockOutput
+  | AttackUnlockOutput
   | EnemyDataAccessOutput
 
 /**

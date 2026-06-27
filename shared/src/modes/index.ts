@@ -15,7 +15,13 @@ import {
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
 import { enemyDataResourceKey } from '../effects/index.js'
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
-import { anyOwned, panelGateUpgrades, systemGateUpgrades } from '../unlock-gates.js'
+import {
+  allAttackIds,
+  anyOwned,
+  attackGateUpgrades,
+  panelGateUpgrades,
+  systemGateUpgrades,
+} from '../unlock-gates.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
 
@@ -48,6 +54,12 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
       throw new Error(`[${id}] ${where}: missing flavor for generator '${g.id}'`)
   }
 
+  // Every mechanical attack must have a flavor entry
+  for (const a of def.attacks) {
+    if (!f.attacks.some((fa) => fa.id === a.id))
+      throw new Error(`[${id}] ${where}: missing flavor for attack '${a.id}'`)
+  }
+
   // No orphan flavor entries (flavor references nonexistent mechanic)
   for (const fu of f.upgrades) {
     if (!def.upgrades.some((u) => u.id === fu.id))
@@ -56,6 +68,10 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   for (const fg of f.generators) {
     if (!def.generators.some((g) => g.id === fg.id))
       throw new Error(`[${id}] ${where}: references unknown generator '${fg.id}'`)
+  }
+  for (const fa of f.attacks) {
+    if (!def.attacks.some((a) => a.id === fa.id))
+      throw new Error(`[${id}] ${where}: references unknown attack '${fa.id}'`)
   }
 }
 
@@ -92,6 +108,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
           `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
+        )
+    }
+  }
+
+  // `unlockAttack` effects name an attack by id; validate against the mode's
+  // attacks so an authored typo fails loudly instead of unlocking nothing.
+  const attackIds = new Set(def.attacks.map((a) => a.id))
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'unlockAttack') continue
+      const target = ref.attack
+      if (typeof target === 'string' && !attackIds.has(target))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' unlockAttack effect references unknown attack '${target}'`,
         )
     }
   }
@@ -266,6 +296,26 @@ export function isPanelUnlocked(
   const gates = panelGateUpgrades(mode, panelId)
   if (!gates) return true // no upgrade gates this panel → always available
   return anyOwned(state, gates)
+}
+
+/**
+ * Whether an attack is available to this player. Granted by any owned upgrade
+ * carrying an `unlockAttack` effect naming it. Unlike `isPanelUnlocked`, an
+ * attack no upgrade unlocks is *hidden* by default (attacks only appear once
+ * unlocked). The attack itself has no behavior yet — this gates its appearance
+ * in the attack panel.
+ */
+export function isAttackUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  attackId: string,
+): boolean {
+  return anyOwned(state, attackGateUpgrades(mode, attackId))
+}
+
+/** The attack ids this player has unlocked, in mode declaration order. */
+export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefinition): string[] {
+  return allAttackIds(mode).filter((id) => isAttackUnlocked(state, mode, id))
 }
 
 /**

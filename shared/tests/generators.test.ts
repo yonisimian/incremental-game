@@ -49,6 +49,7 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
     initialResources: { r0: 0 },
     initialMeta: {},
     generators,
+    attacks: [],
     flavors: [
       {
         id: 'test',
@@ -59,6 +60,7 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
         upgrades: [],
         generators: generators.map((g) => ({ id: g.id, name: g.id, icon: '⚙️' })),
+        attacks: [],
       },
     ],
   }

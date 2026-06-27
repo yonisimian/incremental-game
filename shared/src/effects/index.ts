@@ -10,6 +10,7 @@ import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { peakCpsClickBonus } from './seed/peak-cps-click-bonus.js'
 import { systemUnlock } from './seed/system-unlock.js'
+import { unlockAttack } from './seed/unlock-attack.js'
 
 // Register seed effects exactly once, at module load.
 registerEffect('baseModifier', baseModifier)
@@ -23,6 +24,7 @@ registerEffect('generatorUnlock', generatorUnlock)
 registerEffect('systemUnlock', systemUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('peakCpsClickBonus', peakCpsClickBonus)
+registerEffect('unlockAttack', unlockAttack)
 
 export type { EffectDef } from './types.js'
 export type {
@@ -32,6 +34,7 @@ export type {
   PanelUnlockOutput,
   GeneratorUnlockOutput,
   SystemUnlockOutput,
+  AttackUnlockOutput,
   EnemyDataAccessOutput,
 } from './types.js'
 export {
@@ -58,3 +61,4 @@ export {
   enemyDataResourceKey,
 } from './seed/access-enemy-data.js'
 export type { PeakCpsClickBonusParams } from './seed/peak-cps-click-bonus.js'
+export type { UnlockAttackParams } from './seed/unlock-attack.js'

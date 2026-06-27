@@ -4,9 +4,11 @@ import {
   collectModifiers,
   createInitialState,
   getModeDefinition,
+  isAttackUnlocked,
   listEffectTypes,
   registerEffect,
   resolveEffect,
+  unlockedAttacks,
 } from '../src/index.js'
 import type {
   EffectRef,
@@ -55,6 +57,7 @@ describe('effect registry', () => {
       'panelUnlock',
       'peakCpsClickBonus',
       'systemUnlock',
+      'unlockAttack',
     ])
   })
 })
@@ -452,6 +455,55 @@ describe('systemUnlock effect', () => {
     expect(() =>
       applyEffect({ type: 'systemUnlock', system: 'highlite' }, createInitialState(mode), mode),
     ).toThrow()
+  })
+})
+
+describe('unlockAttack effect', () => {
+  /** Extend idler with an upgrade whose `unlockAttack` effect names `attackId`. */
+  function modeWithAttackUpgrade(upgradeId: string, attackId: string): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const upgrade: UpgradeDefinition = {
+      id: upgradeId,
+      cost: { r0: 10 },
+      purchaseLimit: 1,
+      effects: [{ type: 'unlockAttack', attack: attackId }],
+    }
+    return { ...base, upgrades: [...base.upgrades, upgrade] }
+  }
+
+  it('emits an attackUnlock output naming the attack', () => {
+    const mode = getModeDefinition('idler')
+    expect(
+      applyEffect({ type: 'unlockAttack', attack: 'a0' }, createInitialState(mode), mode),
+    ).toEqual({ kind: 'attackUnlock', attack: 'a0' })
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'unlockAttack', attack: 'a0' }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+
+  it('gates the attack on owning the unlocking upgrade (hidden by default)', () => {
+    const mode = modeWithAttackUpgrade('atk-unlock', 'a0')
+
+    const locked = createInitialState(mode)
+    expect(isAttackUnlocked(locked, mode, 'a0')).toBe(false)
+    expect(unlockedAttacks(locked, mode)).toEqual([])
+
+    const unlocked = createInitialState(mode)
+    unlocked.upgrades['atk-unlock'] = 1
+    expect(isAttackUnlocked(unlocked, mode, 'a0')).toBe(true)
+    expect(unlockedAttacks(unlocked, mode)).toEqual(['a0'])
+  })
+
+  it('reports an attack no upgrade names as locked', () => {
+    const mode = getModeDefinition('idler')
+    expect(isAttackUnlocked(createInitialState(mode), mode, 'nope')).toBe(false)
   })
 })
 

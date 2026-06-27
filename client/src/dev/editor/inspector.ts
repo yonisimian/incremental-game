@@ -422,6 +422,9 @@ function effectFieldOptions(
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
     return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
   }
+  if (effectType === 'unlockAttack' && fieldKey === 'attack') {
+    return ctx.tree.attacks.map((a) => a.id)
+  }
   // `baseModifier` targets a resource, a generator, or a special pipeline field
   // (`clickIncome` / `globalMultiplier`) — the union the legacy modifier picker
   // offered. The pipeline routes the special fields to the `ModifierContext`

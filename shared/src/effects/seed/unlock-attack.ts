@@ -1,0 +1,32 @@
+import { z } from 'zod'
+
+import type { AttackUnlockOutput, EffectDef } from '../types.js'
+
+/**
+ * Schema for the `unlockAttack` effect's params.
+ *
+ * While the owning upgrade is held, the named attack becomes available in the
+ * attack panel. `attack` is a plain `z.string()` (like `panelUnlock`'s `panel`)
+ * so the schema-driven editor form can introspect it; the valid set is enforced
+ * by the editor dropdown and validated against the mode's `attacks` at load
+ * (`validateModeDefinition`), so an authored typo fails loudly. The attack has
+ * no behavior of its own; this only gates its appearance. An attack that no
+ * owned upgrade unlocks is hidden (see `isAttackUnlocked`).
+ */
+const schema = z.strictObject({
+  attack: z.string(),
+})
+
+/** Params for the `unlockAttack` effect (inferred from its schema). */
+export type UnlockAttackParams = z.infer<typeof schema>
+
+/**
+ * State-independent: echoes the authored attack id as an
+ * {@link AttackUnlockOutput}. Whether the gate is actually satisfied (the
+ * upgrade is owned) is decided by `isAttackUnlocked`, which owns this output.
+ */
+function apply(p: UnlockAttackParams): AttackUnlockOutput {
+  return { kind: 'attackUnlock', attack: p.attack }
+}
+
+export const unlockAttack: EffectDef<UnlockAttackParams> = { schema, apply }

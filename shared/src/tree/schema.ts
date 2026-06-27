@@ -70,6 +70,9 @@ const GeneratorSchema = z.strictObject({
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
+/** An attack — a stable id plus its kind (no behavior yet). Display data is its flavor. */
+const AttackSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
+
 // ─── Flavor schemas ──────────────────────────────────────────────────
 
 const ResourceFlavorSchema = z.strictObject({
@@ -88,6 +91,13 @@ const UpgradeFlavorSchema = z.strictObject({
 
 const GeneratorFlavorSchema = z.strictObject({ id: z.string(), name: z.string(), icon: z.string() })
 
+const AttackFlavorSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  icon: z.string(),
+  description: z.string(),
+})
+
 const ModeFlavorSchema = z.strictObject({
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
   id: z.string(),
@@ -98,6 +108,8 @@ const ModeFlavorSchema = z.strictObject({
   showClickStats: z.boolean(),
   upgrades: z.array(UpgradeFlavorSchema),
   generators: z.array(GeneratorFlavorSchema),
+  /** Attack display data. Optional in the file (defaults to none) for back-compat. */
+  attacks: z.array(AttackFlavorSchema).default([]),
 })
 
 // ─── Upgrade tree node (serializable authoring form) ─────────────────
@@ -146,6 +158,8 @@ export const TreeFileSchema = z.strictObject({
   nativeModifiers: z.array(ModifierSchema),
   effects: z.array(EffectRefSchema).optional(),
   generators: z.array(GeneratorSchema),
+  /** Attacks available in this mode. Optional in the file (defaults to none). */
+  attacks: z.array(AttackSchema).default([]),
   goals: z.array(GoalSchema),
   /**
    * Cosmetic skins for this mode (at least one). Mechanics are keyed by stable

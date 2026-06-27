@@ -69,6 +69,24 @@
       }
     }
   ],
+  "attacks": [
+    {
+      "id": "a0",
+      "kind": "active"
+    },
+    {
+      "id": "a1",
+      "kind": "active"
+    },
+    {
+      "id": "a2",
+      "kind": "passive"
+    },
+    {
+      "id": "a3",
+      "kind": "passive"
+    }
+  ],
   "goals": [
     {
       "type": "buy-upgrade",
@@ -478,6 +496,30 @@
           "name": "sc-pcps",
           "icon": "🖱️",
           "description": "Gain additional click income as your peak cps."
+        },
+        {
+          "id": "node",
+          "name": "node",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-2",
+          "name": "node-2",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-3",
+          "name": "node-3",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-4",
+          "name": "node-4",
+          "icon": "💥",
+          "description": ""
         }
       ],
       "generators": [
@@ -500,6 +542,32 @@
           "id": "g3",
           "name": "Tavern",
           "icon": "🍻"
+        }
+      ],
+      "attacks": [
+        {
+          "id": "a0",
+          "name": "First Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a1",
+          "name": "Second Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a2",
+          "name": "First Passive Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a3",
+          "name": "Second Passive Attack",
+          "icon": "💥",
+          "description": ""
         }
       ]
     }
@@ -1425,7 +1493,87 @@
       "offset": {
         "x": 1176,
         "y": 144
-      }
+      },
+      "children": [
+        {
+          "id": "node",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a0"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "node-2",
+              "cost": {},
+              "purchaseLimit": 1,
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "a-unlock"
+              },
+              "effects": [
+                {
+                  "type": "unlockAttack",
+                  "attack": "a1"
+                }
+              ],
+              "offset": {
+                "x": 0,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "node-3",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a2"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 96
+          }
+        },
+        {
+          "id": "node-4",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a3"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 192
+          }
+        }
+      ]
     },
     {
       "id": "ir-unlock",

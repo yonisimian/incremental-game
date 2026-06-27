@@ -102,6 +102,7 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     initialMeta: tree.initialMeta,
     nativeModifiers: tree.nativeModifiers,
     generators: tree.generators,
+    attacks: tree.attacks,
     goals: tree.goals,
     flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
