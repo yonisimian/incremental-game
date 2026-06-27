@@ -242,6 +242,24 @@ describe('Match', () => {
       // p2 unlocked nothing → no intel on p1.
       expect(latestUpdate(ws2).opponent.resources).toEqual({})
     })
+
+    it('reveals opponent peak CPS only to a viewer who unlocked `e-se-cps`', () => {
+      const m = enterPlaying()
+      // p2 unlocks clicks (sc-unlock, no prereq) then clicks → non-zero peak CPS.
+      m.grantResourcesForTest('p2', { r0: 50 })
+      m.handleMessage('p2', buyMsg('sc-unlock', 1))
+      m.handleMessage('p2', clickMsg(2))
+      // Walk the (free) espionage chain to e-se-cps: e-se-mr → e-se-mr-ps → e-se-cps.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-cps', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // p1 unlocked CPS intel → sees p2's peak CPS (≥1 after the click).
+      expect(latestUpdate(ws1).opponent.peakCps).toBeGreaterThanOrEqual(1)
+      // p2 unlocked nothing → peak CPS is withheld entirely.
+      expect(latestUpdate(ws2).opponent.peakCps).toBeUndefined()
+    })
   })
 
   // ── Race-to-buy score hiding ─────────────────────────────────────

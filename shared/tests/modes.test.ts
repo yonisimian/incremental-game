@@ -274,6 +274,14 @@ describe('hasEnemyDataAccess', () => {
     state.upgrades['e-se-sr-ps'] = 1
     expect(hasEnemyDataAccess(state, def, 'r1:rate')).toBe(true)
   })
+
+  it('reveals peak CPS (a non-resource intel key) once `e-se-cps` is owned', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    expect(hasEnemyDataAccess(state, def, 'peakCps')).toBe(false)
+    state.upgrades['e-se-cps'] = 1
+    expect(hasEnemyDataAccess(state, def, 'peakCps')).toBe(true)
+  })
 })
 
 // ─── collectModifiers ────────────────────────────────────────────────

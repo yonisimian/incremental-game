@@ -759,6 +759,53 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
+describe('accessEnemyData mode validation', () => {
+  // Build an idler variant whose extra upgrade reveals `data`, with a matching
+  // flavor upgrade entry so flavor validation doesn't trip before the intel
+  // checks.
+  function withAccess(data: string): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uIntel',
+      cost: { r0: 1 },
+      purchaseLimit: 1,
+      effects: [{ type: 'accessEnemyData', data }],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uIntel', name: 'Intel', icon: '?', description: '' }],
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts the non-resource peak-CPS intel key', () => {
+    expect(() => {
+      validateModeDefinition('idler', withAccess('peakCps'))
+    }).not.toThrow()
+  })
+
+  it('throws on an unknown resource key', () => {
+    expect(() => {
+      validateModeDefinition('idler', withAccess('r9'))
+    }).toThrow(/unknown resource 'r9'/u)
+  })
+
+  it('throws if a resource key collides with a reserved intel key', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'peakCps'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'peakCps', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/collides with a reserved/u)
+  })
+})
+
 // ─── addressable-field catalog (shared by apply, validator, editor) ───
 
 describe('addressable-field catalog', () => {

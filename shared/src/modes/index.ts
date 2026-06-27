@@ -13,7 +13,12 @@ import {
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
-import { addressableSources, addressableTargets, enemyDataResourceKey } from '../effects/index.js'
+import {
+  addressableSources,
+  addressableTargets,
+  NON_RESOURCE_INTEL_KEYS,
+  enemyDataResourceKey,
+} from '../effects/index.js'
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
@@ -130,10 +135,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // key; validate it the same way so an authored typo fails loudly instead of
   // silently revealing nothing at runtime.
   const resourceKeys = new Set(def.resources)
+  // Reserved non-resource intel keys (e.g. peak CPS) must not collide with a
+  // real resource, or their whitelist below would mask a genuine typo.
+  for (const intelKey of NON_RESOURCE_INTEL_KEYS) {
+    if (resourceKeys.has(intelKey))
+      throw new Error(
+        `[${id}] resource key '${intelKey}' collides with a reserved non-resource intel key`,
+      )
+  }
+  const nonResourceIntel = new Set(NON_RESOURCE_INTEL_KEYS)
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
       if (ref.type !== 'accessEnemyData') continue
       const target = ref.data
+      if (typeof target === 'string' && nonResourceIntel.has(target)) continue // non-resource intel
       if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
         throw new Error(
           `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
