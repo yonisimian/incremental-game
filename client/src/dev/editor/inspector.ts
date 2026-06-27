@@ -554,6 +554,9 @@ function effectFieldOptions(
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
     return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
   }
+  if (effectType === 'unlockAttack' && fieldKey === 'attack') {
+    return ctx.tree.attacks.map((a) => a.id)
+  }
   return undefined
 }
 

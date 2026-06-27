@@ -1,6 +1,14 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { getModeDefinition, unlockedAttacks } from '@game/shared'
+import {
+  getAttackDescription,
+  getAttackIcon,
+  getAttackName,
+  getModeDefinition,
+  getModeFlavor,
+  unlockedAttacks,
+} from '@game/shared'
+import type { ModeFlavor } from '@game/shared'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -16,18 +24,24 @@ function renderLocked(): string {
 }
 
 /**
- * A list of the attacks the viewer has unlocked. Attacks have no behavior yet,
- * so each is a disabled, no-op entry — unlocking one only makes it appear here.
+ * The attacks the viewer has unlocked, shown as cards with their flavor (icon,
+ * name, description). Attacks have no behavior yet, so each is a disabled, no-op
+ * button — unlocking one only makes it appear here.
  */
-function renderAttacks(attacks: readonly string[]): string {
+function renderAttacks(flavor: ModeFlavor, attacks: readonly string[]): string {
   const items = attacks
-    .map(
-      (id) => `
+    .map((id) => {
+      const desc = getAttackDescription(flavor, id)
+      return `
         <li class="attack-item">
-          <button class="attack-btn" type="button" disabled>${id}</button>
+          <button class="attack-btn" type="button" disabled>
+            <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
+            <span class="attack-name">${getAttackName(flavor, id)}</span>
+            ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
+          </button>
         </li>
-      `,
-    )
+      `
+    })
     .join('')
   return `
     <section class="attack-section">
@@ -40,8 +54,9 @@ function renderAttacks(attacks: readonly string[]): string {
 
 function renderAttack(state: Readonly<GameState>): string {
   if (!state.mode) return ''
-  const attacks = unlockedAttacks(state.player, getModeDefinition(state.mode))
-  return attacks.length === 0 ? renderLocked() : renderAttacks(attacks)
+  const modeDef = getModeDefinition(state.mode)
+  const attacks = unlockedAttacks(state.player, modeDef)
+  return attacks.length === 0 ? renderLocked() : renderAttacks(getModeFlavor(modeDef), attacks)
 }
 
 /**

@@ -220,6 +220,7 @@ describe('formatUpgradesPurchased', () => {
       { id: 'u2', name: '🏗️ Lumber Mill', icon: '🏗️', description: '' },
     ],
     generators: [],
+    attacks: [],
   }
 
   it('returns "none" for an empty list', () => {

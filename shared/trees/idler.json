@@ -69,6 +69,20 @@
       }
     }
   ],
+  "attacks": [
+    {
+      "id": "a0"
+    },
+    {
+      "id": "a1"
+    },
+    {
+      "id": "a2"
+    },
+    {
+      "id": "a3"
+    }
+  ],
   "goals": [
     {
       "type": "buy-upgrade",
@@ -478,6 +492,30 @@
           "name": "sc-pcps",
           "icon": "🖱️",
           "description": "Gain additional click income as your peak cps."
+        },
+        {
+          "id": "node",
+          "name": "node",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-2",
+          "name": "node-2",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-3",
+          "name": "node-3",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "node-4",
+          "name": "node-4",
+          "icon": "💥",
+          "description": ""
         }
       ],
       "generators": [
@@ -500,6 +538,32 @@
           "id": "g3",
           "name": "Tavern",
           "icon": "🍻"
+        }
+      ],
+      "attacks": [
+        {
+          "id": "a0",
+          "name": "First Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a1",
+          "name": "Second Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a2",
+          "name": "First Passive Attack",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a3",
+          "name": "Second Passive Attack",
+          "icon": "💥",
+          "description": ""
         }
       ]
     }
@@ -897,6 +961,10 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
           "effects": [
             {
               "type": "generatorUnlock",
@@ -907,10 +975,6 @@
               "generator": "g3"
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "g1-g2"
-          },
           "offset": {
             "x": 0,
             "y": 288
@@ -1443,7 +1507,91 @@
       "offset": {
         "x": 1176,
         "y": 144
-      }
+      },
+      "children": [
+        {
+          "id": "node",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a0"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "node-2",
+              "cost": {},
+              "purchaseLimit": 1,
+              "modifiers": [],
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "a-unlock"
+              },
+              "effects": [
+                {
+                  "type": "unlockAttack",
+                  "attack": "a1"
+                }
+              ],
+              "offset": {
+                "x": 0,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "node-3",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a2"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 96
+          }
+        },
+        {
+          "id": "node-4",
+          "cost": {},
+          "purchaseLimit": 1,
+          "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a3"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 192
+          }
+        }
+      ]
     },
     {
       "id": "ir-unlock",
@@ -1486,16 +1634,16 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "e-se-mr"
+          },
           "effects": [
             {
               "type": "accessEnemyData",
               "data": "r1"
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "e-se-mr"
-          },
           "offset": {
             "x": 96,
             "y": 96
@@ -1506,16 +1654,16 @@
           "cost": {},
           "purchaseLimit": 1,
           "modifiers": [],
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "e-se-mr"
+          },
           "effects": [
             {
               "type": "accessEnemyData",
               "data": "r0:rate"
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "e-se-mr"
-          },
           "offset": {
             "x": 0,
             "y": 96
@@ -1526,12 +1674,6 @@
               "cost": {},
               "purchaseLimit": 1,
               "modifiers": [],
-              "effects": [
-                {
-                  "type": "accessEnemyData",
-                  "data": "r1:rate"
-                }
-              ],
               "prerequisites": {
                 "type": "all",
                 "items": [
@@ -1545,6 +1687,12 @@
                   }
                 ]
               },
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "r1:rate"
+                }
+              ],
               "offset": {
                 "x": 96,
                 "y": 96

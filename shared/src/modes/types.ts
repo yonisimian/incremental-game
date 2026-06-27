@@ -1,5 +1,11 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { EffectRef, Goal, GeneratorDefinition, UpgradeDefinition } from '../types.js'
+import type {
+  AttackDefinition,
+  EffectRef,
+  Goal,
+  GeneratorDefinition,
+  UpgradeDefinition,
+} from '../types.js'
 
 // ─── Flavor Types ────────────────────────────────────────────────────
 
@@ -37,6 +43,18 @@ export interface GeneratorFlavor {
   readonly icon: string
 }
 
+/** Display metadata for a single attack. */
+export interface AttackFlavor {
+  /** Attack id (matches AttackDefinition.id). */
+  readonly id: string
+  /** Display name (e.g. 'Raid'). */
+  readonly name: string
+  /** Display icon (e.g. '⚔️'). */
+  readonly icon: string
+  /** Display description (shown under the attack in the panel). */
+  readonly description: string
+}
+
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
@@ -55,6 +73,8 @@ export interface ModeFlavor {
   readonly upgrades: readonly UpgradeFlavor[]
   /** Generator display data, looked up by id via helpers. */
   readonly generators: readonly GeneratorFlavor[]
+  /** Attack display data, looked up by id via helpers. */
+  readonly attacks: readonly AttackFlavor[]
 }
 
 // ─── Mode Definition ─────────────────────────────────────────────────
@@ -81,6 +101,8 @@ export interface ModeDefinition {
   readonly initialMeta: Readonly<Record<string, unknown>>
   /** Generator buildings available in this mode (may be empty). */
   readonly generators: readonly GeneratorDefinition[]
+  /** Attacks available in this mode (may be empty). No behavior yet — unlock-gated. */
+  readonly attacks: readonly AttackDefinition[]
   /**
    * Declarative, state-derived effects applied to every player in this mode.
    * Each ref names a registered effect plus its params (see `shared/src/effects`).

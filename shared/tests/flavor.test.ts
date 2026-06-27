@@ -11,6 +11,9 @@ import {
   getUpgradeDescription,
   getGeneratorName,
   getGeneratorIcon,
+  getAttackName,
+  getAttackIcon,
+  getAttackDescription,
 } from '../src/flavor.js'
 
 // ─── Positive: real modes pass validation ────────────────────────────
@@ -81,6 +84,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     initialResources: { r0: 0 },
     initialMeta: {},
     generators: [],
+    attacks: [],
     flavors: [
       {
         id: 'test',
@@ -91,6 +95,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
         upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
         generators: [],
+        attacks: [],
       },
     ],
   }
@@ -231,6 +236,7 @@ describe('validateModeDefinition — negative tests', () => {
           resources: [{ key: 'r0', displayName: 'Wood', icon: '🪵' }],
           upgrades: [{ id: 'u0', name: 'Axe', icon: '🪓', description: 'chop' }],
           generators: [],
+          attacks: [],
         },
         {
           id: 'scifi',
@@ -241,6 +247,7 @@ describe('validateModeDefinition — negative tests', () => {
           resources: [{ key: 'r0', displayName: 'Energy', icon: '⚡' }],
           upgrades: [{ id: 'u0', name: 'Laser', icon: '🔫', description: 'zap' }],
           generators: [],
+          attacks: [],
         },
       ],
     })
@@ -295,6 +302,60 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).toThrow(/upgrade 'u0' generatorUnlock effect references unknown generator 'g-missing'/)
+  })
+
+  it('throws when an unlockAttack effect references an unknown attack', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [{ type: 'unlockAttack', attack: 'a-missing' }],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' unlockAttack effect references unknown attack 'a-missing'/)
+  })
+
+  it('accepts an unlockAttack effect that references a defined attack', () => {
+    const base = makeValidDef({
+      attacks: [{ id: 'a0' }],
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          modifiers: [],
+          effects: [{ type: 'unlockAttack', attack: 'a0' }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Raid', icon: '⚔️', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when a mechanical attack has no flavor entry', () => {
+    const def = makeValidDef({ attacks: [{ id: 'a0' }] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/missing flavor for attack 'a0'/)
+  })
+
+  it('throws when an attack flavor entry references an unknown attack', () => {
+    const def = withFlavor(makeValidDef(), {
+      attacks: [{ id: 'a-ghost', name: 'Ghost', icon: '👻', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/references unknown attack 'a-ghost'/)
   })
 
   it('throws when a generatorCost effect references an unknown generator', () => {
@@ -446,6 +507,10 @@ function makeFlavor(): ModeFlavor {
       { id: 'g0', name: 'Miner', icon: '⛏️' },
       { id: 'g1', name: 'Lumberjack', icon: '🪓' },
     ],
+    attacks: [
+      { id: 'a0', name: 'Raid', icon: '⚔️', description: 'A raid' },
+      { id: 'a1', name: 'Siege', icon: '🏰', description: 'A siege' },
+    ],
   }
 }
 
@@ -546,6 +611,23 @@ describe('getGeneratorIcon', () => {
     const result = getGeneratorIcon(makeFlavor(), 'g99')
     expect(result).toBe('g99')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('generator icon'))
+    warn.mockRestore()
+  })
+})
+
+describe('attack flavor helpers', () => {
+  it('returns name / icon / description for a known attack id', () => {
+    expect(getAttackName(makeFlavor(), 'a0')).toBe('Raid')
+    expect(getAttackIcon(makeFlavor(), 'a1')).toBe('🏰')
+    expect(getAttackDescription(makeFlavor(), 'a0')).toBe('A raid')
+  })
+
+  it('falls back and warns for an unknown attack id', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(getAttackName(makeFlavor(), 'a99')).toBe('a99')
+    expect(getAttackIcon(makeFlavor(), 'a99')).toBe('a99')
+    expect(getAttackDescription(makeFlavor(), 'a99')).toBe('')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('attack name'))
     warn.mockRestore()
   })
 })

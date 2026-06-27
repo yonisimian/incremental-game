@@ -35,6 +35,7 @@ function minimalTree(): TreeFile {
     nativeModifiers: [],
     effects: [],
     generators: [],
+    attacks: [],
     goals: [{ type: 'timed', label: 'Timed', durationSec: 60 }],
     flavors: [
       {
@@ -46,6 +47,7 @@ function minimalTree(): TreeFile {
         showClickStats: false,
         upgrades: [],
         generators: [],
+        attacks: [],
       },
     ],
     upgrades: [],

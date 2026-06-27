@@ -54,6 +54,12 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
       throw new Error(`[${id}] ${where}: missing flavor for generator '${g.id}'`)
   }
 
+  // Every mechanical attack must have a flavor entry
+  for (const a of def.attacks) {
+    if (!f.attacks.some((fa) => fa.id === a.id))
+      throw new Error(`[${id}] ${where}: missing flavor for attack '${a.id}'`)
+  }
+
   // No orphan flavor entries (flavor references nonexistent mechanic)
   for (const fu of f.upgrades) {
     if (!def.upgrades.some((u) => u.id === fu.id))
@@ -62,6 +68,10 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   for (const fg of f.generators) {
     if (!def.generators.some((g) => g.id === fg.id))
       throw new Error(`[${id}] ${where}: references unknown generator '${fg.id}'`)
+  }
+  for (const fa of f.attacks) {
+    if (!def.attacks.some((a) => a.id === fa.id))
+      throw new Error(`[${id}] ${where}: references unknown attack '${fa.id}'`)
   }
 }
 
@@ -98,6 +108,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
           `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
+        )
+    }
+  }
+
+  // `unlockAttack` effects name an attack by id; validate against the mode's
+  // attacks so an authored typo fails loudly instead of unlocking nothing.
+  const attackIds = new Set(def.attacks.map((a) => a.id))
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'unlockAttack') continue
+      const target = ref.attack
+      if (typeof target === 'string' && !attackIds.has(target))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' unlockAttack effect references unknown attack '${target}'`,
         )
     }
   }

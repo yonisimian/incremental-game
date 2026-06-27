@@ -29,6 +29,9 @@ const upgradeIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const upgradeDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const generatorNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const generatorIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const attackNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const attackIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const attackDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
 
 function getOrBuild<K extends object>(
   wm: WeakMap<K, Map<string, string>>,
@@ -131,4 +134,40 @@ export function getGeneratorIcon(flavor: ModeFlavor, id: string): string {
   const v = m.get(id)
   if (v === undefined) warnMissing('generator icon', id)
   return v ?? id
+}
+
+/** Return the display name for an attack id within the given flavor. */
+export function getAttackName(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    attackNameCache,
+    flavor,
+    () => new Map(flavor.attacks.map((a) => [a.id, a.name])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('attack name', id)
+  return v ?? id
+}
+
+/** Return the display icon for an attack id within the given flavor. */
+export function getAttackIcon(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    attackIconCache,
+    flavor,
+    () => new Map(flavor.attacks.map((a) => [a.id, a.icon])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('attack icon', id)
+  return v ?? id
+}
+
+/** Return the display description for an attack id within the given flavor. */
+export function getAttackDescription(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    attackDescCache,
+    flavor,
+    () => new Map(flavor.attacks.map((a) => [a.id, a.description])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('attack description', id)
+  return v ?? ''
 }

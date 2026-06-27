@@ -93,6 +93,15 @@ export interface GeneratorDefinition {
   }
 }
 
+/**
+ * Static definition of an attack. Attacks have no behavior yet — they only exist
+ * to be unlocked (via an `unlockAttack` effect) and shown in the attack panel —
+ * so an attack is just a stable id for now. Display data lives in `AttackFlavor`.
+ */
+export interface AttackDefinition {
+  readonly id: string
+}
+
 /** Full state of a single player within a match. */
 export interface PlayerState {
   /** Total score. */
