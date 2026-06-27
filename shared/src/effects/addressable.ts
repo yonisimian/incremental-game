@@ -37,14 +37,42 @@ export interface AddressableFields {
   readonly targets: readonly AddressableField[]
 }
 
-/** Source keys a `relativeModifier` may read in this mode (stockpiles + peak CPS). */
-export function addressableSources(mode: ModeDefinition): AddressableField[] {
+/**
+ * Source keys a `relativeModifier` may read, built from raw resource keys
+ * (stockpiles) plus peak CPS. The `*For` form takes primitives so the
+ * `/dev.html` editor — which holds a `TreeFile`, not a `ModeDefinition` — can
+ * share one source of truth for the key format with the runtime and validator.
+ */
+export function addressableSourcesFor(resourceKeys: readonly string[]): AddressableField[] {
   return [
-    ...mode.resources.map((key) => ({
+    ...resourceKeys.map((key) => ({
       key: `${RESOURCE_SOURCE_PREFIX}${key}`,
       label: `${key} (stockpile)`,
     })),
     { key: PEAK_CPS_SOURCE, label: 'Peak CPS' },
+  ]
+}
+
+/** Source keys a `relativeModifier` may read in this mode (stockpiles + peak CPS). */
+export function addressableSources(mode: ModeDefinition): AddressableField[] {
+  return addressableSourcesFor(mode.resources)
+}
+
+/**
+ * Target keys a `relativeModifier` may feed, built from raw resource keys
+ * (per-second rates) and generator ids (output, folded by `collectModifiers`),
+ * plus the two special `ModifierContext` fields. The `*For` form takes
+ * primitives for the editor (see {@link addressableSourcesFor}).
+ */
+export function addressableTargetsFor(
+  resourceKeys: readonly string[],
+  generatorIds: readonly string[],
+): AddressableField[] {
+  return [
+    { key: 'clickIncome', label: 'Click income' },
+    { key: 'globalMultiplier', label: 'Global multiplier' },
+    ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
+    ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
   ]
 }
 
@@ -54,12 +82,10 @@ export function addressableSources(mode: ModeDefinition): AddressableField[] {
  * generator (its output is folded by `collectModifiers`).
  */
 export function addressableTargets(mode: ModeDefinition): AddressableField[] {
-  return [
-    { key: 'clickIncome', label: 'Click income' },
-    { key: 'globalMultiplier', label: 'Global multiplier' },
-    ...mode.resources.map((key) => ({ key, label: `${key} (rate)` })),
-    ...mode.generators.map((g) => ({ key: g.id, label: `${g.id} (output)` })),
-  ]
+  return addressableTargetsFor(
+    mode.resources,
+    mode.generators.map((g) => g.id),
+  )
 }
 
 /** The combined source/target catalog for a mode. */

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addressableSources,
+  addressableSourcesFor,
+  addressableTargets,
+  addressableTargetsFor,
   applyEffect,
   collectModifiers,
   createInitialState,
@@ -815,5 +819,38 @@ describe('relativeModifier mode validation', () => {
         }),
       )
     }).toThrow(/unknown field 'nope'/u)
+  })
+})
+
+// ─── addressable-field catalog (shared by apply, validator, editor) ───
+
+describe('addressable-field catalog', () => {
+  it('builds source keys from resource stockpiles plus peak CPS', () => {
+    expect(addressableSourcesFor(['r0', 'r1'])).toEqual([
+      { key: 'resource:r0', label: 'r0 (stockpile)' },
+      { key: 'resource:r1', label: 'r1 (stockpile)' },
+      { key: 'meta:peakCps', label: 'Peak CPS' },
+    ])
+  })
+
+  it('builds target keys from special fields, resource rates, and generators', () => {
+    expect(addressableTargetsFor(['r0'], ['g0', 'g1'])).toEqual([
+      { key: 'clickIncome', label: 'Click income' },
+      { key: 'globalMultiplier', label: 'Global multiplier' },
+      { key: 'r0', label: 'r0 (rate)' },
+      { key: 'g0', label: 'g0 (output)' },
+      { key: 'g1', label: 'g1 (output)' },
+    ])
+  })
+
+  it('the mode-level helpers delegate to the primitive ones', () => {
+    const mode = getModeDefinition('idler')
+    expect(addressableSources(mode)).toEqual(addressableSourcesFor(mode.resources))
+    expect(addressableTargets(mode)).toEqual(
+      addressableTargetsFor(
+        mode.resources,
+        mode.generators.map((g) => g.id),
+      ),
+    )
   })
 })

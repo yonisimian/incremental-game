@@ -68,7 +68,9 @@ export type { UnlockAttackParams } from './seed/unlock-attack.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
 export {
   addressableSources,
+  addressableSourcesFor,
   addressableTargets,
+  addressableTargetsFor,
   listAddressableFields,
   readSourceValue,
 } from './addressable.js'
