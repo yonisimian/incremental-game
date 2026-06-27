@@ -132,7 +132,7 @@ function setChildren(node: TreeUpgradeNode, children: TreeUpgradeNode[]): void {
 
 /** A fresh, minimal-but-valid node at the given offset. */
 export function createNode(id: string, offset: { x: number; y: number }): TreeUpgradeNode {
-  return { id, cost: {}, purchaseLimit: 1, modifiers: [], offset }
+  return { id, cost: {}, purchaseLimit: 1, offset }
 }
 
 /** Generate an id not already used in the tree (`base`, then `base-2`, …). */

@@ -158,6 +158,29 @@ describe('Match', () => {
       expect(latestUpdate(ws1).timeLeft).toBeLessThan(pausedTimeLeft)
     })
 
+    it('does not jump when the system wall clock steps forward', () => {
+      // Regression: the round timer is anchored to the monotonic clock, so a
+      // system wall-clock step (NTP correction, VM/host time-sync) must not make
+      // the countdown leap. Deriving `timeLeft` from `Date.now()` used to
+      // subtract the whole step in a single tick (observed ~3s jumps in dev).
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1).timeLeft
+
+      // Step the wall clock forward 3s WITHOUT advancing monotonic time.
+      vi.setSystemTime(Date.now() + 3000)
+
+      // One more broadcast interval of real (monotonic) time elapses.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const after = latestUpdate(ws1).timeLeft
+
+      // Only the ~0.5s of real time should be deducted, not the 3s wall-clock step.
+      const drop = before - after
+      expect(drop).toBeGreaterThan(0)
+      expect(drop).toBeLessThan(1)
+      expect(drop).toBeCloseTo(BROADCAST_INTERVAL_MS / 1000, 1)
+    })
+
     it('ignores player actions while paused', () => {
       const m = enterPlayingVsBot()
       m.handleMessage('p1', pauseMsg())
