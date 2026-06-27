@@ -63,7 +63,13 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
-  /** Wall-clock timestamp (ms) at which the current round ends; source of truth for the timer. */
+  /**
+   * Monotonic timestamp (ms, from `performance.now()`) at which the current
+   * round ends; source of truth for the timer. Uses the monotonic clock rather
+   * than `Date.now()` so the countdown can't jump when the system wall clock
+   * steps (NTP corrections, VM/host time-sync) — a wall-clock step of a few
+   * seconds would otherwise make the timer leap by the same amount.
+   */
   private endAtMs = 0
 
   private tickTimer: ReturnType<typeof setInterval> | null = null
@@ -235,9 +241,10 @@ export class Match {
   // ─── Private: game loop ────────────────────────────────────────────
 
   private beginGameLoop(): void {
-    // Anchor the round end to a wall-clock timestamp so the displayed timer can
-    // never drift away from the authoritative round-end check.
-    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    // Anchor the round end to a monotonic timestamp so the displayed timer can
+    // never drift away from the authoritative round-end check, and so a system
+    // wall-clock step can't make it jump.
+    this.endAtMs = performance.now() + this.timeLeftSec * 1000
 
     // Tick: compute passive income, run bot, update timer, and end the round when
     // its time expires. Deriving the round end from the same `endAtMs` anchor that
@@ -247,7 +254,7 @@ export class Match {
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
+      this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
 
       if (this.timeLeftSec <= 0) {
         this.endRound(this.timeExpiredReason)
@@ -388,9 +395,9 @@ export class Match {
   private pause(): void {
     if (this.phase !== 'playing' || this.paused) return
     this.paused = true
-    // Freeze the remaining time from the wall-clock anchor. The tick stops
+    // Freeze the remaining time from the monotonic anchor. The tick stops
     // advancing the clock (and ending the round) while paused.
-    this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
+    this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
     this.broadcastState()
   }
 
@@ -402,7 +409,7 @@ export class Match {
       return
     }
     // Re-anchor the round end to the remaining time; the tick resumes ending it.
-    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    this.endAtMs = performance.now() + this.timeLeftSec * 1000
     this.broadcastState()
   }
 
