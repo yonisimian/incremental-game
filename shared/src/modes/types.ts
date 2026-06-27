@@ -55,6 +55,20 @@ export interface AttackFlavor {
   readonly description: string
 }
 
+/**
+ * Display metadata for a single non-resource espionage intel key (e.g. peak
+ * clicks-per-second). Resource intel reuses {@link ResourceFlavor}; keys that
+ * name no resource carry their own label/icon here.
+ */
+export interface IntelFlavor {
+  /** Intel key (e.g. 'peakCps'); matches an `accessEnemyData` non-resource key. */
+  readonly key: string
+  /** Display name shown in the espionage panel (e.g. 'Max CPS'). */
+  readonly displayName: string
+  /** Emoji icon (e.g. '🖱️'). */
+  readonly icon: string
+}
+
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
@@ -75,6 +89,8 @@ export interface ModeFlavor {
   readonly generators: readonly GeneratorFlavor[]
   /** Attack display data, looked up by id via helpers. */
   readonly attacks: readonly AttackFlavor[]
+  /** Non-resource espionage intel display data, looked up by key via helpers. */
+  readonly intel: readonly IntelFlavor[]
 }
 
 // ─── Mode Definition ─────────────────────────────────────────────────

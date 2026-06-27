@@ -17,6 +17,14 @@ export const ENEMY_DATA_RATE_SUFFIX = ':rate'
  */
 export const ENEMY_DATA_CPS_KEY = 'peakCps'
 
+/**
+ * Intel keys that name no resource — their display data lives in a flavor's
+ * `intel` list rather than `resources`, and `validateModeDefinition` accepts
+ * them on an `accessEnemyData` effect without resolving them to a resource. New
+ * non-resource intel keys (more are coming) are added here.
+ */
+export const NON_RESOURCE_INTEL_KEYS: readonly string[] = [ENEMY_DATA_CPS_KEY]
+
 /** The two intel keys a resource exposes: its stockpile and its per-second rate. */
 export function enemyDataKeysFor(resourceKey: string): [string, string] {
   return [resourceKey, `${resourceKey}${ENEMY_DATA_RATE_SUFFIX}`]

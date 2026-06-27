@@ -48,6 +48,7 @@ function minimalTree(): TreeFile {
         upgrades: [],
         generators: [],
         attacks: [],
+        intel: [],
       },
     ],
     upgrades: [],

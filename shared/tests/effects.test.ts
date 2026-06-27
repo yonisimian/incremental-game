@@ -17,6 +17,7 @@ import {
 } from '../src/index.js'
 import type {
   EffectRef,
+  IntelFlavor,
   Modifier,
   ModeDefinition,
   PlayerState,
@@ -756,6 +757,72 @@ describe('relativeModifier mode validation', () => {
         }),
       )
     }).toThrow(/unknown field 'nope'/u)
+  })
+})
+
+describe('accessEnemyData mode validation', () => {
+  // Build an idler variant whose extra upgrade reveals `data`, with a matching
+  // flavor upgrade entry so flavor validation doesn't trip before the intel
+  // checks. `intel` overrides every flavor's intel list when provided.
+  function withAccess(data: string, intel?: IntelFlavor[]): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uIntel',
+      cost: { r0: 1 },
+      purchaseLimit: 1,
+      effects: [{ type: 'accessEnemyData', data }],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uIntel', name: 'Intel', icon: '?', description: '' }],
+      intel: intel ?? f.intel,
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts the non-resource peak-CPS intel key', () => {
+    expect(() => {
+      validateModeDefinition('idler', withAccess('peakCps'))
+    }).not.toThrow()
+  })
+
+  it('throws on an unknown resource key', () => {
+    expect(() => {
+      validateModeDefinition('idler', withAccess('r9'))
+    }).toThrow(/unknown resource 'r9'/u)
+  })
+
+  it('throws when a referenced non-resource intel key has no flavor entry', () => {
+    expect(() => {
+      validateModeDefinition('idler', withAccess('peakCps', []))
+    }).toThrow(/missing intel flavor for 'peakCps'/u)
+  })
+
+  it('throws on an orphan intel flavor entry', () => {
+    // Keep the real peakCps entry (the base mode references it) so the missing
+    // check passes, leaving the orphan `bogus` entry as the sole failure.
+    const intel: IntelFlavor[] = [
+      { key: 'peakCps', displayName: 'Max CPS', icon: '🖱️' },
+      { key: 'bogus', displayName: 'X', icon: '?' },
+    ]
+    expect(() => {
+      validateModeDefinition('idler', withAccess('peakCps', intel))
+    }).toThrow(/unknown intel key 'bogus'/u)
+  })
+
+  it('throws if a resource key collides with a reserved intel key', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'peakCps'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'peakCps', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/collides with a reserved/u)
   })
 })
 

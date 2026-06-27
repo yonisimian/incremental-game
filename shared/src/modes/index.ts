@@ -16,7 +16,7 @@ import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/i
 import {
   addressableSources,
   addressableTargets,
-  ENEMY_DATA_CPS_KEY,
+  NON_RESOURCE_INTEL_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
@@ -135,15 +135,43 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // key; validate it the same way so an authored typo fails loudly instead of
   // silently revealing nothing at runtime.
   const resourceKeys = new Set(def.resources)
+  // Reserved non-resource intel keys (e.g. peak CPS) must not collide with a
+  // real resource, or their whitelist below would mask a genuine typo.
+  for (const intelKey of NON_RESOURCE_INTEL_KEYS) {
+    if (resourceKeys.has(intelKey))
+      throw new Error(
+        `[${id}] resource key '${intelKey}' collides with a reserved non-resource intel key`,
+      )
+  }
+  const nonResourceIntel = new Set(NON_RESOURCE_INTEL_KEYS)
+  const referencedIntel = new Set<string>()
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
       if (ref.type !== 'accessEnemyData') continue
       const target = ref.data
-      if (target === ENEMY_DATA_CPS_KEY) continue // non-resource intel (peak CPS)
+      if (typeof target === 'string' && nonResourceIntel.has(target)) {
+        referencedIntel.add(target) // non-resource intel — display data lives in flavor.intel
+        continue
+      }
       if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
         throw new Error(
           `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
         )
+    }
+  }
+
+  // Every non-resource intel key an upgrade reveals must have display data in
+  // each flavor (mirrors the resource/upgrade/generator flavor checks), and no
+  // flavor may carry an intel entry for an unknown key.
+  for (const f of def.flavors) {
+    const flavorIntel = new Set(f.intel.map((i) => i.key))
+    for (const key of referencedIntel) {
+      if (!flavorIntel.has(key))
+        throw new Error(`[${id}] flavor '${f.id}': missing intel flavor for '${key}'`)
+    }
+    for (const i of f.intel) {
+      if (!nonResourceIntel.has(i.key))
+        throw new Error(`[${id}] flavor '${f.id}': references unknown intel key '${i.key}'`)
     }
   }
 

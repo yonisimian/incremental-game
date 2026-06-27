@@ -61,6 +61,7 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
         upgrades: [],
         generators: generators.map((g) => ({ id: g.id, name: g.id, icon: '⚙️' })),
         attacks: [],
+        intel: [],
       },
     ],
   }

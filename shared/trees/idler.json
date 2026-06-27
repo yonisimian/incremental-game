@@ -123,6 +123,13 @@
           "icon": "🍺"
         }
       ],
+      "intel": [
+        {
+          "key": "peakCps",
+          "displayName": "Max CPS",
+          "icon": "🖱️"
+        }
+      ],
       "showClickStats": false,
       "upgrades": [
         {

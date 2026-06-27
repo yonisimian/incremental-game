@@ -98,6 +98,12 @@ const AttackFlavorSchema = z.strictObject({
   description: z.string(),
 })
 
+const IntelFlavorSchema = z.strictObject({
+  key: z.string(),
+  displayName: z.string(),
+  icon: z.string(),
+})
+
 const ModeFlavorSchema = z.strictObject({
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
   id: z.string(),
@@ -110,6 +116,8 @@ const ModeFlavorSchema = z.strictObject({
   generators: z.array(GeneratorFlavorSchema),
   /** Attack display data. Optional in the file (defaults to none) for back-compat. */
   attacks: z.array(AttackFlavorSchema).default([]),
+  /** Non-resource intel display data. Optional (defaults to none) for back-compat. */
+  intel: z.array(IntelFlavorSchema).default([]),
 })
 
 // ─── Upgrade tree node (serializable authoring form) ─────────────────
