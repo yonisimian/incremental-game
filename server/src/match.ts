@@ -16,6 +16,7 @@ import {
   applyGeneratorPurchase,
   hasEnemyDataAccess,
   enemyDataKeysFor,
+  ENEMY_DATA_CPS_KEY,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -494,6 +495,11 @@ export class Match {
         rates ??= computePassiveRates(collectModifiers(opponent.state, mode), mode.resources)
         view.rates[key] = rates[key] ?? 0
       }
+    }
+
+    if (hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_CPS_KEY)) {
+      const cps = opponent.state.meta.peakCps
+      view.peakCps = typeof cps === 'number' ? cps : 0
     }
 
     return view

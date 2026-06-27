@@ -1704,6 +1704,12 @@
                 "type": "upgrade",
                 "id": "e-se-mr-ps"
               },
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "cps"
+                }
+              ],
               "offset": {
                 "x": -96,
                 "y": 96

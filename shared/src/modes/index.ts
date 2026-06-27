@@ -13,7 +13,12 @@ import {
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
-import { addressableSources, addressableTargets, enemyDataResourceKey } from '../effects/index.js'
+import {
+  addressableSources,
+  addressableTargets,
+  ENEMY_DATA_CPS_KEY,
+  enemyDataResourceKey,
+} from '../effects/index.js'
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
@@ -134,6 +139,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) {
       if (ref.type !== 'accessEnemyData') continue
       const target = ref.data
+      if (target === ENEMY_DATA_CPS_KEY) continue // non-resource intel (peak CPS)
       if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
         throw new Error(
           `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,

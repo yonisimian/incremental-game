@@ -10,6 +10,13 @@ import type { EffectDef, EnemyDataAccessOutput } from '../types.js'
  */
 export const ENEMY_DATA_RATE_SUFFIX = ':rate'
 
+/**
+ * Intel key revealing the opponent's peak clicks-per-second (`meta.peakCps`).
+ * Unlike the per-resource keys it names no resource, so `validateModeDefinition`
+ * whitelists it and the editor dropdown offers it alongside the resource keys.
+ */
+export const ENEMY_DATA_CPS_KEY = 'cps'
+
 /** The two intel keys a resource exposes: its stockpile and its per-second rate. */
 export function enemyDataKeysFor(resourceKey: string): [string, string] {
   return [resourceKey, `${resourceKey}${ENEMY_DATA_RATE_SUFFIX}`]

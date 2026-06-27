@@ -12,6 +12,7 @@ import {
   addressableSourcesFor,
   addressableTargetsFor,
   enemyDataKeysFor,
+  ENEMY_DATA_CPS_KEY,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
@@ -439,7 +440,7 @@ function effectFieldOptions(
     return [...UNLOCKABLE_SYSTEMS]
   }
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
-    return ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key))
+    return [...ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key)), ENEMY_DATA_CPS_KEY]
   }
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return ctx.tree.attacks.map((a) => a.id)

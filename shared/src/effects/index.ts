@@ -57,6 +57,7 @@ export type { SystemUnlockParams } from './seed/system-unlock.js'
 export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
 export {
   ENEMY_DATA_RATE_SUFFIX,
+  ENEMY_DATA_CPS_KEY,
   enemyDataKeysFor,
   enemyDataResourceKey,
 } from './seed/access-enemy-data.js'

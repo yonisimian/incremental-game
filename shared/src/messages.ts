@@ -104,6 +104,8 @@ export interface OpponentView {
   resources: Record<string, number>
   /** Opponent per-second production, keyed by resource — only unlocked keys. */
   rates: Record<string, number>
+  /** Opponent's peak clicks-per-second; present only if the viewer unlocked CPS intel. */
+  peakCps?: number
 }
 
 /** Periodic authoritative state snapshot. */
