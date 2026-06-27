@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import type { GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
+import type { EffectRef, GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
@@ -13,7 +13,7 @@ import {
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
-import { enemyDataResourceKey } from '../effects/index.js'
+import { addressableSources, addressableTargets, enemyDataResourceKey } from '../effects/index.js'
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
@@ -139,6 +139,29 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
           `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
         )
     }
+  }
+
+  // `relativeModifier` effects name a `source` (a state field to read) and a
+  // `field` (the modifier target). Both are mode-specific, so the generic schema
+  // only checks they're strings; validate them against the addressable-field
+  // catalog so an authored typo refuses to boot instead of silently reading or
+  // writing nothing at runtime. Covers mode-level and upgrade-level refs.
+  const sourceKeys = new Set(addressableSources(def).map((f) => f.key))
+  const targetKeys = new Set(addressableTargets(def).map((f) => f.key))
+  const checkRelativeModifier = (where: string, ref: EffectRef): void => {
+    if (ref.type !== 'relativeModifier') return
+    if (typeof ref.source === 'string' && !sourceKeys.has(ref.source))
+      throw new Error(
+        `[${id}] ${where} relativeModifier effect references unknown source '${ref.source}'`,
+      )
+    if (typeof ref.field === 'string' && !targetKeys.has(ref.field))
+      throw new Error(
+        `[${id}] ${where} relativeModifier effect references unknown field '${ref.field}'`,
+      )
+  }
+  for (const ref of def.effects ?? []) checkRelativeModifier('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkRelativeModifier(`upgrade '${u.id}'`, ref)
   }
 
   // Effect refs: resolve + parse once up front, so unknown types or malformed

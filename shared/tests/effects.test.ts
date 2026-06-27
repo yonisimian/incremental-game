@@ -9,6 +9,7 @@ import {
   registerEffect,
   resolveEffect,
   unlockedAttacks,
+  validateModeDefinition,
 } from '../src/index.js'
 import type {
   EffectRef,
@@ -56,6 +57,7 @@ describe('effect registry', () => {
       'lowerTierBoost',
       'panelUnlock',
       'peakCpsClickBonus',
+      'relativeModifier',
       'systemUnlock',
       'unlockAttack',
     ])
@@ -598,5 +600,220 @@ describe('peakCpsClickBonus effect', () => {
     const unowned = createInitialState(def)
     unowned.meta.peakCps = 7
     expect(collectModifiers(unowned, def).some((m) => m.field === 'clickIncome')).toBe(false)
+  })
+})
+
+// ─── relativeModifier effect ─────────────────────────────────────────
+
+describe('relativeModifier effect', () => {
+  function applyRel(ref: EffectRef, mutate?: (s: PlayerState) => void): unknown {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    mutate?.(state)
+    return applyEffect(ref, state, mode)
+  }
+
+  it('additive: feeds source × factor (factor defaults to 1)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.resources.r0 = 40
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 40 })
+
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 0.5,
+        },
+        (s) => {
+          s.resources.r0 = 40
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
+  })
+
+  it('multiplicative: feeds 1 + source × factor (so 0 source is a no-op, not a wipe)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'r1',
+          stage: 'multiplicative',
+          factor: 0.1,
+        },
+        (s) => {
+          s.resources.r0 = 30
+        },
+      ),
+    ).toEqual({ stage: 'multiplicative', field: 'r1', value: 4 })
+  })
+
+  it('reads meta:peakCps as a source (mirroring peakCpsClickBonus)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'meta:peakCps',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.meta.peakCps = 13
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 13 })
+  })
+
+  it('is inactive (null) when the source is non-positive', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.resources.r0 = 0
+        },
+      ),
+    ).toBeNull() // empty stockpile → inactive
+    expect(
+      applyRel({
+        type: 'relativeModifier',
+        source: 'meta:peakCps',
+        field: 'clickIncome',
+        stage: 'additive',
+      }),
+    ).toBeNull() // no peakCps in meta
+  })
+
+  it('rejects malformed params (unknown key / bad stage)', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    expect(() =>
+      applyEffect(
+        { type: 'relativeModifier', source: 'resource:r0', field: 'clickIncome', stage: 'whoops' },
+        state,
+        mode,
+      ),
+    ).toThrow()
+    expect(() =>
+      applyEffect(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          extra: 1,
+        },
+        state,
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  it('feeds a stockpile-relative bonus through collectModifiers when owned', () => {
+    const base = getModeDefinition('idler')
+    const customUpgrade: UpgradeDefinition = {
+      id: 'uRel',
+      cost: { r0: 10 },
+      purchaseLimit: 1,
+      effects: [
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 2,
+        },
+      ],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }
+
+    const owned = createInitialState(def)
+    owned.upgrades.uRel = 1
+    owned.resources.r0 = 25
+    expect(collectModifiers(owned, def)).toContainEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 50,
+    })
+  })
+})
+
+// ─── relativeModifier validation (mode-aware catalog) ────────────────
+
+describe('relativeModifier mode validation', () => {
+  function withUpgrade(effect: EffectRef): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uBad',
+      cost: { r0: 1 },
+      purchaseLimit: 1,
+      effects: [effect],
+    }
+    // Flavor validation runs first, so give every flavor an entry for the
+    // test upgrade — otherwise it trips before the relativeModifier check.
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts catalog source/field keys', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'resource:r1',
+          field: 'g0',
+          stage: 'additive',
+        }),
+      )
+    }).not.toThrow()
+  })
+
+  it('throws on an unknown source', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'resource:r9',
+          field: 'clickIncome',
+          stage: 'additive',
+        }),
+      )
+    }).toThrow(/unknown source 'resource:r9'/u)
+  })
+
+  it('throws on an unknown target field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'meta:peakCps',
+          field: 'nope',
+          stage: 'additive',
+        }),
+      )
+    }).toThrow(/unknown field 'nope'/u)
   })
 })
