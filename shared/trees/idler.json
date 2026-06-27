@@ -1707,7 +1707,7 @@
               "effects": [
                 {
                   "type": "accessEnemyData",
-                  "data": "cps"
+                  "data": "peakCps"
                 }
               ],
               "offset": {

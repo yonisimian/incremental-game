@@ -15,7 +15,7 @@ export const ENEMY_DATA_RATE_SUFFIX = ':rate'
  * Unlike the per-resource keys it names no resource, so `validateModeDefinition`
  * whitelists it and the editor dropdown offers it alongside the resource keys.
  */
-export const ENEMY_DATA_CPS_KEY = 'cps'
+export const ENEMY_DATA_CPS_KEY = 'peakCps'
 
 /** The two intel keys a resource exposes: its stockpile and its per-second rate. */
 export function enemyDataKeysFor(resourceKey: string): [string, string] {
