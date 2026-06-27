@@ -8,6 +8,7 @@ import {
   isMaxed,
   isPrerequisiteSatisfied,
   getUpgradeNextCost,
+  TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
@@ -29,9 +30,15 @@ export function setText(id: string, text: string): void {
 }
 
 export function formatTime(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds))
-  const min = Math.floor(s / 60)
-  const sec = s % 60
+  const clamped = Math.max(0, seconds)
+  if (clamped < TIMER_CENTISECONDS_BELOW_SEC) {
+    const sec = Math.floor(clamped)
+    const centi = Math.floor((clamped - sec) * 100)
+    return `${sec}:${centi.toString().padStart(2, '0')}`
+  }
+  const total = Math.floor(clamped)
+  const min = Math.floor(total / 60)
+  const sec = total % 60
   return `${min}:${sec.toString().padStart(2, '0')}`
 }
 
