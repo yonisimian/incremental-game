@@ -420,7 +420,8 @@ export class Match {
   private applyClick(player: MatchPlayer, resource?: string): void {
     // Update peak CPS first (recentClickTimestamps already pruned/pushed by
     // validation) and mirror it into player state so the modifier pipeline can
-    // read it — e.g. the `peakCpsClickBonus` effect adds peak CPS to click income.
+    // read it — e.g. a `relativeModifier` with `source: meta:peakCps` adds peak
+    // CPS to click income.
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
     player.state.meta.peakCps = player.stats.peakCps
 

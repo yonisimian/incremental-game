@@ -9,6 +9,8 @@
  */
 
 import {
+  addressableSourcesFor,
+  addressableTargetsFor,
   enemyDataKeysFor,
   listEffectTypes,
   resolveEffect,
@@ -395,18 +397,35 @@ function paramsOf(ref: EffectEntry): Record<string, unknown> {
 }
 
 /**
+ * One picker option: a bare key (label = key) or an explicit value/label pair
+ * (so catalog-driven fields can show a human description while storing the key).
+ */
+type EffectFieldOption = string | { readonly value: string; readonly label: string }
+
+/**
  * Fixed option set for an effect's string param, or `undefined` to render a free
  * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
- * `:rate` variant per resource (per-second production).
+ * `:rate` variant per resource (per-second production). `relativeModifier`'s
+ * `source`/`field` come from the shared addressable-field catalog (labelled), the
+ * same set the boot-time validator enforces.
  */
 function effectFieldOptions(
   ctx: InspectorContext,
   effectType: string,
   fieldKey: string,
-): readonly string[] | undefined {
+): readonly EffectFieldOption[] | undefined {
+  if (effectType === 'relativeModifier' && fieldKey === 'source') {
+    return addressableSourcesFor(ctx.tree.resources).map((f) => ({ value: f.key, label: f.label }))
+  }
+  if (effectType === 'relativeModifier' && fieldKey === 'field') {
+    return addressableTargetsFor(
+      ctx.tree.resources,
+      ctx.tree.generators.map((g) => g.id),
+    ).map((f) => ({ value: f.key, label: f.label }))
+  }
   if (
     (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&
     fieldKey === 'generator'
@@ -444,7 +463,7 @@ function buildEffectField(
   spec: FieldSpec,
   current: unknown,
   onChange: () => void,
-  options?: readonly string[],
+  options?: readonly EffectFieldOption[],
 ): { row: HTMLElement; read: () => unknown } {
   const label = spec.optional ? `${spec.key} (optional)` : spec.key
   if (spec.kind === 'boolean') {
@@ -456,23 +475,28 @@ function buildEffectField(
   }
   // A string field with a fixed option set renders as a picker: host-supplied
   // options (e.g. the `generatorCost` effect's `generator`) or the field's own
-  // enum members (e.g. the `baseModifier` effect's `stage`). An unrecognized
+  // enum members (e.g. the `baseModifier` effect's `stage`). Options are either
+  // bare keys or value/label pairs (e.g. `relativeModifier`'s catalog-driven
+  // source/field, which show a description but store the key). An unrecognized
   // current value (a since-removed id) is preserved as its own option rather
   // than silently lost.
-  const selectOptions = options ?? spec.options
-  if (spec.kind === 'string' && selectOptions) {
+  const rawOptions = options ?? spec.options
+  if (spec.kind === 'string' && rawOptions) {
+    const selectOptions = rawOptions.map((o) =>
+      typeof o === 'string' ? { value: o, label: o } : o,
+    )
     const select = el('select', 'ed-input')
     const value = typeof current === 'string' ? current : ''
-    if (value !== '' && !selectOptions.includes(value)) {
+    if (value !== '' && !selectOptions.some((o) => o.value === value)) {
       const opt = el('option', undefined, `${value} (unknown)`)
       opt.value = value
       opt.selected = true
       select.append(opt)
     }
-    for (const id of selectOptions) {
-      const opt = el('option', undefined, id)
-      opt.value = id
-      if (id === value) opt.selected = true
+    for (const { value: optValue, label: optLabel } of selectOptions) {
+      const opt = el('option', undefined, optLabel)
+      opt.value = optValue
+      if (optValue === value) opt.selected = true
       select.append(opt)
     }
     select.addEventListener('change', onChange)

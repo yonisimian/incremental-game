@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addressableSources,
+  addressableSourcesFor,
+  addressableTargets,
+  addressableTargetsFor,
   applyEffect,
   collectModifiers,
   createInitialState,
@@ -9,6 +13,7 @@ import {
   registerEffect,
   resolveEffect,
   unlockedAttacks,
+  validateModeDefinition,
 } from '../src/index.js'
 import type {
   EffectRef,
@@ -55,7 +60,7 @@ describe('effect registry', () => {
       'highlightMultiplier',
       'lowerTierBoost',
       'panelUnlock',
-      'peakCpsClickBonus',
+      'relativeModifier',
       'systemUnlock',
       'unlockAttack',
     ])
@@ -539,64 +544,298 @@ describe('collectModifiers routes multi-modifier effects', () => {
   })
 })
 
-// ─── peakCpsClickBonus effect ────────────────────────────────────────
+// ─── relativeModifier effect ─────────────────────────────────────────
 
-describe('peakCpsClickBonus effect', () => {
-  function applyPeakCps(ref: EffectRef, peakCps?: number): unknown {
+describe('relativeModifier effect', () => {
+  function applyRel(ref: EffectRef, mutate?: (s: PlayerState) => void): unknown {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
-    if (peakCps !== undefined) state.meta.peakCps = peakCps
+    mutate?.(state)
     return applyEffect(ref, state, mode)
   }
 
-  it('adds peak CPS to click income (perCps defaults to 1)', () => {
-    expect(applyPeakCps({ type: 'peakCpsClickBonus' }, 13)).toEqual({
-      stage: 'additive',
-      field: 'clickIncome',
-      value: 13,
-    })
+  it('additive: feeds source × factor (factor defaults to 1)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.resources.r0 = 40
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 40 })
+
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 0.5,
+        },
+        (s) => {
+          s.resources.r0 = 40
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
   })
 
-  it('scales the bonus by perCps', () => {
-    expect(applyPeakCps({ type: 'peakCpsClickBonus', perCps: 0.5 }, 10)).toEqual({
-      stage: 'additive',
-      field: 'clickIncome',
-      value: 5,
-    })
+  it('multiplicative: feeds 1 + source × factor (so 0 source is a no-op, not a wipe)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'r1',
+          stage: 'multiplicative',
+          factor: 0.1,
+        },
+        (s) => {
+          s.resources.r0 = 30
+        },
+      ),
+    ).toEqual({ stage: 'multiplicative', field: 'r1', value: 4 })
   })
 
-  it('is inactive until peak CPS is positive', () => {
-    expect(applyPeakCps({ type: 'peakCpsClickBonus' })).toBeNull() // no peakCps in meta
-    expect(applyPeakCps({ type: 'peakCpsClickBonus' }, 0)).toBeNull()
+  it('reads meta:peakCps as a source (peak-CPS click bonus)', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'meta:peakCps',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.meta.peakCps = 13
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 13 })
   })
 
-  it('rejects a non-positive perCps', () => {
-    expect(() => applyPeakCps({ type: 'peakCpsClickBonus', perCps: 0 }, 5)).toThrow(/perCps/u)
-    expect(() => applyPeakCps({ type: 'peakCpsClickBonus', perCps: -1 }, 5)).toThrow(/perCps/u)
+  it('is inactive (null) when the source is non-positive', () => {
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+        },
+        (s) => {
+          s.resources.r0 = 0
+        },
+      ),
+    ).toBeNull() // empty stockpile → inactive
+    expect(
+      applyRel({
+        type: 'relativeModifier',
+        source: 'meta:peakCps',
+        field: 'clickIncome',
+        stage: 'additive',
+      }),
+    ).toBeNull() // no peakCps in meta
   })
 
-  it('feeds click income through collectModifiers when the upgrade is owned', () => {
+  it('rejects malformed params (unknown key / bad stage)', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    expect(() =>
+      applyEffect(
+        { type: 'relativeModifier', source: 'resource:r0', field: 'clickIncome', stage: 'whoops' },
+        state,
+        mode,
+      ),
+    ).toThrow()
+    expect(() =>
+      applyEffect(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          extra: 1,
+        },
+        state,
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  it('feeds a stockpile-relative bonus through collectModifiers when owned', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
-      id: 'uPeak',
+      id: 'uRel',
       cost: { r0: 10 },
       purchaseLimit: 1,
-      effects: [{ type: 'peakCpsClickBonus', perCps: 1 }],
+      effects: [
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 2,
+        },
+      ],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }
 
     const owned = createInitialState(def)
-    owned.upgrades.uPeak = 1
-    owned.meta.peakCps = 7
+    owned.upgrades.uRel = 1
+    owned.resources.r0 = 25
     expect(collectModifiers(owned, def)).toContainEqual({
       stage: 'additive',
       field: 'clickIncome',
-      value: 7,
+      value: 50,
     })
+  })
+})
 
-    // Unowned upgrade → no click-income bonus even with peak CPS set.
-    const unowned = createInitialState(def)
-    unowned.meta.peakCps = 7
-    expect(collectModifiers(unowned, def).some((m) => m.field === 'clickIncome')).toBe(false)
+// ─── relativeModifier validation (mode-aware catalog) ────────────────
+
+describe('relativeModifier mode validation', () => {
+  function withUpgrade(effect: EffectRef): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uBad',
+      cost: { r0: 1 },
+      purchaseLimit: 1,
+      effects: [effect],
+    }
+    // Flavor validation runs first, so give every flavor an entry for the
+    // test upgrade — otherwise it trips before the relativeModifier check.
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts catalog source/field keys', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'resource:r1',
+          field: 'g0',
+          stage: 'additive',
+        }),
+      )
+    }).not.toThrow()
+  })
+
+  it('throws on an unknown source', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'resource:r9',
+          field: 'clickIncome',
+          stage: 'additive',
+        }),
+      )
+    }).toThrow(/unknown source 'resource:r9'/u)
+  })
+
+  it('throws on an unknown target field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({
+          type: 'relativeModifier',
+          source: 'meta:peakCps',
+          field: 'nope',
+          stage: 'additive',
+        }),
+      )
+    }).toThrow(/unknown field 'nope'/u)
+  })
+})
+
+// ─── addressable-field catalog (shared by apply, validator, editor) ───
+
+describe('addressable-field catalog', () => {
+  it('builds source keys from resource stockpiles plus peak CPS', () => {
+    expect(addressableSourcesFor(['r0', 'r1'])).toEqual([
+      { key: 'resource:r0', label: 'r0 (stockpile)' },
+      { key: 'resource:r1', label: 'r1 (stockpile)' },
+      { key: 'meta:peakCps', label: 'Peak CPS' },
+    ])
+  })
+
+  it('builds target keys from special fields, resource rates, and generators', () => {
+    expect(addressableTargetsFor(['r0'], ['g0', 'g1'])).toEqual([
+      { key: 'clickIncome', label: 'Click income' },
+      { key: 'globalMultiplier', label: 'Global multiplier' },
+      { key: 'r0', label: 'r0 (rate)' },
+      { key: 'g0', label: 'g0 (output)' },
+      { key: 'g1', label: 'g1 (output)' },
+    ])
+  })
+
+  it('the mode-level helpers delegate to the primitive ones', () => {
+    const mode = getModeDefinition('idler')
+    expect(addressableSources(mode)).toEqual(addressableSourcesFor(mode.resources))
+    expect(addressableTargets(mode)).toEqual(
+      addressableTargetsFor(
+        mode.resources,
+        mode.generators.map((g) => g.id),
+      ),
+    )
+  })
+})
+
+// ─── idler tree wiring (the upgrades that use relativeModifier) ───────
+
+describe('idler relativeModifier upgrades', () => {
+  const mode = getModeDefinition('idler')
+
+  it('be-mr-bank gives +1% r0 rate per 1000 r0 held (multiplicative)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-mr-bank'] = 1
+    s.resources.r0 = 50_000 // 1 + 50000 * 0.00001 = 1.5
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 1.5,
+    })
+  })
+
+  it('be-sr-bank gives +1% r1 rate per 1000 r1 held (multiplicative)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-sr-bank'] = 1
+    s.resources.r1 = 100_000 // 1 + 100000 * 0.00001 = 2
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r1',
+      value: 2,
+    })
+  })
+
+  it('sc-pcps adds peak CPS to click income (additive)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['sc-pcps'] = 1
+    s.meta.peakCps = 9
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 9,
+    })
+  })
+
+  it('a bank bonus is inert with an empty stockpile', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-mr-bank'] = 1
+    s.resources.r0 = 0
+    expect(
+      collectModifiers(s, mode).some((m) => m.stage === 'multiplicative' && m.field === 'r0'),
+    ).toBe(false)
   })
 })
