@@ -631,6 +631,15 @@
                 "type": "upgrade",
                 "id": "be-mf-mr"
               },
+              "effects": [
+                {
+                  "type": "relativeModifier",
+                  "source": "resource:r0",
+                  "field": "r0",
+                  "stage": "multiplicative",
+                  "factor": 0.00001
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -689,6 +698,15 @@
                     "type": "upgrade",
                     "id": "be-mf-sr"
                   },
+                  "effects": [
+                    {
+                      "type": "relativeModifier",
+                      "source": "resource:r1",
+                      "field": "r1",
+                      "stage": "multiplicative",
+                      "factor": 0.00001
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -1469,8 +1487,11 @@
           },
           "effects": [
             {
-              "type": "peakCpsClickBonus",
-              "perCps": 1
+              "type": "relativeModifier",
+              "source": "meta:peakCps",
+              "field": "clickIncome",
+              "stage": "additive",
+              "factor": 1
             }
           ],
           "offset": {

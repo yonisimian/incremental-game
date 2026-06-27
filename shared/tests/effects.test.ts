@@ -854,3 +854,51 @@ describe('addressable-field catalog', () => {
     )
   })
 })
+
+// ─── idler tree wiring (the upgrades that use relativeModifier) ───────
+
+describe('idler relativeModifier upgrades', () => {
+  const mode = getModeDefinition('idler')
+
+  it('be-mr-bank gives +1% r0 rate per 1000 r0 held (multiplicative)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-mr-bank'] = 1
+    s.resources.r0 = 50_000 // 1 + 50000 * 0.00001 = 1.5
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 1.5,
+    })
+  })
+
+  it('be-sr-bank gives +1% r1 rate per 1000 r1 held (multiplicative)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-sr-bank'] = 1
+    s.resources.r1 = 100_000 // 1 + 100000 * 0.00001 = 2
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r1',
+      value: 2,
+    })
+  })
+
+  it('sc-pcps adds peak CPS to click income (additive)', () => {
+    const s = createInitialState(mode)
+    s.upgrades['sc-pcps'] = 1
+    s.meta.peakCps = 9
+    expect(collectModifiers(s, mode)).toContainEqual({
+      stage: 'additive',
+      field: 'clickIncome',
+      value: 9,
+    })
+  })
+
+  it('a bank bonus is inert with an empty stockpile', () => {
+    const s = createInitialState(mode)
+    s.upgrades['be-mr-bank'] = 1
+    s.resources.r0 = 0
+    expect(
+      collectModifiers(s, mode).some((m) => m.stage === 'multiplicative' && m.field === 'r0'),
+    ).toBe(false)
+  })
+})
