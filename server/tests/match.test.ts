@@ -13,6 +13,12 @@ const TIMED_GOAL: Goal = {
   durationSec: ROUND_DURATION_SEC,
 }
 
+const BUY_UPGRADE_GOAL: Goal = {
+  type: 'buy-upgrade',
+  label: '🏆 Race to Buy',
+  safetyCapSec: 600,
+}
+
 describe('Match', () => {
   let ws1: WebSocket
   let ws2: WebSocket
@@ -152,6 +158,29 @@ describe('Match', () => {
       expect(latestUpdate(ws1).timeLeft).toBeLessThan(pausedTimeLeft)
     })
 
+    it('does not jump when the system wall clock steps forward', () => {
+      // Regression: the round timer is anchored to the monotonic clock, so a
+      // system wall-clock step (NTP correction, VM/host time-sync) must not make
+      // the countdown leap. Deriving `timeLeft` from `Date.now()` used to
+      // subtract the whole step in a single tick (observed ~3s jumps in dev).
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1).timeLeft
+
+      // Step the wall clock forward 3s WITHOUT advancing monotonic time.
+      vi.setSystemTime(Date.now() + 3000)
+
+      // One more broadcast interval of real (monotonic) time elapses.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const after = latestUpdate(ws1).timeLeft
+
+      // Only the ~0.5s of real time should be deducted, not the 3s wall-clock step.
+      const drop = before - after
+      expect(drop).toBeGreaterThan(0)
+      expect(drop).toBeLessThan(1)
+      expect(drop).toBeCloseTo(BROADCAST_INTERVAL_MS / 1000, 1)
+    })
+
     it('ignores player actions while paused', () => {
       const m = enterPlayingVsBot()
       m.handleMessage('p1', pauseMsg())
@@ -182,6 +211,71 @@ describe('Match', () => {
       // p2's view of its opponent mirrors p1's own score, and p1 leads
       expect(u2.opponent.score).toBeCloseTo(u1.player.score, 5)
       expect(u2.opponent.score).toBeGreaterThan(u2.player.score)
+    })
+
+    it("omits the opponent's upgrades, generators, and meta from the wire", () => {
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const opp = latestUpdate(ws1).opponent
+      // The raw opponent state is never shipped — only score (+ unlocked intel).
+      expect('upgrades' in opp).toBe(false)
+      expect('generators' in opp).toBe(false)
+      expect('meta' in opp).toBe(false)
+      // No espionage unlocked → no resource/rate intel.
+      expect(opp.resources).toEqual({})
+      expect(opp.rates).toEqual({})
+    })
+
+    it('reveals an opponent resource only to a viewer who unlocked it', () => {
+      const m = enterPlaying()
+      m.grantResourcesForTest('p2', { r0: 42 }) // opponent stockpile to spy on
+      // e-se-mr is free, unprereq'd, and grants `accessEnemyData: r0`.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // p1 unlocked r0 → its view of p2 carries p2's actual r0 stockpile.
+      expect(latestUpdate(ws1).opponent.resources.r0).toBeCloseTo(
+        latestUpdate(ws2).player.resources.r0,
+        5,
+      )
+      // p2 unlocked nothing → no intel on p1.
+      expect(latestUpdate(ws2).opponent.resources).toEqual({})
+    })
+  })
+
+  // ── Race-to-buy score hiding ─────────────────────────────────────
+
+  describe('race-to-buy score hiding', () => {
+    function enterPlayingWithGoal(goal: Goal) {
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', goal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      return m
+    }
+
+    it('omits opponent score from STATE_UPDATE for buy-upgrade goals', () => {
+      enterPlayingWithGoal(BUY_UPGRADE_GOAL)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.score).toBeUndefined()
+      expect(latestUpdate(ws2).opponent.score).toBeUndefined()
+    })
+
+    it('still sends opponent score for timed goals', () => {
+      enterPlayingWithGoal(TIMED_GOAL)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.score).toBeDefined()
+    })
+
+    it('omits opponent score from ROUND_END for buy-upgrade goals', () => {
+      const m = enterPlayingWithGoal(BUY_UPGRADE_GOAL)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      // Both the quitter and the remaining player get a ROUND_END.
+      for (const ws of [ws1, ws2]) {
+        const end = sentOfType(ws, 'ROUND_END').at(-1)!
+        expect(end.finalScores.player).toBeDefined()
+        expect(end.finalScores.opponent).toBeUndefined()
+      }
     })
   })
 
@@ -299,7 +393,7 @@ describe('Match', () => {
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
       // Scores mirror across the two players' views, with p1 ahead
-      expect(p1End.finalScores.player).toBeGreaterThan(p1End.finalScores.opponent)
+      expect(p1End.finalScores.player).toBeGreaterThan(p1End.finalScores.opponent!)
       expect(p1End.finalScores.player).toBe(p2End.finalScores.opponent)
       expect(p1End.finalScores.opponent).toBe(p2End.finalScores.player)
     })
@@ -700,16 +794,18 @@ describe('Match', () => {
       expect(p1End.winner).toBe('draw')
     })
 
-    it('reports mirrored final scores at safety cap', () => {
+    it('reports each player their own score but hides the opponent at safety cap', () => {
       const m = enterBuyPlaying()
       giveLead(m, 'p1') // p1 builds a score lead
       vi.advanceTimersByTime(buyGoal.safetyCapSec * 1000)
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
-      expect(p1End.finalScores.player).toBeGreaterThan(p1End.finalScores.opponent)
-      expect(p1End.finalScores.player).toBe(p2End.finalScores.opponent)
-      expect(p1End.finalScores.opponent).toBe(p2End.finalScores.player)
+      // Opponent score is never revealed in race-to-buy.
+      expect(p1End.finalScores.opponent).toBeUndefined()
+      expect(p2End.finalScores.opponent).toBeUndefined()
+      // Each player still gets their own score, and p1 led.
+      expect(p1End.finalScores.player).toBeGreaterThan(p2End.finalScores.player)
     })
 
     it('no further actions are processed after trophy purchase', () => {

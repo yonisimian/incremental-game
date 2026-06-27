@@ -1,5 +1,3 @@
-import type { Modifier } from './modifiers/types.js'
-
 /** Recursive prerequisite expression with AND / OR semantics. */
 export type PrerequisiteExpression =
   | { readonly type: 'all'; readonly items: readonly PrerequisiteExpression[] }
@@ -45,8 +43,6 @@ export interface UpgradeDefinition {
    * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.
    */
   readonly purchaseLimit: number
-  /** Declarative modifiers this upgrade applies when owned. */
-  readonly modifiers: readonly Modifier[]
   /**
    * Which upgrades belong to the same mutually exclusive choice group.
    * Purchasing one choice prevents buying any other upgrade in the same group.

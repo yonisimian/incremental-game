@@ -2,6 +2,7 @@ import {
   type GameMode,
   type Goal,
   type ModeDefinition,
+  type OpponentView,
   type PlayerState,
   type RoomSettings,
   type RoomErrorReason,
@@ -76,8 +77,8 @@ export interface GameState {
   goal: Goal | null
   /** Local player state (optimistic). */
   player: PlayerState
-  /** Opponent state (from server). */
-  opponent: PlayerState
+  /** Redacted opponent view (from server) — only the intel the viewer unlocked. */
+  opponent: OpponentView
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -132,12 +133,17 @@ const EMPTY_PLAYER_STATE: PlayerState = {
   meta: {},
 }
 
+/** A fresh, empty opponent view (no intel unlocked yet). */
+function emptyOpponentView(): OpponentView {
+  return { score: 0, resources: {}, rates: {} }
+}
+
 const state: GameState = {
   screen: 'lobby',
   mode: null,
   goal: null,
   player: clonePlayerState(EMPTY_PLAYER_STATE),
-  opponent: clonePlayerState(EMPTY_PLAYER_STATE),
+  opponent: emptyOpponentView(),
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -520,7 +526,7 @@ export function resetForMatch(): void {
   state.mode = null
   state.goal = null
   state.player = clonePlayerState(EMPTY_PLAYER_STATE)
-  state.opponent = clonePlayerState(EMPTY_PLAYER_STATE)
+  state.opponent = emptyOpponentView()
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -563,7 +569,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.upgrades = getAvailableUpgrades(modeDef, msg.config.goal)
   state.opponentName = msg.opponentName
   state.player = createInitialState(modeDef)
-  state.opponent = createInitialState(modeDef)
+  state.opponent = emptyOpponentView()
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -652,7 +658,8 @@ function handleRoundEnd(msg: RoundEndMessage): void {
   state.endData = msg
   state.paused = false
   state.player.score = msg.finalScores.player
-  state.opponent.score = msg.finalScores.opponent
+  // Omitted for buy-upgrade (opponent score is never revealed in race-to-buy).
+  if (msg.finalScores.opponent !== undefined) state.opponent.score = msg.finalScores.opponent
   pendingBatches.length = 0
   stopCountdown()
   recorderRoundEnd(msg.finalScores.player)

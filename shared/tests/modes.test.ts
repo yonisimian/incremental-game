@@ -114,13 +114,11 @@ describe('getAvailableUpgrades', () => {
     id: 'untagged',
     cost: { r0: 10 },
     purchaseLimit: 1,
-    modifiers: [],
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
     cost: { r0: 100 },
     purchaseLimit: 1,
-    modifiers: [],
     goalType: 'buy-upgrade',
   }
   const fakeMode = { upgrades: [untagged, trophy] } as unknown as ModeDefinition
@@ -195,7 +193,6 @@ describe('systemUnlock effect gating', () => {
     id: `u-${system}`,
     cost: {},
     purchaseLimit: 1,
-    modifiers: [],
     effects: [{ type: 'systemUnlock', system }],
   })
 
@@ -286,7 +283,7 @@ describe('collectModifiers', () => {
       id: 'uUnlim',
       cost: { r0: 10 },
       purchaseLimit: Infinity,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
     }
     const customDef: ModeDefinition = {
       ...getModeDefinition('idler'),
@@ -333,7 +330,7 @@ describe('applyPurchase', () => {
       id: 'uUnlim',
       cost: { r1: 10 },
       purchaseLimit: Infinity,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 5 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
     }
     const customDef: ModeDefinition = {
       ...getModeDefinition('idler'),
@@ -355,7 +352,7 @@ describe('applyPurchase', () => {
       id: 'uF1',
       cost: { r0: 5 },
       purchaseLimit: 3,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 2 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
 
@@ -377,7 +374,7 @@ describe('applyPurchase', () => {
       id: 'uF2',
       cost: { r0: 5 },
       purchaseLimit: 2,
-      modifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
 
@@ -414,7 +411,6 @@ describe('purchase timestamps (state.meta.purchasedAt)', () => {
       id: 'uRepeat',
       cost: { r0: 10 },
       purchaseLimit: Infinity,
-      modifiers: [],
     }
     const customDef: ModeDefinition = {
       ...getModeDefinition('idler'),

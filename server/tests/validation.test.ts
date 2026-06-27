@@ -116,8 +116,8 @@ describe('isValidPurchase', () => {
 })
 describe('isValidPurchase — choice groups', () => {
   const groupUpgrades: UpgradeDefinition[] = [
-    { id: 'choice-a', cost: { r0: 10 }, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
-    { id: 'choice-b', cost: { r0: 10 }, purchaseLimit: 1, modifiers: [], choiceGroup: 'branch' },
+    { id: 'choice-a', cost: { r0: 10 }, purchaseLimit: 1, choiceGroup: 'branch' },
+    { id: 'choice-b', cost: { r0: 10 }, purchaseLimit: 1, choiceGroup: 'branch' },
   ]
   const groupMap = new Map(groupUpgrades.map((u) => [u.id, u]))
 
@@ -198,21 +198,19 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
 describe('isValidPurchase — prerequisites', () => {
   // Self-contained prerequisite fixtures (independent of any mode's tree).
   const prereqUpgrades: UpgradeDefinition[] = [
-    { id: 'root', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [] },
-    { id: 'a', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [] },
-    { id: 'b', cost: { r0: 1 }, purchaseLimit: 1, modifiers: [] },
+    { id: 'root', cost: { r0: 1 }, purchaseLimit: 1 },
+    { id: 'a', cost: { r0: 1 }, purchaseLimit: 1 },
+    { id: 'b', cost: { r0: 1 }, purchaseLimit: 1 },
     {
       id: 'andChild', // requires root
       cost: { r0: 1 },
       purchaseLimit: 1,
-      modifiers: [],
       prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'root' }] },
     },
     {
       id: 'orChild', // requires a OR b
       cost: { r0: 1 },
       purchaseLimit: 1,
-      modifiers: [],
       prerequisites: {
         type: 'any',
         items: [

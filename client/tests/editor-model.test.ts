@@ -29,7 +29,7 @@ function node(
   offset: { x: number; y: number },
   extra?: Partial<TreeUpgradeNode>,
 ): TreeUpgradeNode {
-  return { id, cost: {}, purchaseLimit: 1, modifiers: [], offset, ...extra }
+  return { id, cost: {}, purchaseLimit: 1, offset, ...extra }
 }
 
 /** A tree with known offsets: A→B→C plus a sibling D, all under the idler shell. */

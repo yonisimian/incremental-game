@@ -9,10 +9,13 @@ import {
   getModeDefinition,
   createInitialState,
   collectModifiers,
+  computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  hasEnemyDataAccess,
+  enemyDataKeysFor,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -22,6 +25,7 @@ import type {
   Goal,
   MatchWinner,
   ModeDefinition,
+  OpponentView,
   PlayerAction,
   PlayerState,
   RoundEndReason,
@@ -63,7 +67,13 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
-  /** Wall-clock timestamp (ms) at which the current round ends; source of truth for the timer. */
+  /**
+   * Monotonic timestamp (ms, from `performance.now()`) at which the current
+   * round ends; source of truth for the timer. Uses the monotonic clock rather
+   * than `Date.now()` so the countdown can't jump when the system wall clock
+   * steps (NTP corrections, VM/host time-sync) — a wall-clock step of a few
+   * seconds would otherwise make the timer leap by the same amount.
+   */
   private endAtMs = 0
 
   private tickTimer: ReturnType<typeof setInterval> | null = null
@@ -191,7 +201,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'opponent',
       reason: 'quit',
-      finalScores: { player: quitter.state.score, opponent: opponent.state.score },
+      finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
       stats: quitter.stats,
     })
 
@@ -199,7 +209,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'player',
       reason: 'quit',
-      finalScores: { player: opponent.state.score, opponent: quitter.state.score },
+      finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
       stats: opponent.stats,
     })
 
@@ -235,9 +245,10 @@ export class Match {
   // ─── Private: game loop ────────────────────────────────────────────
 
   private beginGameLoop(): void {
-    // Anchor the round end to a wall-clock timestamp so the displayed timer can
-    // never drift away from the authoritative round-end check.
-    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    // Anchor the round end to a monotonic timestamp so the displayed timer can
+    // never drift away from the authoritative round-end check, and so a system
+    // wall-clock step can't make it jump.
+    this.endAtMs = performance.now() + this.timeLeftSec * 1000
 
     // Tick: compute passive income, run bot, update timer, and end the round when
     // its time expires. Deriving the round end from the same `endAtMs` anchor that
@@ -247,7 +258,7 @@ export class Match {
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
+      this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
 
       if (this.timeLeftSec <= 0) {
         this.endRound(this.timeExpiredReason)
@@ -388,9 +399,9 @@ export class Match {
   private pause(): void {
     if (this.phase !== 'playing' || this.paused) return
     this.paused = true
-    // Freeze the remaining time from the wall-clock anchor. The tick stops
+    // Freeze the remaining time from the monotonic anchor. The tick stops
     // advancing the clock (and ending the round) while paused.
-    this.timeLeftSec = Math.max(0, (this.endAtMs - Date.now()) / 1000)
+    this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
     this.broadcastState()
   }
 
@@ -402,7 +413,7 @@ export class Match {
       return
     }
     // Re-anchor the round end to the remaining time; the tick resumes ending it.
-    this.endAtMs = Date.now() + this.timeLeftSec * 1000
+    this.endAtMs = performance.now() + this.timeLeftSec * 1000
     this.broadcastState()
   }
 
@@ -440,7 +451,7 @@ export class Match {
       tick: this.tick,
       ackSeq: p1.ackSeq,
       player: p1.state,
-      opponent: p2.state,
+      opponent: this.opponentViewFor(p1, p2),
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -450,10 +461,55 @@ export class Match {
       tick: this.tick,
       ackSeq: p2.ackSeq,
       player: p2.state,
-      opponent: p1.state,
+      opponent: this.opponentViewFor(p2, p1),
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
+  }
+
+  /**
+   * Build the redacted opponent view for `viewer`: only the intel `viewer` has
+   * unlocked via `accessEnemyData`. The opponent's upgrades/generators/meta are
+   * never included, so a client can't read hidden data in devtools. Per-second
+   * rates are computed here (the client can no longer derive them without the
+   * opponent's full state) and included only for unlocked keys.
+   *
+   * Score is public for timed / target-score goals (it's the win condition and
+   * shown live), and omitted for `buy-upgrade`, where it isn't shown.
+   */
+  private opponentViewFor(viewer: MatchPlayer, opponent: MatchPlayer): OpponentView {
+    const mode = this.modeDef
+    const view: OpponentView = { resources: {}, rates: {} }
+
+    if (this.goal.type !== 'buy-upgrade') view.score = opponent.state.score
+
+    let rates: Record<string, number> | null = null
+    for (const key of mode.resources) {
+      const [amountKey, rateKey] = enemyDataKeysFor(key)
+      if (hasEnemyDataAccess(viewer.state, mode, amountKey)) {
+        view.resources[key] = opponent.state.resources[key] ?? 0
+      }
+      if (hasEnemyDataAccess(viewer.state, mode, rateKey)) {
+        rates ??= computePassiveRates(collectModifiers(opponent.state, mode), mode.resources)
+        view.rates[key] = rates[key] ?? 0
+      }
+    }
+
+    return view
+  }
+
+  /**
+   * Final scores for a ROUND_END message addressed to the player whose score is
+   * `playerScore`. The opponent's score is omitted for `buy-upgrade` goals, where
+   * it's irrelevant to the result and never revealed.
+   */
+  private finalScoresFor(
+    playerScore: number,
+    opponentScore: number,
+  ): { player: number; opponent?: number } {
+    return this.goal.type === 'buy-upgrade'
+      ? { player: playerScore }
+      : { player: playerScore, opponent: opponentScore }
   }
 
   // ─── Private: ending ───────────────────────────────────────────────
@@ -482,7 +538,7 @@ export class Match {
       type: 'ROUND_END',
       winner: winnerForP1,
       reason,
-      finalScores: { player: p1.state.score, opponent: p2.state.score },
+      finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
       stats: p1.stats,
     })
 
@@ -490,7 +546,7 @@ export class Match {
       type: 'ROUND_END',
       winner: winnerForP2,
       reason,
-      finalScores: { player: p2.state.score, opponent: p1.state.score },
+      finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
       stats: p2.stats,
     })
 
@@ -510,7 +566,7 @@ export class Match {
       type: 'ROUND_END',
       winner: 'player',
       reason: 'forfeit',
-      finalScores: { player: winner.state.score, opponent: loser.state.score },
+      finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
       stats: winner.stats,
     })
 

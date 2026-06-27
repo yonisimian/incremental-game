@@ -75,6 +75,22 @@ export interface EnemyDataAccessOutput {
 }
 
 /**
+ * A flat production bonus authored on an upgrade, emitted by the `baseModifier`
+ * effect. Unlike a raw {@link Modifier} (emitted by state-derived effects and
+ * applied verbatim), this output is **compounded with the owning upgrade's owned
+ * count** by `collectModifiers` — additive scales `× owned`, multiplicative and
+ * global scale `^ owned` — reproducing the legacy per-upgrade `modifiers` array.
+ * Its `stage`/`field`/`value` mirror a `Modifier`; the distinct `kind` is what
+ * tells the consumer to apply owned-count scaling.
+ */
+export interface BaseModifierOutput {
+  readonly kind: 'baseModifier'
+  readonly stage: Modifier['stage']
+  readonly field: string
+  readonly value: number
+}
+
+/**
  * Marks an attack as unlocked while the owning upgrade is held. Consumed by
  * `isAttackUnlocked` (an attack that no owned upgrade names is locked — unlike
  * panels, attacks are hidden by default); carries no production weight, so the
@@ -89,15 +105,16 @@ export interface AttackUnlockOutput {
 
 /**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
- * {@link GeneratorCostOutput}, one of the unlock outputs ({@link
- * PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link SystemUnlockOutput},
- * {@link AttackUnlockOutput}), or an {@link EnemyDataAccessOutput}. Each is
- * routed to a different subsystem (`collectModifiers` /
- * `collectGeneratorCostFactors` / the unlock gates / `hasEnemyDataAccess`);
- * every consumer ignores the outputs it doesn't own.
+ * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
+ * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
+ * SystemUnlockOutput}, {@link AttackUnlockOutput}), or an {@link
+ * EnemyDataAccessOutput}. Each is routed to a different subsystem
+ * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
+ * `hasEnemyDataAccess`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
+  | BaseModifierOutput
   | GeneratorCostOutput
   | PanelUnlockOutput
   | GeneratorUnlockOutput

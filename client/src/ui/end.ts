@@ -32,13 +32,21 @@ export function renderEndScreen(state: Readonly<GameState>): void {
   const pName = playerDisplayName(state)
   const oName = opponentDisplayName(state)
 
+  // Race-to-buy is won by buying the goal upgrade, not by score — and the
+  // opponent's score is never revealed — so the score block is hidden entirely.
+  const scoresBlock =
+    state.goal?.type === 'buy-upgrade'
+      ? ''
+      : `
+      <div class="final-scores">
+        <div>${pName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.player))}</strong></div>
+        <div>${oName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.opponent ?? 0))}</strong></div>
+      </div>`
+
   app.innerHTML = `
     <div class="screen end-screen">
       <h1 class="result ${resultClass}">${winnerText}</h1>
-      <div class="final-scores">
-        <div>${pName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.player))}</strong></div>
-        <div>${oName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.opponent))}</strong></div>
-      </div>
+      ${scoresBlock}
       <div class="stats">
         ${flavor.showClickStats ? `<div>Clicks: ${formatNumber(end.stats.totalClicks)}</div>` : ''}
         ${flavor.showClickStats ? `<div>Peak CPS: ${formatNumber(end.stats.peakCps)}</div>` : ''}

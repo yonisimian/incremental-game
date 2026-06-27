@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "id": "idler",
   "resources": [
     "r0",
@@ -579,7 +579,6 @@
         "r0": 30000
       },
       "purchaseLimit": 1,
-      "modifiers": [],
       "goalType": "buy-upgrade",
       "offset": {
         "x": 48,
@@ -590,8 +589,9 @@
       "id": "be-af-mr",
       "cost": {},
       "purchaseLimit": null,
-      "modifiers": [
+      "effects": [
         {
+          "type": "baseModifier",
           "stage": "additive",
           "field": "r0",
           "value": 1
@@ -606,17 +606,18 @@
           "id": "be-mf-mr",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "be-af-mr"
+          },
+          "effects": [
             {
+              "type": "baseModifier",
               "stage": "multiplicative",
               "field": "r0",
               "value": 1.1
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "be-af-mr"
-          },
           "offset": {
             "x": -48,
             "y": 96
@@ -626,7 +627,6 @@
               "id": "be-mr-bank",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "be-mf-mr"
@@ -642,18 +642,19 @@
           "id": "be-af-sr",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [
-            {
-              "stage": "additive",
-              "field": "r1",
-              "value": 1
-            }
-          ],
           "prerequisites": {
             "type": "upgrade",
             "id": "be-af-mr",
             "minLevel": 5
           },
+          "effects": [
+            {
+              "type": "baseModifier",
+              "stage": "additive",
+              "field": "r1",
+              "value": 1
+            }
+          ],
           "offset": {
             "x": 48,
             "y": 96
@@ -663,17 +664,18 @@
               "id": "be-mf-sr",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "be-af-sr"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "r1",
                   "value": 1.1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "be-af-sr"
-              },
               "offset": {
                 "x": 0,
                 "y": 96
@@ -683,7 +685,6 @@
                   "id": "be-sr-bank",
                   "cost": {},
                   "purchaseLimit": 1,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "be-mf-sr"
@@ -703,13 +704,15 @@
       "id": "ae-mf-ar",
       "cost": {},
       "purchaseLimit": null,
-      "modifiers": [
+      "effects": [
         {
+          "type": "baseModifier",
           "stage": "multiplicative",
           "field": "r0",
           "value": 1.1
         },
         {
+          "type": "baseModifier",
           "stage": "multiplicative",
           "field": "r1",
           "value": 1.1
@@ -724,7 +727,6 @@
           "id": "ae-mf-ar-time",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "offset": {
             "x": 0,
             "y": 96
@@ -734,7 +736,6 @@
               "id": "ae-atf",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "ae-mf-ar-time"
@@ -748,7 +749,6 @@
                   "id": "ae-tf-retro",
                   "cost": {},
                   "purchaseLimit": 1,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "ae-atf"
@@ -768,7 +768,6 @@
       "id": "g1-g2",
       "cost": {},
       "purchaseLimit": 1,
-      "modifiers": [],
       "effects": [
         {
           "type": "panelUnlock",
@@ -792,17 +791,18 @@
           "id": "g1-af",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
+          "effects": [
             {
+              "type": "baseModifier",
               "stage": "additive",
               "field": "g0",
               "value": 1
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "g1-g2"
-          },
           "offset": {
             "x": 120,
             "y": 96
@@ -812,7 +812,6 @@
               "id": "g1-dp",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g1-af"
@@ -833,7 +832,6 @@
                   "id": "g1-dpf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g1-dp"
@@ -856,17 +854,18 @@
               "id": "g1-mf",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g1-af"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "g0",
                   "value": 1.1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "g1-af"
-              },
               "offset": {
                 "x": -48,
                 "y": 96
@@ -878,17 +877,18 @@
           "id": "g2-af",
           "cost": {},
           "purchaseLimit": null,
-          "modifiers": [
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "g1-g2"
+          },
+          "effects": [
             {
+              "type": "baseModifier",
               "stage": "additive",
               "field": "g1",
               "value": 1
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "g1-g2"
-          },
           "offset": {
             "x": 312,
             "y": 96
@@ -898,17 +898,18 @@
               "id": "g2-mf",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g2-af"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "g1",
                   "value": 1.1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "g2-af"
-              },
               "offset": {
                 "x": -48,
                 "y": 96
@@ -918,7 +919,6 @@
               "id": "g2-dp",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g2-af"
@@ -939,7 +939,6 @@
                   "id": "g2-dpf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g2-dp"
@@ -964,7 +963,6 @@
           "id": "g3-g4",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "g1-g2"
@@ -988,17 +986,18 @@
               "id": "g3-af",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "additive",
                   "field": "g2",
                   "value": 1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "g3-g4"
-              },
               "offset": {
                 "x": 120,
                 "y": 96
@@ -1008,17 +1007,18 @@
                   "id": "g3-mf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g3-af"
+                  },
+                  "effects": [
                     {
+                      "type": "baseModifier",
                       "stage": "multiplicative",
                       "field": "g2",
                       "value": 1.1
                     }
                   ],
-                  "prerequisites": {
-                    "type": "upgrade",
-                    "id": "g3-af"
-                  },
                   "offset": {
                     "x": -48,
                     "y": 96
@@ -1028,7 +1028,6 @@
                   "id": "g3-dp",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g3-af"
@@ -1049,7 +1048,6 @@
                       "id": "g3-dpf",
                       "cost": {},
                       "purchaseLimit": null,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "g3-dp"
@@ -1074,17 +1072,18 @@
               "id": "g4-af",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "g3-g4"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "additive",
                   "field": "g3",
                   "value": 1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "g3-g4"
-              },
               "offset": {
                 "x": 312,
                 "y": 96
@@ -1094,17 +1093,18 @@
                   "id": "g4-mf",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "g4-af"
+                  },
+                  "effects": [
                     {
+                      "type": "baseModifier",
                       "stage": "multiplicative",
                       "field": "g3",
                       "value": 1.1
                     }
                   ],
-                  "prerequisites": {
-                    "type": "upgrade",
-                    "id": "g4-af"
-                  },
                   "offset": {
                     "x": -48,
                     "y": 96
@@ -1114,7 +1114,6 @@
                   "id": "g4-dp",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "g4-af"
@@ -1135,7 +1134,6 @@
                       "id": "g4-dpf",
                       "cost": {},
                       "purchaseLimit": null,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "g4-dp"
@@ -1160,7 +1158,6 @@
               "id": "higher-g",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "choiceGroup": "g-choice",
               "prerequisites": {
                 "type": "upgrade",
@@ -1175,7 +1172,6 @@
               "id": "balance-g",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "choiceGroup": "g-choice",
               "prerequisites": {
                 "type": "upgrade",
@@ -1190,7 +1186,6 @@
               "id": "lower-g",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "choiceGroup": "g-choice",
               "prerequisites": {
                 "type": "upgrade",
@@ -1211,17 +1206,16 @@
         "r0": 50
       },
       "purchaseLimit": 1,
-      "modifiers": [
-        {
-          "stage": "additive",
-          "field": "clickIncome",
-          "value": 1
-        }
-      ],
       "effects": [
         {
           "type": "systemUnlock",
           "system": "click"
+        },
+        {
+          "type": "baseModifier",
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": 1
         }
       ],
       "offset": {
@@ -1240,17 +1234,18 @@
             "factor": 1.15
           },
           "purchaseLimit": null,
-          "modifiers": [
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "sc-unlock"
+          },
+          "effects": [
             {
+              "type": "baseModifier",
               "stage": "additive",
               "field": "clickIncome",
               "value": 1
             }
           ],
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "sc-unlock"
-          },
           "offset": {
             "x": 0,
             "y": 96
@@ -1267,17 +1262,18 @@
                 "factor": 1.5
               },
               "purchaseLimit": null,
-              "modifiers": [
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sc-af-cp"
+              },
+              "effects": [
                 {
+                  "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "clickIncome",
                   "value": 1.1
                 }
               ],
-              "prerequisites": {
-                "type": "upgrade",
-                "id": "sc-af-cp"
-              },
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1289,7 +1285,6 @@
           "id": "sc-clicking",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "choiceGroup": "clicking-choice",
           "prerequisites": {
             "type": "upgrade",
@@ -1304,7 +1299,6 @@
           "id": "sc-production",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "choiceGroup": "clicking-choice",
           "prerequisites": {
             "type": "upgrade",
@@ -1319,7 +1313,6 @@
           "id": "sh-unlock",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "effects": [
             {
               "type": "highlightMultiplier",
@@ -1339,7 +1332,6 @@
               "id": "sh-mf-hp",
               "cost": {},
               "purchaseLimit": null,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "sh-unlock"
@@ -1359,7 +1351,6 @@
               "id": "shb-unlock",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "sh-unlock"
@@ -1373,7 +1364,6 @@
                   "id": "shb-bp",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "shb-unlock"
@@ -1387,7 +1377,6 @@
                   "id": "shb-mc",
                   "cost": {},
                   "purchaseLimit": null,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "shb-unlock"
@@ -1401,7 +1390,6 @@
                       "id": "shb-mf-cs",
                       "cost": {},
                       "purchaseLimit": null,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "shb-mc"
@@ -1415,7 +1403,6 @@
                           "id": "shb-lcp",
                           "cost": {},
                           "purchaseLimit": 1,
-                          "modifiers": [],
                           "choiceGroup": "battery-choice",
                           "prerequisites": {
                             "type": "upgrade",
@@ -1432,7 +1419,6 @@
                       "id": "shb-mf-ds",
                       "cost": {},
                       "purchaseLimit": null,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "shb-mc"
@@ -1446,7 +1432,6 @@
                           "id": "shb-hcp",
                           "cost": {},
                           "purchaseLimit": 1,
-                          "modifiers": [],
                           "choiceGroup": "battery-choice",
                           "prerequisites": {
                             "type": "upgrade",
@@ -1469,7 +1454,6 @@
           "id": "sb-unlock",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "offset": {
             "x": 0,
             "y": 768
@@ -1479,7 +1463,6 @@
           "id": "sc-pcps",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "sc-unlock"
@@ -1501,7 +1484,6 @@
       "id": "a-unlock",
       "cost": {},
       "purchaseLimit": 1,
-      "modifiers": [],
       "effects": [
         {
           "type": "panelUnlock",
@@ -1517,7 +1499,6 @@
           "id": "node",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "a-unlock"
@@ -1537,7 +1518,6 @@
               "id": "node-2",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "a-unlock"
@@ -1559,7 +1539,6 @@
           "id": "node-3",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "a-unlock"
@@ -1579,7 +1558,6 @@
           "id": "node-4",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "a-unlock"
@@ -1601,7 +1579,6 @@
       "id": "ir-unlock",
       "cost": {},
       "purchaseLimit": 1,
-      "modifiers": [],
       "effects": [
         {
           "type": "panelUnlock",
@@ -1617,7 +1594,6 @@
       "id": "e-se-mr",
       "cost": {},
       "purchaseLimit": 1,
-      "modifiers": [],
       "effects": [
         {
           "type": "panelUnlock",
@@ -1637,7 +1613,6 @@
           "id": "e-se-sr",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"
@@ -1657,7 +1632,6 @@
           "id": "e-se-mr-ps",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "prerequisites": {
             "type": "upgrade",
             "id": "e-se-mr"
@@ -1677,7 +1651,6 @@
               "id": "e-se-sr-ps",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "all",
                 "items": [
@@ -1706,7 +1679,6 @@
               "id": "e-se-cps",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "e-se-mr-ps"
@@ -1720,7 +1692,6 @@
               "id": "e-se-p",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "e-se-mr-ps"
@@ -1734,7 +1705,6 @@
                   "id": "e-p-ug",
                   "cost": {},
                   "purchaseLimit": 1,
-                  "modifiers": [],
                   "prerequisites": {
                     "type": "upgrade",
                     "id": "e-se-p"
@@ -1748,7 +1718,6 @@
                       "id": "e-p-u",
                       "cost": {},
                       "purchaseLimit": 1,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "e-p-ug"
@@ -1762,7 +1731,6 @@
                       "id": "e-p-g",
                       "cost": {},
                       "purchaseLimit": 1,
-                      "modifiers": [],
                       "prerequisites": {
                         "type": "upgrade",
                         "id": "e-p-ug"
@@ -1782,7 +1750,6 @@
           "id": "d-alert",
           "cost": {},
           "purchaseLimit": 1,
-          "modifiers": [],
           "offset": {
             "x": 0,
             "y": 504
@@ -1792,7 +1759,6 @@
               "id": "d-as",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "d-alert"
@@ -1806,7 +1772,6 @@
               "id": "d-aa",
               "cost": {},
               "purchaseLimit": 1,
-              "modifiers": [],
               "prerequisites": {
                 "type": "upgrade",
                 "id": "d-alert"

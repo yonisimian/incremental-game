@@ -31,25 +31,21 @@ describe('Bot', () => {
         id: 'be-af-mr' as const,
         cost: { r0: 5 },
         purchaseLimit: 1,
-        modifiers: [],
       },
       {
         id: 'u0' as const,
         cost: { r0: 30 },
         purchaseLimit: 1,
-        modifiers: [],
       },
       {
         id: 'u1' as const,
         cost: { r0: 25 },
         purchaseLimit: 1,
-        modifiers: [],
       },
       {
         id: 'u2' as const,
         cost: { r1: 25 },
         purchaseLimit: 1,
-        modifiers: [],
       },
     ]
 
@@ -137,7 +133,6 @@ describe('Bot', () => {
               { type: 'upgrade' as const, id: 'u2' },
             ],
           },
-          modifiers: [],
         },
         {
           id: 'u5' as const,
@@ -145,7 +140,6 @@ describe('Bot', () => {
           purchaseLimit: 1,
           goalType: 'buy-upgrade' as const,
           prerequisites: { type: 'all' as const, items: [{ type: 'upgrade' as const, id: 'u4' }] },
-          modifiers: [],
         },
       ]
       const bot = new IdlerBot(upgWithTrophy)
@@ -196,7 +190,10 @@ describe('Bot', () => {
     })
 
     it('bot earns score over time in idler mode', () => {
-      const m = createBotMatch('idler')
+      // Timed goal so the bot's (opponent's) score is broadcast — it's hidden
+      // under the default buy-upgrade goal.
+      const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
+      const m = createBotMatch('idler', undefined, timedGoal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
 

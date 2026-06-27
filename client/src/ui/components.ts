@@ -38,7 +38,7 @@ export function renderProgressBars(state: Readonly<GameState>): string {
   if (state.goal?.type !== 'target-score') return ''
   const target = state.goal.target
   const playerPct = Math.min(100, (state.player.score / target) * 100)
-  const opponentPct = Math.min(100, (state.opponent.score / target) * 100)
+  const opponentPct = Math.min(100, ((state.opponent.score ?? 0) / target) * 100)
   return `
     <div class="target-progress">
       <div class="progress-row you">
@@ -50,7 +50,7 @@ export function renderProgressBars(state: Readonly<GameState>): string {
       <div class="progress-row opponent">
         <div class="progress-bar bar-opponent">
           <div class="progress-fill opponent" id="opponent-progress" style="width:${opponentPct}%"></div>
-          <span class="bar-label">${opponentDisplayName(state)}: <span id="opponent-bar-score">${formatScore(state.opponent.score, state)}</span></span>
+          <span class="bar-label">${opponentDisplayName(state)}: <span id="opponent-bar-score">${formatScore(state.opponent.score ?? 0, state)}</span></span>
         </div>
       </div>
     </div>

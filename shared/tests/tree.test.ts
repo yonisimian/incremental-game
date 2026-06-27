@@ -80,18 +80,14 @@ describe('tree codec — idler parity', () => {
 describe('tree codec — purchaseLimit sentinel', () => {
   it('maps null to Infinity when assembling the runtime definition', () => {
     const tree = minimalTree()
-    tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
-    ]
+    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: null, offset: { x: 0, y: 0 } }]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(toModeDefinition(tree).upgrades[0].purchaseLimit).toBe(Infinity)
   })
 
   it('preserves the null sentinel across a round-trip (Infinity is not JSON-encodable)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: null, modifiers: [], offset: { x: 0, y: 0 } },
-    ]
+    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: null, offset: { x: 0, y: 0 } }]
     tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
     expect(back.upgrades[0].purchaseLimit).toBeNull()
@@ -109,6 +105,31 @@ describe('tree codec — versioning', () => {
   it('rejects an unsupported version', () => {
     expect(() => parseTreeFile({ ...minimalTree(), version: 999 })).toThrow(/version/iu)
   })
+
+  it('migrates v1 per-upgrade modifiers into baseModifier effects', () => {
+    const v1: unknown = {
+      ...minimalTree(),
+      version: 1,
+      upgrades: [
+        {
+          id: 'a',
+          cost: { r0: 5 },
+          purchaseLimit: null,
+          modifiers: [{ stage: 'additive', field: 'r0', value: 3 }],
+          effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+          offset: { x: 0, y: 0 },
+        },
+      ],
+    }
+    const parsed = parseTreeFile(v1)
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    // Existing effects are kept ahead of the migrated baseModifier.
+    expect(parsed.upgrades[0].effects).toEqual([
+      { type: 'highlightMultiplier', multiplier: 2 },
+      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 3 },
+    ])
+    expect('modifiers' in parsed.upgrades[0]).toBe(false)
+  })
 })
 
 // ─── Structural + semantic validation failures ───────────────────────
@@ -124,9 +145,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
-      { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 0 } },
-    ]
+    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: 1, offset: { x: 0, y: 0 } }]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
       parseTreeFile({ ...tree, upgrades: [{ ...tree.upgrades[0], modifers: [] }] }),
@@ -140,11 +159,8 @@ describe('tree codec — validation failures', () => {
         id: 'a',
         cost: { r0: 5 },
         purchaseLimit: 1,
-        modifiers: [],
         offset: { x: 0, y: 0 },
-        children: [
-          { id: 'a', cost: { r0: 5 }, purchaseLimit: 1, modifiers: [], offset: { x: 0, y: 150 } },
-        ],
+        children: [{ id: 'a', cost: { r0: 5 }, purchaseLimit: 1, offset: { x: 0, y: 150 } }],
       },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
@@ -158,7 +174,6 @@ describe('tree codec — validation failures', () => {
         id: 'a',
         cost: { r0: 5 },
         purchaseLimit: 1,
-        modifiers: [],
         offset: { x: 0, y: 0 },
         effects: [{ type: 'doesNotExist' }],
       },
@@ -174,7 +189,6 @@ describe('tree codec — validation failures', () => {
         id: 'a',
         cost: { r0: 5 },
         purchaseLimit: 1,
-        modifiers: [],
         offset: { x: 0, y: 0 },
         effects: [{ type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'b' }],
       },

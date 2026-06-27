@@ -3,9 +3,9 @@
  * node in place and calls `onChange` after each edit so the host can re-render
  * the canvas and mark the document dirty.
  *
- * Covers the data-only fields (id, cost, purchaseLimit, modifiers,
- * prerequisites, choice group) plus dynamic `effects`, whose forms are
- * generated from each registered effect's zod param schema.
+ * Covers the data-only fields (id, cost, purchaseLimit, prerequisites, choice
+ * group) plus dynamic `effects`, whose forms are generated from each registered
+ * effect's zod param schema (production bonuses are the `baseModifier` effect).
  */
 
 import {
@@ -53,16 +53,7 @@ export interface Currency {
 }
 
 type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
-type ModifierStage = TreeUpgradeNode['modifiers'][number]['stage']
 type EffectEntry = NonNullable<TreeUpgradeNode['effects']>[number]
-
-const MODIFIER_STAGES: readonly ModifierStage[] = ['additive', 'multiplicative', 'global']
-
-/**
- * Modifier targets that aren't resources: the pipeline routes these to the
- * `ModifierContext` directly instead of `rates[field]` (see modifiers/pipeline).
- */
-const MODIFIER_SPECIAL_FIELDS: readonly string[] = ['clickIncome', 'globalMultiplier']
 
 // ─── Prerequisite representability ───────────────────────────────────
 //
@@ -295,129 +286,6 @@ function buildPurchaseLimitSection(ctx: InspectorContext): HTMLElement {
   return field('Purchase limit', control)
 }
 
-function buildModifiersSection(ctx: InspectorContext): HTMLElement {
-  const section = el('div', 'ed-section')
-  section.append(el('h4', 'ed-section-title', 'Modifiers'))
-  const rows = el('div', 'ed-rows')
-
-  const sync = (): void => {
-    const next: TreeUpgradeNode['modifiers'] = []
-    for (const row of rows.querySelectorAll<HTMLDivElement>('.ed-mod-row')) {
-      const stage = row.querySelector<HTMLSelectElement>('.ed-mod-stage')!.value as ModifierStage
-      const fieldName = row.querySelector<HTMLSelectElement>('.ed-mod-field')!.value
-      const value = Number(row.querySelector<HTMLInputElement>('.ed-mod-value')!.value)
-      if (fieldName) next.push({ stage, field: fieldName, value })
-    }
-    ctx.node.modifiers = next
-    ctx.onChange()
-  }
-
-  const addRow = (stage: ModifierStage, fieldName: string, value: number): void => {
-    const row = el('div', 'ed-mod-row ed-row')
-    const stageSelect = el('select', 'ed-input ed-mod-stage')
-    for (const s of MODIFIER_STAGES) {
-      const opt = el('option', undefined, s)
-      opt.value = s
-      if (s === stage) opt.selected = true
-      stageSelect.append(opt)
-    }
-    const fieldSelect = buildModifierFieldSelect(ctx.currencies, ctx.tree.generators, fieldName)
-    const valueInput = el('input', 'ed-input ed-mod-value')
-    valueInput.type = 'number'
-    valueInput.value = String(value)
-    const remove = el('button', 'ed-btn ed-btn-remove', '✕')
-    remove.type = 'button'
-    remove.addEventListener('click', () => {
-      row.remove()
-      sync()
-    })
-    stageSelect.addEventListener('change', sync)
-    fieldSelect.addEventListener('change', sync)
-    valueInput.addEventListener('change', sync)
-    row.append(stageSelect, fieldSelect, valueInput, remove)
-    rows.append(row)
-  }
-
-  for (const m of ctx.node.modifiers) addRow(m.stage, m.field, m.value)
-
-  const add = el('button', 'ed-btn', '+ modifier')
-  add.type = 'button'
-  add.addEventListener('click', () => {
-    addRow('additive', '', 0)
-  })
-  section.append(rows, add)
-  return section
-}
-
-/**
- * A `<select>` of modifier targets: the tree's resources, its generators, and
- * the special pipeline fields (`clickIncome`, `globalMultiplier`). A leading
- * blank marks an incomplete row (not persisted until a field is picked). An
- * unrecognized value (e.g. a since-removed resource) is preserved as its own
- * option rather than silently dropped, mirroring the cost-currency dropdown.
- *
- * Generator targets route differently in the pipeline: a generator-targeted
- * modifier folds into that generator's per-unit output (see `collectModifiers`),
- * so `additive` is a flat bonus per owned generator and `multiplicative` scales
- * the generator's total — both compounding with the upgrade's owned count.
- */
-function buildModifierFieldSelect(
-  currencies: readonly Currency[],
-  generators: TreeFile['generators'],
-  value: string,
-): HTMLSelectElement {
-  const select = el('select', 'ed-input ed-mod-field')
-
-  const blank = el('option', undefined, '(field)')
-  blank.value = ''
-  if (value === '') blank.selected = true
-  select.append(blank)
-
-  const resources = el('optgroup')
-  resources.label = 'Resources'
-  for (const { key, label } of currencies) {
-    const opt = el('option', undefined, label)
-    opt.value = key
-    if (key === value) opt.selected = true
-    resources.append(opt)
-  }
-  if (currencies.length > 0) select.append(resources)
-
-  const generatorGroup = el('optgroup')
-  generatorGroup.label = 'Generators'
-  for (const gen of generators) {
-    const opt = el('option', undefined, gen.id)
-    opt.value = gen.id
-    if (gen.id === value) opt.selected = true
-    generatorGroup.append(opt)
-  }
-  if (generators.length > 0) select.append(generatorGroup)
-
-  const special = el('optgroup')
-  special.label = 'Special'
-  for (const fieldName of MODIFIER_SPECIAL_FIELDS) {
-    const opt = el('option', undefined, fieldName)
-    opt.value = fieldName
-    if (fieldName === value) opt.selected = true
-    special.append(opt)
-  }
-  select.append(special)
-
-  const known =
-    value === '' ||
-    currencies.some((c) => c.key === value) ||
-    generators.some((g) => g.id === value) ||
-    MODIFIER_SPECIAL_FIELDS.includes(value)
-  if (!known) {
-    const opt = el('option', undefined, `${value} (unknown)`)
-    opt.value = value
-    opt.selected = true
-    select.append(opt)
-  }
-
-  return select
-}
-
 function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Prerequisites'))
@@ -557,6 +425,18 @@ function effectFieldOptions(
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return ctx.tree.attacks.map((a) => a.id)
   }
+  // `baseModifier` targets a resource, a generator, or a special pipeline field
+  // (`clickIncome` / `globalMultiplier`) — the union the legacy modifier picker
+  // offered. The pipeline routes the special fields to the `ModifierContext`
+  // directly instead of `rates[field]` (see modifiers/pipeline).
+  if (effectType === 'baseModifier' && fieldKey === 'field') {
+    return [
+      ...ctx.tree.resources,
+      ...ctx.tree.generators.map((g) => g.id),
+      'clickIncome',
+      'globalMultiplier',
+    ]
+  }
   return undefined
 }
 
@@ -574,19 +454,22 @@ function buildEffectField(
     input.addEventListener('change', onChange)
     return { row: field(label, input), read: () => input.checked }
   }
-  // A string field with a fixed option set renders as a picker (e.g. the
-  // `generatorCost` effect's `generator`). An unrecognized current value (a
-  // since-removed id) is preserved as its own option rather than silently lost.
-  if (spec.kind === 'string' && options) {
+  // A string field with a fixed option set renders as a picker: host-supplied
+  // options (e.g. the `generatorCost` effect's `generator`) or the field's own
+  // enum members (e.g. the `baseModifier` effect's `stage`). An unrecognized
+  // current value (a since-removed id) is preserved as its own option rather
+  // than silently lost.
+  const selectOptions = options ?? spec.options
+  if (spec.kind === 'string' && selectOptions) {
     const select = el('select', 'ed-input')
     const value = typeof current === 'string' ? current : ''
-    if (value !== '' && !options.includes(value)) {
+    if (value !== '' && !selectOptions.includes(value)) {
       const opt = el('option', undefined, `${value} (unknown)`)
       opt.value = value
       opt.selected = true
       select.append(opt)
     }
-    for (const id of options) {
+    for (const id of selectOptions) {
       const opt = el('option', undefined, id)
       opt.value = id
       if (id === value) opt.selected = true
@@ -840,7 +723,6 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildParentSection(ctx),
     buildCostSection(ctx),
     buildPurchaseLimitSection(ctx),
-    buildModifiersSection(ctx),
     buildPrerequisitesSection(ctx),
     buildEffectsSection(ctx),
     buildFlavorSection(ctx),

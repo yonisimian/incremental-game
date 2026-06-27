@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
 import type { GameState } from '../src/game.js'
-import { canBuy, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.js'
+import { canBuy, formatTime, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.js'
 
 // ─── Test fixture helpers ────────────────────────────────────────────
 
@@ -11,7 +11,6 @@ function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinit
     id: 'test-upgrade',
     cost: { r0: 10 },
     purchaseLimit: 1,
-    modifiers: [],
     ...overrides,
   }
 }
@@ -32,9 +31,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     opponent: {
       score: 0,
       resources: {},
-      upgrades: {},
-      generators: {},
-      meta: {},
+      rates: {},
     },
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
@@ -53,6 +50,34 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     roomError: null,
   }
 }
+
+// ─── formatTime ──────────────────────────────────────────────────────
+
+describe('formatTime', () => {
+  it('uses M:SS at or above 10 seconds remaining', () => {
+    expect(formatTime(95)).toBe('1:35')
+    expect(formatTime(60)).toBe('1:00')
+    expect(formatTime(10)).toBe('0:10')
+    expect(formatTime(10.9)).toBe('0:10')
+  })
+
+  it('switches to seconds:centiseconds below 10 seconds', () => {
+    expect(formatTime(9.99)).toBe('9:99')
+    expect(formatTime(9)).toBe('9:00')
+    expect(formatTime(1.5)).toBe('1:50')
+    expect(formatTime(0.07)).toBe('0:07')
+  })
+
+  it('floors centiseconds (no rounding up)', () => {
+    expect(formatTime(2.349)).toBe('2:34')
+    expect(formatTime(0.009)).toBe('0:00')
+  })
+
+  it('clamps negatives to 0:00', () => {
+    expect(formatTime(0)).toBe('0:00')
+    expect(formatTime(-5)).toBe('0:00')
+  })
+})
 
 // ─── isUnlocked ──────────────────────────────────────────────────────
 

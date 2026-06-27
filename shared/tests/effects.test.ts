@@ -48,6 +48,7 @@ describe('effect registry', () => {
     expect(listEffectTypes()).toEqual([
       'accessEnemyData',
       'balancedGenerators',
+      'baseModifier',
       'dominantGenerator',
       'generatorCost',
       'generatorUnlock',
@@ -181,9 +182,7 @@ describe('collectModifiers effect wiring', () => {
     const customUpgrade: UpgradeDefinition = {
       id: 'uEffect',
       cost: { r0: 10 },
-      purchaseLimit: 1,
-      modifiers: [],
-      // Gated by placement: per-upgrade effects run only once `uEffect` is owned.
+      purchaseLimit: 1, // Gated by placement: per-upgrade effects run only once `uEffect` is owned.
       effects: [{ type: 'highlightMultiplier', multiplier: 3 }],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }
@@ -229,6 +228,56 @@ describe('collectModifiers effect wiring', () => {
     expect(hiMods.some((m) => m.field === 'g1')).toBe(false)
     // g1 (rate 1, owned 1) doubles: its r1 output gains exactly one extra unit.
     expect(sumAdditive(hiMods, 'r1')).toBe(sumAdditive(loMods, 'r1') + 1)
+  })
+
+  it('compounds a multiplicative baseModifier as value ** owned', () => {
+    const base = getModeDefinition('idler')
+    const up: UpgradeDefinition = {
+      id: 'uMul',
+      cost: { r0: 10 },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const state = createInitialState(def)
+    state.upgrades.uMul = 3
+    // 2 ** 3 = 8 — multiplicative bonuses compound with the upgrade's owned count.
+    expect(collectModifiers(state, def)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 8,
+    })
+  })
+
+  it('folds a generator-targeted baseModifier into generator output (not leaked)', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0]
+    const up: UpgradeDefinition = {
+      id: 'uGen',
+      cost: { r0: 10 },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'additive', field: gen.id, value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const sumAdditive = (mods: readonly { field: string; stage: string; value: number }[]) =>
+      mods
+        .filter((m) => m.field === gen.production.resource && m.stage === 'additive')
+        .reduce((s, m) => s + m.value, 0)
+
+    const withUp = createInitialState(def)
+    withUp.upgrades.uGen = 2
+    withUp.generators[gen.id] = 4
+    const withMods = collectModifiers(withUp, def)
+
+    const without = createInitialState(def)
+    without.generators[gen.id] = 4
+    const withoutMods = collectModifiers(without, def)
+
+    // The generator-targeted bonus is consumed, never leaked as a modifier on the
+    // generator id itself.
+    expect(withMods.some((m) => m.field === gen.id)).toBe(false)
+    // per-unit (3) × upgrade owned (2) × generator owned (4) = 24 extra production.
+    expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
   })
 
   it('applies mode-level effects regardless of upgrade ownership', () => {
@@ -417,7 +466,6 @@ describe('unlockAttack effect', () => {
       id: upgradeId,
       cost: { r0: 10 },
       purchaseLimit: 1,
-      modifiers: [],
       effects: [{ type: 'unlockAttack', attack: attackId }],
     }
     return { ...base, upgrades: [...base.upgrades, upgrade] }
@@ -533,7 +581,6 @@ describe('peakCpsClickBonus effect', () => {
       id: 'uPeak',
       cost: { r0: 10 },
       purchaseLimit: 1,
-      modifiers: [],
       effects: [{ type: 'peakCpsClickBonus', perCps: 1 }],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, customUpgrade] }

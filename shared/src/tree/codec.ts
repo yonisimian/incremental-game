@@ -11,17 +11,51 @@ import type { TreeFile, TreeUpgradeNode } from './schema.js'
 // ─── Versioning / migration ──────────────────────────────────────────
 
 /**
+ * V1 → V2: the per-upgrade `modifiers` array became `baseModifier` effects.
+ * Rewrite every node (recursing into layout `children`) so each `{stage, field,
+ * value}` modifier is appended to the node's `effects` as a `baseModifier` ref,
+ * then drop the now-removed `modifiers` field. Order is preserved and existing
+ * effects are kept ahead of the migrated ones.
+ */
+function migrateV1toV2(json: unknown): unknown {
+  const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
+    const { modifiers, children, ...rest } = node
+    const mods: unknown[] = Array.isArray(modifiers) ? modifiers : []
+    const baseEffects = mods.map((m) => {
+      const mod = m as Record<string, unknown>
+      return { type: 'baseModifier', stage: mod.stage, field: mod.field, value: mod.value }
+    })
+    const existing: unknown[] = Array.isArray(rest.effects) ? rest.effects : []
+    const effects = [...existing, ...baseEffects]
+    const out: Record<string, unknown> = { ...rest }
+    if (effects.length > 0) out.effects = effects
+    if (Array.isArray(children)) {
+      const kids: unknown[] = children
+      out.children = kids.map((c) => migrateNode(c as Record<string, unknown>))
+    }
+    return out
+  }
+
+  const file = json as Record<string, unknown>
+  const rawUpgrades: unknown[] = Array.isArray(file.upgrades) ? file.upgrades : []
+  const upgrades = rawUpgrades.map((u) => migrateNode(u as Record<string, unknown>))
+  return { ...file, version: 2, upgrades }
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
- * version here (e.g. `if (version === 1) raw = migrateV1toV2(raw)`).
+ * version here.
  *
  * Returns the (possibly transformed) object for `TreeFileSchema` to validate.
  * Throws on a missing or unsupported version rather than guessing.
  */
 function migrateTreeFile(json: unknown): unknown {
-  const version = (json as { version?: unknown } | null)?.version
-  if (version === CURRENT_TREE_VERSION) return json
+  let raw = json
+  if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
+  const version = (raw as { version?: unknown } | null)?.version
+  if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(
     `Unsupported tree file version: ${String(version)} (expected ${String(CURRENT_TREE_VERSION)})`,
   )
