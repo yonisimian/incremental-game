@@ -10,20 +10,17 @@ const fixed: UpgradeDefinition = {
   id: 'f',
   cost: { r0: 10 },
   purchaseLimit: 5,
-  modifiers: [],
 }
 const linear: UpgradeDefinition = {
   id: 'l',
   cost: { r0: 5 },
   purchaseLimit: 5,
-  modifiers: [],
   costScaling: { type: 'linear', baseCost: 5, factor: 2 },
 }
 const expo: UpgradeDefinition = {
   id: 'e',
   cost: { r0: 3 },
   purchaseLimit: 5,
-  modifiers: [],
   costScaling: { type: 'exponential', baseCost: 3, factor: 2 },
 }
 
@@ -50,7 +47,6 @@ describe('upgrade costs', () => {
       id: 'z',
       cost: { r0: 8 },
       purchaseLimit: 5,
-      modifiers: [],
       costScaling: { type: 'linear', baseCost: 0, factor: 2 },
     }
     expect(getUpgradeNextCost(zeroBase, 0)).toEqual({ r0: 8 })

@@ -14,7 +14,7 @@ import {
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
 import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
 import { enemyDataResourceKey } from '../effects/index.js'
-import type { EffectOutput } from '../effects/index.js'
+import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
 import { anyOwned, panelGateUpgrades, systemGateUpgrades } from '../unlock-gates.js'
 
 export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
@@ -343,29 +343,6 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     generatorModifiers.set(gen.id, { additive: 0, multiplicative: 1 })
   }
 
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned <= 0) continue
-
-    for (const mod of upgrade.modifiers) {
-      if (generatorIds.has(mod.field)) {
-        // Generator-targeted modifier: accumulate for later application.
-        // Additive value is per-generator-unit (multiplied by owned count below).
-        const genState = generatorModifiers.get(mod.field)!
-        if (mod.stage === 'additive') {
-          genState.additive += mod.value * owned
-        } else if (mod.stage === 'multiplicative') {
-          genState.multiplicative *= mod.value ** owned
-        }
-      } else {
-        // Additive bonuses scale linearly with owned count; multiplicative and
-        // global factors compound (value ** owned), matching the generator path.
-        const value = mod.stage === 'additive' ? mod.value * owned : mod.value ** owned
-        modifiers.push({ stage: mod.stage, field: mod.field, value })
-      }
-    }
-  }
-
   // Route a single state-derived modifier: generator-targeted ones accumulate
   // into the per-generator totals; everything else is pushed directly.
   const routeModifier = (mod: Modifier): void => {
@@ -378,11 +355,38 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
-  // Route an effect's outputs: production `Modifier`s feed the pipeline;
-  // cost-track outputs (`GeneratorCostOutput`) belong to a different subsystem
-  // (`collectGeneratorCostFactors`) and are ignored here.
-  const routeEffect = (out: EffectOutput | readonly EffectOutput[] | null): void => {
-    for (const o of normalizeEffectOutputs(out)) if ('stage' in o) routeModifier(o)
+  // Route a `baseModifier` output with the owning upgrade's owned-count
+  // compounding: additive scales linearly (× owned), multiplicative/global
+  // compound (^ owned). Generator-targeted bonuses feed the per-generator
+  // accumulator (additive per-unit × owned, applied again per generator below);
+  // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
+  // `modifiers` array exactly.
+  const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
+    if (generatorIds.has(o.field)) {
+      const genState = generatorModifiers.get(o.field)!
+      if (o.stage === 'additive') genState.additive += o.value * owned
+      else if (o.stage === 'multiplicative') genState.multiplicative *= o.value ** owned
+    } else {
+      const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
+      modifiers.push({ stage: o.stage, field: o.field, value })
+    }
+  }
+
+  // Route an effect's outputs. Production `Modifier`s feed the pipeline verbatim;
+  // `baseModifier`s feed it with owned-count compounding (only when an owning
+  // upgrade count is supplied). Cost-track outputs (`GeneratorCostOutput`) and
+  // the unlock outputs belong to other subsystems and are ignored here.
+  const routeEffect = (
+    out: EffectOutput | readonly EffectOutput[] | null,
+    owned?: number,
+  ): void => {
+    for (const o of normalizeEffectOutputs(out)) {
+      if ('kind' in o && o.kind === 'baseModifier') {
+        if (owned !== undefined) routeBaseModifier(o, owned)
+      } else if ('stage' in o) {
+        routeModifier(o)
+      }
+    }
   }
 
   // Mode-level effects — state-derived modifiers applied to every player.
@@ -390,11 +394,13 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     routeEffect(applyEffect(ref, state, mode))
   }
 
-  // Upgrade-level effects — per-upgrade state-derived bonuses (owned upgrades only).
+  // Upgrade-level effects — per-upgrade bonuses (owned upgrades only). `owned`
+  // drives `baseModifier` compounding; state-derived effects ignore it.
   for (const upgrade of mode.upgrades) {
-    if ((state.upgrades[upgrade.id] ?? 0) <= 0) continue
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned <= 0) continue
     for (const ref of upgrade.effects ?? []) {
-      routeEffect(applyEffect(ref, state, mode))
+      routeEffect(applyEffect(ref, state, mode), owned)
     }
   }
 

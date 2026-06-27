@@ -6,7 +6,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 1
+export const CURRENT_TREE_VERSION = 2
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -114,7 +114,6 @@ const UpgradeNodeSchema = z.strictObject({
   costScaling: CostScalingSchema.optional(),
   /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
   purchaseLimit: z.number().nullable(),
-  modifiers: z.array(ModifierSchema),
   choiceGroup: z.string().optional(),
   choiceLabel: z.string().optional(),
   prerequisites: PrerequisiteSchema.optional(),

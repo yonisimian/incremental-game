@@ -23,6 +23,9 @@ const object = (shape: Record<string, SchemaNode>): SchemaNode => ({
   def: { type: 'object', shape },
 })
 const union = (...options: SchemaNode[]): SchemaNode => ({ def: { type: 'union', options } })
+const enumOf = (...values: string[]): SchemaNode => ({
+  def: { type: 'enum', entries: Object.fromEntries(values.map((v) => [v, v])) },
+})
 
 describe('describeEffectSchema', () => {
   it('describes a flat object of scalar fields', () => {
@@ -63,11 +66,41 @@ describe('describeEffectSchema', () => {
     expect(() => describeEffectSchema(number)).toThrow(UnsupportedEffectSchemaError)
   })
 
+  it('describes an enum field as a string picker defaulting to its first member', () => {
+    const spec = describeEffectSchema(
+      object({ stage: enumOf('additive', 'multiplicative', 'global') }),
+    )
+    expect(spec.variants[0].fields).toEqual([
+      {
+        key: 'stage',
+        kind: 'string',
+        optional: false,
+        defaultValue: 'additive',
+        options: ['additive', 'multiplicative', 'global'],
+      },
+    ])
+  })
+
   it('describes the registered highlightMultiplier effect', () => {
     const def = resolveEffect('highlightMultiplier')!
     const spec = describeEffectSchema(def.schema)
     expect(spec.variants).toHaveLength(1)
     expect(spec.variants[0].fields.map((f) => f.key)).toEqual(['multiplier'])
+  })
+
+  it('describes the registered baseModifier effect (enum stage + scalar fields)', () => {
+    const def = resolveEffect('baseModifier')!
+    const spec = describeEffectSchema(def.schema)
+    expect(spec.variants).toHaveLength(1)
+    const fields = spec.variants[0].fields
+    expect(fields.map((f) => f.key)).toEqual(['stage', 'field', 'value'])
+    expect(fields[0]).toEqual({
+      key: 'stage',
+      kind: 'string',
+      optional: false,
+      defaultValue: 'additive',
+      options: ['additive', 'multiplicative', 'global'],
+    })
   })
 })
 

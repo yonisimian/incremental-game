@@ -158,7 +158,6 @@ describe('validateUpgradePrerequisites', () => {
       id,
       cost: { r0: 0 },
       purchaseLimit: 1,
-      modifiers: [],
       prerequisites,
     }
   }
