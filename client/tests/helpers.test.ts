@@ -31,9 +31,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     opponent: {
       score: 0,
       resources: {},
-      upgrades: {},
-      generators: {},
-      meta: {},
+      rates: {},
     },
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

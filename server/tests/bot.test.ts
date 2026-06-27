@@ -190,7 +190,10 @@ describe('Bot', () => {
     })
 
     it('bot earns score over time in idler mode', () => {
-      const m = createBotMatch('idler')
+      // Timed goal so the bot's (opponent's) score is broadcast — it's hidden
+      // under the default buy-upgrade goal.
+      const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
+      const m = createBotMatch('idler', undefined, timedGoal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
 

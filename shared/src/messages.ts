@@ -87,6 +87,25 @@ export type ClientMessage =
 
 // ─── Server → Client ────────────────────────────────────────────────
 
+/**
+ * A redacted projection of the opponent's state — only the intel the receiving
+ * player has unlocked. Unlike `PlayerState`, the opponent's upgrades, generators,
+ * and meta are never sent (so they can't be read in devtools); each broadcast
+ * carries only the values the viewer's `accessEnemyData` upgrades grant.
+ */
+export interface OpponentView {
+  /**
+   * The opponent's score. Public for timed / target-score goals (the win
+   * condition, shown live); omitted for `buy-upgrade`, where score is neither
+   * the win condition nor displayed.
+   */
+  score?: number
+  /** Opponent stockpiles, keyed by resource — only keys the viewer has unlocked. */
+  resources: Record<string, number>
+  /** Opponent per-second production, keyed by resource — only unlocked keys. */
+  rates: Record<string, number>
+}
+
 /** Periodic authoritative state snapshot. */
 export interface StateUpdateMessage {
   type: 'STATE_UPDATE'
@@ -96,8 +115,8 @@ export interface StateUpdateMessage {
   ackSeq: number
   /** The receiving player's own state. */
   player: PlayerState
-  /** The opponent's state (full visibility). */
-  opponent: PlayerState
+  /** A redacted view of the opponent — only the intel the viewer has unlocked. */
+  opponent: OpponentView
   /** Seconds remaining in the round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -129,7 +148,11 @@ export interface RoundEndMessage {
   type: 'ROUND_END'
   winner: MatchWinner
   reason: RoundEndReason
-  finalScores: { player: number; opponent: number }
+  /**
+   * Final scores. `opponent` is omitted for `buy-upgrade` goals, where the
+   * opponent's score is irrelevant to the result and never revealed.
+   */
+  finalScores: { player: number; opponent?: number }
   stats: {
     totalClicks: number
     peakCps: number
