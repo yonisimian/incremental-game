@@ -8,9 +8,10 @@ import { readSourceValue } from '../addressable.js'
 /**
  * Schema for the `relativeModifier` effect's params.
  *
- * The data-driven generalization of `peakCpsClickBonus`: read a scalar from
- * `source` (a state field — see the addressable-field catalog), scale it by
- * `factor`, and contribute it to `field` at the given pipeline `stage`.
+ * A state-relative production bonus: read a scalar from `source` (a state field
+ * — see the addressable-field catalog), scale it by `factor`, and contribute it
+ * to `field` at the given pipeline `stage`. (E.g. "add peak CPS to click income"
+ * or "+1% rate per 1000 of a resource held".)
  *
  * `source` is a namespaced key (`resource:r0` = a stockpile, `meta:peakCps` =
  * live peak CPS). `field` is a `Modifier` target (`clickIncome`,
@@ -19,7 +20,7 @@ import { readSourceValue } from '../addressable.js'
  *
  * Because it returns a raw {@link Modifier} (not a `baseModifier` output), the
  * value is applied verbatim — it does *not* compound with the owning upgrade's
- * owned count, matching `peakCpsClickBonus`.
+ * owned count.
  */
 const schema = z.strictObject({
   source: z.string(),
@@ -35,9 +36,8 @@ export type RelativeModifierParams = z.infer<typeof schema>
  * Reads `source` from state and emits a modifier on `field`. For `additive` the
  * value is `source × factor`; for `multiplicative`/`global` it's `1 + source ×
  * factor` (so a source of 0 is a no-op rather than zeroing income). Inactive
- * (returns `null`) when the source is non-positive or unrecognized — the same
- * guard `peakCpsClickBonus` uses, which also keeps a 0 source from neutralizing
- * a multiplicative target.
+ * (returns `null`) when the source is non-positive or unrecognized — which also
+ * keeps a 0 source from neutralizing a multiplicative target.
  */
 function apply(p: RelativeModifierParams, state: Readonly<PlayerState>): Modifier | null {
   const v = readSourceValue(p.source, state)

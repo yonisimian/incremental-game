@@ -8,7 +8,6 @@ import { generatorUnlock } from './seed/generator-unlock.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { panelUnlock } from './seed/panel-unlock.js'
-import { peakCpsClickBonus } from './seed/peak-cps-click-bonus.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { systemUnlock } from './seed/system-unlock.js'
 import { unlockAttack } from './seed/unlock-attack.js'
@@ -24,7 +23,6 @@ registerEffect('panelUnlock', panelUnlock)
 registerEffect('generatorUnlock', generatorUnlock)
 registerEffect('systemUnlock', systemUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
-registerEffect('peakCpsClickBonus', peakCpsClickBonus)
 registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
 
@@ -62,7 +60,6 @@ export {
   enemyDataKeysFor,
   enemyDataResourceKey,
 } from './seed/access-enemy-data.js'
-export type { PeakCpsClickBonusParams } from './seed/peak-cps-click-bonus.js'
 export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
