@@ -144,34 +144,15 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
   const nonResourceIntel = new Set(NON_RESOURCE_INTEL_KEYS)
-  const referencedIntel = new Set<string>()
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
       if (ref.type !== 'accessEnemyData') continue
       const target = ref.data
-      if (typeof target === 'string' && nonResourceIntel.has(target)) {
-        referencedIntel.add(target) // non-resource intel — display data lives in flavor.intel
-        continue
-      }
+      if (typeof target === 'string' && nonResourceIntel.has(target)) continue // non-resource intel
       if (typeof target === 'string' && !resourceKeys.has(enemyDataResourceKey(target)))
         throw new Error(
           `[${id}] upgrade '${u.id}' accessEnemyData effect references unknown resource '${target}'`,
         )
-    }
-  }
-
-  // Every non-resource intel key an upgrade reveals must have display data in
-  // each flavor (mirrors the resource/upgrade/generator flavor checks), and no
-  // flavor may carry an intel entry for an unknown key.
-  for (const f of def.flavors) {
-    const flavorIntel = new Set(f.intel.map((i) => i.key))
-    for (const key of referencedIntel) {
-      if (!flavorIntel.has(key))
-        throw new Error(`[${id}] flavor '${f.id}': missing intel flavor for '${key}'`)
-    }
-    for (const i of f.intel) {
-      if (!nonResourceIntel.has(i.key))
-        throw new Error(`[${id}] flavor '${f.id}': references unknown intel key '${i.key}'`)
     }
   }
 

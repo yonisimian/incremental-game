@@ -464,8 +464,8 @@ describe('Match', () => {
       // Accumulate 5 r0 at base 1/sec (no highlight yet), then buy 'sh-unlock'
       vi.advanceTimersByTime(5000)
       m.handleMessage('p1', buyMsg('sh-unlock', 1))
-        ; (ws1.send as ReturnType<typeof vi.fn>).mockClear()
-        ; (ws2.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws2.send as ReturnType<typeof vi.fn>).mockClear()
       return m
     }
 
@@ -498,7 +498,7 @@ describe('Match', () => {
       // than absolute balances. Without highlight unlock: both at base 1/sec.
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const before = latestUpdate(ws1)
-        ; (ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const after = latestUpdate(ws1)
       expect(after.player.resources.r0 - before.player.resources.r0).toBeCloseTo(1, 1)
@@ -510,7 +510,7 @@ describe('Match', () => {
       // Get a baseline by advancing one broadcast interval
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const before = latestUpdate(ws1)
-        ; (ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const after = latestUpdate(ws1)
       // Default highlight=r0 → r0 gains ~2/sec, r1 gains ~1/sec
@@ -535,7 +535,7 @@ describe('Match', () => {
       // Snapshot state after switch
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const before = latestUpdate(ws1)
-        ; (ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const after = latestUpdate(ws1)
       // r0 at 1/sec (not highlighted), r1 at 2/sec (highlighted)
@@ -550,7 +550,7 @@ describe('Match', () => {
       // Wait for enough r0 (u1 costs 25 r0) at 2/sec (highlighted)
       vi.advanceTimersByTime(13_000) // ~26 r0
       m.handleMessage('p1', buyMsg('u1', 2))
-        ; (ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
       vi.advanceTimersByTime(1000)
       const u = latestUpdate(ws1)
       // Base r0 = 1 + 5(HL) = 6, highlighted x2 = 12/sec

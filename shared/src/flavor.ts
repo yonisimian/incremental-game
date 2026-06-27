@@ -32,8 +32,6 @@ const generatorIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
-const intelNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
-const intelIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 
 function getOrBuild<K extends object>(
   wm: WeakMap<K, Map<string, string>>,
@@ -172,28 +170,4 @@ export function getAttackDescription(flavor: ModeFlavor, id: string): string {
   const v = m.get(id)
   if (v === undefined) warnMissing('attack description', id)
   return v ?? ''
-}
-
-/** Return the display name for a non-resource intel key within the given flavor. */
-export function getIntelName(flavor: ModeFlavor, key: string): string {
-  const m = getOrBuild(
-    intelNameCache,
-    flavor,
-    () => new Map(flavor.intel.map((i) => [i.key, i.displayName])),
-  )
-  const v = m.get(key)
-  if (v === undefined) warnMissing('intel name', key)
-  return v ?? key
-}
-
-/** Return the display icon for a non-resource intel key within the given flavor. */
-export function getIntelIcon(flavor: ModeFlavor, key: string): string {
-  const m = getOrBuild(
-    intelIconCache,
-    flavor,
-    () => new Map(flavor.intel.map((i) => [i.key, i.icon])),
-  )
-  const v = m.get(key)
-  if (v === undefined) warnMissing('intel icon', key)
-  return v ?? key
 }

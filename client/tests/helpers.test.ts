@@ -246,7 +246,6 @@ describe('formatUpgradesPurchased', () => {
     ],
     generators: [],
     attacks: [],
-    intel: [],
   }
 
   it('returns "none" for an empty list', () => {

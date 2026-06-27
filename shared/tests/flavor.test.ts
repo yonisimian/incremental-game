@@ -96,7 +96,6 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
         upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
         generators: [],
         attacks: [],
-        intel: [],
       },
     ],
   }
@@ -238,7 +237,6 @@ describe('validateModeDefinition — negative tests', () => {
           upgrades: [{ id: 'u0', name: 'Axe', icon: '🪓', description: 'chop' }],
           generators: [],
           attacks: [],
-          intel: [],
         },
         {
           id: 'scifi',
@@ -250,7 +248,6 @@ describe('validateModeDefinition — negative tests', () => {
           upgrades: [{ id: 'u0', name: 'Laser', icon: '🔫', description: 'zap' }],
           generators: [],
           attacks: [],
-          intel: [],
         },
       ],
     })
@@ -506,7 +503,6 @@ function makeFlavor(): ModeFlavor {
       { id: 'a0', name: 'Raid', icon: '⚔️', description: 'A raid' },
       { id: 'a1', name: 'Siege', icon: '🏰', description: 'A siege' },
     ],
-    intel: [],
   }
 }
 

@@ -4,8 +4,6 @@ import { formatNumber } from '../format-number.js'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
-  getIntelIcon,
-  getIntelName,
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
@@ -84,15 +82,19 @@ function renderResources(
   `
 }
 
-/** Peak clicks-per-second, unlocked via `accessEnemyData: cps`. */
-function renderActivity(state: Readonly<GameState>, flavor: ModeFlavor): string {
+/**
+ * Peak clicks-per-second, unlocked via `accessEnemyData: peakCps`. The label is
+ * hardcoded (not flavor-derived) because CPS is a real, flavor-independent
+ * metric — unlike resources, it carries no themed name/icon.
+ */
+function renderActivity(state: Readonly<GameState>): string {
   return `
     <section class="espionage-section">
       <h3 class="espionage-heading">Enemy Activity</h3>
       <table class="espionage-table">
         <tbody>
           <tr>
-            <td class="espionage-res-name">${getIntelIcon(flavor, ENEMY_DATA_CPS_KEY)} ${getIntelName(flavor, ENEMY_DATA_CPS_KEY)}</td>
+            <td class="espionage-res-name">🖱️ Max CPS</td>
             <td class="espionage-res-value">${formatNumber(state.opponent.peakCps ?? 0)}</td>
           </tr>
         </tbody>
@@ -120,10 +122,11 @@ function renderEspionage(state: Readonly<GameState>): string {
   // Stockpiles and per-second rates are projected by the server into the
   // redacted opponent view — only the keys this viewer has unlocked are present
   // (the opponent's full state is never sent), so we read them directly.
-  const flavor = getModeFlavor(modeDef)
   const resources =
-    rows.length > 0 ? renderResources(state, flavor, rows, state.opponent.rates) : ''
-  return `${resources}${cps ? renderActivity(state, flavor) : ''}`
+    rows.length > 0
+      ? renderResources(state, getModeFlavor(modeDef), rows, state.opponent.rates)
+      : ''
+  return `${resources}${cps ? renderActivity(state) : ''}`
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────

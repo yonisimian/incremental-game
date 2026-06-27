@@ -17,7 +17,6 @@ import {
 } from '../src/index.js'
 import type {
   EffectRef,
-  IntelFlavor,
   Modifier,
   ModeDefinition,
   PlayerState,
@@ -763,8 +762,8 @@ describe('relativeModifier mode validation', () => {
 describe('accessEnemyData mode validation', () => {
   // Build an idler variant whose extra upgrade reveals `data`, with a matching
   // flavor upgrade entry so flavor validation doesn't trip before the intel
-  // checks. `intel` overrides every flavor's intel list when provided.
-  function withAccess(data: string, intel?: IntelFlavor[]): ModeDefinition {
+  // checks.
+  function withAccess(data: string): ModeDefinition {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uIntel',
@@ -775,7 +774,6 @@ describe('accessEnemyData mode validation', () => {
     const flavors = base.flavors.map((f) => ({
       ...f,
       upgrades: [...f.upgrades, { id: 'uIntel', name: 'Intel', icon: '?', description: '' }],
-      intel: intel ?? f.intel,
     }))
     return { ...base, upgrades: [...base.upgrades, u], flavors }
   }
@@ -790,24 +788,6 @@ describe('accessEnemyData mode validation', () => {
     expect(() => {
       validateModeDefinition('idler', withAccess('r9'))
     }).toThrow(/unknown resource 'r9'/u)
-  })
-
-  it('throws when a referenced non-resource intel key has no flavor entry', () => {
-    expect(() => {
-      validateModeDefinition('idler', withAccess('peakCps', []))
-    }).toThrow(/missing intel flavor for 'peakCps'/u)
-  })
-
-  it('throws on an orphan intel flavor entry', () => {
-    // Keep the real peakCps entry (the base mode references it) so the missing
-    // check passes, leaving the orphan `bogus` entry as the sole failure.
-    const intel: IntelFlavor[] = [
-      { key: 'peakCps', displayName: 'Max CPS', icon: '🖱️' },
-      { key: 'bogus', displayName: 'X', icon: '?' },
-    ]
-    expect(() => {
-      validateModeDefinition('idler', withAccess('peakCps', intel))
-    }).toThrow(/unknown intel key 'bogus'/u)
   })
 
   it('throws if a resource key collides with a reserved intel key', () => {
