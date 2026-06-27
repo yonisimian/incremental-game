@@ -323,7 +323,7 @@ describe('validateModeDefinition — negative tests', () => {
 
   it('accepts an unlockAttack effect that references a defined attack', () => {
     const base = makeValidDef({
-      attacks: [{ id: 'a0' }],
+      attacks: [{ id: 'a0', kind: 'active' }],
       upgrades: [
         {
           id: 'u0',
@@ -343,7 +343,7 @@ describe('validateModeDefinition — negative tests', () => {
   })
 
   it('throws when a mechanical attack has no flavor entry', () => {
-    const def = makeValidDef({ attacks: [{ id: 'a0' }] })
+    const def = makeValidDef({ attacks: [{ id: 'a0', kind: 'active' }] })
     expect(() => {
       validateModeDefinition('test', def)
     }).toThrow(/missing flavor for attack 'a0'/)

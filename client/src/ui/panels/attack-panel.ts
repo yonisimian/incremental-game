@@ -24,11 +24,11 @@ function renderLocked(): string {
 }
 
 /**
- * The attacks the viewer has unlocked, shown as cards with their flavor (icon,
- * name, description). Attacks have no behavior yet, so each is a disabled, no-op
- * button — unlocking one only makes it appear here.
+ * One block of attacks (e.g. all active, or all passive), shown as cards with
+ * their flavor (icon, name, description). Attacks have no behavior yet, so each
+ * is a disabled, no-op button — unlocking one only makes it appear here.
  */
-function renderAttacks(flavor: ModeFlavor, attacks: readonly string[]): string {
+function renderSection(flavor: ModeFlavor, heading: string, attacks: readonly string[]): string {
   const items = attacks
     .map((id) => {
       const desc = getAttackDescription(flavor, id)
@@ -45,9 +45,8 @@ function renderAttacks(flavor: ModeFlavor, attacks: readonly string[]): string {
     .join('')
   return `
     <section class="attack-section">
-      <h3 class="attack-heading">Attacks</h3>
+      <h3 class="attack-heading">${heading}</h3>
       <ul class="attack-list">${items}</ul>
-      <p class="attack-hint">Attacks don't do anything yet.</p>
     </section>
   `
 }
@@ -55,8 +54,20 @@ function renderAttacks(flavor: ModeFlavor, attacks: readonly string[]): string {
 function renderAttack(state: Readonly<GameState>): string {
   if (!state.mode) return ''
   const modeDef = getModeDefinition(state.mode)
-  const attacks = unlockedAttacks(state.player, modeDef)
-  return attacks.length === 0 ? renderLocked() : renderAttacks(getModeFlavor(modeDef), attacks)
+  const unlocked = unlockedAttacks(state.player, modeDef)
+  if (unlocked.length === 0) return renderLocked()
+
+  // Split unlocked attacks into their kinds so each renders in its own block.
+  const kindOf = new Map(modeDef.attacks.map((a) => [a.id, a.kind]))
+  const active = unlocked.filter((id) => kindOf.get(id) === 'active')
+  const passive = unlocked.filter((id) => kindOf.get(id) === 'passive')
+
+  const flavor = getModeFlavor(modeDef)
+  return `
+    ${active.length > 0 ? renderSection(flavor, 'Active', active) : ''}
+    ${passive.length > 0 ? renderSection(flavor, 'Passive', passive) : ''}
+    <p class="attack-hint">Attacks don't do anything yet.</p>
+  `
 }
 
 /**

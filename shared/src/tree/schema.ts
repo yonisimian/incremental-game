@@ -70,8 +70,8 @@ const GeneratorSchema = z.strictObject({
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
-/** An attack — just a stable id for now (no behavior). Display data is its flavor. */
-const AttackSchema = z.strictObject({ id: z.string() })
+/** An attack — a stable id plus its kind (no behavior yet). Display data is its flavor. */
+const AttackSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
 
 // ─── Flavor schemas ──────────────────────────────────────────────────
 

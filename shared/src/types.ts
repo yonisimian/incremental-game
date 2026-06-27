@@ -93,13 +93,18 @@ export interface GeneratorDefinition {
   }
 }
 
+/** Whether an attack is triggered (`active`) or always-on (`passive`). */
+export type AttackKind = 'active' | 'passive'
+
 /**
  * Static definition of an attack. Attacks have no behavior yet — they only exist
  * to be unlocked (via an `unlockAttack` effect) and shown in the attack panel —
- * so an attack is just a stable id for now. Display data lives in `AttackFlavor`.
+ * so an attack is a stable id plus its kind for now. Display data lives in
+ * `AttackFlavor`. `kind` groups attacks into separate blocks in the panel.
  */
 export interface AttackDefinition {
   readonly id: string
+  readonly kind: AttackKind
 }
 
 /** Full state of a single player within a match. */

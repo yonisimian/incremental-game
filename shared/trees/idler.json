@@ -71,16 +71,20 @@
   ],
   "attacks": [
     {
-      "id": "a0"
+      "id": "a0",
+      "kind": "active"
     },
     {
-      "id": "a1"
+      "id": "a1",
+      "kind": "active"
     },
     {
-      "id": "a2"
+      "id": "a2",
+      "kind": "passive"
     },
     {
-      "id": "a3"
+      "id": "a3",
+      "kind": "passive"
     }
   ],
   "goals": [
