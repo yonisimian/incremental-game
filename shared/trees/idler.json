@@ -1723,6 +1723,12 @@
                 "type": "upgrade",
                 "id": "e-se-mr-ps"
               },
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "purchases"
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96

@@ -15,8 +15,10 @@ import {
   applyPurchase,
   applyGeneratorPurchase,
   hasEnemyDataAccess,
+  enemyDataAccessSince,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
+  ENEMY_DATA_PURCHASES_KEY,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -28,6 +30,7 @@ import type {
   ModeDefinition,
   OpponentView,
   PlayerAction,
+  PurchaseEvent,
   PlayerState,
   RoundEndReason,
   ServerMessage,
@@ -50,9 +53,22 @@ interface MatchPlayer {
     peakCps: number
     upgradesPurchased: string[]
   }
+  /**
+   * Full purchase log (oldest first) for the espionage feed. Records every
+   * upgrade/generator buy with round-elapsed time, kind, and abstract id; the
+   * opponent view redacts detail by intel tier (see {@link opponentViewFor}).
+   */
+  purchases: PurchaseEvent[]
 }
 
 type MatchPhase = 'countdown' | 'playing' | 'ended'
+
+/**
+ * Most recent purchases retained per player for the espionage feed. The log is
+ * re-sent in full each broadcast, so this bounds the per-tick payload; older
+ * events scroll off.
+ */
+const PURCHASE_LOG_CAP = 25
 
 // ─── Match ───────────────────────────────────────────────────────────
 
@@ -240,6 +256,7 @@ export class Match {
       ackSeq: 0,
       recentClickTimestamps: [],
       stats: { totalClicks: 0, peakCps: 0, upgradesPurchased: [] },
+      purchases: [],
     }
   }
 
@@ -334,6 +351,7 @@ export class Match {
       } else if (action.type === 'buy_generator' && action.generatorId) {
         if (!isValidGeneratorPurchase(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
+        this.recordPurchase(player, 'generator', action.generatorId)
       }
     }
     player.ackSeq = seq
@@ -441,6 +459,21 @@ export class Match {
   private applyPurchase(player: MatchPlayer, upgradeId: string): void {
     applyPurchase(player.state, upgradeId, this.modeDef)
     player.stats.upgradesPurchased.push(upgradeId)
+    this.recordPurchase(player, 'upgrade', upgradeId)
+  }
+
+  /**
+   * Append a purchase to the player's espionage log, stamped with round-elapsed
+   * game seconds (`meta.gameSec`, the same clock `purchasedAt` uses). The full
+   * event (kind + abstract id) is kept; `opponentViewFor` redacts it per the
+   * viewer's intel tier. Capped to the most recent {@link PURCHASE_LOG_CAP}.
+   */
+  private recordPurchase(player: MatchPlayer, kind: 'upgrade' | 'generator', id: string): void {
+    const t = (player.state.meta.gameSec as number | undefined) ?? 0
+    player.purchases.push({ t, kind, id })
+    if (player.purchases.length > PURCHASE_LOG_CAP) {
+      player.purchases.splice(0, player.purchases.length - PURCHASE_LOG_CAP)
+    }
   }
 
   // ─── Private: broadcasting ─────────────────────────────────────────
@@ -500,6 +533,17 @@ export class Match {
     if (hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_CPS_KEY)) {
       const cps = opponent.state.meta.peakCps
       view.peakCps = typeof cps === 'number' ? cps : 0
+    }
+
+    const purchasesSince = enemyDataAccessSince(viewer.state, mode, ENEMY_DATA_PURCHASES_KEY)
+    if (purchasesSince !== null) {
+      // Reveal only purchases made at/after the viewer unlocked the feed — no
+      // retroactive exposure of the opponent's earlier buys. Base tier reveals
+      // only that a purchase happened and when; strip kind/id so the opponent's
+      // tree stays hidden (planned deeper tiers will project those fields).
+      view.purchases = opponent.purchases
+        .filter((p) => p.t >= purchasesSince)
+        .map((p) => ({ t: p.t }))
     }
 
     return view

@@ -1,9 +1,11 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
+import { formatTime } from '../helpers.js'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
+  ENEMY_DATA_PURCHASES_KEY,
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
@@ -103,6 +105,37 @@ function renderActivity(state: Readonly<GameState>): string {
   `
 }
 
+/**
+ * Feed of the opponent's recent purchases, unlocked via `accessEnemyData:
+ * purchases`. The base tier reveals only that a purchase happened and when, so
+ * each row is generic ("made a purchase") stamped with the round time. Newest
+ * first. Deeper espionage tiers (planned) will name what was bought.
+ */
+function renderPurchases(state: Readonly<GameState>): string {
+  const purchases = state.opponent.purchases ?? []
+  const body =
+    purchases.length === 0
+      ? `<p class="espionage-feed-empty">No purchases observed yet.</p>`
+      : purchases
+          .slice()
+          .reverse()
+          .map(
+            (p) => `
+              <li class="espionage-feed-item">
+                <span class="espionage-feed-time">${formatTime(p.t)}</span>
+                <span class="espionage-feed-text">🛒 Enemy made a purchase</span>
+              </li>
+            `,
+          )
+          .join('')
+  return `
+    <section class="espionage-section">
+      <h3 class="espionage-heading">Recent Purchases</h3>
+      <ul class="espionage-feed">${body}</ul>
+    </section>
+  `
+}
+
 function renderEspionage(state: Readonly<GameState>): string {
   if (!state.mode) return ''
   const modeDef = getModeDefinition(state.mode)
@@ -118,7 +151,8 @@ function renderEspionage(state: Readonly<GameState>): string {
     })
     .filter((r) => r.amount || r.rate)
   const cps = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_CPS_KEY)
-  if (rows.length === 0 && !cps) return renderLocked()
+  const purchases = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_PURCHASES_KEY)
+  if (rows.length === 0 && !cps && !purchases) return renderLocked()
   // Stockpiles and per-second rates are projected by the server into the
   // redacted opponent view — only the keys this viewer has unlocked are present
   // (the opponent's full state is never sent), so we read them directly.
@@ -126,7 +160,7 @@ function renderEspionage(state: Readonly<GameState>): string {
     rows.length > 0
       ? renderResources(state, getModeFlavor(modeDef), rows, state.opponent.rates)
       : ''
-  return `${resources}${cps ? renderActivity(state) : ''}`
+  return `${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state) : ''}`
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────

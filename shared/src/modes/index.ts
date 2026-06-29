@@ -412,6 +412,32 @@ export function hasEnemyDataAccess(
   return grants.some((id) => (state.upgrades[id] ?? 0) > 0)
 }
 
+/**
+ * The game-time (seconds, `meta.gameSec`) at which `state` first gained access to
+ * `dataKey` — the earliest `purchasedAt` over the owned upgrades that grant it —
+ * or `null` if the viewer has no access. Lets a consumer reveal only intel
+ * produced *after* the unlock; the espionage purchase feed uses it so unlocking
+ * mid-round doesn't retroactively expose the opponent's earlier purchases. Both
+ * players' `gameSec` advance in lockstep each tick, so this is directly
+ * comparable to an opponent event's timestamp.
+ */
+export function enemyDataAccessSince(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  dataKey: string,
+): number | null {
+  const grants = getEnemyDataGateIndex(mode).get(dataKey)
+  if (!grants) return null
+  const purchasedAt = (state.meta.purchasedAt as Record<string, number> | undefined) ?? {}
+  let since: number | null = null
+  for (const id of grants) {
+    if ((state.upgrades[id] ?? 0) <= 0) continue
+    const t = purchasedAt[id] ?? 0
+    if (since === null || t < since) since = t
+  }
+  return since
+}
+
 // ─── Modifier Collection ─────────────────────────────────────────────
 
 /**
