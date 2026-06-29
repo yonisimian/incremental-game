@@ -103,6 +103,21 @@ export interface AttackDefinition {
   readonly kind: AttackKind
 }
 
+/** Whether a pact is actively maintained (`active`) or always-on (`passive`). */
+export type PactKind = 'active' | 'passive'
+
+/**
+ * Static definition of a pact. Pacts have no behavior yet — they only exist to
+ * be unlocked (via an `unlockPact` effect) and shown in the international
+ * relationship panel — so a pact is a stable id plus its kind for now. Display
+ * data lives in `PactFlavor`. `kind` groups pacts into separate blocks in the
+ * panel.
+ */
+export interface PactDefinition {
+  readonly id: string
+  readonly kind: PactKind
+}
+
 /** Full state of a single player within a match. */
 export interface PlayerState {
   /** Total score. */

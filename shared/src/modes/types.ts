@@ -4,6 +4,7 @@ import type {
   EffectRef,
   Goal,
   GeneratorDefinition,
+  PactDefinition,
   UpgradeDefinition,
 } from '../types.js'
 
@@ -55,6 +56,18 @@ export interface AttackFlavor {
   readonly description: string
 }
 
+/** Display metadata for a single pact. */
+export interface PactFlavor {
+  /** Pact id (matches PactDefinition.id). */
+  readonly id: string
+  /** Display name (e.g. 'Trade Agreement'). */
+  readonly name: string
+  /** Display icon (e.g. '🤝'). */
+  readonly icon: string
+  /** Display description (shown under the pact in the panel). */
+  readonly description: string
+}
+
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
@@ -75,6 +88,8 @@ export interface ModeFlavor {
   readonly generators: readonly GeneratorFlavor[]
   /** Attack display data, looked up by id via helpers. */
   readonly attacks: readonly AttackFlavor[]
+  /** Pact display data, looked up by id via helpers. */
+  readonly pacts: readonly PactFlavor[]
 }
 
 // ─── Mode Definition ─────────────────────────────────────────────────
@@ -103,6 +118,8 @@ export interface ModeDefinition {
   readonly generators: readonly GeneratorDefinition[]
   /** Attacks available in this mode (may be empty). No behavior yet — unlock-gated. */
   readonly attacks: readonly AttackDefinition[]
+  /** Pacts available in this mode (may be empty). No behavior yet — unlock-gated. */
+  readonly pacts: readonly PactDefinition[]
   /**
    * Declarative, state-derived effects applied to every player in this mode.
    * Each ref names a registered effect plus its params (see `shared/src/effects`).

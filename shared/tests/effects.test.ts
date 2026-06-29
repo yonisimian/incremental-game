@@ -9,10 +9,12 @@ import {
   createInitialState,
   getModeDefinition,
   isAttackUnlocked,
+  isPactUnlocked,
   listEffectTypes,
   registerEffect,
   resolveEffect,
   unlockedAttacks,
+  unlockedPacts,
   validateModeDefinition,
 } from '../src/index.js'
 import type {
@@ -63,6 +65,7 @@ describe('effect registry', () => {
       'relativeModifier',
       'systemUnlock',
       'unlockAttack',
+      'unlockPact',
     ])
   })
 })
@@ -509,6 +512,55 @@ describe('unlockAttack effect', () => {
   it('reports an attack no upgrade names as locked', () => {
     const mode = getModeDefinition('idler')
     expect(isAttackUnlocked(createInitialState(mode), mode, 'nope')).toBe(false)
+  })
+})
+
+describe('unlockPact effect', () => {
+  /** Extend idler with an upgrade whose `unlockPact` effect names `pactId`. */
+  function modeWithPactUpgrade(upgradeId: string, pactId: string): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const upgrade: UpgradeDefinition = {
+      id: upgradeId,
+      cost: { r0: 10 },
+      purchaseLimit: 1,
+      effects: [{ type: 'unlockPact', pact: pactId }],
+    }
+    return { ...base, upgrades: [...base.upgrades, upgrade] }
+  }
+
+  it('emits a pactUnlock output naming the pact', () => {
+    const mode = getModeDefinition('idler')
+    expect(applyEffect({ type: 'unlockPact', pact: 'p0' }, createInitialState(mode), mode)).toEqual(
+      { kind: 'pactUnlock', pact: 'p0' },
+    )
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const base = getModeDefinition('idler')
+    const withEffect: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'unlockPact', pact: 'p0' }],
+    }
+    const state = createInitialState(withEffect)
+    expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
+  })
+
+  it('gates the pact on owning the unlocking upgrade (hidden by default)', () => {
+    const mode = modeWithPactUpgrade('pact-unlock', 'p0')
+
+    const locked = createInitialState(mode)
+    expect(isPactUnlocked(locked, mode, 'p0')).toBe(false)
+    expect(unlockedPacts(locked, mode)).toEqual([])
+
+    const unlocked = createInitialState(mode)
+    unlocked.upgrades['pact-unlock'] = 1
+    expect(isPactUnlocked(unlocked, mode, 'p0')).toBe(true)
+    expect(unlockedPacts(unlocked, mode)).toEqual(['p0'])
+  })
+
+  it('reports a pact no upgrade names as locked', () => {
+    const mode = getModeDefinition('idler')
+    expect(isPactUnlocked(createInitialState(mode), mode, 'nope')).toBe(false)
   })
 })
 

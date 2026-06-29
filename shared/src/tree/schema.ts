@@ -73,6 +73,9 @@ const GeneratorSchema = z.strictObject({
 /** An attack — a stable id plus its kind (no behavior yet). Display data is its flavor. */
 const AttackSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
 
+/** A pact — a stable id plus its kind (no behavior yet). Display data is its flavor. */
+const PactSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
+
 // ─── Flavor schemas ──────────────────────────────────────────────────
 
 const ResourceFlavorSchema = z.strictObject({
@@ -98,6 +101,13 @@ const AttackFlavorSchema = z.strictObject({
   description: z.string(),
 })
 
+const PactFlavorSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  icon: z.string(),
+  description: z.string(),
+})
+
 const ModeFlavorSchema = z.strictObject({
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
   id: z.string(),
@@ -110,6 +120,8 @@ const ModeFlavorSchema = z.strictObject({
   generators: z.array(GeneratorFlavorSchema),
   /** Attack display data. Optional in the file (defaults to none) for back-compat. */
   attacks: z.array(AttackFlavorSchema).default([]),
+  /** Pact display data. Optional in the file (defaults to none) for back-compat. */
+  pacts: z.array(PactFlavorSchema).default([]),
 })
 
 // ─── Upgrade tree node (serializable authoring form) ─────────────────
@@ -160,6 +172,8 @@ export const TreeFileSchema = z.strictObject({
   generators: z.array(GeneratorSchema),
   /** Attacks available in this mode. Optional in the file (defaults to none). */
   attacks: z.array(AttackSchema).default([]),
+  /** Pacts available in this mode. Optional in the file (defaults to none). */
+  pacts: z.array(PactSchema).default([]),
   goals: z.array(GoalSchema),
   /**
    * Cosmetic skins for this mode (at least one). Mechanics are keyed by stable

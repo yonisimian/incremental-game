@@ -246,6 +246,7 @@ describe('formatUpgradesPurchased', () => {
     ],
     generators: [],
     attacks: [],
+    pacts: [],
   }
 
   it('returns "none" for an empty list', () => {

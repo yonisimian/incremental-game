@@ -32,6 +32,9 @@ const generatorIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const attackDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const pactNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const pactIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const pactDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
 
 function getOrBuild<K extends object>(
   wm: WeakMap<K, Map<string, string>>,
@@ -169,5 +172,41 @@ export function getAttackDescription(flavor: ModeFlavor, id: string): string {
   )
   const v = m.get(id)
   if (v === undefined) warnMissing('attack description', id)
+  return v ?? ''
+}
+
+/** Return the display name for a pact id within the given flavor. */
+export function getPactName(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    pactNameCache,
+    flavor,
+    () => new Map(flavor.pacts.map((p) => [p.id, p.name])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('pact name', id)
+  return v ?? id
+}
+
+/** Return the display icon for a pact id within the given flavor. */
+export function getPactIcon(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    pactIconCache,
+    flavor,
+    () => new Map(flavor.pacts.map((p) => [p.id, p.icon])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('pact icon', id)
+  return v ?? id
+}
+
+/** Return the display description for a pact id within the given flavor. */
+export function getPactDescription(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    pactDescCache,
+    flavor,
+    () => new Map(flavor.pacts.map((p) => [p.id, p.description])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('pact description', id)
   return v ?? ''
 }

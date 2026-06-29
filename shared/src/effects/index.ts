@@ -11,6 +11,7 @@ import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { systemUnlock } from './seed/system-unlock.js'
 import { unlockAttack } from './seed/unlock-attack.js'
+import { unlockPact } from './seed/unlock-pact.js'
 
 // Register seed effects exactly once, at module load.
 registerEffect('baseModifier', baseModifier)
@@ -25,6 +26,7 @@ registerEffect('systemUnlock', systemUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
+registerEffect('unlockPact', unlockPact)
 
 export type { EffectDef } from './types.js'
 export type {
@@ -35,6 +37,7 @@ export type {
   GeneratorUnlockOutput,
   SystemUnlockOutput,
   AttackUnlockOutput,
+  PactUnlockOutput,
   EnemyDataAccessOutput,
 } from './types.js'
 export {
@@ -64,6 +67,7 @@ export {
 } from './seed/access-enemy-data.js'
 export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
+export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
 export {
   addressableSources,

@@ -104,11 +104,24 @@ export interface AttackUnlockOutput {
 }
 
 /**
+ * Marks a pact as unlocked while the owning upgrade is held. Consumed by
+ * `isPactUnlocked` (a pact that no owned upgrade names is locked — unlike
+ * panels, pacts are hidden by default); carries no production weight, so the
+ * modifier pipeline ignores it. The pact itself has no behavior yet — this
+ * only gates its appearance in the international relationship panel.
+ */
+export interface PactUnlockOutput {
+  readonly kind: 'pactUnlock'
+  /** Stable pact id this upgrade reveals. */
+  readonly pact: string
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
- * SystemUnlockOutput}, {@link AttackUnlockOutput}), or an {@link
- * EnemyDataAccessOutput}. Each is routed to a different subsystem
+ * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), or
+ * an {@link EnemyDataAccessOutput}. Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess`); every consumer ignores the outputs it doesn't own.
  */
@@ -120,6 +133,7 @@ export type EffectOutput =
   | GeneratorUnlockOutput
   | SystemUnlockOutput
   | AttackUnlockOutput
+  | PactUnlockOutput
   | EnemyDataAccessOutput
 
 /**
