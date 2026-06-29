@@ -4,6 +4,7 @@ import { doBuyGenerator, doBuyGeneratorMax } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import {
   type GeneratorDefinition,
+  type ModeFlavor,
   getModeDefinition,
   getModeFlavor,
   getGeneratorCost,
@@ -22,17 +23,28 @@ import {
 /** Cache of last rendered HTML to avoid unnecessary DOM churn. */
 let prevHtml = ''
 
-function renderGeneratorCard(
+/** Per-card display numbers, computed by the caller from game/preview state. */
+export interface GeneratorCardNums {
+  readonly owned: number
+  readonly nextCost: number
+  readonly affordable: boolean
+  readonly maxAffordable: number
+  readonly bulkCost: number
+}
+
+/**
+ * Pure generator-card markup from a definition, a resolved flavor, and the
+ * already-computed display numbers — no `GameState`, no mode registry lookup.
+ * Shared by the in-game panel and the dev editor's generators preview (the
+ * editor's working tree is never registered as a mode, so it can't go through
+ * `getModeDefinition`).
+ */
+export function renderGeneratorCardView(
   def: GeneratorDefinition,
-  owned: number,
-  nextCost: number,
-  affordable: boolean,
-  maxAffordable: number,
-  bulkCost: number,
-  state: Readonly<GameState>,
+  flavor: ModeFlavor,
+  nums: GeneratorCardNums,
 ): string {
-  const modeDef = getModeDefinition(state.mode!)
-  const flavor = getModeFlavor(modeDef)
+  const { owned, nextCost, affordable, maxAffordable, bulkCost } = nums
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
@@ -80,7 +92,13 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const maxAffordable = getMaxAffordableGeneratorCount(state.player, effectiveDef)
       const bulkCost =
         maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
-      return renderGeneratorCard(def, owned, nextCost, affordable, maxAffordable, bulkCost, state)
+      return renderGeneratorCardView(def, getModeFlavor(modeDef), {
+        owned,
+        nextCost,
+        affordable,
+        maxAffordable,
+        bulkCost,
+      })
     })
     .join('')
   return cards
