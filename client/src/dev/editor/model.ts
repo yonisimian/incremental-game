@@ -424,14 +424,19 @@ export interface GeneratorRow {
 type EffectRefMut = { type: string } & Record<string, unknown>
 
 /**
- * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`
- * **and** every upgrade's `effects`. Both are validated by the runtime, so a
- * cascade that misses either location would let an export fail.
+ * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`,
+ * every upgrade's `effects`, **and** every attack's `effects`. All three are
+ * validated by the runtime, so a cascade that misses any location would let an
+ * export fail (e.g. an attack's `enemyProductionModifier.field` left dangling
+ * after a resource rename).
  */
 function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
   for (const ref of tree.effects ?? []) yield ref
   for (const { node } of walkPositioned(tree)) {
     for (const ref of node.effects ?? []) yield ref
+  }
+  for (const attack of tree.attacks) {
+    for (const ref of attack.effects ?? []) yield ref
   }
 }
 
@@ -507,6 +512,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
       if (ref.field === key) refs.push('a relativeModifier field')
+    } else if (ref.type === 'enemyProductionModifier' && ref.field === key) {
+      refs.push('an enemyProductionModifier field')
     } else if (
       ref.type === 'accessEnemyData' &&
       typeof ref.data === 'string' &&
@@ -524,7 +531,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
  * meta, native-modifier fields (resource keys only — never the `clickIncome`/
  * `globalMultiplier` specials), generator cost + production, upgrade cost record
  * keys, effect refs (the `resource:`-prefixed `relativeModifier` source, the bare
- * `field` target, and `accessEnemyData` data in both effect locations), and every
+ * `field` target of `relativeModifier`/`enemyProductionModifier`, and
+ * `accessEnemyData` data across every effect location), and every
  * flavor's resource entry. Fails (no mutation) when the new key is blank, already
  * in use, or the old key is absent. An unchanged key is a successful no-op.
  */
@@ -558,6 +566,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
         ref.source = `${RESOURCE_SOURCE_PREFIX}${newKey}`
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'enemyProductionModifier' && ref.field === oldKey) {
+      ref.field = newKey
     } else if (
       ref.type === 'accessEnemyData' &&
       typeof ref.data === 'string' &&
@@ -666,8 +676,9 @@ export function addGenerator(tree: TreeFile): string {
 
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
- * `generatorUnlock` effects naming it, and `relativeModifier` fields targeting its
- * output — across both effect locations.
+ * `generatorUnlock` effects naming it, and `relativeModifier` /
+ * `enemyProductionModifier` fields targeting its output — across every effect
+ * location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
@@ -676,6 +687,8 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
       refs.push(`a ${ref.type} effect`)
     } else if (ref.type === 'relativeModifier' && ref.field === id) {
       refs.push('a relativeModifier field')
+    } else if (ref.type === 'enemyProductionModifier' && ref.field === id) {
+      refs.push('an enemyProductionModifier field')
     }
   }
   return refs
@@ -683,9 +696,10 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
- * param of `generatorCost`/`generatorUnlock`, `relativeModifier` field targets,
- * across both effect locations, and every flavor's generator entry). Fails (no
- * mutation) when the new id is blank, in use, or the old id is absent.
+ * param of `generatorCost`/`generatorUnlock`, `relativeModifier` /
+ * `enemyProductionModifier` field targets, across every effect location, and
+ * every flavor's generator entry). Fails (no mutation) when the new id is blank,
+ * in use, or the old id is absent.
  */
 export function renameGenerator(tree: TreeFile, oldId: string, newId: string): boolean {
   if (oldId === newId) return true
@@ -703,7 +717,10 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
       ref.generator === oldId
     ) {
       ref.generator = newId
-    } else if (ref.type === 'relativeModifier' && ref.field === oldId) {
+    } else if (
+      (ref.type === 'relativeModifier' || ref.type === 'enemyProductionModifier') &&
+      ref.field === oldId
+    ) {
       ref.field = newId
     }
   }
@@ -846,8 +863,7 @@ export function renameAttack(tree: TreeFile, oldId: string, newId: string): bool
  * effect still references it (see {@link attackReferences}).
  */
 export function removeAttack(tree: TreeFile, id: string): MutationResult {
-  if (!tree.attacks.some((a) => a.id === id))
-    return { ok: false, reason: `unknown attack '${id}'` }
+  if (!tree.attacks.some((a) => a.id === id)) return { ok: false, reason: `unknown attack '${id}'` }
   const refs = attackReferences(tree, id)
   if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
   tree.attacks = tree.attacks.filter((a) => a.id !== id)

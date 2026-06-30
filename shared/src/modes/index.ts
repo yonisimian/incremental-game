@@ -606,7 +606,7 @@ export function collectEnemyDebuffs(
   const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
   for (const attackId of unlockedAttacks(attacker, mode)) {
     const attack = attackById.get(attackId)
-    if (!attack || attack.kind !== 'passive') continue
+    if (attack?.kind !== 'passive') continue
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if ('kind' in out && out.kind === 'enemyModifier') debuffs.push(out.modifier)

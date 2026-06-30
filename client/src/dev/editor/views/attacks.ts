@@ -22,7 +22,7 @@ import {
   setAttackKind,
   type AttackRow,
 } from '../model.js'
-import { buildEffectsSection, type EffectEntry } from '../effects-editor.js'
+import { buildEffectsSection } from '../effects-editor.js'
 import { addButton, removeButton, renameInput } from './controls.js'
 import { el, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
@@ -41,7 +41,13 @@ export function createAttacksView(): EditorView {
 
     const toolbar = el('div', 'ed-form-toolbar')
     toolbar.append(
-      addButton(c, '➕ Add attack', () => addAttack(c.tree), (id) => `Added attack ${id}`, render),
+      addButton(
+        c,
+        '➕ Add attack',
+        () => addAttack(c.tree),
+        (id) => `Added attack ${id}`,
+        render,
+      ),
     )
     left.append(toolbar)
 
@@ -132,7 +138,7 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   card.append(
     buildEffectsSection({
       tree,
-      getEffects: () => attackEffects(tree, row.id) as readonly EffectEntry[],
+      getEffects: () => attackEffects(tree, row.id),
       setEffects: (next) => {
         setAttackEffects(tree, row.id, [...next])
         ctx.markDirty()

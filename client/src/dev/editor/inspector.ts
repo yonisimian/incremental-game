@@ -10,7 +10,7 @@
 
 import { type TreeFile, type TreeUpgradeNode } from '@game/shared'
 
-import { buildEffectsSection, type EffectEntry } from './effects-editor.js'
+import { buildEffectsSection } from './effects-editor.js'
 import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
 
 export interface InspectorContext {
@@ -441,7 +441,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildPrerequisitesSection(ctx),
     buildEffectsSection({
       tree: ctx.tree,
-      getEffects: () => (ctx.node.effects ?? []) as readonly EffectEntry[],
+      getEffects: () => ctx.node.effects ?? [],
       setEffects: (next) => {
         ctx.node.effects = next.length > 0 ? next : undefined
         ctx.onChange()

@@ -30,7 +30,10 @@ import { ALL_PANELS } from '../../ui/mode-ui.js'
 import { el } from './views/dom.js'
 
 /** A single effect ref: a `type` discriminant plus inline params. */
-export type EffectEntry = { readonly type: string; readonly [param: string]: unknown }
+interface EffectEntry {
+  readonly type: string
+  readonly [param: string]: unknown
+}
 
 /**
  * Where the edited effects live. The editor reads via `getEffects` and persists
