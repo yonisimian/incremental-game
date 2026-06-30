@@ -388,6 +388,55 @@ function buildPrereqJsonFallback(ctx: InspectorContext): HTMLElement {
 // Each registered effect carries a zod param schema; its form is generated
 // from that schema. Only registered effect types are offered or editable.
 
+/** A picker group: a label and the effect types to list under it. */
+export interface EffectGroup {
+  readonly label: string
+  readonly types: readonly string[]
+}
+
+/**
+ * Display grouping for the "+ effect" picker — a UI-only authoring affordance.
+ * The registry stays the source of *which* effects exist (`listEffectTypes`);
+ * this table only decides how to *present* them. Any registered type not named
+ * here falls into a trailing sorted "Other" group (see {@link groupEffectTypes}),
+ * so a newly-registered effect is never silently hidden.
+ */
+export const EFFECT_GROUPS: readonly EffectGroup[] = [
+  { label: 'Production', types: ['baseModifier', 'relativeModifier'] },
+  { label: 'Highlight', types: ['highlightMultiplier'] },
+  {
+    label: 'Generators',
+    types: [
+      'generatorCost',
+      'generatorUnlock',
+      'lowerTierBoost',
+      'dominantGenerator',
+      'balancedGenerators',
+    ],
+  },
+  {
+    label: 'Unlocks',
+    types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
+  },
+]
+
+/**
+ * Partition `available` effect types into display groups by {@link EFFECT_GROUPS}
+ * membership, preserving each group's declared order. Any type not named in a
+ * group lands in a trailing sorted "Other" group. Empty groups are omitted, so
+ * every input type appears exactly once across the result.
+ */
+export function groupEffectTypes(available: readonly string[]): EffectGroup[] {
+  const pool = new Set(available)
+  const groups: EffectGroup[] = []
+  for (const { label, types } of EFFECT_GROUPS) {
+    const present = types.filter((t) => pool.delete(t))
+    if (present.length > 0) groups.push({ label, types: present })
+  }
+  if (pool.size > 0) groups.push({ label: 'Other', types: [...pool].sort() })
+  return groups
+}
+
 /** zod's `safeParse` is all this section needs from a resolved effect schema. */
 interface ScalarSchema {
   safeParse(value: unknown): { success: boolean; error?: { issues: { message: string }[] } }
@@ -651,10 +700,15 @@ function buildEffectsSection(ctx: InspectorContext): HTMLElement {
 
   const types = listEffectTypes()
   const addSelect = el('select', 'ed-input')
-  for (const type of types) {
-    const opt = el('option', undefined, type)
-    opt.value = type
-    addSelect.append(opt)
+  for (const group of groupEffectTypes(types)) {
+    const optgroup = document.createElement('optgroup')
+    optgroup.label = group.label
+    for (const type of group.types) {
+      const opt = el('option', undefined, type)
+      opt.value = type
+      optgroup.append(opt)
+    }
+    addSelect.append(optgroup)
   }
   const add = el('button', 'ed-btn', '+ effect')
   add.type = 'button'
