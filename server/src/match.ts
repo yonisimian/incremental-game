@@ -83,10 +83,12 @@ interface LoggedPurchase extends PurchaseEvent {
 type MatchPhase = 'countdown' | 'playing' | 'ended'
 
 /**
- * Most recent purchases retained per player. Events are forwarded to a viewer's
- * feed once (delta), so this only needs to outlive one broadcast interval; the
- * cap bounds memory for a viewer that never unlocks the feed. Older events
- * scroll off, but the monotonic `seq` keeps the per-viewer watermark correct.
+ * Target length the purchase log is trimmed back to. The trim drops only events
+ * that have already been forwarded to the (sole) opponent viewer, so a burst
+ * larger than the cap between two broadcasts can never silently scroll an
+ * un-forwarded event off the feed — see {@link Match.capPurchaseLog}. For a
+ * viewer that never unlocks the feed nothing is owed, so the log stays here; the
+ * monotonic `seq` keeps the per-viewer watermark correct as entries scroll off.
  */
 const PURCHASE_LOG_CAP = 25
 
@@ -509,16 +511,44 @@ export class Match {
    * Append a purchase to the player's espionage log, stamped with round-elapsed
    * game seconds (`meta.gameSec`) and a monotonic per-player `seq`. The full
    * event (kind + abstract id) is kept; `opponentViewFor` redacts it per the
-   * viewer's intel tier and forwards it once. Capped to the most recent
-   * {@link PURCHASE_LOG_CAP} entries; the `seq` is never reset so a viewer's
-   * watermark stays correct even after old entries scroll off.
+   * viewer's intel tier and forwards it once. The log is then trimmed by
+   * {@link Match.capPurchaseLog} (which only drops already-forwarded entries); the
+   * `seq` is never reset so a viewer's watermark stays correct as entries scroll off.
    */
   private recordPurchase(player: MatchPlayer, kind: 'upgrade' | 'generator', id: string): void {
     const t = (player.state.meta.gameSec as number | undefined) ?? 0
     player.purchases.push({ t, kind, id, seq: player.purchaseSeq++ })
-    if (player.purchases.length > PURCHASE_LOG_CAP) {
-      player.purchases.splice(0, player.purchases.length - PURCHASE_LOG_CAP)
+    this.capPurchaseLog(player)
+  }
+
+  /**
+   * Trim a player's purchase log back toward {@link PURCHASE_LOG_CAP}, but never
+   * drop an event the opponent viewer hasn't been shown yet. The opponent is the
+   * sole viewer of this log; everything with `seq >= viewer.purchaseFeedSeq` is
+   * still owed (un-forwarded), so only forwarded entries below the watermark are
+   * eligible to scroll off. A `null` watermark means the viewer never unlocked
+   * the feed — on unlock it seeds to the current head, so nothing here is owed
+   * and the log trims freely. This lets a burst larger than the cap between two
+   * broadcasts grow the log transiently rather than silently lose events; the
+   * next broadcast forwards them and the following trim reclaims the slack.
+   */
+  private capPurchaseLog(player: MatchPlayer): void {
+    const log = player.purchases
+    if (log.length <= PURCHASE_LOG_CAP) return
+    let dropCount = log.length - PURCHASE_LOG_CAP
+    const watermark = this.opponentOf(player).purchaseFeedSeq
+    if (watermark !== null) {
+      // Don't trim into the un-forwarded tail (seq >= watermark).
+      const firstUnforwarded = log.findIndex((p) => p.seq >= watermark)
+      const droppable = firstUnforwarded === -1 ? log.length : firstUnforwarded
+      dropCount = Math.min(dropCount, droppable)
     }
+    if (dropCount > 0) log.splice(0, dropCount)
+  }
+
+  /** The other player — the sole viewer of `player`'s purchase log. */
+  private opponentOf(player: MatchPlayer): MatchPlayer {
+    return this.players[0] === player ? this.players[1] : this.players[0]
   }
 
   // ─── Private: broadcasting ─────────────────────────────────────────
@@ -596,8 +626,10 @@ export class Match {
    * watermark is seeded to the opponent's current head and nothing is emitted —
    * this is what makes the feed non-retroactive: purchases made before the
    * viewer unlocked are never revealed, with no clock comparison. Thereafter
-   * only `seq > watermark` events are sent, redacted per the viewer's intel tier
-   * (see {@link redactPurchase}), and the watermark advances to the head.
+   * only `seq >= watermark` events are sent, redacted per the viewer's intel tier
+   * (see {@link redactPurchase}), and the watermark advances to the head. The
+   * delta is attached only when non-empty, so a steady state with no new
+   * purchases carries no `purchases` field at all.
    */
   private projectPurchaseFeed(
     viewer: MatchPlayer,
@@ -619,10 +651,11 @@ export class Match {
       mode,
       ENEMY_DATA_PURCHASE_GENERATOR_KEY,
     )
-    view.purchases = opponent.purchases
+    const delta = opponent.purchases
       .filter((p) => p.seq >= watermark)
       .map((p) => redactPurchase(p, showKind, showUpgradeId, showGeneratorId))
     viewer.purchaseFeedSeq = head
+    if (delta.length > 0) view.purchases = delta
   }
 
   /**

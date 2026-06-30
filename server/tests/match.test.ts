@@ -386,6 +386,31 @@ describe('Match', () => {
       expect(upg).toBeDefined()
       expect(upg!.id).toBeUndefined()
     })
+
+    it('forwards every purchase in a burst larger than the log cap (no silent drop)', () => {
+      const m = enterPlaying()
+      // p2 unlocks generators and is funded to buy g0 many times in one interval.
+      m.handleMessage('p2', buyMsg('g1-g2', 1))
+      m.grantResourcesForTest('p2', { r1: 1e12 })
+      // p1 unlocks the purchase feed; the seed broadcast lands past p2's setup buy
+      // so only the burst below counts as the delta.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed watermark to p2's head
+
+      // A burst larger than the per-player log cap (25) between two broadcasts.
+      const BURST = 30
+      for (let i = 0; i < BURST; i++) {
+        m.handleMessage('p2', buyGenMsg('g0', 2 + i))
+      }
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // Every event is delivered exactly once — the cap drops only forwarded
+      // entries, so un-forwarded buys can't scroll off before the next broadcast.
+      const purchases = latestUpdate(ws1).opponent.purchases ?? []
+      expect(purchases.length).toBe(BURST)
+    })
   })
 
   // ── Race-to-buy score hiding ─────────────────────────────────────
