@@ -14,6 +14,9 @@ import {
   getAttackName,
   getAttackIcon,
   getAttackDescription,
+  getPactName,
+  getPactIcon,
+  getPactDescription,
 } from '../src/flavor.js'
 
 // ─── Positive: real modes pass validation ────────────────────────────
@@ -85,6 +88,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     initialMeta: {},
     generators: [],
     attacks: [],
+    pacts: [],
     flavors: [
       {
         id: 'test',
@@ -96,6 +100,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
         upgrades: [{ id: 'u0', name: 'Upg', icon: '🔧', description: 'desc' }],
         generators: [],
         attacks: [],
+        pacts: [],
       },
     ],
   }
@@ -237,6 +242,7 @@ describe('validateModeDefinition — negative tests', () => {
           upgrades: [{ id: 'u0', name: 'Axe', icon: '🪓', description: 'chop' }],
           generators: [],
           attacks: [],
+          pacts: [],
         },
         {
           id: 'scifi',
@@ -248,6 +254,7 @@ describe('validateModeDefinition — negative tests', () => {
           upgrades: [{ id: 'u0', name: 'Laser', icon: '🔫', description: 'zap' }],
           generators: [],
           attacks: [],
+          pacts: [],
         },
       ],
     })
@@ -353,6 +360,58 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).toThrow(/references unknown attack 'a-ghost'/)
+  })
+
+  it('throws when an unlockPact effect references an unknown pact', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          effects: [{ type: 'unlockPact', pact: 'p-missing' }],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' unlockPact effect references unknown pact 'p-missing'/)
+  })
+
+  it('accepts an unlockPact effect that references a defined pact', () => {
+    const base = makeValidDef({
+      pacts: [{ id: 'p0', kind: 'active' }],
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: 10 },
+          purchaseLimit: 1,
+          effects: [{ type: 'unlockPact', pact: 'p0' }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      pacts: [{ id: 'p0', name: 'Treaty', icon: '🤝', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when a mechanical pact has no flavor entry', () => {
+    const def = makeValidDef({ pacts: [{ id: 'p0', kind: 'active' }] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/missing flavor for pact 'p0'/)
+  })
+
+  it('throws when a pact flavor entry references an unknown pact', () => {
+    const def = withFlavor(makeValidDef(), {
+      pacts: [{ id: 'p-ghost', name: 'Ghost', icon: '👻', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/references unknown pact 'p-ghost'/)
   })
 
   it('throws when a generatorCost effect references an unknown generator', () => {
@@ -503,6 +562,10 @@ function makeFlavor(): ModeFlavor {
       { id: 'a0', name: 'Raid', icon: '⚔️', description: 'A raid' },
       { id: 'a1', name: 'Siege', icon: '🏰', description: 'A siege' },
     ],
+    pacts: [
+      { id: 'p0', name: 'Treaty', icon: '🤝', description: 'A treaty' },
+      { id: 'p1', name: 'Alliance', icon: '🛡️', description: 'An alliance' },
+    ],
   }
 }
 
@@ -620,6 +683,23 @@ describe('attack flavor helpers', () => {
     expect(getAttackIcon(makeFlavor(), 'a99')).toBe('a99')
     expect(getAttackDescription(makeFlavor(), 'a99')).toBe('')
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('attack name'))
+    warn.mockRestore()
+  })
+})
+
+describe('pact flavor helpers', () => {
+  it('returns name / icon / description for a known pact id', () => {
+    expect(getPactName(makeFlavor(), 'p0')).toBe('Treaty')
+    expect(getPactIcon(makeFlavor(), 'p1')).toBe('🛡️')
+    expect(getPactDescription(makeFlavor(), 'p0')).toBe('A treaty')
+  })
+
+  it('falls back and warns for an unknown pact id', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(getPactName(makeFlavor(), 'p99')).toBe('p99')
+    expect(getPactIcon(makeFlavor(), 'p99')).toBe('p99')
+    expect(getPactDescription(makeFlavor(), 'p99')).toBe('')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pact name'))
     warn.mockRestore()
   })
 })

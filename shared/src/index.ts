@@ -23,4 +23,5 @@ export type {
   UpgradeFlavor,
   GeneratorFlavor,
   AttackFlavor,
+  PactFlavor,
 } from './modes/types.js'

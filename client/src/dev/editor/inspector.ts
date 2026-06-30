@@ -445,6 +445,9 @@ function effectFieldOptions(
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return ctx.tree.attacks.map((a) => a.id)
   }
+  if (effectType === 'unlockPact' && fieldKey === 'pact') {
+    return ctx.tree.pacts.map((p) => p.id)
+  }
   // `baseModifier` targets a resource, a generator, or a special pipeline field
   // (`clickIncome` / `globalMultiplier`) — the union the legacy modifier picker
   // offered. The pipeline routes the special fields to the `ModifierContext`

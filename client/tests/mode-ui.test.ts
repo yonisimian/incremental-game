@@ -34,4 +34,13 @@ describe('getModeUI', () => {
     expect(attack?.isUnlocked?.(playerWith({}))).toBe(false)
     expect(attack?.isUnlocked?.(playerWith({ 'a-unlock': 1 }))).toBe(true)
   })
+
+  it('locks the international-relationship panel until its unlock upgrade is owned', () => {
+    // The idler tree gates the relations panel behind the `ir-unlock` upgrade.
+    const relations = getModeUI('idler').panels.find(
+      (p) => p.panel.id === 'international-relationship',
+    )
+    expect(relations?.isUnlocked?.(playerWith({}))).toBe(false)
+    expect(relations?.isUnlocked?.(playerWith({ 'ir-unlock': 1 }))).toBe(true)
+  })
 })

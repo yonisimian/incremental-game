@@ -22,8 +22,10 @@ import {
 import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
+  allPactIds,
   anyOwned,
   attackGateUpgrades,
+  pactGateUpgrades,
   panelGateUpgrades,
   systemGateUpgrades,
 } from '../unlock-gates.js'
@@ -65,6 +67,12 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
       throw new Error(`[${id}] ${where}: missing flavor for attack '${a.id}'`)
   }
 
+  // Every mechanical pact must have a flavor entry
+  for (const p of def.pacts) {
+    if (!f.pacts.some((fp) => fp.id === p.id))
+      throw new Error(`[${id}] ${where}: missing flavor for pact '${p.id}'`)
+  }
+
   // No orphan flavor entries (flavor references nonexistent mechanic)
   for (const fu of f.upgrades) {
     if (!def.upgrades.some((u) => u.id === fu.id))
@@ -77,6 +85,10 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   for (const fa of f.attacks) {
     if (!def.attacks.some((a) => a.id === fa.id))
       throw new Error(`[${id}] ${where}: references unknown attack '${fa.id}'`)
+  }
+  for (const fp of f.pacts) {
+    if (!def.pacts.some((p) => p.id === fp.id))
+      throw new Error(`[${id}] ${where}: references unknown pact '${fp.id}'`)
   }
 }
 
@@ -127,6 +139,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (typeof target === 'string' && !attackIds.has(target))
         throw new Error(
           `[${id}] upgrade '${u.id}' unlockAttack effect references unknown attack '${target}'`,
+        )
+    }
+  }
+
+  // `unlockPact` effects name a pact by id; validate against the mode's pacts
+  // so an authored typo fails loudly instead of unlocking nothing.
+  const pactIds = new Set(def.pacts.map((p) => p.id))
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) {
+      if (ref.type !== 'unlockPact') continue
+      const target = ref.pact
+      if (typeof target === 'string' && !pactIds.has(target))
+        throw new Error(
+          `[${id}] upgrade '${u.id}' unlockPact effect references unknown pact '${target}'`,
         )
     }
   }
@@ -354,6 +380,26 @@ export function isAttackUnlocked(
 /** The attack ids this player has unlocked, in mode declaration order. */
 export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefinition): string[] {
   return allAttackIds(mode).filter((id) => isAttackUnlocked(state, mode, id))
+}
+
+/**
+ * Whether a pact is available to this player. Granted by any owned upgrade
+ * carrying an `unlockPact` effect naming it. Unlike `isPanelUnlocked`, a pact no
+ * upgrade unlocks is *hidden* by default (pacts only appear once unlocked). The
+ * pact itself has no behavior yet — this gates its appearance in the
+ * international relationship panel.
+ */
+export function isPactUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  pactId: string,
+): boolean {
+  return anyOwned(state, pactGateUpgrades(mode, pactId))
+}
+
+/** The pact ids this player has unlocked, in mode declaration order. */
+export function unlockedPacts(state: Readonly<PlayerState>, mode: ModeDefinition): string[] {
+  return allPactIds(mode).filter((id) => isPactUnlocked(state, mode, id))
 }
 
 /**

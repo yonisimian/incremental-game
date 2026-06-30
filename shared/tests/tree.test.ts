@@ -36,6 +36,7 @@ function minimalTree(): TreeFile {
     effects: [],
     generators: [],
     attacks: [],
+    pacts: [],
     goals: [{ type: 'timed', label: 'Timed', durationSec: 60 }],
     flavors: [
       {
@@ -48,6 +49,7 @@ function minimalTree(): TreeFile {
         upgrades: [],
         generators: [],
         attacks: [],
+        pacts: [],
       },
     ],
     upgrades: [],

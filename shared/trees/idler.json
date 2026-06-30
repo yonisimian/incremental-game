@@ -87,6 +87,24 @@
       "kind": "passive"
     }
   ],
+  "pacts": [
+    {
+      "id": "p0",
+      "kind": "active"
+    },
+    {
+      "id": "p1",
+      "kind": "active"
+    },
+    {
+      "id": "p2",
+      "kind": "passive"
+    },
+    {
+      "id": "p3",
+      "kind": "passive"
+    }
+  ],
   "goals": [
     {
       "type": "buy-upgrade",
@@ -520,6 +538,30 @@
           "name": "node-4",
           "icon": "💥",
           "description": ""
+        },
+        {
+          "id": "pact-node",
+          "name": "pact-node",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "pact-node-2",
+          "name": "pact-node-2",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "pact-node-3",
+          "name": "pact-node-3",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "pact-node-4",
+          "name": "pact-node-4",
+          "icon": "🤝",
+          "description": ""
         }
       ],
       "generators": [
@@ -567,6 +609,32 @@
           "id": "a3",
           "name": "Second Passive Attack",
           "icon": "💥",
+          "description": ""
+        }
+      ],
+      "pacts": [
+        {
+          "id": "p0",
+          "name": "First Pact",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "p1",
+          "name": "Second Pact",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "p2",
+          "name": "First Passive Pact",
+          "icon": "🤝",
+          "description": ""
+        },
+        {
+          "id": "p3",
+          "name": "Second Passive Pact",
+          "icon": "🤝",
           "description": ""
         }
       ]
@@ -1609,7 +1677,87 @@
       "offset": {
         "x": 1176,
         "y": 528
-      }
+      },
+      "children": [
+        {
+          "id": "pact-node",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "ir-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockPact",
+              "pact": "p0"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 96
+          },
+          "children": [
+            {
+              "id": "pact-node-2",
+              "cost": {},
+              "purchaseLimit": 1,
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "ir-unlock"
+              },
+              "effects": [
+                {
+                  "type": "unlockPact",
+                  "pact": "p1"
+                }
+              ],
+              "offset": {
+                "x": 0,
+                "y": 96
+              }
+            }
+          ]
+        },
+        {
+          "id": "pact-node-3",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "ir-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockPact",
+              "pact": "p2"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 96
+          }
+        },
+        {
+          "id": "pact-node-4",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "ir-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockPact",
+              "pact": "p3"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 192
+          }
+        }
+      ]
     },
     {
       "id": "e-se-mr",

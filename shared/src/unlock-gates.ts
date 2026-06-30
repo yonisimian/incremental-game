@@ -2,9 +2,10 @@
  * Effect-driven unlock gates.
  *
  * A family of effects (`panelUnlock`, `generatorUnlock`, `systemUnlock`,
- * `unlockAttack`) carry no production weight — instead, while the owning upgrade
- * is held they mark a UI panel, a generator, an input system (clicking /
- * highlighting), or an attack as unlocked. Each shares the same shape: build a
+ * `unlockAttack`, `unlockPact`) carry no production weight — instead, while the
+ * owning upgrade is held they mark a UI panel, a generator, an input system
+ * (clicking / highlighting), an attack, or a pact as unlocked. Each shares the
+ * same shape: build a
  * reverse index — gate key → ids
  * of the upgrades whose effect names it — so an "is this unlocked?" check is an
  * O(gates-for-this-key) ownership lookup rather than a full scan of every
@@ -126,6 +127,26 @@ export function attackGateUpgrades(
 /** Every attack id any `unlockAttack` effect in the mode names (declaration order). */
 export function allAttackIds(mode: ModeDefinition): readonly string[] {
   return [...attackGateIndex(mode).keys()]
+}
+
+/** The reverse index for `unlockPact`: pact id → ids of the upgrades that unlock it. */
+function pactGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
+  return gateIndex(mode, 'unlockPact', (out) =>
+    'kind' in out && out.kind === 'pactUnlock' ? out.pact : null,
+  )
+}
+
+/** Ids of the upgrades whose `unlockPact` effect gates `pactId`, or `undefined` if none. */
+export function pactGateUpgrades(
+  mode: ModeDefinition,
+  pactId: string,
+): readonly string[] | undefined {
+  return pactGateIndex(mode).get(pactId)
+}
+
+/** Every pact id any `unlockPact` effect in the mode names (declaration order). */
+export function allPactIds(mode: ModeDefinition): readonly string[] {
+  return [...pactGateIndex(mode).keys()]
 }
 
 /** Whether the player owns at least one of `ids` (false for an empty/absent gate). */
