@@ -18,6 +18,9 @@ import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
   ENEMY_DATA_PURCHASES_KEY,
+  ENEMY_DATA_PURCHASE_KIND_KEY,
+  ENEMY_DATA_PURCHASE_UPGRADE_KEY,
+  ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -86,6 +89,27 @@ type MatchPhase = 'countdown' | 'playing' | 'ended'
  * scroll off, but the monotonic `seq` keeps the per-viewer watermark correct.
  */
 const PURCHASE_LOG_CAP = 25
+
+/**
+ * Redact a logged purchase down to the fields the viewer's intel tier permits.
+ * The base feed reveals only `t`. `showKind` adds the kind (upgrade vs generator)
+ * for every event; `showUpgradeId`/`showGeneratorId` additionally reveal the
+ * abstract `id` for that kind (and imply its kind, since knowing *which* item
+ * names the kind too). Unrevealed ids stay omitted so the opponent's tree can't
+ * be read in devtools.
+ */
+function redactPurchase(
+  p: LoggedPurchase,
+  showKind: boolean,
+  showUpgradeId: boolean,
+  showGeneratorId: boolean,
+): PurchaseEvent {
+  const revealId = p.kind === 'upgrade' ? showUpgradeId : showGeneratorId
+  const event: PurchaseEvent = { t: p.t }
+  if (showKind || revealId) event.kind = p.kind
+  if (revealId) event.id = p.id
+  return event
+}
 
 // ─── Match ───────────────────────────────────────────────────────────
 
@@ -572,8 +596,8 @@ export class Match {
    * watermark is seeded to the opponent's current head and nothing is emitted —
    * this is what makes the feed non-retroactive: purchases made before the
    * viewer unlocked are never revealed, with no clock comparison. Thereafter
-   * only `seq > watermark` events are sent (base tier strips kind/id so the
-   * opponent's tree stays hidden), and the watermark advances to the head.
+   * only `seq > watermark` events are sent, redacted per the viewer's intel tier
+   * (see {@link redactPurchase}), and the watermark advances to the head.
    */
   private projectPurchaseFeed(
     viewer: MatchPlayer,
@@ -587,7 +611,17 @@ export class Match {
     }
     const watermark = viewer.purchaseFeedSeq
     if (head === watermark) return
-    view.purchases = opponent.purchases.filter((p) => p.seq >= watermark).map((p) => ({ t: p.t }))
+    const mode = this.modeDef
+    const showKind = hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASE_KIND_KEY)
+    const showUpgradeId = hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASE_UPGRADE_KEY)
+    const showGeneratorId = hasEnemyDataAccess(
+      viewer.state,
+      mode,
+      ENEMY_DATA_PURCHASE_GENERATOR_KEY,
+    )
+    view.purchases = opponent.purchases
+      .filter((p) => p.seq >= watermark)
+      .map((p) => redactPurchase(p, showKind, showUpgradeId, showGeneratorId))
     viewer.purchaseFeedSeq = head
   }
 
