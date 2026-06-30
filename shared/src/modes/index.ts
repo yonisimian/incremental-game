@@ -205,11 +205,36 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkRelativeModifier(`upgrade '${u.id}'`, ref)
   }
 
+  // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
+  // opponent-pipeline target. It's a mode-specific string the generic schema
+  // only checks is present, so validate it against the addressable-target
+  // catalog (resource rates, generator outputs, the two special pipeline
+  // fields), same as `relativeModifier`'s `field`, so a typo refuses to boot
+  // instead of silently debuffing nothing. Also flags an offensive effect on an
+  // active attack, which has no continuous behavior yet (likely an authoring
+  // mistake).
+  for (const attack of def.attacks) {
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'enemyProductionModifier') continue
+      if (attack.kind !== 'passive')
+        throw new Error(
+          `[${id}] attack '${attack.id}' carries an enemyProductionModifier but is not passive (active attacks have no continuous effect yet)`,
+        )
+      if (typeof ref.field === 'string' && !targetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown field '${ref.field}'`,
+        )
+    }
+  }
+
   // Effect refs: resolve + parse once up front, so unknown types or malformed
   // params fail at startup rather than mid-tick. Also warms the per-ref cache.
   for (const ref of def.effects ?? []) prepareEffect(ref)
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) prepareEffect(ref)
+  }
+  for (const attack of def.attacks) {
+    for (const ref of attack.effects ?? []) prepareEffect(ref)
   }
 }
 
@@ -558,6 +583,37 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   }
 
   return modifiers
+}
+
+/**
+ * Collect the *offensive* modifiers a player's unlocked passive attacks inflict
+ * on the **opponent**. These are gathered from `attacker` but applied to the
+ * other player's pipeline (merge them with the defender's own `collectModifiers`
+ * output before running `computePassiveRates` / `applyPassiveTick`).
+ *
+ * Only `passive` attacks contribute — an active attack's effects await a trigger
+ * mechanism. Each attack's `enemyModifier`-emitting effects (e.g.
+ * `enemyProductionModifier`) become raw {@link Modifier}s, applied verbatim
+ * (no owned-count compounding — an attack is unlocked or it isn't). The
+ * attacker's state is passed to `applyEffect` so future state-relative debuffs
+ * can read it; today's effects are state-independent.
+ */
+export function collectEnemyDebuffs(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): Modifier[] {
+  const debuffs: Modifier[] = []
+  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
+  for (const attackId of unlockedAttacks(attacker, mode)) {
+    const attack = attackById.get(attackId)
+    if (!attack || attack.kind !== 'passive') continue
+    for (const ref of attack.effects ?? []) {
+      for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
+        if ('kind' in out && out.kind === 'enemyModifier') debuffs.push(out.modifier)
+      }
+    }
+  }
+  return debuffs
 }
 
 // ─── Purchase ────────────────────────────────────────────────────────

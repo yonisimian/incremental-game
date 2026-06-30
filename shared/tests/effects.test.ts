@@ -57,6 +57,7 @@ describe('effect registry', () => {
       'balancedGenerators',
       'baseModifier',
       'dominantGenerator',
+      'enemyProductionModifier',
       'generatorCost',
       'generatorUnlock',
       'highlightMultiplier',

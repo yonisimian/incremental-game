@@ -3,6 +3,7 @@ import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { baseModifier } from './seed/base-modifier.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
+import { enemyProductionModifier } from './seed/enemy-production-modifier.js'
 import { generatorCost } from './seed/generator-cost.js'
 import { generatorUnlock } from './seed/generator-unlock.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
@@ -27,6 +28,7 @@ registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
 registerEffect('unlockPact', unlockPact)
+registerEffect('enemyProductionModifier', enemyProductionModifier)
 
 export type { EffectDef } from './types.js'
 export type {
@@ -39,6 +41,7 @@ export type {
   AttackUnlockOutput,
   PactUnlockOutput,
   EnemyDataAccessOutput,
+  EnemyModifierOutput,
 } from './types.js'
 export {
   applyEffect,
@@ -72,6 +75,7 @@ export {
 export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
+export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
 export {
   addressableSources,

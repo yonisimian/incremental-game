@@ -9,6 +9,7 @@ import {
   getModeDefinition,
   createInitialState,
   collectModifiers,
+  collectEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
@@ -328,8 +329,8 @@ export class Match {
         return
       }
 
-      for (const player of this.players) {
-        this.applyPassiveIncome(player)
+      for (let i = 0; i < this.players.length; i++) {
+        this.applyPassiveIncome(this.players[i], this.players[1 - i])
       }
 
       // Bot decision (always player index 1)
@@ -448,9 +449,14 @@ export class Match {
     }
   }
 
-  private applyPassiveIncome(player: MatchPlayer): void {
+  private applyPassiveIncome(player: MatchPlayer, opponent: MatchPlayer): void {
     const tickSec = TICK_INTERVAL_MS / 1000
-    const modifiers = collectModifiers(player.state, this.modeDef)
+    // The defender's own modifiers plus the offensive debuffs the opponent's
+    // unlocked passive attacks inflict (e.g. a -10% wood-production attack).
+    const modifiers = [
+      ...collectModifiers(player.state, this.modeDef),
+      ...collectEnemyDebuffs(opponent.state, this.modeDef),
+    ]
     applyPassiveTick(
       player.state,
       this.modeDef.resources,
@@ -600,7 +606,12 @@ export class Match {
         view.resources[key] = opponent.state.resources[key] ?? 0
       }
       if (hasEnemyDataAccess(viewer.state, mode, rateKey)) {
-        rates ??= computePassiveRates(collectModifiers(opponent.state, mode), mode.resources)
+        // Include the debuffs the *viewer* inflicts on the opponent so the spied
+        // rate matches the opponent's real production, not an undebuffed figure.
+        rates ??= computePassiveRates(
+          [...collectModifiers(opponent.state, mode), ...collectEnemyDebuffs(viewer.state, mode)],
+          mode.resources,
+        )
         view.rates[key] = rates[key] ?? 0
       }
     }

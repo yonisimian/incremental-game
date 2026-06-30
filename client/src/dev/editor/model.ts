@@ -758,3 +758,133 @@ export function setGeneratorFlavor(
   entry.name = values.name
   entry.icon = values.icon
 }
+
+// ─── Attacks ─────────────────────────────────────────────────────────
+
+/** Default icon for a new attack, before the author picks one. */
+const DEFAULT_ATTACK_ICON = '💥'
+
+/** An editable attack row: mechanics (id, kind) + primary-flavor display. */
+export interface AttackRow {
+  readonly id: string
+  readonly kind: 'active' | 'passive'
+  readonly name: string
+  readonly icon: string
+  readonly description: string
+}
+
+/** The next free `aN` attack id. */
+function uniqueAttackId(tree: TreeFile): string {
+  const used = new Set(tree.attacks.map((a) => a.id))
+  let n = 0
+  while (used.has(`a${n}`)) n++
+  return `a${n}`
+}
+
+/** Attack rows for the editor (primary flavor joined, in declaration order). */
+export function listAttacks(tree: TreeFile): AttackRow[] {
+  const flavor = new Map((tree.flavors[0]?.attacks ?? []).map((a) => [a.id, a]))
+  return tree.attacks.map((a) => {
+    const f = flavor.get(a.id)
+    return {
+      id: a.id,
+      kind: a.kind,
+      name: f?.name ?? a.id,
+      icon: f?.icon ?? DEFAULT_ATTACK_ICON,
+      description: f?.description ?? '',
+    }
+  })
+}
+
+/**
+ * Append a new passive attack with a unique `aN` id and a default flavor entry
+ * in every flavor (the runtime requires matching keys across flavors). Returns
+ * the new id. Passive is the default since it's the only kind with continuous
+ * behavior today.
+ */
+export function addAttack(tree: TreeFile): string {
+  const id = uniqueAttackId(tree)
+  tree.attacks.push({ id, kind: 'passive' })
+  for (const f of tree.flavors) {
+    f.attacks.push({ id, name: id, icon: DEFAULT_ATTACK_ICON, description: '' })
+  }
+  return id
+}
+
+/** Human-readable references that block deleting attack `id`: `unlockAttack` effects naming it. */
+export function attackReferences(tree: TreeFile, id: string): string[] {
+  const refs: string[] = []
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockAttack' && ref.attack === id) refs.push('an unlockAttack effect')
+  }
+  return refs
+}
+
+/**
+ * Rename attack `oldId → newId`, rewriting every `unlockAttack` reference and
+ * each flavor's attack entry. Fails (no mutation) when the new id is blank, in
+ * use, or the old id is absent.
+ */
+export function renameAttack(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || tree.attacks.some((a) => a.id === newId)) return false
+  const attack = tree.attacks.find((a) => a.id === oldId)
+  if (!attack) return false
+
+  attack.id = newId
+  for (const f of tree.flavors) {
+    for (const fa of f.attacks) if (fa.id === oldId) fa.id = newId
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockAttack' && ref.attack === oldId) ref.attack = newId
+  }
+  return true
+}
+
+/**
+ * Remove attack `id` and its flavor entries. Blocked when an `unlockAttack`
+ * effect still references it (see {@link attackReferences}).
+ */
+export function removeAttack(tree: TreeFile, id: string): MutationResult {
+  if (!tree.attacks.some((a) => a.id === id))
+    return { ok: false, reason: `unknown attack '${id}'` }
+  const refs = attackReferences(tree, id)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.attacks = tree.attacks.filter((a) => a.id !== id)
+  for (const f of tree.flavors) {
+    f.attacks = f.attacks.filter((fa) => fa.id !== id)
+  }
+  return { ok: true }
+}
+
+/** Set attack `id`'s kind. Unknown id is a no-op. */
+export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (attack) attack.kind = kind
+}
+
+/** The effect refs on attack `id` (empty when none / unknown id). */
+export function attackEffects(tree: TreeFile, id: string): EffectRefMut[] {
+  return tree.attacks.find((a) => a.id === id)?.effects ?? []
+}
+
+/** Replace attack `id`'s effects (clearing the field when empty). Unknown id is a no-op. */
+export function setAttackEffects(tree: TreeFile, id: string, effects: EffectRefMut[]): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (effects.length > 0) attack.effects = effects
+  else delete attack.effects
+}
+
+/** Upsert the primary flavor's display data for attack `id`. No-op if absent. */
+export function setAttackFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string; description: string },
+): void {
+  const entry = tree.flavors[0]?.attacks.find((a) => a.id === id)
+  if (!entry) return
+  entry.name = values.name
+  entry.icon = values.icon
+  entry.description = values.description
+}
