@@ -124,9 +124,11 @@ export interface OpponentView {
   /** Opponent's peak clicks-per-second; present only if the viewer unlocked CPS intel. */
   peakCps?: number
   /**
-   * Recent opponent purchases (most-recent last), capped server-side. Present
-   * only if the viewer unlocked purchase intel (`accessEnemyData: purchases`),
-   * and limited to purchases made at/after that unlock — never retroactive.
+   * Opponent purchases observed since the *previous* update — a delta, not the
+   * full log (oldest first). Present only if the viewer unlocked purchase intel
+   * (`accessEnemyData: purchases`) and at least one new purchase occurred; each
+   * event is sent exactly once and the client accumulates them into its own
+   * feed. Purchases made before the unlock are never sent — never retroactive.
    */
   purchases?: PurchaseEvent[]
 }

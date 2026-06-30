@@ -261,47 +261,60 @@ describe('Match', () => {
       expect(latestUpdate(ws2).opponent.peakCps).toBeUndefined()
     })
 
-    it('reveals opponent purchases (timestamp only) to a viewer who unlocked `e-se-p`', () => {
+    it('forwards a new opponent purchase (timestamp only) once to a viewer who unlocked `e-se-p`', () => {
       const m = enterPlaying()
-      // p2 buys a free upgrade → records a purchase event in p2's log.
-      m.handleMessage('p2', buyMsg('e-se-mr', 1))
-      // Walk the (free) espionage chain to e-se-p: e-se-mr → e-se-mr-ps → e-se-p.
+      // p1 unlocks the purchase feed (free chain: e-se-mr → e-se-mr-ps → e-se-p).
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
+      // First broadcast after unlock seeds the watermark to p2's current head —
+      // nothing is emitted (the feed is a delta, not the full log).
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
+      // p2 now buys → next broadcast forwards exactly that one event.
+      m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       const purchases = latestUpdate(ws1).opponent.purchases
       expect(purchases).toBeDefined()
-      expect(purchases!.length).toBeGreaterThanOrEqual(1)
+      expect(purchases!.length).toBe(1)
       // Base tier reveals only the timestamp — kind/id stay hidden so the
       // opponent's tree can't be read in devtools.
       const first = purchases![0]
       expect(typeof first.t).toBe('number')
       expect(first.kind).toBeUndefined()
       expect(first.id).toBeUndefined()
+
+      // Each event is sent exactly once: a later broadcast with no new purchase
+      // carries no feed delta.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
       // p2 unlocked nothing → no purchase intel on p1 (despite p1's buys).
       expect(latestUpdate(ws2).opponent.purchases).toBeUndefined()
     })
 
     it('does not retroactively reveal purchases made before the feed was unlocked', () => {
       const m = enterPlaying()
-      // p2 buys before p1 has any intel → recorded at gameSec ≈ 0.
+      // p2 buys before p1 has any intel, and the event lands in p2's log.
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
-      // Let the round clock advance so the later unlock has a distinct timestamp.
-      vi.advanceTimersByTime(2000)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
       // p1 unlocks the purchase feed (e-se-mr → e-se-mr-ps → e-se-p).
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
-      // p2 buys again, now after p1's unlock.
+      // First broadcast after unlock seeds the watermark past p2's earlier buy —
+      // it is never forwarded.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
+      // p2 buys again, now after p1's unlock → only this one is forwarded.
       m.handleMessage('p2', buyMsg('e-se-mr-ps', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
-
       const purchases = latestUpdate(ws1).opponent.purchases ?? []
-      // Only the post-unlock purchase is visible; the pre-unlock one (t ≈ 0) is hidden.
       expect(purchases.length).toBe(1)
-      expect(purchases[0].t).toBeGreaterThan(0)
     })
   })
 

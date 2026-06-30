@@ -33,6 +33,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
       resources: {},
       rates: {},
     },
+    opponentPurchaseFeed: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
     vsBot: false,

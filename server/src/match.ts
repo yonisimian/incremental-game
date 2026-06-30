@@ -15,7 +15,6 @@ import {
   applyPurchase,
   applyGeneratorPurchase,
   hasEnemyDataAccess,
-  enemyDataAccessSince,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
   ENEMY_DATA_PURCHASES_KEY,
@@ -54,19 +53,37 @@ interface MatchPlayer {
     upgradesPurchased: string[]
   }
   /**
-   * Full purchase log (oldest first) for the espionage feed. Records every
-   * upgrade/generator buy with round-elapsed time, kind, and abstract id; the
-   * opponent view redacts detail by intel tier (see {@link opponentViewFor}).
+   * Recent purchase log (oldest first) for the espionage feed. Records every
+   * upgrade/generator buy with round-elapsed time, kind, abstract id, and a
+   * monotonic {@link LoggedPurchase.seq}; the opponent view redacts detail by
+   * intel tier and forwards each event once (see {@link opponentViewFor}).
    */
-  purchases: PurchaseEvent[]
+  purchases: LoggedPurchase[]
+  /** Next purchase sequence number to assign (monotonic, never reset). */
+  purchaseSeq: number
+  /**
+   * As a *viewer*: the highest opponent purchase `seq` already forwarded to this
+   * player's espionage feed. `null` until the feed is first unlocked — on that
+   * first broadcast it's set to the opponent's current head so earlier purchases
+   * are never revealed retroactively. Thereafter only `seq > purchaseFeedSeq`
+   * events are sent (each exactly once); the client accumulates them.
+   */
+  purchaseFeedSeq: number | null
+}
+
+/** A purchase log entry: the wire {@link PurchaseEvent} plus its server-internal seq. */
+interface LoggedPurchase extends PurchaseEvent {
+  /** Monotonic per-player sequence; stable across log capping (unlike an index). */
+  seq: number
 }
 
 type MatchPhase = 'countdown' | 'playing' | 'ended'
 
 /**
- * Most recent purchases retained per player for the espionage feed. The log is
- * re-sent in full each broadcast, so this bounds the per-tick payload; older
- * events scroll off.
+ * Most recent purchases retained per player. Events are forwarded to a viewer's
+ * feed once (delta), so this only needs to outlive one broadcast interval; the
+ * cap bounds memory for a viewer that never unlocks the feed. Older events
+ * scroll off, but the monotonic `seq` keeps the per-viewer watermark correct.
  */
 const PURCHASE_LOG_CAP = 25
 
@@ -257,6 +274,8 @@ export class Match {
       recentClickTimestamps: [],
       stats: { totalClicks: 0, peakCps: 0, upgradesPurchased: [] },
       purchases: [],
+      purchaseSeq: 0,
+      purchaseFeedSeq: null,
     }
   }
 
@@ -464,13 +483,15 @@ export class Match {
 
   /**
    * Append a purchase to the player's espionage log, stamped with round-elapsed
-   * game seconds (`meta.gameSec`, the same clock `purchasedAt` uses). The full
+   * game seconds (`meta.gameSec`) and a monotonic per-player `seq`. The full
    * event (kind + abstract id) is kept; `opponentViewFor` redacts it per the
-   * viewer's intel tier. Capped to the most recent {@link PURCHASE_LOG_CAP}.
+   * viewer's intel tier and forwards it once. Capped to the most recent
+   * {@link PURCHASE_LOG_CAP} entries; the `seq` is never reset so a viewer's
+   * watermark stays correct even after old entries scroll off.
    */
   private recordPurchase(player: MatchPlayer, kind: 'upgrade' | 'generator', id: string): void {
     const t = (player.state.meta.gameSec as number | undefined) ?? 0
-    player.purchases.push({ t, kind, id })
+    player.purchases.push({ t, kind, id, seq: player.purchaseSeq++ })
     if (player.purchases.length > PURCHASE_LOG_CAP) {
       player.purchases.splice(0, player.purchases.length - PURCHASE_LOG_CAP)
     }
@@ -535,18 +556,39 @@ export class Match {
       view.peakCps = typeof cps === 'number' ? cps : 0
     }
 
-    const purchasesSince = enemyDataAccessSince(viewer.state, mode, ENEMY_DATA_PURCHASES_KEY)
-    if (purchasesSince !== null) {
-      // Reveal only purchases made at/after the viewer unlocked the feed — no
-      // retroactive exposure of the opponent's earlier buys. Base tier reveals
-      // only that a purchase happened and when; strip kind/id so the opponent's
-      // tree stays hidden (planned deeper tiers will project those fields).
-      view.purchases = opponent.purchases
-        .filter((p) => p.t >= purchasesSince)
-        .map((p) => ({ t: p.t }))
+    if (hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASES_KEY)) {
+      this.projectPurchaseFeed(viewer, opponent, view)
     }
 
     return view
+  }
+
+  /**
+   * Forward the opponent's *new* purchases to `viewer`'s espionage feed — each
+   * event exactly once. The viewer accumulates the feed client-side, so we send
+   * only events past their watermark rather than re-sending the whole log.
+   *
+   * The first time the feed is accessed (`purchaseFeedSeq === null`), the
+   * watermark is seeded to the opponent's current head and nothing is emitted —
+   * this is what makes the feed non-retroactive: purchases made before the
+   * viewer unlocked are never revealed, with no clock comparison. Thereafter
+   * only `seq > watermark` events are sent (base tier strips kind/id so the
+   * opponent's tree stays hidden), and the watermark advances to the head.
+   */
+  private projectPurchaseFeed(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    view: OpponentView,
+  ): void {
+    const head = opponent.purchaseSeq // next seq to be assigned == one past the latest
+    if (viewer.purchaseFeedSeq === null) {
+      viewer.purchaseFeedSeq = head
+      return
+    }
+    const watermark = viewer.purchaseFeedSeq
+    if (head === watermark) return
+    view.purchases = opponent.purchases.filter((p) => p.seq >= watermark).map((p) => ({ t: p.t }))
+    viewer.purchaseFeedSeq = head
   }
 
   /**

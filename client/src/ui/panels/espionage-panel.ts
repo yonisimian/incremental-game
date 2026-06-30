@@ -112,7 +112,7 @@ function renderActivity(state: Readonly<GameState>): string {
  * first. Deeper espionage tiers (planned) will name what was bought.
  */
 function renderPurchases(state: Readonly<GameState>): string {
-  const purchases = state.opponent.purchases ?? []
+  const purchases = state.opponentPurchaseFeed
   const body =
     purchases.length === 0
       ? `<p class="espionage-feed-empty">No purchases observed yet.</p>`
