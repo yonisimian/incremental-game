@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTreeFile, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import { parseTreeFile, toModeDefinition, type TreeFile, type TreeUpgradeNode } from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import {
   cloneTree,
@@ -19,6 +19,18 @@ import {
   nodeFlavor,
   setNodeFlavor,
   renameNode,
+  listResources,
+  addResource,
+  renameResource,
+  removeResource,
+  resourceReferences,
+  setInitialResource,
+  setScoreResource,
+  listGenerators,
+  addGenerator,
+  renameGenerator,
+  removeGenerator,
+  setGeneratorField,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -507,5 +519,133 @@ describe('renderCanvas', () => {
     const tree = cloneTree(parseTreeFile(idlerTreeFile))
     tree.upgrades = [node('<script>', { x: 0, y: 0 })]
     expect(renderCanvas(tree, null).nodes).not.toContain('<script>')
+  })
+})
+
+// ─── Resources ───────────────────────────────────────────────────────
+
+/** A pristine, loadable idler tree (full resources/generators/effects intact). */
+function idler(): TreeFile {
+  return cloneTree(parseTreeFile(idlerTreeFile))
+}
+
+describe('resources', () => {
+  it('lists resources joined with their primary flavor, flagging the score one', () => {
+    const rows = listResources(idler())
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.filter((r) => r.isScore)).toHaveLength(1)
+    for (const r of rows) expect(r.icon).toBeTruthy()
+  })
+
+  it('addResource appends a unique key in every flavor and stays loadable', () => {
+    const tree = idler()
+    const before = tree.resources.length
+    const key = addResource(tree)
+    expect(tree.resources).toContain(key)
+    expect(tree.resources).toHaveLength(before + 1)
+    for (const f of tree.flavors) expect(f.resources.some((r) => r.key === key)).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameResource cascades the score resource and stays loadable', () => {
+    const tree = idler()
+    const score = tree.scoreResource
+    expect(renameResource(tree, score, 'gold')).toBe(true)
+    expect(tree.scoreResource).toBe('gold')
+    expect(tree.resources).toContain('gold')
+    expect(tree.resources).not.toContain(score)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameResource rejects blank or duplicate keys', () => {
+    const tree = idler()
+    const [a, b] = tree.resources
+    expect(renameResource(tree, a, '')).toBe(false)
+    expect(renameResource(tree, a, b)).toBe(false)
+    expect(tree.resources).toContain(a)
+  })
+
+  it('removeResource is blocked while the key is referenced', () => {
+    const tree = idler()
+    const score = tree.scoreResource
+    expect(resourceReferences(tree, score)).toContain('the score resource')
+    expect(removeResource(tree, score).ok).toBe(false)
+    expect(tree.resources).toContain(score)
+  })
+
+  it('removeResource drops an unreferenced resource and stays loadable', () => {
+    const tree = idler()
+    const key = addResource(tree)
+    expect(removeResource(tree, key).ok).toBe(true)
+    expect(tree.resources).not.toContain(key)
+    for (const f of tree.flavors) expect(f.resources.some((r) => r.key === key)).toBe(false)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('setInitialResource and setScoreResource update the tree', () => {
+    const tree = idler()
+    const key = addResource(tree)
+    setInitialResource(tree, key, 25)
+    expect(tree.initialResources[key]).toBe(25)
+    setScoreResource(tree, key)
+    expect(tree.scoreResource).toBe(key)
+  })
+})
+
+// ─── Generators ──────────────────────────────────────────────────────
+
+describe('generators', () => {
+  it('lists generators joined with their primary flavor', () => {
+    const rows = listGenerators(idler())
+    for (const g of rows) {
+      expect(g.icon).toBeTruthy()
+      expect(g.costCurrency).toBeTruthy()
+      expect(g.productionResource).toBeTruthy()
+    }
+  })
+
+  it('addGenerator appends defaults in every flavor and stays loadable', () => {
+    const tree = idler()
+    const before = tree.generators.length
+    const id = addGenerator(tree)
+    expect(tree.generators.some((g) => g.id === id)).toBe(true)
+    expect(tree.generators).toHaveLength(before + 1)
+    for (const f of tree.flavors) expect(f.generators.some((g) => g.id === id)).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameGenerator cascades effect references and stays loadable', () => {
+    const tree = idler()
+    const id = tree.generators[0].id
+    expect(renameGenerator(tree, id, 'gmega')).toBe(true)
+    expect(tree.generators.some((g) => g.id === 'gmega')).toBe(true)
+    expect(tree.generators.some((g) => g.id === id)).toBe(false)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameGenerator rejects blank or duplicate ids', () => {
+    const tree = idler()
+    const id = tree.generators[0].id
+    const other = tree.generators[1]?.id
+    expect(renameGenerator(tree, id, '')).toBe(false)
+    if (other) expect(renameGenerator(tree, id, other)).toBe(false)
+  })
+
+  it('setGeneratorField patches mechanics in place', () => {
+    const tree = idler()
+    const id = tree.generators[0].id
+    setGeneratorField(tree, id, { baseCost: 999, costScaling: 2 })
+    const gen = tree.generators.find((g) => g.id === id)!
+    expect(gen.baseCost).toBe(999)
+    expect(gen.costScaling).toBe(2)
+  })
+
+  it('removeGenerator drops an unreferenced generator and stays loadable', () => {
+    const tree = idler()
+    const id = addGenerator(tree)
+    expect(removeGenerator(tree, id).ok).toBe(true)
+    expect(tree.generators.some((g) => g.id === id)).toBe(false)
+    for (const f of tree.flavors) expect(f.generators.some((g) => g.id === id)).toBe(false)
+    expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

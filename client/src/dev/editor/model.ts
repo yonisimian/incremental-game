@@ -8,12 +8,26 @@
  */
 
 import type { TreeFile, TreeUpgradeNode } from '@game/shared'
+import { ENEMY_DATA_RATE_SUFFIX, enemyDataResourceKey } from '@game/shared'
 
 /** A node's display-flavor entry, as stored in the mode flavor table. */
 export type NodeFlavor = TreeFile['flavors'][number]['upgrades'][number]
 
 /** Default icon for a freshly seeded flavor entry (matches the canvas default). */
 const DEFAULT_FLAVOR_ICON = '❓'
+
+/** Default icon for a freshly added resource. */
+const DEFAULT_RESOURCE_ICON = '💎'
+
+/** Default icon for a freshly added generator. */
+const DEFAULT_GENERATOR_ICON = '🏭'
+
+/**
+ * Source-key prefix marking a `relativeModifier` source as a resource stockpile
+ * (e.g. `resource:r0`). Mirrors the private constant in the shared
+ * `addressable` module — kept in sync via the round-trip tests.
+ */
+const RESOURCE_SOURCE_PREFIX = 'resource:'
 
 /** A node paired with its resolved absolute canvas position. */
 export interface PositionedNode {
@@ -371,4 +385,376 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
   node.offset = { x: abs.x - base.x, y: abs.y - base.y }
   addNode(tree, newParentId, node)
   return true
+}
+
+// ─── Resources + generators ──────────────────────────────────────────
+//
+// Resources, generators, upgrades, effects, and flavor all cross-reference each
+// other (see plan 19). These helpers keep the working tree referentially valid
+// continuously: rename rewrites every reference, and delete is *blocked* (with a
+// human reason) while anything still points at the id, so the tree never needs a
+// repair pass. `io.ts`'s `assertLoadable` remains the final guard at export.
+
+/** A successful mutation, or a blocked one with a human-readable reason. */
+export type MutationResult = { ok: true } | { ok: false; reason: string }
+
+/** An editable resource row: stable key + primary-flavor display + initial amount. */
+export interface ResourceRow {
+  readonly key: string
+  readonly displayName: string
+  readonly icon: string
+  readonly className?: string
+  readonly initial: number
+  readonly isScore: boolean
+}
+
+/** An editable generator row: mechanics + primary-flavor display, flattened. */
+export interface GeneratorRow {
+  readonly id: string
+  readonly name: string
+  readonly icon: string
+  readonly baseCost: number
+  readonly costScaling: number
+  readonly costCurrency: string
+  readonly productionResource: string
+  readonly productionRate: number
+}
+
+/** A mutable effect ref (the file's loose `{ type, …params }` shape). */
+type EffectRefMut = { type: string } & Record<string, unknown>
+
+/**
+ * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`
+ * **and** every upgrade's `effects`. Both are validated by the runtime, so a
+ * cascade that misses either location would let an export fail.
+ */
+function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
+  for (const ref of tree.effects ?? []) yield ref
+  for (const { node } of walkPositioned(tree)) {
+    for (const ref of node.effects ?? []) yield ref
+  }
+}
+
+/** The `highlight` meta value (a resource key) if set, else `undefined`. */
+function highlightKey(tree: TreeFile): string | undefined {
+  const h = tree.initialMeta.highlight
+  return typeof h === 'string' ? h : undefined
+}
+
+// ─── Resources ───────────────────────────────────────────────────────
+
+/** The next free `rN` resource key. */
+function uniqueResourceKey(tree: TreeFile): string {
+  const used = new Set(tree.resources)
+  let n = 0
+  while (used.has(`r${n}`)) n++
+  return `r${n}`
+}
+
+/** Resource rows for the editor (primary flavor joined, in declaration order). */
+export function listResources(tree: TreeFile): ResourceRow[] {
+  const flavor = new Map((tree.flavors[0]?.resources ?? []).map((r) => [r.key, r]))
+  return tree.resources.map((key) => {
+    const f = flavor.get(key)
+    const initial = tree.initialResources[key]
+    return {
+      key,
+      displayName: f?.displayName ?? key,
+      icon: f?.icon ?? DEFAULT_RESOURCE_ICON,
+      ...(f?.className ? { className: f.className } : {}),
+      initial: typeof initial === 'number' ? initial : 0,
+      isScore: tree.scoreResource === key,
+    }
+  })
+}
+
+/**
+ * Append a new resource: a unique `rN` key, a zero starting amount, and a default
+ * flavor entry in **every** flavor (the runtime requires matching keys across
+ * flavors). Returns the new key.
+ */
+export function addResource(tree: TreeFile): string {
+  const key = uniqueResourceKey(tree)
+  tree.resources.push(key)
+  tree.initialResources[key] = 0
+  for (const f of tree.flavors) {
+    f.resources.push({ key, displayName: key, icon: DEFAULT_RESOURCE_ICON })
+  }
+  return key
+}
+
+/**
+ * The human-readable references that pin resource `key` in place (and thus block
+ * deletion): the only-resource and score-resource invariants, generator cost +
+ * production, the `highlight` meta, native modifier fields, upgrade costs, and
+ * effect refs. Owned data that cascades on delete (initial amount, flavor
+ * entries) is deliberately excluded.
+ */
+export function resourceReferences(tree: TreeFile, key: string): string[] {
+  const refs: string[] = []
+  if (tree.resources.length <= 1) refs.push('the only resource')
+  if (tree.scoreResource === key) refs.push('the score resource')
+  for (const g of tree.generators) {
+    if (g.costCurrency === key) refs.push(`generator '${g.id}' cost`)
+    if (g.production.resource === key) refs.push(`generator '${g.id}' production`)
+  }
+  if (highlightKey(tree) === key) refs.push('the highlight meta')
+  if (tree.nativeModifiers.some((m) => m.field === key)) refs.push('a native modifier')
+  for (const { node } of walkPositioned(tree)) {
+    if (key in node.cost) refs.push(`upgrade '${node.id}' cost`)
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'relativeModifier') {
+      if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
+      if (ref.field === key) refs.push('a relativeModifier field')
+    } else if (
+      ref.type === 'accessEnemyData' &&
+      typeof ref.data === 'string' &&
+      enemyDataResourceKey(ref.data) === key
+    ) {
+      refs.push('an accessEnemyData effect')
+    }
+  }
+  return refs
+}
+
+/**
+ * Rename resource `oldKey → newKey`, rewriting every reference so the tree stays
+ * loadable: the resource list, score resource, initial amounts, the `highlight`
+ * meta, native-modifier fields (resource keys only — never the `clickIncome`/
+ * `globalMultiplier` specials), generator cost + production, upgrade cost record
+ * keys, effect refs (the `resource:`-prefixed `relativeModifier` source, the bare
+ * `field` target, and `accessEnemyData` data in both effect locations), and every
+ * flavor's resource entry. Fails (no mutation) when the new key is blank, already
+ * in use, or the old key is absent. An unchanged key is a successful no-op.
+ */
+export function renameResource(tree: TreeFile, oldKey: string, newKey: string): boolean {
+  if (oldKey === newKey) return true
+  if (newKey === '' || tree.resources.includes(newKey)) return false
+  if (!tree.resources.includes(oldKey)) return false
+
+  tree.resources = tree.resources.map((k) => (k === oldKey ? newKey : k))
+  if (tree.scoreResource === oldKey) tree.scoreResource = newKey
+  if (oldKey in tree.initialResources) {
+    tree.initialResources[newKey] = tree.initialResources[oldKey]
+    Reflect.deleteProperty(tree.initialResources, oldKey)
+  }
+  if (highlightKey(tree) === oldKey) tree.initialMeta.highlight = newKey
+  for (const m of tree.nativeModifiers) {
+    if (m.field === oldKey) m.field = newKey
+  }
+  for (const g of tree.generators) {
+    if (g.costCurrency === oldKey) g.costCurrency = newKey
+    if (g.production.resource === oldKey) g.production.resource = newKey
+  }
+  for (const { node } of walkPositioned(tree)) {
+    if (oldKey in node.cost) {
+      node.cost[newKey] = node.cost[oldKey]
+      Reflect.deleteProperty(node.cost, oldKey)
+    }
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'relativeModifier') {
+      if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
+        ref.source = `${RESOURCE_SOURCE_PREFIX}${newKey}`
+      if (ref.field === oldKey) ref.field = newKey
+    } else if (
+      ref.type === 'accessEnemyData' &&
+      typeof ref.data === 'string' &&
+      enemyDataResourceKey(ref.data) === oldKey
+    ) {
+      ref.data = ref.data.endsWith(ENEMY_DATA_RATE_SUFFIX)
+        ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
+        : newKey
+    }
+  }
+  for (const f of tree.flavors) {
+    for (const r of f.resources) if (r.key === oldKey) r.key = newKey
+  }
+  return true
+}
+
+/**
+ * Remove resource `key`, dropping its owned data (initial amount + every flavor's
+ * entry). Blocked when anything still references it (see {@link
+ * resourceReferences}) so the tree stays loadable without a repair pass.
+ */
+export function removeResource(tree: TreeFile, key: string): MutationResult {
+  if (!tree.resources.includes(key)) return { ok: false, reason: `unknown resource '${key}'` }
+  const refs = resourceReferences(tree, key)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.resources = tree.resources.filter((k) => k !== key)
+  Reflect.deleteProperty(tree.initialResources, key)
+  for (const f of tree.flavors) {
+    f.resources = f.resources.filter((r) => r.key !== key)
+  }
+  return { ok: true }
+}
+
+/** Upsert the primary flavor's display data for resource `key`. No-op if absent. */
+export function setResourceFlavor(
+  tree: TreeFile,
+  key: string,
+  values: { displayName: string; icon: string; className?: string },
+): void {
+  const entry = tree.flavors[0]?.resources.find((r) => r.key === key)
+  if (!entry) return
+  entry.displayName = values.displayName
+  entry.icon = values.icon
+  if (values.className) entry.className = values.className
+  else delete entry.className
+}
+
+/** Set the starting amount for resource `key`. */
+export function setInitialResource(tree: TreeFile, key: string, amount: number): void {
+  if (tree.resources.includes(key)) tree.initialResources[key] = amount
+}
+
+/** Point `scoreResource` at `key` (must be a live resource). */
+export function setScoreResource(tree: TreeFile, key: string): void {
+  if (tree.resources.includes(key)) tree.scoreResource = key
+}
+
+// ─── Generators ──────────────────────────────────────────────────────
+
+/** The next free `gN` generator id. */
+function uniqueGeneratorId(tree: TreeFile): string {
+  const used = new Set(tree.generators.map((g) => g.id))
+  let n = 0
+  while (used.has(`g${n}`)) n++
+  return `g${n}`
+}
+
+/** Generator rows for the editor (primary flavor joined, in declaration order). */
+export function listGenerators(tree: TreeFile): GeneratorRow[] {
+  const flavor = new Map((tree.flavors[0]?.generators ?? []).map((g) => [g.id, g]))
+  return tree.generators.map((g) => {
+    const f = flavor.get(g.id)
+    return {
+      id: g.id,
+      name: f?.name ?? g.id,
+      icon: f?.icon ?? DEFAULT_GENERATOR_ICON,
+      baseCost: g.baseCost,
+      costScaling: g.costScaling,
+      costCurrency: g.costCurrency,
+      productionResource: g.production.resource,
+      productionRate: g.production.rate,
+    }
+  })
+}
+
+/**
+ * Append a new generator with a unique `gN` id, sensible defaults (cost +
+ * production in the first resource), and a default flavor entry in every flavor.
+ * Returns the new id.
+ */
+export function addGenerator(tree: TreeFile): string {
+  const id = uniqueGeneratorId(tree)
+  const resource = tree.resources[0] ?? 'r0'
+  tree.generators.push({
+    id,
+    baseCost: 10,
+    costScaling: 1.15,
+    costCurrency: resource,
+    production: { resource, rate: 1 },
+  })
+  for (const f of tree.flavors) {
+    f.generators.push({ id, name: id, icon: DEFAULT_GENERATOR_ICON })
+  }
+  return id
+}
+
+/**
+ * Human-readable references that block deleting generator `id`: `generatorCost` /
+ * `generatorUnlock` effects naming it, and `relativeModifier` fields targeting its
+ * output — across both effect locations.
+ */
+export function generatorReferences(tree: TreeFile, id: string): string[] {
+  const refs: string[] = []
+  for (const ref of allEffectRefs(tree)) {
+    if ((ref.type === 'generatorCost' || ref.type === 'generatorUnlock') && ref.generator === id) {
+      refs.push(`a ${ref.type} effect`)
+    } else if (ref.type === 'relativeModifier' && ref.field === id) {
+      refs.push('a relativeModifier field')
+    }
+  }
+  return refs
+}
+
+/**
+ * Rename generator `oldId → newId`, rewriting every reference (the `generator`
+ * param of `generatorCost`/`generatorUnlock`, `relativeModifier` field targets,
+ * across both effect locations, and every flavor's generator entry). Fails (no
+ * mutation) when the new id is blank, in use, or the old id is absent.
+ */
+export function renameGenerator(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || tree.generators.some((g) => g.id === newId)) return false
+  const gen = tree.generators.find((g) => g.id === oldId)
+  if (!gen) return false
+
+  gen.id = newId
+  for (const f of tree.flavors) {
+    for (const fg of f.generators) if (fg.id === oldId) fg.id = newId
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (
+      (ref.type === 'generatorCost' || ref.type === 'generatorUnlock') &&
+      ref.generator === oldId
+    ) {
+      ref.generator = newId
+    } else if (ref.type === 'relativeModifier' && ref.field === oldId) {
+      ref.field = newId
+    }
+  }
+  return true
+}
+
+/**
+ * Remove generator `id` and its flavor entries. Blocked when an effect still
+ * references it (see {@link generatorReferences}).
+ */
+export function removeGenerator(tree: TreeFile, id: string): MutationResult {
+  if (!tree.generators.some((g) => g.id === id))
+    return { ok: false, reason: `unknown generator '${id}'` }
+  const refs = generatorReferences(tree, id)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.generators = tree.generators.filter((g) => g.id !== id)
+  for (const f of tree.flavors) {
+    f.generators = f.generators.filter((fg) => fg.id !== id)
+  }
+  return { ok: true }
+}
+
+/** Patch a generator's mechanics. Unknown id is a no-op. */
+export function setGeneratorField(
+  tree: TreeFile,
+  id: string,
+  patch: Partial<{
+    baseCost: number
+    costScaling: number
+    costCurrency: string
+    productionResource: string
+    productionRate: number
+  }>,
+): void {
+  const gen = tree.generators.find((g) => g.id === id)
+  if (!gen) return
+  if (patch.baseCost !== undefined) gen.baseCost = patch.baseCost
+  if (patch.costScaling !== undefined) gen.costScaling = patch.costScaling
+  if (patch.costCurrency !== undefined) gen.costCurrency = patch.costCurrency
+  if (patch.productionResource !== undefined) gen.production.resource = patch.productionResource
+  if (patch.productionRate !== undefined) gen.production.rate = patch.productionRate
+}
+
+/** Upsert the primary flavor's display data for generator `id`. No-op if absent. */
+export function setGeneratorFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string },
+): void {
+  const entry = tree.flavors[0]?.generators.find((g) => g.id === id)
+  if (!entry) return
+  entry.name = values.name
+  entry.icon = values.icon
 }

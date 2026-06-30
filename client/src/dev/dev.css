@@ -453,15 +453,8 @@ body {
   gap: 8px;
 }
 
-.ed-toolbar-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 2px 4px;
-  background: var(--dev-border);
-}
-
 .ed-status {
-  margin-left: auto;
+  margin-left: 0;
   font-size: 0.85rem;
   color: var(--dev-muted);
 }
@@ -474,6 +467,328 @@ body {
   display: flex;
   gap: 12px;
   align-items: stretch;
+}
+
+/* ─── Editor shell: section switcher + host ───────────────────────── */
+
+.ed-section-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.ed-section-tab {
+  padding: 6px 16px;
+  border: 1px solid var(--dev-border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: var(--dev-surface);
+  color: var(--dev-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  /* Overlap the container's bottom border so the active tab can mask it. */
+  margin-bottom: -1px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.ed-section-tab:hover {
+  color: var(--dev-text);
+}
+
+.ed-section-tab.active {
+  background: var(--dev-bg);
+  color: var(--dev-accent);
+  border-color: var(--dev-accent);
+  border-bottom: 1px solid var(--dev-bg);
+}
+
+.ed-section-host {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The tree section keeps its own (add/delete) toolbar above the canvas. */
+.ed-tree-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ed-tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── Form sections (resources, generators) ───────────────────────── */
+
+.ed-form-root,
+.ed-gen-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ed-form-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.ed-form-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ed-form-head,
+.ed-form-row {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.ed-res-table .ed-form-head,
+.ed-res-table .ed-form-row {
+  grid-template-columns: 48px 120px 60px 1fr 1fr 96px 44px;
+}
+
+.ed-form-head {
+  background: var(--dev-bg);
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.ed-form-head-cell {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dev-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ed-form-row + .ed-form-row {
+  border-top: 1px solid var(--dev-border);
+}
+
+.ed-form-cell {
+  display: flex;
+  min-width: 0;
+}
+
+.ed-input-icon {
+  text-align: center;
+}
+
+.ed-input-key {
+  font-family: monospace;
+}
+
+.ed-input-num {
+  text-align: right;
+}
+
+.ed-btn-danger {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: #ff8a8a;
+}
+
+.ed-btn-danger:hover:not(:disabled) {
+  border-color: #ff6b6b;
+}
+
+/* ─── Generators: edit list + live preview ────────────────────────── */
+
+.ed-gen-root {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ed-gen-edit {
+  flex: 1 1 60%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ed-gen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ed-gen-card {
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--dev-surface);
+}
+
+.ed-gen-card-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ed-gen-card-head .ed-gen-field {
+  flex: 1;
+}
+
+.ed-gen-card-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.ed-gen-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ed-gen-field-label {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+}
+
+.ed-gen-preview {
+  flex: 1 1 40%;
+  position: sticky;
+  top: 10px;
+  min-width: 0;
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--dev-bg);
+}
+
+.ed-gen-preview-title {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--dev-accent);
+}
+
+.ed-preview-msg {
+  color: var(--dev-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.ed-preview-error {
+  color: #ff8a8a;
+  font-style: normal;
+  white-space: pre-wrap;
+}
+
+/* The preview reuses the in-game generator-card markup (renderGeneratorCardView),
+   whose styles live in style.css and reference the game's theme variables — neither
+   is loaded on the dev page. Alias those variables to the dev palette and mirror the
+   card rules, scoped to the preview so nothing leaks into the rest of the editor.
+   Keep in sync with `.generator-*` in client/src/style.css. */
+.ed-gen-preview-body {
+  --border: var(--dev-border);
+  --surface: var(--dev-surface);
+  --surface-alt: var(--dev-bg);
+  --text: var(--dev-text);
+  --text-dim: var(--dev-muted);
+  --text-muted: var(--dev-muted);
+  --accent: var(--dev-accent);
+  --accent-dim: rgba(79, 195, 247, 0.15);
+}
+
+.ed-gen-preview-body .generator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.ed-gen-preview-body .generator-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.ed-gen-preview-body .generator-card.too-expensive {
+  opacity: 0.5;
+}
+
+.ed-gen-preview-body .generator-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ed-gen-preview-body .generator-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.ed-gen-preview-body .generator-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.ed-gen-preview-body .generator-name {
+  font-weight: 600;
+}
+
+.ed-gen-preview-body .generator-rate {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.ed-gen-preview-body .generator-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.ed-gen-preview-body .generator-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ed-gen-preview-body .generator-buy-btn {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-alt, var(--surface));
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.ed-gen-preview-body .generator-buy-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.ed-gen-preview-body .generator-buy-btn.buy-max {
+  background: var(--accent-dim, var(--surface));
 }
 
 /* Canvas */
