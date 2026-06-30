@@ -1871,6 +1871,12 @@
                 "type": "upgrade",
                 "id": "e-se-mr-ps"
               },
+              "effects": [
+                {
+                  "type": "accessEnemyData",
+                  "data": "purchases"
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1884,6 +1890,12 @@
                     "type": "upgrade",
                     "id": "e-se-p"
                   },
+                  "effects": [
+                    {
+                      "type": "accessEnemyData",
+                      "data": "purchaseKind"
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -1897,6 +1909,12 @@
                         "type": "upgrade",
                         "id": "e-p-ug"
                       },
+                      "effects": [
+                        {
+                          "type": "accessEnemyData",
+                          "data": "purchaseUpgradeId"
+                        }
+                      ],
                       "offset": {
                         "x": -48,
                         "y": 96
@@ -1910,6 +1928,12 @@
                         "type": "upgrade",
                         "id": "e-p-ug"
                       },
+                      "effects": [
+                        {
+                          "type": "accessEnemyData",
+                          "data": "purchaseGeneratorId"
+                        }
+                      ],
                       "offset": {
                         "x": 48,
                         "y": 96

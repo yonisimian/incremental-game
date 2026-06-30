@@ -78,6 +78,14 @@ describe('Match', () => {
     })
   }
 
+  function buyGenMsg(generatorId: string, seq: number) {
+    return JSON.stringify({
+      type: 'ACTION_BATCH',
+      seq,
+      actions: [{ type: 'buy_generator', timestamp: Date.now(), generatorId }],
+    })
+  }
+
   function pauseMsg() {
     return JSON.stringify({ type: 'PAUSE' })
   }
@@ -259,6 +267,149 @@ describe('Match', () => {
       expect(latestUpdate(ws1).opponent.peakCps).toBeGreaterThanOrEqual(1)
       // p2 unlocked nothing → peak CPS is withheld entirely.
       expect(latestUpdate(ws2).opponent.peakCps).toBeUndefined()
+    })
+
+    it('forwards a new opponent purchase (timestamp only) once to a viewer who unlocked `e-se-p`', () => {
+      const m = enterPlaying()
+      // p1 unlocks the purchase feed (free chain: e-se-mr → e-se-mr-ps → e-se-p).
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      // First broadcast after unlock seeds the watermark to p2's current head —
+      // nothing is emitted (the feed is a delta, not the full log).
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
+      // p2 now buys → next broadcast forwards exactly that one event.
+      m.handleMessage('p2', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const purchases = latestUpdate(ws1).opponent.purchases
+      expect(purchases).toBeDefined()
+      expect(purchases!.length).toBe(1)
+      // Base tier reveals only the timestamp — kind/id stay hidden so the
+      // opponent's tree can't be read in devtools.
+      const first = purchases![0]
+      expect(typeof first.t).toBe('number')
+      expect(first.kind).toBeUndefined()
+      expect(first.id).toBeUndefined()
+
+      // Each event is sent exactly once: a later broadcast with no new purchase
+      // carries no feed delta.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
+      // p2 unlocked nothing → no purchase intel on p1 (despite p1's buys).
+      expect(latestUpdate(ws2).opponent.purchases).toBeUndefined()
+    })
+
+    it('does not retroactively reveal purchases made before the feed was unlocked', () => {
+      const m = enterPlaying()
+      // p2 buys before p1 has any intel, and the event lands in p2's log.
+      m.handleMessage('p2', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // p1 unlocks the purchase feed (e-se-mr → e-se-mr-ps → e-se-p).
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      // First broadcast after unlock seeds the watermark past p2's earlier buy —
+      // it is never forwarded.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
+
+      // p2 buys again, now after p1's unlock → only this one is forwarded.
+      m.handleMessage('p2', buyMsg('e-se-mr-ps', 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const purchases = latestUpdate(ws1).opponent.purchases ?? []
+      expect(purchases.length).toBe(1)
+    })
+
+    it('reveals purchase kind (but not the id) to a viewer who unlocked `e-p-ug`', () => {
+      const m = enterPlaying()
+      // p1 walks the chain through e-p-ug: e-se-mr → e-se-mr-ps → e-se-p → e-p-ug.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      m.handleMessage('p1', buyMsg('e-p-ug', 4))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed the feed watermark
+
+      // p2 buys an upgrade → kind is revealed, the specific id is not.
+      m.handleMessage('p2', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const event = latestUpdate(ws1).opponent.purchases![0]
+      expect(event.kind).toBe('upgrade')
+      expect(event.id).toBeUndefined()
+    })
+
+    it('reveals the specific upgrade id to a viewer who unlocked `e-p-u`', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      m.handleMessage('p1', buyMsg('e-p-ug', 4))
+      m.handleMessage('p1', buyMsg('e-p-u', 5))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed
+
+      m.handleMessage('p2', buyMsg('e-se-mr', 1))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const event = latestUpdate(ws1).opponent.purchases![0]
+      expect(event.kind).toBe('upgrade')
+      expect(event.id).toBe('e-se-mr')
+    })
+
+    it('reveals generator ids only with `e-p-g`, keeping upgrade ids hidden', () => {
+      const m = enterPlaying()
+      // p1 takes the generator branch: …→ e-p-ug → e-p-g (but NOT e-p-u).
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      m.handleMessage('p1', buyMsg('e-p-ug', 4))
+      m.handleMessage('p1', buyMsg('e-p-g', 5))
+      // p2 unlocks the generators (free `g1-g2` unlocks g0) and is funded before
+      // the feed is seeded, so this setup buy isn't part of the delta.
+      m.handleMessage('p2', buyMsg('g1-g2', 1))
+      m.grantResourcesForTest('p2', { r1: 100 }) // afford g0 (baseCost 10 r1)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed
+
+      // p2 buys a generator and an upgrade.
+      m.handleMessage('p2', buyGenMsg('g0', 2))
+      m.handleMessage('p2', buyMsg('e-se-mr', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const purchases = latestUpdate(ws1).opponent.purchases ?? []
+      const gen = purchases.find((p) => p.kind === 'generator')
+      const upg = purchases.find((p) => p.kind === 'upgrade')
+      // Generator id is revealed (e-p-g); upgrade id stays hidden (no e-p-u),
+      // though its kind is still known via e-p-ug.
+      expect(gen?.id).toBe('g0')
+      expect(upg).toBeDefined()
+      expect(upg!.id).toBeUndefined()
+    })
+
+    it('forwards every purchase in a burst larger than the log cap (no silent drop)', () => {
+      const m = enterPlaying()
+      // p2 unlocks generators and is funded to buy g0 many times in one interval.
+      m.handleMessage('p2', buyMsg('g1-g2', 1))
+      m.grantResourcesForTest('p2', { r1: 1e12 })
+      // p1 unlocks the purchase feed; the seed broadcast lands past p2's setup buy
+      // so only the burst below counts as the delta.
+      m.handleMessage('p1', buyMsg('e-se-mr', 1))
+      m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
+      m.handleMessage('p1', buyMsg('e-se-p', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed watermark to p2's head
+
+      // A burst larger than the per-player log cap (25) between two broadcasts.
+      const BURST = 30
+      for (let i = 0; i < BURST; i++) {
+        m.handleMessage('p2', buyGenMsg('g0', 2 + i))
+      }
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // Every event is delivered exactly once — the cap drops only forwarded
+      // entries, so un-forwarded buys can't scroll off before the next broadcast.
+      const purchases = latestUpdate(ws1).opponent.purchases ?? []
+      expect(purchases.length).toBe(BURST)
     })
   })
 

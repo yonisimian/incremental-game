@@ -1293,6 +1293,45 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.espionage-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.espionage-feed-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.espionage-feed-item:last-child {
+  border-bottom: none;
+}
+
+.espionage-feed-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--text-muted, var(--text));
+  min-width: 3rem;
+}
+
+.espionage-feed-text {
+  flex: 1;
+}
+
+.espionage-feed-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, var(--text));
+}
+
 .attack-content {
   display: flex;
   flex-direction: column;

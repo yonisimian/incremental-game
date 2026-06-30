@@ -12,7 +12,7 @@ import {
   addressableSourcesFor,
   addressableTargetsFor,
   enemyDataKeysFor,
-  ENEMY_DATA_CPS_KEY,
+  NON_RESOURCE_INTEL_KEYS,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
@@ -409,7 +409,8 @@ type EffectFieldOption = string | { readonly value: string; readonly label: stri
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
- * `:rate` variant per resource (per-second production). `relativeModifier`'s
+ * `:rate` variant per resource (per-second production) and the non-resource
+ * intel keys (peak CPS, purchases). `relativeModifier`'s
  * `source`/`field` come from the shared addressable-field catalog (labelled), the
  * same set the boot-time validator enforces.
  */
@@ -440,7 +441,10 @@ function effectFieldOptions(
     return [...UNLOCKABLE_SYSTEMS]
   }
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
-    return [...ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key)), ENEMY_DATA_CPS_KEY]
+    return [
+      ...ctx.tree.resources.flatMap((key) => enemyDataKeysFor(key)),
+      ...NON_RESOURCE_INTEL_KEYS,
+    ]
   }
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return ctx.tree.attacks.map((a) => a.id)

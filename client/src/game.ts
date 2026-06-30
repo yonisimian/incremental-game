@@ -4,6 +4,7 @@ import {
   type ModeDefinition,
   type OpponentView,
   type PlayerState,
+  type PurchaseEvent,
   type RoomSettings,
   type RoomErrorReason,
   type RoundEndMessage,
@@ -79,6 +80,13 @@ export interface GameState {
   player: PlayerState
   /** Redacted opponent view (from server) — only the intel the viewer unlocked. */
   opponent: OpponentView
+  /**
+   * Accumulated espionage purchase feed (oldest first, capped). Each
+   * `STATE_UPDATE` carries only *new* opponent purchases as a delta; the client
+   * appends them here so the feed persists across updates (the server never
+   * re-sends an event). Reset at the start of each match.
+   */
+  opponentPurchaseFeed: PurchaseEvent[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -138,12 +146,19 @@ function emptyOpponentView(): OpponentView {
   return { score: 0, resources: {}, rates: {} }
 }
 
+/**
+ * Max espionage purchase events retained client-side. The server forwards each
+ * event once, so the client owns the log length; older events scroll off.
+ */
+const OPPONENT_PURCHASE_FEED_CAP = 25
+
 const state: GameState = {
   screen: 'lobby',
   mode: null,
   goal: null,
   player: clonePlayerState(EMPTY_PLAYER_STATE),
   opponent: emptyOpponentView(),
+  opponentPurchaseFeed: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -527,6 +542,7 @@ export function resetForMatch(): void {
   state.goal = null
   state.player = clonePlayerState(EMPTY_PLAYER_STATE)
   state.opponent = emptyOpponentView()
+  state.opponentPurchaseFeed = []
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -570,6 +586,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponentName = msg.opponentName
   state.player = createInitialState(modeDef)
   state.opponent = emptyOpponentView()
+  state.opponentPurchaseFeed = []
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -589,6 +606,17 @@ function handleRoundStart(msg: RoundStartMessage): void {
 function handleStateUpdate(msg: StateUpdateMessage): void {
   // Server state is authoritative — reconcile with pending optimistic actions
   state.opponent = msg.opponent
+  // `opponent.purchases` is a delta (new events only, sent once) — accumulate
+  // it into the persistent feed rather than replacing, then cap.
+  if (msg.opponent.purchases && msg.opponent.purchases.length > 0) {
+    state.opponentPurchaseFeed.push(...msg.opponent.purchases)
+    if (state.opponentPurchaseFeed.length > OPPONENT_PURCHASE_FEED_CAP) {
+      state.opponentPurchaseFeed.splice(
+        0,
+        state.opponentPurchaseFeed.length - OPPONENT_PURCHASE_FEED_CAP,
+      )
+    }
+  }
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
 

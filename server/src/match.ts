@@ -17,6 +17,10 @@ import {
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
+  ENEMY_DATA_PURCHASES_KEY,
+  ENEMY_DATA_PURCHASE_KIND_KEY,
+  ENEMY_DATA_PURCHASE_UPGRADE_KEY,
+  ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
   isHighlightActive,
 } from '@game/shared'
@@ -28,6 +32,7 @@ import type {
   ModeDefinition,
   OpponentView,
   PlayerAction,
+  PurchaseEvent,
   PlayerState,
   RoundEndReason,
   ServerMessage,
@@ -50,9 +55,63 @@ interface MatchPlayer {
     peakCps: number
     upgradesPurchased: string[]
   }
+  /**
+   * Recent purchase log (oldest first) for the espionage feed. Records every
+   * upgrade/generator buy with round-elapsed time, kind, abstract id, and a
+   * monotonic {@link LoggedPurchase.seq}; the opponent view redacts detail by
+   * intel tier and forwards each event once (see {@link opponentViewFor}).
+   */
+  purchases: LoggedPurchase[]
+  /** Next purchase sequence number to assign (monotonic, never reset). */
+  purchaseSeq: number
+  /**
+   * As a *viewer*: the highest opponent purchase `seq` already forwarded to this
+   * player's espionage feed. `null` until the feed is first unlocked — on that
+   * first broadcast it's set to the opponent's current head so earlier purchases
+   * are never revealed retroactively. Thereafter only `seq > purchaseFeedSeq`
+   * events are sent (each exactly once); the client accumulates them.
+   */
+  purchaseFeedSeq: number | null
+}
+
+/** A purchase log entry: the wire {@link PurchaseEvent} plus its server-internal seq. */
+interface LoggedPurchase extends PurchaseEvent {
+  /** Monotonic per-player sequence; stable across log capping (unlike an index). */
+  seq: number
 }
 
 type MatchPhase = 'countdown' | 'playing' | 'ended'
+
+/**
+ * Target length the purchase log is trimmed back to. The trim drops only events
+ * that have already been forwarded to the (sole) opponent viewer, so a burst
+ * larger than the cap between two broadcasts can never silently scroll an
+ * un-forwarded event off the feed — see {@link Match.capPurchaseLog}. For a
+ * viewer that never unlocks the feed nothing is owed, so the log stays here; the
+ * monotonic `seq` keeps the per-viewer watermark correct as entries scroll off.
+ */
+const PURCHASE_LOG_CAP = 25
+
+/**
+ * Redact a logged purchase down to the fields the viewer's intel tier permits.
+ * The base feed reveals only `t`. `showKind` adds the kind (upgrade vs generator)
+ * for every event; `showUpgradeId`/`showGeneratorId` additionally reveal the
+ * abstract `id` for that kind (and imply its kind, since knowing *which* item
+ * names the kind too). Unrevealed ids stay omitted so the opponent's tree can't
+ * be read in devtools.
+ */
+function redactPurchase(
+  p: LoggedPurchase,
+  showKind: boolean,
+  showUpgradeId: boolean,
+  showGeneratorId: boolean,
+): PurchaseEvent {
+  const revealId = p.kind === 'upgrade' ? showUpgradeId : showGeneratorId
+  const event: PurchaseEvent = { t: p.t }
+  if (showKind || revealId) event.kind = p.kind
+  if (revealId) event.id = p.id
+  return event
+}
 
 // ─── Match ───────────────────────────────────────────────────────────
 
@@ -240,6 +299,9 @@ export class Match {
       ackSeq: 0,
       recentClickTimestamps: [],
       stats: { totalClicks: 0, peakCps: 0, upgradesPurchased: [] },
+      purchases: [],
+      purchaseSeq: 0,
+      purchaseFeedSeq: null,
     }
   }
 
@@ -334,6 +396,7 @@ export class Match {
       } else if (action.type === 'buy_generator' && action.generatorId) {
         if (!isValidGeneratorPurchase(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
+        this.recordPurchase(player, 'generator', action.generatorId)
       }
     }
     player.ackSeq = seq
@@ -441,6 +504,51 @@ export class Match {
   private applyPurchase(player: MatchPlayer, upgradeId: string): void {
     applyPurchase(player.state, upgradeId, this.modeDef)
     player.stats.upgradesPurchased.push(upgradeId)
+    this.recordPurchase(player, 'upgrade', upgradeId)
+  }
+
+  /**
+   * Append a purchase to the player's espionage log, stamped with round-elapsed
+   * game seconds (`meta.gameSec`) and a monotonic per-player `seq`. The full
+   * event (kind + abstract id) is kept; `opponentViewFor` redacts it per the
+   * viewer's intel tier and forwards it once. The log is then trimmed by
+   * {@link Match.capPurchaseLog} (which only drops already-forwarded entries); the
+   * `seq` is never reset so a viewer's watermark stays correct as entries scroll off.
+   */
+  private recordPurchase(player: MatchPlayer, kind: 'upgrade' | 'generator', id: string): void {
+    const t = (player.state.meta.gameSec as number | undefined) ?? 0
+    player.purchases.push({ t, kind, id, seq: player.purchaseSeq++ })
+    this.capPurchaseLog(player)
+  }
+
+  /**
+   * Trim a player's purchase log back toward {@link PURCHASE_LOG_CAP}, but never
+   * drop an event the opponent viewer hasn't been shown yet. The opponent is the
+   * sole viewer of this log; everything with `seq >= viewer.purchaseFeedSeq` is
+   * still owed (un-forwarded), so only forwarded entries below the watermark are
+   * eligible to scroll off. A `null` watermark means the viewer never unlocked
+   * the feed — on unlock it seeds to the current head, so nothing here is owed
+   * and the log trims freely. This lets a burst larger than the cap between two
+   * broadcasts grow the log transiently rather than silently lose events; the
+   * next broadcast forwards them and the following trim reclaims the slack.
+   */
+  private capPurchaseLog(player: MatchPlayer): void {
+    const log = player.purchases
+    if (log.length <= PURCHASE_LOG_CAP) return
+    let dropCount = log.length - PURCHASE_LOG_CAP
+    const watermark = this.opponentOf(player).purchaseFeedSeq
+    if (watermark !== null) {
+      // Don't trim into the un-forwarded tail (seq >= watermark).
+      const firstUnforwarded = log.findIndex((p) => p.seq >= watermark)
+      const droppable = firstUnforwarded === -1 ? log.length : firstUnforwarded
+      dropCount = Math.min(dropCount, droppable)
+    }
+    if (dropCount > 0) log.splice(0, dropCount)
+  }
+
+  /** The other player — the sole viewer of `player`'s purchase log. */
+  private opponentOf(player: MatchPlayer): MatchPlayer {
+    return this.players[0] === player ? this.players[1] : this.players[0]
   }
 
   // ─── Private: broadcasting ─────────────────────────────────────────
@@ -502,7 +610,52 @@ export class Match {
       view.peakCps = typeof cps === 'number' ? cps : 0
     }
 
+    if (hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASES_KEY)) {
+      this.projectPurchaseFeed(viewer, opponent, view)
+    }
+
     return view
+  }
+
+  /**
+   * Forward the opponent's *new* purchases to `viewer`'s espionage feed — each
+   * event exactly once. The viewer accumulates the feed client-side, so we send
+   * only events past their watermark rather than re-sending the whole log.
+   *
+   * The first time the feed is accessed (`purchaseFeedSeq === null`), the
+   * watermark is seeded to the opponent's current head and nothing is emitted —
+   * this is what makes the feed non-retroactive: purchases made before the
+   * viewer unlocked are never revealed, with no clock comparison. Thereafter
+   * only `seq >= watermark` events are sent, redacted per the viewer's intel tier
+   * (see {@link redactPurchase}), and the watermark advances to the head. The
+   * delta is attached only when non-empty, so a steady state with no new
+   * purchases carries no `purchases` field at all.
+   */
+  private projectPurchaseFeed(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    view: OpponentView,
+  ): void {
+    const head = opponent.purchaseSeq // next seq to be assigned == one past the latest
+    if (viewer.purchaseFeedSeq === null) {
+      viewer.purchaseFeedSeq = head
+      return
+    }
+    const watermark = viewer.purchaseFeedSeq
+    if (head === watermark) return
+    const mode = this.modeDef
+    const showKind = hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASE_KIND_KEY)
+    const showUpgradeId = hasEnemyDataAccess(viewer.state, mode, ENEMY_DATA_PURCHASE_UPGRADE_KEY)
+    const showGeneratorId = hasEnemyDataAccess(
+      viewer.state,
+      mode,
+      ENEMY_DATA_PURCHASE_GENERATOR_KEY,
+    )
+    const delta = opponent.purchases
+      .filter((p) => p.seq >= watermark)
+      .map((p) => redactPurchase(p, showKind, showUpgradeId, showGeneratorId))
+    viewer.purchaseFeedSeq = head
+    if (delta.length > 0) view.purchases = delta
   }
 
   /**

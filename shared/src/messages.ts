@@ -88,6 +88,23 @@ export type ClientMessage =
 // ─── Server → Client ────────────────────────────────────────────────
 
 /**
+ * A single opponent purchase, surfaced in the espionage feed (`accessEnemyData:
+ * purchases`). Detail is gated by tier: the base `purchases` grant reveals only
+ * that *something* was bought and when (`t`), so `kind`/`id` are omitted to keep
+ * the opponent's tree hidden in devtools. Deeper espionage tiers (planned
+ * `e-p-u` / `e-p-g`) add `kind` and `id`; the client resolves `id` → name /
+ * description from the mode flavor (the server never sends display strings).
+ */
+export interface PurchaseEvent {
+  /** Round-elapsed game seconds when the purchase happened (mirrors `meta.gameSec`). */
+  t: number
+  /** What was bought — present only for tiers that reveal purchase kind. */
+  kind?: 'upgrade' | 'generator'
+  /** Abstract upgrade/generator id — present only for tiers that reveal detail. */
+  id?: string
+}
+
+/**
  * A redacted projection of the opponent's state — only the intel the receiving
  * player has unlocked. Unlike `PlayerState`, the opponent's upgrades, generators,
  * and meta are never sent (so they can't be read in devtools); each broadcast
@@ -106,6 +123,14 @@ export interface OpponentView {
   rates: Record<string, number>
   /** Opponent's peak clicks-per-second; present only if the viewer unlocked CPS intel. */
   peakCps?: number
+  /**
+   * Opponent purchases observed since the *previous* update — a delta, not the
+   * full log (oldest first). Present only if the viewer unlocked purchase intel
+   * (`accessEnemyData: purchases`) and at least one new purchase occurred; each
+   * event is sent exactly once and the client accumulates them into its own
+   * feed. Purchases made before the unlock are never sent — never retroactive.
+   */
+  purchases?: PurchaseEvent[]
 }
 
 /** Periodic authoritative state snapshot. */

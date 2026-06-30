@@ -18,12 +18,45 @@ export const ENEMY_DATA_RATE_SUFFIX = ':rate'
 export const ENEMY_DATA_CPS_KEY = 'peakCps'
 
 /**
+ * Intel key revealing a feed of the opponent's purchases (`OpponentView.purchases`).
+ * Names no resource — the base grant reveals only that a purchase happened and
+ * when. The deeper keys below add per-event detail (see {@link PurchaseEvent}).
+ */
+export const ENEMY_DATA_PURCHASES_KEY = 'purchases'
+
+/**
+ * Intel key revealing each purchase's *kind* (`'upgrade'` vs `'generator'`) in
+ * the feed, without naming the specific item. Builds on {@link ENEMY_DATA_PURCHASES_KEY}.
+ */
+export const ENEMY_DATA_PURCHASE_KIND_KEY = 'purchaseKind'
+
+/**
+ * Intel key revealing the abstract *id* of the opponent's **upgrade** purchases,
+ * which the client resolves to a name/icon via the mode flavor. Builds on
+ * {@link ENEMY_DATA_PURCHASE_KIND_KEY}; generator ids stay hidden.
+ */
+export const ENEMY_DATA_PURCHASE_UPGRADE_KEY = 'purchaseUpgradeId'
+
+/**
+ * Intel key revealing the abstract *id* of the opponent's **generator** purchases,
+ * which the client resolves to a name/icon via the mode flavor. Builds on
+ * {@link ENEMY_DATA_PURCHASE_KIND_KEY}; upgrade ids stay hidden.
+ */
+export const ENEMY_DATA_PURCHASE_GENERATOR_KEY = 'purchaseGeneratorId'
+
+/**
  * Intel keys that name no resource — their display data lives in a flavor's
  * `intel` list rather than `resources`, and `validateModeDefinition` accepts
  * them on an `accessEnemyData` effect without resolving them to a resource. New
  * non-resource intel keys (more are coming) are added here.
  */
-export const NON_RESOURCE_INTEL_KEYS: readonly string[] = [ENEMY_DATA_CPS_KEY]
+export const NON_RESOURCE_INTEL_KEYS: readonly string[] = [
+  ENEMY_DATA_CPS_KEY,
+  ENEMY_DATA_PURCHASES_KEY,
+  ENEMY_DATA_PURCHASE_KIND_KEY,
+  ENEMY_DATA_PURCHASE_UPGRADE_KEY,
+  ENEMY_DATA_PURCHASE_GENERATOR_KEY,
+]
 
 /** The two intel keys a resource exposes: its stockpile and its per-second rate. */
 export function enemyDataKeysFor(resourceKey: string): [string, string] {

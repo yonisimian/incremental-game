@@ -1,16 +1,22 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
+import { formatTime } from '../helpers.js'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
+  ENEMY_DATA_PURCHASES_KEY,
   getModeDefinition,
   getModeFlavor,
+  getGeneratorIcon,
+  getGeneratorName,
   getResourceIcon,
   getResourceName,
+  getUpgradeIcon,
+  getUpgradeName,
   hasEnemyDataAccess,
 } from '@game/shared'
-import type { ModeFlavor } from '@game/shared'
+import type { ModeFlavor, PurchaseEvent } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -103,6 +109,58 @@ function renderActivity(state: Readonly<GameState>): string {
   `
 }
 
+/**
+ * The feed row's text for one purchase, gated by how much intel the viewer has
+ * unlocked. The server only sends the fields each tier permits, so we render the
+ * most specific form the event carries:
+ * - `id` present → the named item (resolved to icon/name via the flavor), from
+ *   `purchaseUpgradeId` / `purchaseGeneratorId`.
+ * - `kind` only → "an upgrade" / "a generator", from `purchaseKind`.
+ * - neither → generic "made a purchase", the base `purchases` tier.
+ */
+function purchaseLabel(p: PurchaseEvent, flavor: ModeFlavor): string {
+  if (p.kind && p.id) {
+    const [icon, name] =
+      p.kind === 'upgrade'
+        ? [getUpgradeIcon(flavor, p.id), getUpgradeName(flavor, p.id)]
+        : [getGeneratorIcon(flavor, p.id), getGeneratorName(flavor, p.id)]
+    return `🛒 Enemy bought ${icon} ${name}`
+  }
+  if (p.kind) return `🛒 Enemy bought ${p.kind === 'upgrade' ? 'an upgrade' : 'a generator'}`
+  return `🛒 Enemy made a purchase`
+}
+
+/**
+ * Feed of the opponent's recent purchases, unlocked via `accessEnemyData:
+ * purchases` (base). Each row is stamped with the round time, newest first. How
+ * much each row says depends on the deeper intel tiers the viewer has unlocked
+ * (kind, then the specific upgrade/generator) — see {@link purchaseLabel}.
+ */
+function renderPurchases(state: Readonly<GameState>, flavor: ModeFlavor): string {
+  const purchases = state.opponentPurchaseFeed
+  const body =
+    purchases.length === 0
+      ? `<p class="espionage-feed-empty">No purchases observed yet.</p>`
+      : purchases
+          .slice()
+          .reverse()
+          .map(
+            (p) => `
+              <li class="espionage-feed-item">
+                <span class="espionage-feed-time">${formatTime(p.t)}</span>
+                <span class="espionage-feed-text">${purchaseLabel(p, flavor)}</span>
+              </li>
+            `,
+          )
+          .join('')
+  return `
+    <section class="espionage-section">
+      <h3 class="espionage-heading">Recent Purchases</h3>
+      <ul class="espionage-feed">${body}</ul>
+    </section>
+  `
+}
+
 function renderEspionage(state: Readonly<GameState>): string {
   if (!state.mode) return ''
   const modeDef = getModeDefinition(state.mode)
@@ -118,15 +176,15 @@ function renderEspionage(state: Readonly<GameState>): string {
     })
     .filter((r) => r.amount || r.rate)
   const cps = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_CPS_KEY)
-  if (rows.length === 0 && !cps) return renderLocked()
+  const purchases = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_PURCHASES_KEY)
+  if (rows.length === 0 && !cps && !purchases) return renderLocked()
   // Stockpiles and per-second rates are projected by the server into the
   // redacted opponent view — only the keys this viewer has unlocked are present
   // (the opponent's full state is never sent), so we read them directly.
+  const flavor = getModeFlavor(modeDef)
   const resources =
-    rows.length > 0
-      ? renderResources(state, getModeFlavor(modeDef), rows, state.opponent.rates)
-      : ''
-  return `${resources}${cps ? renderActivity(state) : ''}`
+    rows.length > 0 ? renderResources(state, flavor, rows, state.opponent.rates) : ''
+  return `${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state, flavor) : ''}`
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────
