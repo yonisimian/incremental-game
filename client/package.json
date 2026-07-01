@@ -11,10 +11,10 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "~4.1.8",
+    "@vitest/coverage-v8": "~4.1.9",
     "typescript": "~6.0.3",
-    "vite": "~8.0.16",
-    "vitest": "~4.1.8"
+    "vite": "~8.1.2",
+    "vitest": "~4.1.9"
   },
   "dependencies": {
     "@game/shared": "workspace:*",
