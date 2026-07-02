@@ -424,14 +424,19 @@ export interface GeneratorRow {
 type EffectRefMut = { type: string } & Record<string, unknown>
 
 /**
- * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`
- * **and** every upgrade's `effects`. Both are validated by the runtime, so a
- * cascade that misses either location would let an export fail.
+ * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`,
+ * every upgrade's `effects`, **and** every attack's `effects`. All three are
+ * validated by the runtime, so a cascade that misses any location would let an
+ * export fail (e.g. an attack's `enemyProductionModifier.field` left dangling
+ * after a resource rename).
  */
 function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
   for (const ref of tree.effects ?? []) yield ref
   for (const { node } of walkPositioned(tree)) {
     for (const ref of node.effects ?? []) yield ref
+  }
+  for (const attack of tree.attacks) {
+    for (const ref of attack.effects ?? []) yield ref
   }
 }
 
@@ -507,6 +512,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
       if (ref.field === key) refs.push('a relativeModifier field')
+    } else if (ref.type === 'enemyProductionModifier' && ref.field === key) {
+      refs.push('an enemyProductionModifier field')
     } else if (
       ref.type === 'accessEnemyData' &&
       typeof ref.data === 'string' &&
@@ -524,7 +531,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
  * meta, native-modifier fields (resource keys only — never the `clickIncome`/
  * `globalMultiplier` specials), generator cost + production, upgrade cost record
  * keys, effect refs (the `resource:`-prefixed `relativeModifier` source, the bare
- * `field` target, and `accessEnemyData` data in both effect locations), and every
+ * `field` target of `relativeModifier`/`enemyProductionModifier`, and
+ * `accessEnemyData` data across every effect location), and every
  * flavor's resource entry. Fails (no mutation) when the new key is blank, already
  * in use, or the old key is absent. An unchanged key is a successful no-op.
  */
@@ -558,6 +566,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
         ref.source = `${RESOURCE_SOURCE_PREFIX}${newKey}`
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'enemyProductionModifier' && ref.field === oldKey) {
+      ref.field = newKey
     } else if (
       ref.type === 'accessEnemyData' &&
       typeof ref.data === 'string' &&
@@ -667,7 +677,7 @@ export function addGenerator(tree: TreeFile): string {
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
  * `generatorUnlock` effects naming it, and `relativeModifier` fields targeting its
- * output — across both effect locations.
+ * output — across every effect location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
@@ -684,7 +694,7 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
  * param of `generatorCost`/`generatorUnlock`, `relativeModifier` field targets,
- * across both effect locations, and every flavor's generator entry). Fails (no
+ * across every effect location, and every flavor's generator entry). Fails (no
  * mutation) when the new id is blank, in use, or the old id is absent.
  */
 export function renameGenerator(tree: TreeFile, oldId: string, newId: string): boolean {
@@ -757,4 +767,133 @@ export function setGeneratorFlavor(
   if (!entry) return
   entry.name = values.name
   entry.icon = values.icon
+}
+
+// ─── Attacks ─────────────────────────────────────────────────────────
+
+/** Default icon for a new attack, before the author picks one. */
+const DEFAULT_ATTACK_ICON = '💥'
+
+/** An editable attack row: mechanics (id, kind) + primary-flavor display. */
+export interface AttackRow {
+  readonly id: string
+  readonly kind: 'active' | 'passive'
+  readonly name: string
+  readonly icon: string
+  readonly description: string
+}
+
+/** The next free `aN` attack id. */
+function uniqueAttackId(tree: TreeFile): string {
+  const used = new Set(tree.attacks.map((a) => a.id))
+  let n = 0
+  while (used.has(`a${n}`)) n++
+  return `a${n}`
+}
+
+/** Attack rows for the editor (primary flavor joined, in declaration order). */
+export function listAttacks(tree: TreeFile): AttackRow[] {
+  const flavor = new Map((tree.flavors[0]?.attacks ?? []).map((a) => [a.id, a]))
+  return tree.attacks.map((a) => {
+    const f = flavor.get(a.id)
+    return {
+      id: a.id,
+      kind: a.kind,
+      name: f?.name ?? a.id,
+      icon: f?.icon ?? DEFAULT_ATTACK_ICON,
+      description: f?.description ?? '',
+    }
+  })
+}
+
+/**
+ * Append a new passive attack with a unique `aN` id and a default flavor entry
+ * in every flavor (the runtime requires matching keys across flavors). Returns
+ * the new id. Passive is the default since it's the only kind with continuous
+ * behavior today.
+ */
+export function addAttack(tree: TreeFile): string {
+  const id = uniqueAttackId(tree)
+  tree.attacks.push({ id, kind: 'passive' })
+  for (const f of tree.flavors) {
+    f.attacks.push({ id, name: id, icon: DEFAULT_ATTACK_ICON, description: '' })
+  }
+  return id
+}
+
+/** Human-readable references that block deleting attack `id`: `unlockAttack` effects naming it. */
+export function attackReferences(tree: TreeFile, id: string): string[] {
+  const refs: string[] = []
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockAttack' && ref.attack === id) refs.push('an unlockAttack effect')
+  }
+  return refs
+}
+
+/**
+ * Rename attack `oldId → newId`, rewriting every `unlockAttack` reference and
+ * each flavor's attack entry. Fails (no mutation) when the new id is blank, in
+ * use, or the old id is absent.
+ */
+export function renameAttack(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || tree.attacks.some((a) => a.id === newId)) return false
+  const attack = tree.attacks.find((a) => a.id === oldId)
+  if (!attack) return false
+
+  attack.id = newId
+  for (const f of tree.flavors) {
+    for (const fa of f.attacks) if (fa.id === oldId) fa.id = newId
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockAttack' && ref.attack === oldId) ref.attack = newId
+  }
+  return true
+}
+
+/**
+ * Remove attack `id` and its flavor entries. Blocked when an `unlockAttack`
+ * effect still references it (see {@link attackReferences}).
+ */
+export function removeAttack(tree: TreeFile, id: string): MutationResult {
+  if (!tree.attacks.some((a) => a.id === id)) return { ok: false, reason: `unknown attack '${id}'` }
+  const refs = attackReferences(tree, id)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.attacks = tree.attacks.filter((a) => a.id !== id)
+  for (const f of tree.flavors) {
+    f.attacks = f.attacks.filter((fa) => fa.id !== id)
+  }
+  return { ok: true }
+}
+
+/** Set attack `id`'s kind. Unknown id is a no-op. */
+export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (attack) attack.kind = kind
+}
+
+/** The effect refs on attack `id` (empty when none / unknown id). */
+export function attackEffects(tree: TreeFile, id: string): EffectRefMut[] {
+  return tree.attacks.find((a) => a.id === id)?.effects ?? []
+}
+
+/** Replace attack `id`'s effects (clearing the field when empty). Unknown id is a no-op. */
+export function setAttackEffects(tree: TreeFile, id: string, effects: EffectRefMut[]): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (effects.length > 0) attack.effects = effects
+  else delete attack.effects
+}
+
+/** Upsert the primary flavor's display data for attack `id`. No-op if absent. */
+export function setAttackFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string; description: string },
+): void {
+  const entry = tree.flavors[0]?.attacks.find((a) => a.id === id)
+  if (!entry) return
+  entry.name = values.name
+  entry.icon = values.icon
+  entry.description = values.description
 }

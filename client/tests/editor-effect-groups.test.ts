@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { listEffectTypes } from '@game/shared'
-import { EFFECT_GROUPS, groupEffectTypes } from '../src/dev/editor/inspector.js'
+import { EFFECT_GROUPS, groupEffectTypes } from '../src/dev/editor/effects-editor.js'
 
 describe('groupEffectTypes', () => {
   it('places known types in their declared group, in order', () => {

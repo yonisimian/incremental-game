@@ -6,6 +6,7 @@ import {
   customizeGoal,
   createInitialState,
   collectModifiers,
+  collectEnemyDebuffs,
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
@@ -314,6 +315,44 @@ describe('collectModifiers', () => {
     expect(
       mods.some((m) => m.stage === 'multiplicative' && (m.field === 'r0' || m.field === 'r1')),
     ).toBe(true)
+  })
+})
+
+// ─── collectEnemyDebuffs ─────────────────────────────────────────────
+describe('collectEnemyDebuffs', () => {
+  // The upgrade whose `unlockAttack` effect gates the given attack id.
+  function attackGate(def: ModeDefinition, attackId: string): UpgradeDefinition {
+    const gate = def.upgrades.find((u) =>
+      (u.effects ?? []).some((e) => e.type === 'unlockAttack' && e.attack === attackId),
+    )
+    if (!gate) throw new Error(`no upgrade unlocks attack '${attackId}'`)
+    return gate
+  }
+
+  it('yields no debuffs when no passive attack is unlocked', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    expect(collectEnemyDebuffs(state, def)).toEqual([])
+  })
+
+  it('gathers the production modifier from an unlocked passive attack', () => {
+    const def = getModeDefinition('idler')
+    // a2 is a passive attack carrying enemyProductionModifier r0 ×0.9.
+    const state = createInitialState(def)
+    state.upgrades[attackGate(def, 'a2').id] = 1
+    expect(collectEnemyDebuffs(state, def)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 0.9,
+    })
+  })
+
+  it('ignores a passive attack that carries no offensive effect', () => {
+    const def = getModeDefinition('idler')
+    // a3 is a passive attack with no effects → contributes nothing.
+    const state = createInitialState(def)
+    state.upgrades[attackGate(def, 'a3').id] = 1
+    expect(collectEnemyDebuffs(state, def)).toEqual([])
   })
 })
 

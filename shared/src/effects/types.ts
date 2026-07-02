@@ -117,13 +117,29 @@ export interface PactUnlockOutput {
 }
 
 /**
+ * An *offensive* production modifier: a {@link Modifier} that applies to the
+ * **opponent's** pipeline rather than the owner's. Emitted by attack effects
+ * (e.g. `enemyProductionModifier`) and consumed by `collectEnemyDebuffs`, which
+ * gathers it from a player's *unlocked passive attacks* and feeds it into the
+ * other player's production. The owner's own `collectModifiers` ignores it (it
+ * would otherwise debuff the attacker), so the `enemyModifier` kind is the
+ * routing tag that keeps it off the wrong pipeline.
+ */
+export interface EnemyModifierOutput {
+  readonly kind: 'enemyModifier'
+  /** The modifier to apply to the opponent's production pipeline. */
+  readonly modifier: Modifier
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
- * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), or
- * an {@link EnemyDataAccessOutput}. Each is routed to a different subsystem
- * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
- * `hasEnemyDataAccess`); every consumer ignores the outputs it doesn't own.
+ * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
+ * {@link EnemyDataAccessOutput}, or an {@link EnemyModifierOutput}. Each is
+ * routed to a different subsystem (`collectModifiers` /
+ * `collectGeneratorCostFactors` / the unlock gates / `hasEnemyDataAccess` /
+ * `collectEnemyDebuffs`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -135,6 +151,7 @@ export type EffectOutput =
   | AttackUnlockOutput
   | PactUnlockOutput
   | EnemyDataAccessOutput
+  | EnemyModifierOutput
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn

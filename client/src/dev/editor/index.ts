@@ -18,18 +18,21 @@ import type { EditorContext, EditorView } from './views/types.js'
 import { createTreeView } from './views/tree.js'
 import { createResourcesView } from './views/resources.js'
 import { createGeneratorsView } from './views/generators.js'
+import { createAttacksView } from './views/attacks.js'
 
-type Section = 'resources' | 'generators' | 'tree'
+type Section = 'resources' | 'generators' | 'attacks' | 'tree'
 
 const SECTIONS: readonly { id: Section; label: string }[] = [
   { id: 'resources', label: '💎 Resources' },
   { id: 'generators', label: '🏭 Generators' },
+  { id: 'attacks', label: '💥 Attacks' },
   { id: 'tree', label: '🌳 Upgrade Tree' },
 ]
 
 const VIEW_FACTORIES: Record<Section, () => EditorView> = {
   resources: createResourcesView,
   generators: createGeneratorsView,
+  attacks: createAttacksView,
   tree: createTreeView,
 }
 

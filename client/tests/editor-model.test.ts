@@ -31,6 +31,13 @@ import {
   renameGenerator,
   removeGenerator,
   setGeneratorField,
+  listAttacks,
+  addAttack,
+  renameAttack,
+  removeAttack,
+  attackReferences,
+  setAttackKind,
+  setAttackEffects,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -647,5 +654,79 @@ describe('generators', () => {
     expect(tree.generators.some((g) => g.id === id)).toBe(false)
     for (const f of tree.flavors) expect(f.generators.some((g) => g.id === id)).toBe(false)
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+})
+
+describe('attacks', () => {
+  // The id of the passive attack carrying the seed `enemyProductionModifier`.
+  const OFFENSIVE_ATTACK = 'a2'
+
+  it('lists attacks joined with their primary flavor', () => {
+    const rows = listAttacks(idler())
+    expect(rows.length).toBeGreaterThan(0)
+    for (const a of rows) {
+      expect(a.icon).toBeTruthy()
+      expect(a.name).toBeTruthy()
+      expect(['active', 'passive']).toContain(a.kind)
+    }
+  })
+
+  it('addAttack appends a passive attack with flavor in every flavor and stays loadable', () => {
+    const tree = idler()
+    const before = tree.attacks.length
+    const id = addAttack(tree)
+    const added = tree.attacks.find((a) => a.id === id)
+    expect(added?.kind).toBe('passive')
+    expect(tree.attacks).toHaveLength(before + 1)
+    for (const f of tree.flavors) expect(f.attacks.some((a) => a.id === id)).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameAttack cascades unlockAttack references and stays loadable', () => {
+    const tree = idler()
+    expect(renameAttack(tree, OFFENSIVE_ATTACK, 'aRenamed')).toBe(true)
+    expect(tree.attacks.some((a) => a.id === 'aRenamed')).toBe(true)
+    expect(tree.attacks.some((a) => a.id === OFFENSIVE_ATTACK)).toBe(false)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameAttack rejects blank or duplicate ids', () => {
+    const tree = idler()
+    const other = tree.attacks[1]?.id
+    expect(renameAttack(tree, OFFENSIVE_ATTACK, '')).toBe(false)
+    if (other) expect(renameAttack(tree, OFFENSIVE_ATTACK, other)).toBe(false)
+  })
+
+  it('removeAttack is blocked while an unlockAttack effect references it', () => {
+    const tree = idler()
+    expect(attackReferences(tree, OFFENSIVE_ATTACK).length).toBeGreaterThan(0)
+    expect(removeAttack(tree, OFFENSIVE_ATTACK).ok).toBe(false)
+    expect(tree.attacks.some((a) => a.id === OFFENSIVE_ATTACK)).toBe(true)
+  })
+
+  it('setAttackKind switches an attack between passive and active', () => {
+    const tree = idler()
+    setAttackKind(tree, 'a3', 'active')
+    expect(tree.attacks.find((a) => a.id === 'a3')?.kind).toBe('active')
+  })
+
+  it('renameResource rewrites an attack enemyProductionModifier field', () => {
+    const tree = idler()
+    // a2 carries `enemyProductionModifier { field: 'r0' }`; renaming r0 must follow.
+    expect(renameResource(tree, 'r0', 'gold')).toBe(true)
+    const attack = tree.attacks.find((a) => a.id === OFFENSIVE_ATTACK)!
+    const ref = (attack.effects ?? []).find((e) => e.type === 'enemyProductionModifier')!
+    expect(ref.field).toBe('gold')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('resource removal is blocked by an attack enemyProductionModifier field', () => {
+    const tree = idler()
+    // Point a2's offensive effect at the spare resource r1, then it must block r1's removal.
+    setAttackEffects(tree, OFFENSIVE_ATTACK, [
+      { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r1', value: 0.9 },
+    ])
+    expect(resourceReferences(tree, 'r1')).toContain('an enemyProductionModifier field')
+    expect(removeResource(tree, 'r1').ok).toBe(false)
   })
 })

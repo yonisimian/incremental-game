@@ -80,7 +80,15 @@
     },
     {
       "id": "a2",
-      "kind": "passive"
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "r0",
+          "value": 0.9
+        }
+      ]
     },
     {
       "id": "a3",
@@ -603,7 +611,7 @@
           "id": "a2",
           "name": "First Passive Attack",
           "icon": "💥",
-          "description": ""
+          "description": "Passively reduces the enemy's Wood production by 10% while unlocked."
         },
         {
           "id": "a3",

@@ -93,14 +93,24 @@ export interface GeneratorDefinition {
 export type AttackKind = 'active' | 'passive'
 
 /**
- * Static definition of an attack. Attacks have no behavior yet — they only exist
- * to be unlocked (via an `unlockAttack` effect) and shown in the attack panel —
- * so an attack is a stable id plus its kind for now. Display data lives in
- * `AttackFlavor`. `kind` groups attacks into separate blocks in the panel.
+ * Static definition of an attack: a stable id, its kind, and the offensive
+ * effects it carries. Attacks are unlocked via an `unlockAttack` effect and
+ * shown in the attack panel. A `passive` attack's effects (e.g.
+ * `enemyProductionModifier`) apply continuously to the *opponent's* production
+ * while the attack is unlocked — gathered by `collectEnemyDebuffs`; active
+ * attacks have no continuous behavior yet (they await a trigger mechanism).
+ * Display data lives in `AttackFlavor`. `kind` groups attacks into separate
+ * blocks in the panel.
  */
 export interface AttackDefinition {
   readonly id: string
   readonly kind: AttackKind
+  /**
+   * Offensive effects this attack carries. Each ref names a registered effect
+   * plus its params; only `enemyModifier`-emitting effects on *passive* attacks
+   * currently have a runtime effect (applied to the opponent). Optional.
+   */
+  readonly effects?: readonly EffectRef[]
 }
 
 /** Whether a pact is actively maintained (`active`) or always-on (`passive`). */

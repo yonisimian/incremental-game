@@ -70,8 +70,16 @@ const GeneratorSchema = z.strictObject({
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
-/** An attack — a stable id plus its kind (no behavior yet). Display data is its flavor. */
-const AttackSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
+/**
+ * An attack — a stable id, its kind, and the offensive effects it carries.
+ * Effects are validated per-effect by the registry once assembled into a
+ * `ModeDefinition` (see `validateModeDefinition`). Display data is its flavor.
+ */
+const AttackSchema = z.strictObject({
+  id: z.string(),
+  kind: z.enum(['active', 'passive']),
+  effects: z.array(EffectRefSchema).optional(),
+})
 
 /** A pact — a stable id plus its kind (no behavior yet). Display data is its flavor. */
 const PactSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
