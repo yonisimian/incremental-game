@@ -1,11 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { GameMode, Goal, UpgradeDefinition } from '@game/shared'
+import type { GameMode, Goal, ModeDefinition, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getModeDefinition } from '@game/shared'
 import { Match } from '../src/match.js'
 import { IdlerBot, createBot } from '../src/bot.js'
 import type { BotStrategy } from '../src/bot.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
+
+/**
+ * Build a minimal idler-flavored mode whose upgrades are the supplied synthetic
+ * set and which has no generators — enough to unit-test the bot's plan/click
+ * logic in isolation. Generator behavior is covered separately against the real
+ * idler mode.
+ */
+function stubMode(upgrades: UpgradeDefinition[]): ModeDefinition {
+  return { ...getModeDefinition('idler'), upgrades, generators: [] }
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
@@ -50,7 +60,7 @@ describe('Bot', () => {
     ]
 
     it('stays on r0 highlight first (for be-af-mr)', () => {
-      const bot = new IdlerBot(idlerUpgrades)
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {
         score: 0,
         resources: { r0: 0, r1: 0 },
@@ -70,7 +80,7 @@ describe('Bot', () => {
     })
 
     it('buys be-af-mr when r0 is sufficient', () => {
-      const bot = new IdlerBot(idlerUpgrades)
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {
         score: 0,
         resources: { r0: 0, r1: 0 },
@@ -93,8 +103,8 @@ describe('Bot', () => {
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
     })
 
-    it('returns empty actions after plan is exhausted', () => {
-      const bot = new IdlerBot(idlerUpgrades)
+    it('keeps clicking the score resource after the plan is exhausted', () => {
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {
         score: 0,
         resources: { r0: 200, r1: 200 },
@@ -113,9 +123,12 @@ describe('Bot', () => {
         bot.decide(state)
       }
 
-      // Plan exhausted — should return empty
+      // Plan exhausted — no more upgrade buys, but the bot still farms score.
       const actions = bot.decide(state)
-      expect(actions).toHaveLength(0)
+      expect(actions.filter((a) => a.type === 'buy')).toHaveLength(0)
+      const clicks = actions.filter((a) => a.type === 'click')
+      expect(clicks.length).toBeGreaterThan(0)
+      expect(clicks.every((a) => a.resource === 'r0')).toBe(true)
     })
 
     it('appends trophy prereqs to plan under buy-upgrade goal', () => {
@@ -142,7 +155,7 @@ describe('Bot', () => {
           prerequisites: { type: 'all' as const, items: [{ type: 'upgrade' as const, id: 'u4' }] },
         },
       ]
-      const bot = new IdlerBot(upgWithTrophy)
+      const bot = new IdlerBot(stubMode(upgWithTrophy))
       const state = {
         score: 0,
         resources: { r0: 9999, r1: 9999 },
@@ -164,6 +177,51 @@ describe('Bot', () => {
       expect(buyIds).toContain('u5')
       // Trophy prereqs must come before trophy
       expect(buyIds.indexOf('u4')).toBeLessThan(buyIds.indexOf('u5'))
+    })
+
+    it('clicks the farmed resource each tick when clicking is enabled', () => {
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
+      const state = {
+        score: 0,
+        resources: { r0: 0, r1: 0 },
+        generators: {},
+        meta: { highlight: 'r0' as const },
+        upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0 },
+      }
+      const clicks = bot.decide(state).filter((a) => a.type === 'click')
+      expect(clicks.length).toBeGreaterThan(0)
+      // First plan step (be-af-mr) is r0-funded, so the bot clicks r0.
+      expect(clicks.every((a) => a.resource === 'r0')).toBe(true)
+    })
+
+    it('buys an unlocked, affordable generator (real idler mode)', () => {
+      const mode = getModeDefinition('idler')
+      const bot = new IdlerBot(mode)
+      // g1-g2 owned unlocks g0/g1 (both r1-funded); fund r1 generously.
+      const state = {
+        score: 0,
+        resources: { r0: 0, r1: 1000 },
+        generators: {},
+        meta: { highlight: 'r1' as const },
+        upgrades: { 'g1-g2': 1 },
+      }
+      const genBuys = bot.decide(state).filter((a) => a.type === 'buy_generator')
+      expect(genBuys.length).toBeGreaterThan(0)
+    })
+
+    it('does not buy generators that are still locked', () => {
+      const mode = getModeDefinition('idler')
+      const bot = new IdlerBot(mode)
+      // No unlock upgrades owned → every generator is gated.
+      const state = {
+        score: 0,
+        resources: { r0: 1000, r1: 1000 },
+        generators: {},
+        meta: { highlight: 'r1' as const },
+        upgrades: {},
+      }
+      const genBuys = bot.decide(state).filter((a) => a.type === 'buy_generator')
+      expect(genBuys).toHaveLength(0)
     })
   })
 
