@@ -82,6 +82,8 @@ export {
   addressableSourcesFor,
   addressableTargets,
   addressableTargetsFor,
+  enemyDebuffTargets,
+  enemyDebuffTargetsFor,
   listAddressableFields,
   readSourceValue,
 } from './addressable.js'

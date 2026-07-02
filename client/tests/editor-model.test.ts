@@ -729,17 +729,4 @@ describe('attacks', () => {
     expect(resourceReferences(tree, 'r1')).toContain('an enemyProductionModifier field')
     expect(removeResource(tree, 'r1').ok).toBe(false)
   })
-
-  it('renameGenerator rewrites an attack enemyProductionModifier field', () => {
-    const tree = idler()
-    const gen = tree.generators[0].id
-    setAttackEffects(tree, OFFENSIVE_ATTACK, [
-      { type: 'enemyProductionModifier', stage: 'multiplicative', field: gen, value: 0.9 },
-    ])
-    expect(renameGenerator(tree, gen, 'gFoe')).toBe(true)
-    const attack = tree.attacks.find((a) => a.id === OFFENSIVE_ATTACK)!
-    const ref = (attack.effects ?? []).find((e) => e.type === 'enemyProductionModifier')!
-    expect(ref.field).toBe('gFoe')
-    expect(() => toModeDefinition(tree)).not.toThrow()
-  })
 })

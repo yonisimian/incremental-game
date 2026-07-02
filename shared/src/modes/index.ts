@@ -16,6 +16,7 @@ import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/i
 import {
   addressableSources,
   addressableTargets,
+  enemyDebuffTargets,
   NON_RESOURCE_INTEL_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
@@ -207,12 +208,14 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
   // opponent-pipeline target. It's a mode-specific string the generic schema
-  // only checks is present, so validate it against the addressable-target
-  // catalog (resource rates, generator outputs, the two special pipeline
-  // fields), same as `relativeModifier`'s `field`, so a typo refuses to boot
-  // instead of silently debuffing nothing. Also flags an offensive effect on an
-  // active attack, which has no continuous behavior yet (likely an authoring
-  // mistake).
+  // only checks is present, so validate it against the *enemy-debuff* target
+  // catalog — a subset of `relativeModifier`'s (resource rates + globalMultiplier
+  // only). Generator-id and `clickIncome` targets are rejected here because the
+  // debuff merges into the opponent's pipeline after generator output is folded
+  // and only on the passive path, so they'd silently do nothing (see
+  // `enemyDebuffTargetsFor`). Also flags an offensive effect on an active attack,
+  // which has no continuous behavior yet (likely an authoring mistake).
+  const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
       if (ref.type !== 'enemyProductionModifier') continue
@@ -220,9 +223,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] attack '${attack.id}' carries an enemyProductionModifier but is not passive (active attacks have no continuous effect yet)`,
         )
-      if (typeof ref.field === 'string' && !targetKeys.has(ref.field))
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown field '${ref.field}'`,
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates and globalMultiplier can be debuffed)`,
         )
     }
   }

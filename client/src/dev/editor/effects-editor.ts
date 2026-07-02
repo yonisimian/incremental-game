@@ -11,6 +11,7 @@ import {
   addressableSourcesFor,
   addressableTargetsFor,
   enemyDataKeysFor,
+  enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
   listEffectTypes,
   resolveEffect,
@@ -75,10 +76,11 @@ type EffectFieldOption = string | { readonly value: string; readonly label: stri
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
  * `:rate` variant per resource (per-second production) and the non-resource
- * intel keys (peak CPS, purchases). `relativeModifier`'s and
- * `enemyProductionModifier`'s `field`/`source` come from the shared
- * addressable-field catalog (labelled), the same set the boot-time validator
- * enforces.
+ * intel keys (peak CPS, purchases). `relativeModifier`'s `field`/`source` come
+ * from the shared addressable-field catalog (labelled), the same set the
+ * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
+ * narrower enemy-debuff catalog (resource rates + globalMultiplier only —
+ * generator/click targets don't apply to a debuff).
  */
 function effectFieldOptions(
   tree: TreeFile,
@@ -88,14 +90,14 @@ function effectFieldOptions(
   if (effectType === 'relativeModifier' && fieldKey === 'source') {
     return addressableSourcesFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
-  if (
-    (effectType === 'relativeModifier' || effectType === 'enemyProductionModifier') &&
-    fieldKey === 'field'
-  ) {
+  if (effectType === 'relativeModifier' && fieldKey === 'field') {
     return addressableTargetsFor(
       tree.resources,
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))
+  }
+  if (effectType === 'enemyProductionModifier' && fieldKey === 'field') {
+    return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
   if (
     (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&

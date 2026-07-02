@@ -362,6 +362,96 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/references unknown attack 'a-ghost'/)
   })
 
+  it('accepts an enemyProductionModifier debuffing a resource rate', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Blight', icon: '🐛', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('accepts an enemyProductionModifier debuffing the globalMultiplier', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              field: 'globalMultiplier',
+              value: 0.8,
+            },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Sabotage', icon: '💣', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when an enemyProductionModifier targets an unsupported field (clickIncome)', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              field: 'clickIncome',
+              value: 0.5,
+            },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Jam', icon: '🔇', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/unknown or unsupported field 'clickIncome'/)
+  })
+
+  it('throws when an enemyProductionModifier is carried by a non-passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'active',
+          effects: [
+            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Strike', icon: '⚔️', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/carries an enemyProductionModifier but is not passive/)
+  })
+
   it('throws when an unlockPact effect references an unknown pact', () => {
     const def = makeValidDef({
       upgrades: [

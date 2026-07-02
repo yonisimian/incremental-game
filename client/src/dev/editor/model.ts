@@ -676,9 +676,8 @@ export function addGenerator(tree: TreeFile): string {
 
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
- * `generatorUnlock` effects naming it, and `relativeModifier` /
- * `enemyProductionModifier` fields targeting its output — across every effect
- * location.
+ * `generatorUnlock` effects naming it, and `relativeModifier` fields targeting its
+ * output — across every effect location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
@@ -687,8 +686,6 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
       refs.push(`a ${ref.type} effect`)
     } else if (ref.type === 'relativeModifier' && ref.field === id) {
       refs.push('a relativeModifier field')
-    } else if (ref.type === 'enemyProductionModifier' && ref.field === id) {
-      refs.push('an enemyProductionModifier field')
     }
   }
   return refs
@@ -696,10 +693,9 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
- * param of `generatorCost`/`generatorUnlock`, `relativeModifier` /
- * `enemyProductionModifier` field targets, across every effect location, and
- * every flavor's generator entry). Fails (no mutation) when the new id is blank,
- * in use, or the old id is absent.
+ * param of `generatorCost`/`generatorUnlock`, `relativeModifier` field targets,
+ * across every effect location, and every flavor's generator entry). Fails (no
+ * mutation) when the new id is blank, in use, or the old id is absent.
  */
 export function renameGenerator(tree: TreeFile, oldId: string, newId: string): boolean {
   if (oldId === newId) return true
@@ -717,10 +713,7 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
       ref.generator === oldId
     ) {
       ref.generator = newId
-    } else if (
-      (ref.type === 'relativeModifier' || ref.type === 'enemyProductionModifier') &&
-      ref.field === oldId
-    ) {
+    } else if (ref.type === 'relativeModifier' && ref.field === oldId) {
       ref.field = newId
     }
   }

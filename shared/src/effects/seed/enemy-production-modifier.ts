@@ -7,12 +7,15 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *
  * An *offensive* production modifier carried by an attack: while the attack is
  * unlocked, apply `value` to the **opponent's** `field` at the given pipeline
- * `stage`. `field` is a `Modifier` target (a resource rate, a generator output,
- * or `clickIncome` / `globalMultiplier`) — like `baseModifier`'s `field`, it's a
- * plain `z.string()` so the schema-driven editor form can introspect it; the
- * valid set is enforced by the editor dropdown and validated against the mode's
- * addressable targets at load (`validateModeDefinition`), so an authored typo
- * fails loudly.
+ * `stage`. `field` is a debuffable pipeline target — a resource rate or the
+ * `globalMultiplier`; like `baseModifier`'s `field`, it's a plain `z.string()`
+ * so the schema-driven editor form can introspect it. The valid set is the
+ * narrower *enemy-debuff* catalog (not the full addressable targets): the debuff
+ * merges into the opponent's pipeline after generator output is folded and only
+ * on the passive path, so generator-id and `clickIncome` targets would silently
+ * do nothing. The editor dropdown offers only the supported targets and
+ * `validateModeDefinition` rejects the rest at load, so an authored typo (or an
+ * unsupported target) fails loudly.
  *
  * For a passive attack the modifier applies continuously while unlocked (e.g.
  * `field: "r0", stage: "multiplicative", value: 0.9` reduces the opponent's wood
