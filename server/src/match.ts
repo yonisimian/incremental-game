@@ -432,11 +432,15 @@ export class Match {
           botPlayer.recentClickTimestamps.shift()
         }
         botPlayer.recentClickTimestamps.push(now)
-        this.applyClick(botPlayer)
+        this.applyClick(botPlayer, action.resource)
       } else if (action.type === 'buy') {
         if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap)) continue
         this.applyPurchase(botPlayer, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, botPlayer)) break
+      } else if (action.type === 'buy_generator') {
+        if (!isValidGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)) continue
+        applyGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)
+        this.recordPurchase(botPlayer, 'generator', action.generatorId)
       } else {
         // set_highlight — validate identically to processActions
         if (
