@@ -23,7 +23,7 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  * describes the bonus.
  */
 const schema = z.strictObject({
-  stage: z.enum(['additive', 'multiplicative', 'global']),
+  stage: z.enum(['additive', 'multiplicative']),
   field: z.string(),
   value: z.number(),
 })

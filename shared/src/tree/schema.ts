@@ -14,7 +14,7 @@ export const CURRENT_TREE_VERSION = 2
 const PositionSchema = z.strictObject({ x: z.number(), y: z.number() })
 
 const ModifierSchema = z.strictObject({
-  stage: z.enum(['additive', 'multiplicative', 'global']),
+  stage: z.enum(['additive', 'multiplicative']),
   field: z.string(),
   value: z.number(),
 })
