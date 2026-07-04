@@ -30,6 +30,7 @@ import type {
   GameMode,
   Goal,
   MatchWinner,
+  Modifier,
   ModeDefinition,
   OpponentView,
   PlayerAction,
@@ -566,12 +567,19 @@ export class Match {
   private broadcastState(): void {
     const [p1, p2] = this.players
 
+    // Offensive debuffs each player's unlocked passive attacks inflict on the
+    // other, sent so the victim's client can render its true (debuffed) rate —
+    // matching the same debuffs `applyPassiveIncome` applies to real income.
+    const p1Debuffs = collectEnemyDebuffs(p1.state, this.modeDef)
+    const p2Debuffs = collectEnemyDebuffs(p2.state, this.modeDef)
+
     this.send(p1, {
       type: 'STATE_UPDATE',
       tick: this.tick,
       ackSeq: p1.ackSeq,
       player: p1.state,
-      opponent: this.opponentViewFor(p1, p2),
+      opponent: this.opponentViewFor(p1, p2, p1Debuffs),
+      debuffs: p2Debuffs,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -581,7 +589,8 @@ export class Match {
       tick: this.tick,
       ackSeq: p2.ackSeq,
       player: p2.state,
-      opponent: this.opponentViewFor(p2, p1),
+      opponent: this.opponentViewFor(p2, p1, p2Debuffs),
+      debuffs: p1Debuffs,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -596,8 +605,16 @@ export class Match {
    *
    * Score is public for timed / target-score goals (it's the win condition and
    * shown live), and omitted for `buy-upgrade`, where it isn't shown.
+   *
+   * `viewerDebuffs` are the offensive modifiers `viewer` inflicts on `opponent`
+   * (already computed by the caller for the `debuffs` field); folding them into
+   * the spied rate makes it match the opponent's real, debuffed production.
    */
-  private opponentViewFor(viewer: MatchPlayer, opponent: MatchPlayer): OpponentView {
+  private opponentViewFor(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    viewerDebuffs: Modifier[],
+  ): OpponentView {
     const mode = this.modeDef
     const view: OpponentView = { resources: {}, rates: {} }
 
@@ -613,7 +630,7 @@ export class Match {
         // Include the debuffs the *viewer* inflicts on the opponent so the spied
         // rate matches the opponent's real production, not an undebuffed figure.
         rates ??= computePassiveRates(
-          [...collectModifiers(opponent.state, mode), ...collectEnemyDebuffs(viewer.state, mode)],
+          [...collectModifiers(opponent.state, mode), ...viewerDebuffs],
           mode.resources,
         )
         view.rates[key] = rates[key] ?? 0
