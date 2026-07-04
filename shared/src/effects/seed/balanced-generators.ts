@@ -9,7 +9,7 @@ import type { EffectDef } from '../types.js'
  * Schema for the `balancedGenerators` effect's params.
  *
  * "Gain a boost when all generators are owned in equal amounts": when every
- * generator holds the same (non-zero) owned count, a single global production
+ * generator holds the same (non-zero) owned count, a multiplicative production
  * multiplier of `multiplier` applies.
  */
 const schema = z.strictObject({
@@ -20,8 +20,9 @@ const schema = z.strictObject({
 export type BalancedGeneratorsParams = z.infer<typeof schema>
 
 /**
- * Returns a global multiplier when all generators are owned in equal, non-zero
- * amounts; `null` otherwise (including when no generators exist or any is unowned).
+ * Returns a multiplicative multiplier when all generators are owned in equal,
+ * non-zero amounts; `null` otherwise (including when no generators exist or any
+ * is unowned).
  */
 function apply(
   p: BalancedGeneratorsParams,
@@ -35,7 +36,7 @@ function apply(
   for (const gen of gens) {
     if ((state.generators[gen.id] ?? 0) !== first) return null
   }
-  return { stage: 'global', field: 'globalMultiplier', value: p.multiplier }
+  return { stage: 'multiplicative', field: 'globalMultiplier', value: p.multiplier }
 }
 
 export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = { schema, apply }
