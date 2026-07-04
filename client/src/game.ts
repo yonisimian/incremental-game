@@ -2,6 +2,7 @@ import {
   type GameMode,
   type Goal,
   type ModeDefinition,
+  type Modifier,
   type OpponentView,
   type PlayerState,
   type PurchaseEvent,
@@ -87,6 +88,13 @@ export interface GameState {
    * re-sends an event). Reset at the start of each match.
    */
   opponentPurchaseFeed: PurchaseEvent[]
+  /**
+   * Offensive modifiers the opponent's unlocked passive attacks currently
+   * inflict on this player (from each `STATE_UPDATE`, empty when none). Merged
+   * into the header's passive-rate computation so the displayed rate matches the
+   * debuffed income the server actually applies. Reset at the start of each match.
+   */
+  debuffs: Modifier[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -159,6 +167,7 @@ const state: GameState = {
   player: clonePlayerState(EMPTY_PLAYER_STATE),
   opponent: emptyOpponentView(),
   opponentPurchaseFeed: [],
+  debuffs: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -543,6 +552,7 @@ export function resetForMatch(): void {
   state.player = clonePlayerState(EMPTY_PLAYER_STATE)
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
+  state.debuffs = []
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -587,6 +597,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.player = createInitialState(modeDef)
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
+  state.debuffs = []
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -619,6 +630,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
+  state.debuffs = msg.debuffs ?? []
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
