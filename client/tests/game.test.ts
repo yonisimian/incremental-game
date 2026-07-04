@@ -311,6 +311,35 @@ describe('game.ts', () => {
       expect(s.timeLeft).toBe(50)
     })
 
+    it('stores incoming debuffs and clears them on the next debuff-free update', () => {
+      enterPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          debuffs: [{ stage: 'multiplicative', field: 'r0', value: 0.9 }],
+        }),
+      )
+      expect(game.getState().debuffs).toEqual([
+        { stage: 'multiplicative', field: 'r0', value: 0.9 },
+      ])
+
+      // An update without `debuffs` resets to empty (no lingering debuff).
+      game.handleServerMessage(makeStateUpdate())
+      expect(game.getState().debuffs).toEqual([])
+    })
+
+    it('resets debuffs at the start of a new round', () => {
+      enterPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          debuffs: [{ stage: 'multiplicative', field: 'r0', value: 0.9 }],
+        }),
+      )
+      expect(game.getState().debuffs).toHaveLength(1)
+
+      game.handleServerMessage(makeRoundStart())
+      expect(game.getState().debuffs).toEqual([])
+    })
+
     it('drops acknowledged batches', () => {
       enterIdlerPlaying(game)
       // Give currency and make an optimistic purchase

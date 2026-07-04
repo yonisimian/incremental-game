@@ -1,3 +1,4 @@
+import type { Modifier } from './modifiers/types.js'
 import type { GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
@@ -144,6 +145,14 @@ export interface StateUpdateMessage {
   player: PlayerState
   /** A redacted view of the opponent — only the intel the viewer has unlocked. */
   opponent: OpponentView
+  /**
+   * Offensive modifiers the opponent's unlocked passive attacks currently
+   * inflict on the receiving player (e.g. a -10% wood-production debuff). Absent
+   * when none are active. The client merges these into its own production-rate
+   * computation so the header shows the true (debuffed) rate, matching the
+   * server-side income the player actually accrues.
+   */
+  debuffs?: Modifier[]
   /** Seconds remaining in the round. */
   timeLeft: number
   /** Whether the server has paused the current match. */

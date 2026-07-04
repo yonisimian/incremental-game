@@ -34,6 +34,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
       rates: {},
     },
     opponentPurchaseFeed: [],
+    debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
     vsBot: false,

@@ -269,6 +269,30 @@ describe('Match', () => {
       expect(latestUpdate(ws2).opponent.peakCps).toBeUndefined()
     })
 
+    it('sends a viewer the debuffs its own passive attacks inflict on the opponent', () => {
+      const m = enterPlaying()
+      // p1 unlocks the attack panel then the passive attack a2 (−10% enemy r0).
+      m.handleMessage('p1', buyMsg('a-unlock', 1))
+      m.handleMessage('p1', buyMsg('node-3', 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // The victim (p2) is told about the incoming debuff so its client can show
+      // the true, debuffed rate; the attacker (p1) is not debuffed.
+      expect(latestUpdate(ws2).debuffs).toContainEqual({
+        stage: 'multiplicative',
+        field: 'r0',
+        value: 0.9,
+      })
+      expect(latestUpdate(ws1).debuffs).toEqual([])
+    })
+
+    it('sends no debuffs when neither player has an unlocked passive attack', () => {
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).debuffs).toEqual([])
+      expect(latestUpdate(ws2).debuffs).toEqual([])
+    })
+
     it('forwards a new opponent purchase (timestamp only) once to a viewer who unlocked `e-se-p`', () => {
       const m = enterPlaying()
       // p1 unlocks the purchase feed (free chain: e-se-mr → e-se-mr-ps → e-se-p).

@@ -44,13 +44,23 @@ let activeModeDef: ModeDefinition | null = null
 /** Idle production per resource — includes highlight, excludes click income. */
 function passiveRates(state: Readonly<GameState>): Record<string, number> {
   if (!activeModeDef) return {}
-  return computePassiveRates(collectModifiers(state.player, activeModeDef), activeModeDef.resources)
+  // Merge in the debuffs the opponent's passive attacks inflict (sent by the
+  // server) so the header shows the true, debuffed rate — matching the income
+  // the server actually applies. The client can't derive these itself (it never
+  // sees the opponent's state).
+  return computePassiveRates(
+    [...collectModifiers(state.player, activeModeDef), ...state.debuffs],
+    activeModeDef.resources,
+  )
 }
 
-/** Format an idle production rate for the header (e.g. "+2/s", "+0.5/s"). */
+/** Format an idle production rate for the header (e.g. "+2/s", "+0.5/s", "-1/s"). */
 function formatRate(rate: number): string {
   const decimals = Number.isInteger(rate) ? 0 : 1
-  return `+${formatNumber(rate, decimals)}/s`
+  // A debuff can push a rate negative; format the magnitude with an explicit
+  // sign so we never render "+-2/s".
+  const sign = rate < 0 ? '-' : '+'
+  return `${sign}${formatNumber(Math.abs(rate), decimals)}/s`
 }
 
 /** Resource bar shown in the header, visible across all tabs. */
