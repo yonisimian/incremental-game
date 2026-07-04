@@ -511,15 +511,15 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     if (generatorIds.has(mod.field)) {
       const genState = generatorModifiers.get(mod.field)!
       if (mod.stage === 'additive') genState.additive += mod.value
-      else if (mod.stage === 'multiplicative') genState.multiplicative *= mod.value
+      else genState.multiplicative *= mod.value
     } else {
       modifiers.push(mod)
     }
   }
 
   // Route a `baseModifier` output with the owning upgrade's owned-count
-  // compounding: additive scales linearly (× owned), multiplicative/global
-  // compound (^ owned). Generator-targeted bonuses feed the per-generator
+  // compounding: additive scales linearly (× owned), multiplicative compounds
+  // (^ owned). Generator-targeted bonuses feed the per-generator
   // accumulator (additive per-unit × owned, applied again per generator below);
   // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
   // `modifiers` array exactly.
@@ -527,7 +527,7 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     if (generatorIds.has(o.field)) {
       const genState = generatorModifiers.get(o.field)!
       if (o.stage === 'additive') genState.additive += o.value * owned
-      else if (o.stage === 'multiplicative') genState.multiplicative *= o.value ** owned
+      else genState.multiplicative *= o.value ** owned
     } else {
       const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
       modifiers.push({ stage: o.stage, field: o.field, value })
