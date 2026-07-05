@@ -1096,10 +1096,7 @@
         },
         {
           "id": "g3-g4",
-          "cost": {
-            "r0": 250,
-            "r1": 30
-          },
+          "cost": {},
           "purchaseLimit": 1,
           "prerequisites": {
             "type": "upgrade",
@@ -1301,6 +1298,12 @@
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "dominantGenerator",
+                  "multiplier": 3
+                }
+              ],
               "offset": {
                 "x": -192,
                 "y": 120
@@ -1315,6 +1318,12 @@
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "balancedGenerators",
+                  "multiplier": 10
+                }
+              ],
               "offset": {
                 "x": -96,
                 "y": 120
@@ -1323,12 +1332,18 @@
             {
               "id": "lower-g",
               "cost": {},
-              "purchaseLimit": 1,
+              "purchaseLimit": 2,
               "choiceGroup": "g-choice",
               "prerequisites": {
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "lowerTierBoost",
+                  "perUnit": 1
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 120
