@@ -272,12 +272,10 @@ function renderResults(
   const scoreSeries = results.map((r) => ({
     label: r.name,
     data: r.snapshots.map((s) => s.score),
-    markers: r.purchaseLog.map(
-      (p): ChartMarker => ({
-        x: p.timeSec,
-        label: UPGRADE_ABBR[p.id] ?? p.id,
-      }),
-    ),
+    markers: r.purchaseLog.map((p): ChartMarker => ({
+      x: p.timeSec,
+      label: UPGRADE_ABBR[p.id] ?? p.id,
+    })),
   }))
   renderChart(scoreContainer, 'Score', xData, scoreSeries)
 
@@ -291,12 +289,10 @@ function renderResults(
     const incomeSeries = results.map((r) => ({
       label: r.name,
       data: r.snapshots.map((s) => s.incomePerSec[resKey] ?? 0),
-      markers: r.purchaseLog.map(
-        (p): ChartMarker => ({
-          x: p.timeSec,
-          label: UPGRADE_ABBR[p.id] ?? p.id,
-        }),
-      ),
+      markers: r.purchaseLog.map((p): ChartMarker => ({
+        x: p.timeSec,
+        label: UPGRADE_ABBR[p.id] ?? p.id,
+      })),
     }))
     const incDiv = document.createElement('div')
     resourceContainer.appendChild(incDiv)
@@ -306,12 +302,10 @@ function renderResults(
     const balanceSeries = results.map((r) => ({
       label: r.name,
       data: r.snapshots.map((s) => s.resources[resKey] ?? 0),
-      markers: r.purchaseLog.map(
-        (p): ChartMarker => ({
-          x: p.timeSec,
-          label: UPGRADE_ABBR[p.id] ?? p.id,
-        }),
-      ),
+      markers: r.purchaseLog.map((p): ChartMarker => ({
+        x: p.timeSec,
+        label: UPGRADE_ABBR[p.id] ?? p.id,
+      })),
     }))
     const balDiv = document.createElement('div')
     resourceContainer.appendChild(balDiv)
@@ -322,12 +316,10 @@ function renderResults(
   const totalIncomeSeries = results.map((r) => ({
     label: r.name,
     data: r.snapshots.map((s) => s.incomePerSec[modeDef.scoreResource] ?? 0),
-    markers: r.purchaseLog.map(
-      (p): ChartMarker => ({
-        x: p.timeSec,
-        label: UPGRADE_ABBR[p.id] ?? p.id,
-      }),
-    ),
+    markers: r.purchaseLog.map((p): ChartMarker => ({
+      x: p.timeSec,
+      label: UPGRADE_ABBR[p.id] ?? p.id,
+    })),
   }))
   renderChart(incomeContainer, 'Score Income/sec', xData, totalIncomeSeries)
 
