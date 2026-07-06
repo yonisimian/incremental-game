@@ -67,16 +67,14 @@ describe('describeEffectSchema', () => {
   })
 
   it('describes an enum field as a string picker defaulting to its first member', () => {
-    const spec = describeEffectSchema(
-      object({ stage: enumOf('additive', 'multiplicative', 'global') }),
-    )
+    const spec = describeEffectSchema(object({ stage: enumOf('additive', 'multiplicative') }))
     expect(spec.variants[0].fields).toEqual([
       {
         key: 'stage',
         kind: 'string',
         optional: false,
         defaultValue: 'additive',
-        options: ['additive', 'multiplicative', 'global'],
+        options: ['additive', 'multiplicative'],
       },
     ])
   })
@@ -99,7 +97,7 @@ describe('describeEffectSchema', () => {
       kind: 'string',
       optional: false,
       defaultValue: 'additive',
-      options: ['additive', 'multiplicative', 'global'],
+      options: ['additive', 'multiplicative'],
     })
   })
 })
