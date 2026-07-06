@@ -4,7 +4,7 @@ import type { PlayerState } from '../types.js'
 // ─── Pipeline Core ───────────────────────────────────────────────────
 
 /**
- * Run the modifier pipeline: seed → additive → multiplicative → global.
+ * Run the modifier pipeline: seed → additive → multiplicative.
  * Returns the raw ModifierContext (globalMultiplier NOT yet applied to fields).
  */
 export function computeIncome(modifiers: readonly Modifier[]): ModifierContext {
@@ -37,12 +37,6 @@ export function computeIncome(modifiers: readonly Modifier[]): ModifierContext {
     } else {
       ctx.rates[m.field] = (ctx.rates[m.field] ?? 0) * m.value
     }
-  }
-
-  // 4. GLOBAL
-  for (const m of modifiers) {
-    if (m.stage !== 'global') continue
-    ctx.globalMultiplier *= m.value
   }
 
   return ctx

@@ -25,7 +25,7 @@ import { readSourceValue } from '../addressable.js'
 const schema = z.strictObject({
   source: z.string(),
   field: z.string(),
-  stage: z.enum(['additive', 'multiplicative', 'global']),
+  stage: z.enum(['additive', 'multiplicative']),
   factor: z.number().optional(),
 })
 

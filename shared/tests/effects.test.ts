@@ -356,7 +356,7 @@ describe('balancedGenerators effect', () => {
     const state = createInitialState(mode)
     for (const gen of mode.generators) state.generators[gen.id] = 4
     expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
-      stage: 'global',
+      stage: 'multiplicative',
       field: 'globalMultiplier',
       value: 2,
     })

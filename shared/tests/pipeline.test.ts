@@ -46,15 +46,14 @@ describe('computeIncome', () => {
     expect(ctx.clickIncome).toBe(4) // (1+1) * 2
   })
 
-  it('handles globalMultiplier through all stages', () => {
+  it('handles globalMultiplier through additive and multiplicative stages', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'globalMultiplier', value: 0.5 },
-      { stage: 'multiplicative', field: 'globalMultiplier', value: 2 },
-      { stage: 'global', field: 'globalMultiplier', value: 3 },
+      { stage: 'multiplicative', field: 'globalMultiplier', value: 3 },
     ]
     const ctx = computeIncome(mods)
-    // additive: 1 + 0.5 = 1.5; multiplicative: 1.5 * 2 = 3; global: 3 * 3 = 9
-    expect(ctx.globalMultiplier).toBe(9)
+    // additive: 1 + 0.5 = 1.5; multiplicative: 1.5 * 3 = 4.5
+    expect(ctx.globalMultiplier).toBe(4.5)
   })
 
   it('multiplicative on empty rate creates the rate (0 * N = 0)', () => {
@@ -85,16 +84,16 @@ describe('computeClickIncome', () => {
   it('applies globalMultiplier to clickIncome', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'clickIncome', value: 2 },
-      { stage: 'global', field: 'globalMultiplier', value: 3 },
+      { stage: 'multiplicative', field: 'globalMultiplier', value: 3 },
     ]
     expect(computeClickIncome(mods)).toBe(6) // 2 * 3
   })
 
-  it('chains additive → multiplicative → global for click income', () => {
+  it('chains additive → multiplicative for click income', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'clickIncome', value: 1 },
       { stage: 'multiplicative', field: 'clickIncome', value: 2 },
-      { stage: 'global', field: 'globalMultiplier', value: 1.5 },
+      { stage: 'multiplicative', field: 'globalMultiplier', value: 1.5 },
     ]
     expect(computeClickIncome(mods)).toBe(3) // (1 * 2) * 1.5
   })
@@ -112,7 +111,7 @@ describe('computePassiveRates', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'wood', value: 2 },
       { stage: 'additive', field: 'ale', value: 1 },
-      { stage: 'global', field: 'globalMultiplier', value: 2 },
+      { stage: 'multiplicative', field: 'globalMultiplier', value: 2 },
     ]
     const rates = computePassiveRates(mods, ['wood', 'ale'])
     expect(rates.wood).toBe(4) // 2 * 2

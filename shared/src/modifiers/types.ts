@@ -1,6 +1,6 @@
 /** A single declarative modifier — pure data, serializable. */
 export interface Modifier {
-  readonly stage: 'additive' | 'multiplicative' | 'global'
+  readonly stage: 'additive' | 'multiplicative'
   /**
    * The resource or special field to target.
    * Fields matching a ModifierContext property ('clickIncome', 'globalMultiplier')
