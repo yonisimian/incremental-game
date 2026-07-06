@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "id": "idler",
   "resources": [
     "r0",
@@ -1323,9 +1323,10 @@
             "r0": 25
           },
           "costScaling": {
-            "type": "exponential",
-            "baseCost": 25,
-            "factor": 1.15
+            "r0": {
+              "type": "exponential",
+              "factor": 1.15
+            }
           },
           "purchaseLimit": null,
           "prerequisites": {
@@ -1351,9 +1352,10 @@
                 "r0": 200
               },
               "costScaling": {
-                "type": "exponential",
-                "baseCost": 200,
-                "factor": 1.5
+                "r0": {
+                  "type": "exponential",
+                  "factor": 1.5
+                }
               },
               "purchaseLimit": null,
               "prerequisites": {

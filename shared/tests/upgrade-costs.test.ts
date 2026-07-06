@@ -15,13 +15,13 @@ const linear: UpgradeDefinition = {
   id: 'l',
   cost: { r0: 5 },
   purchaseLimit: 5,
-  costScaling: { type: 'linear', baseCost: 5, factor: 2 },
+  costScaling: { r0: { type: 'linear', factor: 0.4 } },
 }
 const expo: UpgradeDefinition = {
   id: 'e',
   cost: { r0: 3 },
   purchaseLimit: 5,
-  costScaling: { type: 'exponential', baseCost: 3, factor: 2 },
+  costScaling: { r0: { type: 'exponential', factor: 2 } },
 }
 
 describe('upgrade costs', () => {
@@ -42,15 +42,16 @@ describe('upgrade costs', () => {
     expect(getUpgradeNextCost(expo, 2)).toEqual({ r0: 12 })
   })
 
-  it('treats non-positive baseCost as no scaling (guards divide-by-zero)', () => {
-    const zeroBase: UpgradeDefinition = {
-      id: 'z',
-      cost: { r0: 8 },
+  it('scales only currencies with an entry, leaving others flat', () => {
+    const mixed: UpgradeDefinition = {
+      id: 'm',
+      cost: { r0: 8, r1: 10 },
       purchaseLimit: 5,
-      costScaling: { type: 'linear', baseCost: 0, factor: 2 },
+      costScaling: { r0: { type: 'linear', factor: 0.5 } },
     }
-    expect(getUpgradeNextCost(zeroBase, 0)).toEqual({ r0: 8 })
-    expect(getUpgradeNextCost(zeroBase, 4)).toEqual({ r0: 8 })
+    expect(getUpgradeNextCost(mixed, 0)).toEqual({ r0: 8, r1: 10 })
+    // r0 grows (8 * (1 + 0.5*2) = 16); r1 has no entry so stays flat.
+    expect(getUpgradeNextCost(mixed, 2)).toEqual({ r0: 16, r1: 10 })
   })
 
   it('bulk cost linear', () => {

@@ -153,6 +153,16 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   const add = el('button', 'ed-btn', '+ currency')
   add.type = 'button'
 
+  // Column titles aligned with the cost-row controls below (shared grid).
+  const header = el('div', 'ed-cost-row ed-cost-header')
+  header.append(
+    el('span', 'ed-cost-th', 'Currency'),
+    el('span', 'ed-cost-th', 'Cost'),
+    el('span', 'ed-cost-th', 'Scaling'),
+    el('span', 'ed-cost-th', 'Factor'),
+    el('span', 'ed-cost-th'),
+  )
+
   // The cost map is the model; rows are rebuilt from it after any structural
   // change (currency picked, row added/removed) so each dropdown can exclude
   // currencies already chosen in sibling rows — preventing duplicate keys that
@@ -160,6 +170,7 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   const render = (): void => {
     rows.replaceChildren()
     const used = new Set(Object.keys(ctx.node.cost))
+    if (used.size > 0) rows.append(header)
     for (const [key, amount] of Object.entries(ctx.node.cost)) {
       // Offer this row's own currency plus any not used by another row.
       const available = ctx.currencies.filter((c) => c.key === key || !used.has(c.key))
@@ -180,13 +191,24 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
 
   render()
   section.append(rows, add)
+  section.append(
+    el(
+      'p',
+      'ed-hint',
+      'Each currency has an optional per-level scaling: Flat (constant), Linear (amount·(1 + factor·level)), or Exponential (amount·factor^level). Level-0 price is the amount above.',
+    ),
+  )
   return section
 }
 
 /**
- * A single cost row (currency dropdown + amount). Mutates `ctx.node.cost` in
- * place; structural edits (currency change, removal) call `rerender` so sibling
- * rows can refresh their available currencies.
+ * A single cost row: currency dropdown + level-0 amount + per-currency scaling
+ * (None/Linear/Exponential) + growth factor. Mutates `ctx.node.cost` and
+ * `ctx.node.costScaling` in place; structural edits (currency change, removal)
+ * call `rerender` so sibling rows can refresh their available currencies.
+ *
+ * "None" carries no scaling entry for the currency (flat cost); its factor box
+ * is disabled to make the flat case obvious.
  */
 function buildCostRow(
   ctx: InspectorContext,
@@ -195,20 +217,71 @@ function buildCostRow(
   available: readonly Currency[],
   rerender: () => void,
 ): HTMLDivElement {
-  const row = el('div', 'ed-cost-row ed-row')
+  const row = el('div', 'ed-cost-row')
   const keySelect = buildCurrencySelect(available, key)
   keySelect.classList.add('ed-cost-key')
   const amountInput = el('input', 'ed-input ed-cost-amount')
   amountInput.type = 'number'
   amountInput.value = String(amount)
+
+  const scaling = ctx.node.costScaling?.[key]
+  const typeSelect = el('select', 'ed-input ed-cost-scaling')
+  const scalingOptions: readonly (readonly [string, string])[] = [
+    ['none', 'Flat'],
+    ['linear', 'Linear'],
+    ['exponential', 'Exponential'],
+  ]
+  for (const [value, label] of scalingOptions) {
+    const opt = el('option', undefined, label)
+    opt.value = value
+    if (value === (scaling?.type ?? 'none')) opt.selected = true
+    typeSelect.append(opt)
+  }
+  typeSelect.title = 'Per-level cost growth for this currency'
+
+  const factorInput = el('input', 'ed-input ed-cost-factor')
+  factorInput.type = 'number'
+  factorInput.step = '0.01'
+  factorInput.title = 'Per-level growth factor'
+  factorInput.value = scaling ? String(scaling.factor) : '0'
+  factorInput.disabled = !scaling
+
   const remove = el('button', 'ed-btn ed-btn-remove', '✕')
   remove.type = 'button'
 
-  // Renaming a currency: drop the old key, set the new one, then rebuild rows.
+  // Write the scaling map from the current controls (drops the entry for "None").
+  const commitScaling = (): void => {
+    const type = typeSelect.value
+    const rest = Object.fromEntries(
+      Object.entries(ctx.node.costScaling ?? {}).filter(([k]) => k !== key),
+    )
+    const map =
+      type === 'none'
+        ? rest
+        : {
+            ...rest,
+            [key]: {
+              type: type as 'linear' | 'exponential',
+              factor: Number(factorInput.value) || 0,
+            },
+          }
+    ctx.node.costScaling = Object.keys(map).length > 0 ? map : undefined
+    ctx.onChange()
+  }
+
+  // Renaming a currency: move its cost amount and any scaling entry to the new key.
   keySelect.addEventListener('change', () => {
+    const nextKey = keySelect.value
     const next: Record<string, number> = {}
-    for (const [k, v] of Object.entries(ctx.node.cost)) next[k === key ? keySelect.value : k] = v
+    for (const [k, v] of Object.entries(ctx.node.cost)) next[k === key ? nextKey : k] = v
     ctx.node.cost = next
+    const entry = ctx.node.costScaling?.[key]
+    if (entry) {
+      const rest = Object.fromEntries(
+        Object.entries(ctx.node.costScaling ?? {}).filter(([k]) => k !== key),
+      )
+      ctx.node.costScaling = { ...rest, [nextKey]: entry }
+    }
     ctx.onChange()
     rerender()
   })
@@ -216,13 +289,29 @@ function buildCostRow(
     ctx.node.cost = { ...ctx.node.cost, [key]: Number(amountInput.value) }
     ctx.onChange()
   })
+  typeSelect.addEventListener('change', () => {
+    const enabled = typeSelect.value !== 'none'
+    factorInput.disabled = !enabled
+    if (!enabled) factorInput.value = '0'
+    // Give a sensible default when switching on from a zeroed/flat factor.
+    else if (Number(factorInput.value) === 0)
+      factorInput.value = typeSelect.value === 'exponential' ? '1.15' : '1'
+    commitScaling()
+  })
+  factorInput.addEventListener('change', commitScaling)
   remove.addEventListener('click', () => {
     ctx.node.cost = Object.fromEntries(Object.entries(ctx.node.cost).filter(([k]) => k !== key))
+    if (ctx.node.costScaling?.[key]) {
+      const map = Object.fromEntries(
+        Object.entries(ctx.node.costScaling).filter(([k]) => k !== key),
+      )
+      ctx.node.costScaling = Object.keys(map).length > 0 ? map : undefined
+    }
     ctx.onChange()
     rerender()
   })
 
-  row.append(keySelect, amountInput, remove)
+  row.append(keySelect, amountInput, typeSelect, factorInput, remove)
   return row
 }
 

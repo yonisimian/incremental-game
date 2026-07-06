@@ -1,37 +1,35 @@
 import type { UpgradeDefinition } from './types.js'
 
-export type CostScaling =
-  | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
-  | { readonly type: 'exponential'; readonly baseCost: number; readonly factor: number }
-
-/**
- * Per-level cost multiplier (1.0 at level 0), applied uniformly to each currency (D8).
- *
- * `baseCost` is a *reference denominator* (the slope's scale), not the actual
- * level-0 cost — that comes from the `cost` map. For `linear`, the multiplier is
- * `(baseCost + factor*level) / baseCost`; for `exponential`, `factor**level`.
- * `baseCost` must be > 0; a non-positive value disables scaling (returns 1.0)
- * to avoid divide-by-zero / NaN.
- */
-function costScaleMultiplier(scaling: CostScaling, level: number): number {
-  if (scaling.baseCost <= 0) return 1
-  if (scaling.type === 'linear') {
-    return (scaling.baseCost + scaling.factor * level) / scaling.baseCost
-  }
-  // exponential
-  return scaling.factor ** level
+/** Per-currency cost scaling: how a single currency's price grows per level. */
+export interface CurrencyCostScaling {
+  readonly type: 'linear' | 'exponential'
+  readonly factor: number
 }
 
-/** Cost map for the next level, with `costScaling` (if any) applied per-currency (D8). */
+/** Per-currency scaling map: currency key → its scaling. Absent keys stay flat. */
+export type CostScaling = Readonly<Record<string, CurrencyCostScaling>>
+
+/**
+ * Scaled price of one currency at `level` (the `cost` amount is the level-0
+ * price and the scaling base). `linear` grows additively by `factor` of the
+ * base per level (`amount * (1 + factor*level)`); `exponential` compounds
+ * (`amount * factor**level`).
+ */
+function scaledAmount(amount: number, scaling: CurrencyCostScaling, level: number): number {
+  if (scaling.type === 'linear') return amount * (1 + scaling.factor * level)
+  return amount * scaling.factor ** level
+}
+
+/** Cost map for the next level, with per-currency `costScaling` (if any) applied. */
 export function getUpgradeNextCost(
   def: UpgradeDefinition,
   currentLevel: number,
 ): Record<string, number> {
   const scaling = def.costScaling
-  const mult = scaling ? costScaleMultiplier(scaling, currentLevel) : 1
   const out: Record<string, number> = {}
   for (const [currency, amount] of Object.entries(def.cost)) {
-    out[currency] = scaling ? Math.round(amount * mult) : amount
+    const s = scaling?.[currency]
+    out[currency] = s ? Math.round(scaledAmount(amount, s, currentLevel)) : amount
   }
   return out
 }

@@ -34,10 +34,14 @@ export interface UpgradeDefinition {
   readonly id: string
   /** Cost as a currency→amount map (e.g. `{ r0: 15 }` or `{ r0: 15, r1: 5 }`). */
   readonly cost: Readonly<Record<string, number>>
-  /** Optional dynamic cost scaling for repeatable upgrades. */
-  readonly costScaling?:
-    | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
-    | { readonly type: 'exponential'; readonly baseCost: number; readonly factor: number }
+  /**
+   * Optional per-currency dynamic cost scaling for repeatable upgrades. Each
+   * entry keys a currency in `cost` to its per-level growth; currencies without
+   * an entry stay flat. The level-0 price is always the `cost` amount.
+   */
+  readonly costScaling?: Readonly<
+    Record<string, { readonly type: 'linear' | 'exponential'; readonly factor: number }>
+  >
   /**
    * Maximum number of times this upgrade can be purchased.
    * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.

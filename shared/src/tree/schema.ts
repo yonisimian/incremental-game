@@ -6,7 +6,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 2
+export const CURRENT_TREE_VERSION = 3
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -22,10 +22,10 @@ const ModifierSchema = z.strictObject({
 /** Cost as a `currency → amount` map (e.g. `{ r0: 15, r1: 5 }`). */
 const CostSchema = z.record(z.string(), z.number())
 
-const CostScalingSchema = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('linear'), baseCost: z.number(), factor: z.number() }),
-  z.strictObject({ type: z.literal('exponential'), baseCost: z.number(), factor: z.number() }),
-])
+const CostScalingSchema = z.record(
+  z.string(),
+  z.strictObject({ type: z.enum(['linear', 'exponential']), factor: z.number() }),
+)
 
 /**
  * Recursive AND/OR prerequisite expression. Annotated with the existing runtime

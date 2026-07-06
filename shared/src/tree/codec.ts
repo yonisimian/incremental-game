@@ -43,6 +43,44 @@ function migrateV1toV2(json: unknown): unknown {
 }
 
 /**
+ * V2 → V3: `costScaling` changed from a single object applied uniformly to all
+ * currencies (`{type, baseCost, factor}`) into a per-currency map keyed by
+ * currency (`{[currency]: {type, factor}}`). Rewrite each upgrade node
+ * (recursing into layout `children`), spreading the old scaling across every
+ * currency in the node's `cost`. `baseCost` is dropped: exponential keeps its
+ * `factor` verbatim; linear's old slope `factor/baseCost` becomes the new
+ * per-level `factor` (guarding `baseCost <= 0`).
+ */
+function migrateV2toV3(json: unknown): unknown {
+  const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
+    const { costScaling, children, ...rest } = node
+    const out: Record<string, unknown> = { ...rest }
+    const old = costScaling as { type?: unknown; baseCost?: unknown; factor?: unknown } | undefined
+    if (old && typeof old === 'object' && 'baseCost' in old) {
+      const type = old.type === 'linear' ? 'linear' : 'exponential'
+      const baseCost = typeof old.baseCost === 'number' ? old.baseCost : 0
+      const oldFactor = typeof old.factor === 'number' ? old.factor : 0
+      const factor = type === 'linear' ? (baseCost > 0 ? oldFactor / baseCost : 0) : oldFactor
+      const cost = (rest.cost as Record<string, unknown> | undefined) ?? {}
+      const map: Record<string, { type: string; factor: number }> = {}
+      for (const currency of Object.keys(cost)) map[currency] = { type, factor }
+      if (Object.keys(map).length > 0) out.costScaling = map
+    } else if (costScaling !== undefined) {
+      out.costScaling = costScaling
+    }
+    if (Array.isArray(children)) {
+      out.children = (children as unknown[]).map((c) => migrateNode(c as Record<string, unknown>))
+    }
+    return out
+  }
+
+  const file = json as Record<string, unknown>
+  const rawUpgrades: unknown[] = Array.isArray(file.upgrades) ? file.upgrades : []
+  const upgrades = rawUpgrades.map((u) => migrateNode(u as Record<string, unknown>))
+  return { ...file, version: 3, upgrades }
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -54,6 +92,7 @@ function migrateV1toV2(json: unknown): unknown {
 function migrateTreeFile(json: unknown): unknown {
   let raw = json
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
+  if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(
