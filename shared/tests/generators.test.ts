@@ -151,6 +151,14 @@ describe('getMaxAffordableGeneratorCount', () => {
     // costs: 10, 20, 40, 80 → can buy 3 copies for 70
     expect(getMaxAffordableGeneratorCount(state, def)).toBe(3)
   })
+
+  it('terminates on a degenerate decreasing curve whose cost floors to 0', () => {
+    // base 3, exp 0.5 → floored costs 3, 1, 0, 0, … A free copy would loop
+    // forever without the zero-cost guard; counting stops when cost hits 0.
+    const def = makeDef({ baseCost: 3, costScaling: 0.5 })
+    const state = makeState({ resources: { r0: 1000 }, generators: {} })
+    expect(getMaxAffordableGeneratorCount(state, def)).toBe(2) // 3 + 1, then 0
+  })
 })
 
 // ─── canAffordGenerator ──────────────────────────────────────────────

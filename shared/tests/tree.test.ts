@@ -198,6 +198,34 @@ describe('tree codec — validation failures', () => {
     ).toThrow()
   })
 
+  it('rejects a cost entry with scaleType but no scaleFactor (must co-occur)', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { base: 5, scaleType: 'exponential' } },
+        purchaseLimit: 1,
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).toThrow()
+  })
+
+  it('rejects a cost entry with scaleFactor but no scaleType (must co-occur)', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { base: 5, scaleFactor: 1.15 } },
+        purchaseLimit: 1,
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).toThrow()
+  })
+
   it('rejects a duplicate upgrade id (via the flattener)', () => {
     const tree = minimalTree()
     tree.upgrades = [

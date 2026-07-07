@@ -23,12 +23,20 @@ const ModifierSchema = z.strictObject({
  * A single currency's cost: `base` (level-0 price) plus optional per-level
  * scaling. Absent `scaleType`/`scaleFactor` = flat. Shared by upgrades and
  * generators (see the runtime `CostEntry`).
+ *
+ * `scaleType` and `scaleFactor` must co-occur: a scaled entry needs both, and a
+ * flat entry carries neither. Refusing the half-specified states keeps the file
+ * the single source of truth (rather than silently degrading to flat at runtime).
  */
-const CostEntrySchema = z.strictObject({
-  base: z.number(),
-  scaleType: z.enum(['linear', 'exponential']).optional(),
-  scaleFactor: z.number().optional(),
-})
+const CostEntrySchema = z
+  .strictObject({
+    base: z.number(),
+    scaleType: z.enum(['linear', 'exponential']).optional(),
+    scaleFactor: z.number().optional(),
+  })
+  .refine((e) => (e.scaleType === undefined) === (e.scaleFactor === undefined), {
+    message: 'scaleType and scaleFactor must be set together (or both omitted for a flat cost)',
+  })
 
 /** Cost as a `currency → CostEntry` map (e.g. `{ r0: { base: 15 } }`). */
 const CostSchema = z.record(z.string(), CostEntrySchema)

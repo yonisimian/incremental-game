@@ -148,6 +148,10 @@ export function getMaxAffordableGeneratorCount(
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     const cost = getGeneratorCost(def, owned + affordable)
+    // Guard against a non-increasing curve (e.g. a degenerate `scaleFactor < 1`)
+    // whose floored cost hits 0: a free copy would loop forever. Stop counting,
+    // mirroring the flat fast-path's zero-cost bail-out.
+    if (cost <= 0) break
     if (cost > remaining) break
     remaining -= cost
     affordable += 1
