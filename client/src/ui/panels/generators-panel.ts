@@ -7,6 +7,7 @@ import {
   type ModeFlavor,
   getModeDefinition,
   getModeFlavor,
+  generatorCostCurrency,
   getGeneratorCost,
   getGeneratorBulkCost,
   getMaxAffordableGeneratorCount,
@@ -48,7 +49,7 @@ export function renderGeneratorCardView(
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
-  const costIcon = getResourceIcon(flavor, def.costCurrency)
+  const costIcon = getResourceIcon(flavor, generatorCostCurrency(def))
   return `
     <article class="generator-card${!affordable ? ' too-expensive' : ''}" data-generator="${def.id}">
       <div class="generator-summary">

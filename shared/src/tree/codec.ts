@@ -43,41 +43,61 @@ function migrateV1toV2(json: unknown): unknown {
 }
 
 /**
- * V2 → V3: `costScaling` changed from a single object applied uniformly to all
- * currencies (`{type, baseCost, factor}`) into a per-currency map keyed by
- * currency (`{[currency]: {type, factor}}`). Rewrite each upgrade node
- * (recursing into layout `children`), spreading the old scaling across every
- * currency in the node's `cost`. `baseCost` is dropped: exponential keeps its
- * `factor` verbatim; linear's old slope `factor/baseCost` becomes the new
- * per-level `factor` (guarding `baseCost <= 0`).
+ * V2 → V3: unify cost authoring into a per-currency `CostEntry` map
+ * (`{ base, scaleType?, scaleFactor? }`) shared by upgrades and generators.
+ *
+ * Upgrades: the old `cost` number-map plus a single `costScaling`
+ * (`{type, baseCost, factor}`) applied to every currency become one map where
+ * each currency's `base` is its old amount. Exponential keeps `factor` as
+ * `scaleFactor`; linear's old slope `factor/baseCost` becomes `scaleFactor`
+ * (guarding `baseCost <= 0`). No `costScaling` → flat entries (`{ base }`).
+ *
+ * Generators: the flat `baseCost`/`costScaling`/`costCurrency` fields collapse
+ * into `cost: { [costCurrency]: { base, scaleType: 'exponential', scaleFactor } }`.
  */
 function migrateV2toV3(json: unknown): unknown {
   const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
-    const { costScaling, children, ...rest } = node
+    const { costScaling, cost, children, ...rest } = node
     const out: Record<string, unknown> = { ...rest }
+
+    let scaleType: 'linear' | 'exponential' | undefined
+    let scaleFactor: number | undefined
     const old = costScaling as { type?: unknown; baseCost?: unknown; factor?: unknown } | undefined
     if (old && typeof old === 'object' && 'baseCost' in old) {
-      const type = old.type === 'linear' ? 'linear' : 'exponential'
+      scaleType = old.type === 'linear' ? 'linear' : 'exponential'
       const baseCost = typeof old.baseCost === 'number' ? old.baseCost : 0
       const oldFactor = typeof old.factor === 'number' ? old.factor : 0
-      const factor = type === 'linear' ? (baseCost > 0 ? oldFactor / baseCost : 0) : oldFactor
-      const cost = (rest.cost as Record<string, unknown> | undefined) ?? {}
-      const map: Record<string, { type: string; factor: number }> = {}
-      for (const currency of Object.keys(cost)) map[currency] = { type, factor }
-      if (Object.keys(map).length > 0) out.costScaling = map
-    } else if (costScaling !== undefined) {
-      out.costScaling = costScaling
+      scaleFactor = scaleType === 'linear' ? (baseCost > 0 ? oldFactor / baseCost : 0) : oldFactor
     }
+
+    const oldCost = (cost as Record<string, unknown> | undefined) ?? {}
+    const newCost: Record<string, unknown> = {}
+    for (const [currency, amount] of Object.entries(oldCost)) {
+      const base = typeof amount === 'number' ? amount : 0
+      newCost[currency] = scaleType !== undefined ? { base, scaleType, scaleFactor } : { base }
+    }
+    out.cost = newCost
+
     if (Array.isArray(children)) {
       out.children = (children as unknown[]).map((c) => migrateNode(c as Record<string, unknown>))
     }
     return out
   }
 
+  const migrateGenerator = (g: Record<string, unknown>): Record<string, unknown> => {
+    const { baseCost, costScaling, costCurrency, ...rest } = g
+    const base = typeof baseCost === 'number' ? baseCost : 0
+    const scaleFactor = typeof costScaling === 'number' ? costScaling : 1
+    const currency = typeof costCurrency === 'string' ? costCurrency : 'r0'
+    return { ...rest, cost: { [currency]: { base, scaleType: 'exponential', scaleFactor } } }
+  }
+
   const file = json as Record<string, unknown>
   const rawUpgrades: unknown[] = Array.isArray(file.upgrades) ? file.upgrades : []
   const upgrades = rawUpgrades.map((u) => migrateNode(u as Record<string, unknown>))
-  return { ...file, version: 3, upgrades }
+  const rawGenerators: unknown[] = Array.isArray(file.generators) ? file.generators : []
+  const generators = rawGenerators.map((g) => migrateGenerator(g as Record<string, unknown>))
+  return { ...file, version: 3, upgrades, generators }
 }
 
 /**

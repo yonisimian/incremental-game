@@ -4,6 +4,7 @@
 export * from './types.js'
 export * from './messages.js'
 export * from './game-config.js'
+export * from './cost.js'
 export * from './generators.js'
 export * from './flavor.js'
 export * from './modifiers/index.js'

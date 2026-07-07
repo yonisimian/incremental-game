@@ -130,6 +130,17 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // Generators are single-currency: their cost map must have exactly one entry.
+  // (Upgrades may be multi-currency; generators are not, since their purchase,
+  // affordability, and UI all assume one paying resource.)
+  for (const g of def.generators) {
+    const currencies = Object.keys(g.cost)
+    if (currencies.length !== 1)
+      throw new Error(
+        `[${id}] generator '${g.id}' must cost exactly one currency (has ${currencies.length})`,
+      )
+  }
+
   // `unlockAttack` effects name an attack by id; validate against the mode's
   // attacks so an authored typo fails loudly instead of unlocking nothing.
   const attackIds = new Set(def.attacks.map((a) => a.id))

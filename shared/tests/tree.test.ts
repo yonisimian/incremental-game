@@ -82,14 +82,18 @@ describe('tree codec — idler parity', () => {
 describe('tree codec — purchaseLimit sentinel', () => {
   it('maps null to Infinity when assembling the runtime definition', () => {
     const tree = minimalTree()
-    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: null, offset: { x: 0, y: 0 } }]
+    tree.upgrades = [
+      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
+    ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(toModeDefinition(tree).upgrades[0].purchaseLimit).toBe(Infinity)
   })
 
   it('preserves the null sentinel across a round-trip (Infinity is not JSON-encodable)', () => {
     const tree = minimalTree()
-    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: null, offset: { x: 0, y: 0 } }]
+    tree.upgrades = [
+      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
+    ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
     expect(back.upgrades[0].purchaseLimit).toBeNull()
@@ -132,6 +136,44 @@ describe('tree codec — versioning', () => {
     ])
     expect('modifiers' in parsed.upgrades[0]).toBe(false)
   })
+
+  it('migrates v2 costs into per-currency CostEntry maps', () => {
+    const v2: unknown = {
+      ...minimalTree(),
+      version: 2,
+      upgrades: [
+        {
+          id: 'a',
+          cost: { r0: 10, r1: 5 },
+          costScaling: { type: 'exponential', baseCost: 10, factor: 1.15 },
+          purchaseLimit: null,
+          offset: { x: 0, y: 0 },
+        },
+      ],
+      generators: [
+        {
+          id: 'g0',
+          baseCost: 20,
+          costScaling: 1.2,
+          costCurrency: 'r1',
+          production: { resource: 'r0', rate: 1 },
+        },
+      ],
+    }
+    const parsed = parseTreeFile(v2)
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    // The single old costScaling applies to every cost currency.
+    expect(parsed.upgrades[0].cost).toEqual({
+      r0: { base: 10, scaleType: 'exponential', scaleFactor: 1.15 },
+      r1: { base: 5, scaleType: 'exponential', scaleFactor: 1.15 },
+    })
+    // Generator fields collapse into a single-currency exponential entry.
+    expect(parsed.generators[0].cost).toEqual({
+      r1: { base: 20, scaleType: 'exponential', scaleFactor: 1.2 },
+    })
+    expect('baseCost' in parsed.generators[0]).toBe(false)
+    expect('costScaling' in parsed.upgrades[0]).toBe(false)
+  })
 })
 
 // ─── Structural + semantic validation failures ───────────────────────
@@ -147,7 +189,9 @@ describe('tree codec — validation failures', () => {
 
   it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
     const tree = minimalTree()
-    tree.upgrades = [{ id: 'a', cost: { r0: 5 }, purchaseLimit: 1, offset: { x: 0, y: 0 } }]
+    tree.upgrades = [
+      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 0 } },
+    ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
       parseTreeFile({ ...tree, upgrades: [{ ...tree.upgrades[0], modifers: [] }] }),
@@ -159,10 +203,12 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: 5 },
+        cost: { r0: { base: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
-        children: [{ id: 'a', cost: { r0: 5 }, purchaseLimit: 1, offset: { x: 0, y: 150 } }],
+        children: [
+          { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 150 } },
+        ],
       },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
@@ -174,7 +220,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: 5 },
+        cost: { r0: { base: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
         effects: [{ type: 'doesNotExist' }],
@@ -189,7 +235,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: 5 },
+        cost: { r0: { base: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
         effects: [{ type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'b' }],

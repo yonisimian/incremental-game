@@ -8,7 +8,7 @@
  * effect's zod param schema (production bonuses are the `baseModifier` effect).
  */
 
-import { type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import { type CostEntry, type TreeFile, type TreeUpgradeNode } from '@game/shared'
 
 import { buildEffectsSection } from './effects-editor.js'
 import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
@@ -171,10 +171,10 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
     rows.replaceChildren()
     const used = new Set(Object.keys(ctx.node.cost))
     if (used.size > 0) rows.append(header)
-    for (const [key, amount] of Object.entries(ctx.node.cost)) {
+    for (const [key, entry] of Object.entries(ctx.node.cost)) {
       // Offer this row's own currency plus any not used by another row.
       const available = ctx.currencies.filter((c) => c.key === key || !used.has(c.key))
-      rows.append(buildCostRow(ctx, key, amount, available, render))
+      rows.append(buildCostRow(ctx, key, entry, available, render))
     }
     // Disable adding when every currency is already in use (or none exist).
     const free = ctx.currencies.filter((c) => !used.has(c.key))
@@ -184,7 +184,7 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   add.addEventListener('click', () => {
     const free = ctx.currencies.find((c) => !(c.key in ctx.node.cost))
     if (!free) return
-    ctx.node.cost = { ...ctx.node.cost, [free.key]: 0 }
+    ctx.node.cost = { ...ctx.node.cost, [free.key]: { base: 0 } }
     ctx.onChange()
     render()
   })
@@ -195,25 +195,24 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
     el(
       'p',
       'ed-hint',
-      'Each currency has an optional per-level scaling: Flat (constant), Linear (amount·(1 + factor·level)), or Exponential (amount·factor^level). Level-0 price is the amount above.',
+      'Each currency has an optional per-level scaling: Flat (constant), Linear (base·(1 + factor·level)), or Exponential (base·factor^level). Level-0 price is the base above.',
     ),
   )
   return section
 }
 
 /**
- * A single cost row: currency dropdown + level-0 amount + per-currency scaling
- * (None/Linear/Exponential) + growth factor. Mutates `ctx.node.cost` and
- * `ctx.node.costScaling` in place; structural edits (currency change, removal)
- * call `rerender` so sibling rows can refresh their available currencies.
+ * A single cost row: currency dropdown + level-0 base + per-currency scaling
+ * (Flat/Linear/Exponential) + growth factor. Mutates the currency's
+ * {@link CostEntry} in `ctx.node.cost` in place; structural edits (currency
+ * change, removal) call `rerender` so sibling rows refresh available currencies.
  *
- * "None" carries no scaling entry for the currency (flat cost); its factor box
- * is disabled to make the flat case obvious.
+ * "Flat" writes an entry with no scaling; its factor box is disabled.
  */
 function buildCostRow(
   ctx: InspectorContext,
   key: string,
-  amount: number,
+  entry: CostEntry,
   available: readonly Currency[],
   rerender: () => void,
 ): HTMLDivElement {
@@ -222,19 +221,18 @@ function buildCostRow(
   keySelect.classList.add('ed-cost-key')
   const amountInput = el('input', 'ed-input ed-cost-amount')
   amountInput.type = 'number'
-  amountInput.value = String(amount)
+  amountInput.value = String(entry.base)
 
-  const scaling = ctx.node.costScaling?.[key]
   const typeSelect = el('select', 'ed-input ed-cost-scaling')
   const scalingOptions: readonly (readonly [string, string])[] = [
-    ['none', 'Flat'],
+    ['flat', 'Flat'],
     ['linear', 'Linear'],
     ['exponential', 'Exponential'],
   ]
   for (const [value, label] of scalingOptions) {
     const opt = el('option', undefined, label)
     opt.value = value
-    if (value === (scaling?.type ?? 'none')) opt.selected = true
+    if (value === (entry.scaleType ?? 'flat')) opt.selected = true
     typeSelect.append(opt)
   }
   typeSelect.title = 'Per-level cost growth for this currency'
@@ -243,70 +241,46 @@ function buildCostRow(
   factorInput.type = 'number'
   factorInput.step = '0.01'
   factorInput.title = 'Per-level growth factor'
-  factorInput.value = scaling ? String(scaling.factor) : '0'
-  factorInput.disabled = !scaling
+  factorInput.value = String(entry.scaleFactor ?? 0)
+  factorInput.disabled = entry.scaleType === undefined
 
   const remove = el('button', 'ed-btn ed-btn-remove', '✕')
   remove.type = 'button'
 
-  // Write the scaling map from the current controls (drops the entry for "None").
-  const commitScaling = (): void => {
-    const type = typeSelect.value
-    const rest = Object.fromEntries(
-      Object.entries(ctx.node.costScaling ?? {}).filter(([k]) => k !== key),
-    )
-    const map =
-      type === 'none'
-        ? rest
-        : {
-            ...rest,
-            [key]: {
-              type: type as 'linear' | 'exponential',
-              factor: Number(factorInput.value) || 0,
-            },
-          }
-    ctx.node.costScaling = Object.keys(map).length > 0 ? map : undefined
+  // Write this currency's entry from the current controls (Flat = no scaling).
+  const commit = (): void => {
+    const scaleType = typeSelect.value as 'flat' | 'linear' | 'exponential'
+    const base = Number(amountInput.value) || 0
+    const next: CostEntry =
+      scaleType === 'flat'
+        ? { base }
+        : { base, scaleType, scaleFactor: Number(factorInput.value) || 0 }
+    ctx.node.cost = { ...ctx.node.cost, [key]: next }
     ctx.onChange()
   }
 
-  // Renaming a currency: move its cost amount and any scaling entry to the new key.
+  // Renaming a currency: move its entry to the new key (preserving order).
   keySelect.addEventListener('change', () => {
     const nextKey = keySelect.value
-    const next: Record<string, number> = {}
+    const next: Record<string, CostEntry> = {}
     for (const [k, v] of Object.entries(ctx.node.cost)) next[k === key ? nextKey : k] = v
     ctx.node.cost = next
-    const entry = ctx.node.costScaling?.[key]
-    if (entry) {
-      const rest = Object.fromEntries(
-        Object.entries(ctx.node.costScaling ?? {}).filter(([k]) => k !== key),
-      )
-      ctx.node.costScaling = { ...rest, [nextKey]: entry }
-    }
     ctx.onChange()
     rerender()
   })
-  amountInput.addEventListener('change', () => {
-    ctx.node.cost = { ...ctx.node.cost, [key]: Number(amountInput.value) }
-    ctx.onChange()
-  })
+  amountInput.addEventListener('change', commit)
   typeSelect.addEventListener('change', () => {
-    const enabled = typeSelect.value !== 'none'
+    const enabled = typeSelect.value !== 'flat'
     factorInput.disabled = !enabled
     if (!enabled) factorInput.value = '0'
     // Give a sensible default when switching on from a zeroed/flat factor.
     else if (Number(factorInput.value) === 0)
       factorInput.value = typeSelect.value === 'exponential' ? '1.15' : '1'
-    commitScaling()
+    commit()
   })
-  factorInput.addEventListener('change', commitScaling)
+  factorInput.addEventListener('change', commit)
   remove.addEventListener('click', () => {
     ctx.node.cost = Object.fromEntries(Object.entries(ctx.node.cost).filter(([k]) => k !== key))
-    if (ctx.node.costScaling?.[key]) {
-      const map = Object.fromEntries(
-        Object.entries(ctx.node.costScaling).filter(([k]) => k !== key),
-      )
-      ctx.node.costScaling = Object.keys(map).length > 0 ? map : undefined
-    }
     ctx.onChange()
     rerender()
   })

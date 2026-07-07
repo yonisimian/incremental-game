@@ -1,35 +1,14 @@
 import type { UpgradeDefinition } from './types.js'
+import { scaledCost } from './cost.js'
 
-/** Per-currency cost scaling: how a single currency's price grows per level. */
-export interface CurrencyCostScaling {
-  readonly type: 'linear' | 'exponential'
-  readonly factor: number
-}
-
-/** Per-currency scaling map: currency key → its scaling. Absent keys stay flat. */
-export type CostScaling = Readonly<Record<string, CurrencyCostScaling>>
-
-/**
- * Scaled price of one currency at `level` (the `cost` amount is the level-0
- * price and the scaling base). `linear` grows additively by `factor` of the
- * base per level (`amount * (1 + factor*level)`); `exponential` compounds
- * (`amount * factor**level`).
- */
-function scaledAmount(amount: number, scaling: CurrencyCostScaling, level: number): number {
-  if (scaling.type === 'linear') return amount * (1 + scaling.factor * level)
-  return amount * scaling.factor ** level
-}
-
-/** Cost map for the next level, with per-currency `costScaling` (if any) applied. */
+/** Cost map for the next level, with each currency's per-level scaling applied. */
 export function getUpgradeNextCost(
   def: UpgradeDefinition,
   currentLevel: number,
 ): Record<string, number> {
-  const scaling = def.costScaling
   const out: Record<string, number> = {}
-  for (const [currency, amount] of Object.entries(def.cost)) {
-    const s = scaling?.[currency]
-    out[currency] = s ? Math.round(scaledAmount(amount, s, currentLevel)) : amount
+  for (const [currency, entry] of Object.entries(def.cost)) {
+    out[currency] = Math.round(scaledCost(entry, currentLevel))
   }
   return out
 }

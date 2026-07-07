@@ -18,7 +18,7 @@ import type { ModeDefinition, UpgradeDefinition } from '@game/shared'
 export const stubUpgrades: UpgradeDefinition[] = [
   {
     id: 'uh',
-    cost: { r0: 5 },
+    cost: { r0: { base: 5 } },
     purchaseLimit: 1,
     effects: [
       { type: 'systemUnlock', system: 'highlight' },
@@ -28,7 +28,7 @@ export const stubUpgrades: UpgradeDefinition[] = [
   },
   {
     id: 'uh2',
-    cost: { r0: 10 },
+    cost: { r0: { base: 10 } },
     purchaseLimit: 1,
     effects: [{ type: 'highlightMultiplier', multiplier: 1.5 }],
     prerequisites: { type: 'upgrade', id: 'uh' },
@@ -36,14 +36,14 @@ export const stubUpgrades: UpgradeDefinition[] = [
   },
   {
     id: 'u1',
-    cost: { r0: 25 },
+    cost: { r0: { base: 25 } },
     purchaseLimit: 1,
     effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
     position: { x: 200, y: 0 },
   },
   {
     id: 'u5',
-    cost: { r0: 1000 },
+    cost: { r0: { base: 1000 } },
     purchaseLimit: 1,
     position: { x: 600, y: 0 },
     goalType: 'buy-upgrade',

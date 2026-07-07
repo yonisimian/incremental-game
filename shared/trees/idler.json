@@ -30,9 +30,13 @@
   "generators": [
     {
       "id": "g0",
-      "baseCost": 10,
-      "costScaling": 1.15,
-      "costCurrency": "r1",
+      "cost": {
+        "r1": {
+          "base": 10,
+          "scaleType": "exponential",
+          "scaleFactor": 1.15
+        }
+      },
       "production": {
         "resource": "r0",
         "rate": 0.5
@@ -40,9 +44,13 @@
     },
     {
       "id": "g1",
-      "baseCost": 10,
-      "costScaling": 1.15,
-      "costCurrency": "r1",
+      "cost": {
+        "r1": {
+          "base": 10,
+          "scaleType": "exponential",
+          "scaleFactor": 1.15
+        }
+      },
       "production": {
         "resource": "r1",
         "rate": 1
@@ -50,9 +58,13 @@
     },
     {
       "id": "g2",
-      "baseCost": 50,
-      "costScaling": 1.2,
-      "costCurrency": "r1",
+      "cost": {
+        "r1": {
+          "base": 50,
+          "scaleType": "exponential",
+          "scaleFactor": 1.2
+        }
+      },
       "production": {
         "resource": "r0",
         "rate": 5
@@ -60,9 +72,13 @@
     },
     {
       "id": "g3",
-      "baseCost": 600,
-      "costScaling": 1.5,
-      "costCurrency": "r0",
+      "cost": {
+        "r0": {
+          "base": 600,
+          "scaleType": "exponential",
+          "scaleFactor": 1.5
+        }
+      },
       "production": {
         "resource": "r1",
         "rate": 10
@@ -652,7 +668,9 @@
     {
       "id": "goal",
       "cost": {
-        "r0": 30000
+        "r0": {
+          "base": 30000
+        }
       },
       "purchaseLimit": 1,
       "goalType": "buy-upgrade",
@@ -1297,7 +1315,9 @@
     {
       "id": "sc-unlock",
       "cost": {
-        "r0": 50
+        "r0": {
+          "base": 50
+        }
       },
       "purchaseLimit": 1,
       "effects": [
@@ -1320,12 +1340,10 @@
         {
           "id": "sc-af-cp",
           "cost": {
-            "r0": 25
-          },
-          "costScaling": {
             "r0": {
-              "type": "exponential",
-              "factor": 1.15
+              "base": 25,
+              "scaleType": "exponential",
+              "scaleFactor": 1.15
             }
           },
           "purchaseLimit": null,
@@ -1349,12 +1367,10 @@
             {
               "id": "sc-mf-cp",
               "cost": {
-                "r0": 200
-              },
-              "costScaling": {
                 "r0": {
-                  "type": "exponential",
-                  "factor": 1.5
+                  "base": 200,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.5
                 }
               },
               "purchaseLimit": null,

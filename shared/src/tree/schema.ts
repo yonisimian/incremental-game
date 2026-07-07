@@ -19,13 +19,19 @@ const ModifierSchema = z.strictObject({
   value: z.number(),
 })
 
-/** Cost as a `currency → amount` map (e.g. `{ r0: 15, r1: 5 }`). */
-const CostSchema = z.record(z.string(), z.number())
+/**
+ * A single currency's cost: `base` (level-0 price) plus optional per-level
+ * scaling. Absent `scaleType`/`scaleFactor` = flat. Shared by upgrades and
+ * generators (see the runtime `CostEntry`).
+ */
+const CostEntrySchema = z.strictObject({
+  base: z.number(),
+  scaleType: z.enum(['linear', 'exponential']).optional(),
+  scaleFactor: z.number().optional(),
+})
 
-const CostScalingSchema = z.record(
-  z.string(),
-  z.strictObject({ type: z.enum(['linear', 'exponential']), factor: z.number() }),
-)
+/** Cost as a `currency → CostEntry` map (e.g. `{ r0: { base: 15 } }`). */
+const CostSchema = z.record(z.string(), CostEntrySchema)
 
 /**
  * Recursive AND/OR prerequisite expression. Annotated with the existing runtime
@@ -64,9 +70,7 @@ const GoalSchema = z.discriminatedUnion('type', [
 
 const GeneratorSchema = z.strictObject({
   id: z.string(),
-  baseCost: z.number(),
-  costScaling: z.number(),
-  costCurrency: z.string(),
+  cost: CostSchema,
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
@@ -143,7 +147,6 @@ const ModeFlavorSchema = z.strictObject({
 const UpgradeNodeSchema = z.strictObject({
   id: z.string(),
   cost: CostSchema,
-  costScaling: CostScalingSchema.optional(),
   /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
   purchaseLimit: z.number().nullable(),
   choiceGroup: z.string().optional(),
