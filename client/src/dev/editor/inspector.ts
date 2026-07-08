@@ -209,7 +209,8 @@ function buildCostSection(ctx: InspectorContext): { element: HTMLElement; refres
  *
  * "Flat" writes an entry with no scaling; its factor box is disabled.
  * A one-shot upgrade (`purchaseLimit === 1`) is only ever bought at level 0, so
- * its scaling controls are disabled (the stored entry is left untouched).
+ * its scaling controls are disabled; the purchase-limit control normalizes such
+ * entries to flat, so a one-shot row never renders stale scaling.
  */
 function buildCostRow(
   ctx: InspectorContext,
@@ -325,8 +326,17 @@ function buildPurchaseLimitSection(ctx: InspectorContext, onLimitChange?: () => 
   number.disabled = unlimited.checked
 
   const sync = (): void => {
-    ctx.node.purchaseLimit = unlimited.checked ? null : Math.max(1, Number(number.value) || 1)
+    const limit = unlimited.checked ? null : Math.max(1, Number(number.value) || 1)
+    ctx.node.purchaseLimit = limit
     number.disabled = unlimited.checked
+    // A one-shot upgrade (limit 1) is only ever bought at level 0, so scaling is
+    // inert. Normalize its cost to flat entries so we never persist — or ship —
+    // dead scaling (the scale controls are also disabled while one-shot).
+    if (limit === 1) {
+      ctx.node.cost = Object.fromEntries(
+        Object.entries(ctx.node.cost).map(([key, entry]) => [key, { baseCost: entry.baseCost }]),
+      )
+    }
     ctx.onChange()
     // Toggling one-shot (limit 1) enables/disables the cost scaling controls.
     onLimitChange?.()

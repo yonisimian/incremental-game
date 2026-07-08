@@ -51,6 +51,23 @@ describe('importTreeFromFile', () => {
     await expect(importTreeFromFile(fileOf('{"version":1}'))).rejects.toThrow()
   })
 
+  it('rejects a one-shot upgrade (purchaseLimit 1) that scales its cost', async () => {
+    const tree = idlerTree()
+    // Plant scaling on an existing one-shot node. The editor's normalization
+    // prevents authoring this, but a hand-edited file must still be rejected.
+    const oneShot = collectIds(tree)
+      .map((id) => findNode(tree, id)!)
+      .find((n) => n.purchaseLimit === 1)
+    if (!oneShot) throw new Error('fixture: idler has no one-shot upgrade')
+    const currency = Object.keys(oneShot.cost)[0]
+    oneShot.cost[currency] = {
+      baseCost: oneShot.cost[currency].baseCost,
+      scaleType: 'exponential',
+      scaleFactor: 1.5,
+    }
+    await expect(importTreeFromFile(fileOf(JSON.stringify(tree)))).rejects.toThrow(/one-shot/iu)
+  })
+
   it('rejects a schema-valid tree that fails engine validation (minLevel over purchaseLimit)', async () => {
     const json = serializeTree(treeWithOverLeveledPrereq())
     await expect(importTreeFromFile(fileOf(json))).rejects.toThrow(/greater than max level/)

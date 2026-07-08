@@ -152,21 +152,40 @@ const ModeFlavorSchema = z.strictObject({
  * cannot encode `Infinity`), and `position` is expressed as a relative `offset`.
  * The `codec` maps `null → Infinity` and flattens offsets to absolute positions.
  */
-const UpgradeNodeSchema = z.strictObject({
-  id: z.string(),
-  cost: CostSchema,
-  /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
-  purchaseLimit: z.number().nullable(),
-  choiceGroup: z.string().optional(),
-  choiceLabel: z.string().optional(),
-  prerequisites: PrerequisiteSchema.optional(),
-  goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
-  effects: z.array(EffectRefSchema).optional(),
-  offset: PositionSchema,
-  get children() {
-    return z.array(UpgradeNodeSchema).optional()
-  },
-})
+const UpgradeNodeSchema = z
+  .strictObject({
+    id: z.string(),
+    cost: CostSchema,
+    /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
+    purchaseLimit: z.number().nullable(),
+    choiceGroup: z.string().optional(),
+    choiceLabel: z.string().optional(),
+    prerequisites: PrerequisiteSchema.optional(),
+    goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
+    effects: z.array(EffectRefSchema).optional(),
+    offset: PositionSchema,
+    get children() {
+      return z.array(UpgradeNodeSchema).optional()
+    },
+  })
+  .check((ctx) => {
+    // A one-shot upgrade (purchaseLimit === 1) is only ever bought at level 0,
+    // where scaling never applies. Forbid authoring scaling on such a node so the
+    // file stays the single source of truth rather than carrying inert scaling
+    // (which the editor greys out but must never silently ship).
+    const node = ctx.value
+    if (node.purchaseLimit !== 1) return
+    for (const [currency, entry] of Object.entries(node.cost)) {
+      if (entry.scaleType !== undefined || entry.scaleFactor !== undefined) {
+        ctx.issues.push({
+          code: 'custom',
+          input: entry,
+          path: ['cost', currency],
+          message: `one-shot upgrade '${node.id}' (purchaseLimit 1) must not scale cost; remove scaleType/scaleFactor from '${currency}'`,
+        })
+      }
+    }
+  })
 
 // ─── Top-level tree file ─────────────────────────────────────────────
 

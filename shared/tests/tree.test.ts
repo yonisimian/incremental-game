@@ -204,7 +204,7 @@ describe('tree codec — validation failures', () => {
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleType: 'exponential' } },
-        purchaseLimit: 1,
+        purchaseLimit: null,
         offset: { x: 0, y: 0 },
       },
     ]
@@ -218,12 +218,26 @@ describe('tree codec — validation failures', () => {
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleFactor: 1.15 } },
-        purchaseLimit: 1,
+        purchaseLimit: null,
         offset: { x: 0, y: 0 },
       },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() => parseTreeFile(tree)).toThrow()
+  })
+
+  it('rejects a one-shot upgrade (purchaseLimit 1) that scales its cost', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { baseCost: 5, scaleType: 'exponential', scaleFactor: 1.15 } },
+        purchaseLimit: 1,
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).toThrow(/one-shot/iu)
   })
 
   it('rejects a duplicate upgrade id (via the flattener)', () => {
