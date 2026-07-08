@@ -39,22 +39,22 @@ describe('Bot', () => {
     const idlerUpgrades: UpgradeDefinition[] = [
       {
         id: 'be-af-mr' as const,
-        cost: { r0: 5 },
+        cost: { r0: { baseCost: 5 } },
         purchaseLimit: 1,
       },
       {
         id: 'u0' as const,
-        cost: { r0: 30 },
+        cost: { r0: { baseCost: 30 } },
         purchaseLimit: 1,
       },
       {
         id: 'u1' as const,
-        cost: { r0: 25 },
+        cost: { r0: { baseCost: 25 } },
         purchaseLimit: 1,
       },
       {
         id: 'u2' as const,
-        cost: { r1: 25 },
+        cost: { r1: { baseCost: 25 } },
         purchaseLimit: 1,
       },
     ]
@@ -136,7 +136,7 @@ describe('Bot', () => {
         ...idlerUpgrades,
         {
           id: 'u4' as const,
-          cost: { r0: 50 },
+          cost: { r0: { baseCost: 50 } },
           purchaseLimit: 1,
           prerequisites: {
             type: 'all' as const,
@@ -149,7 +149,7 @@ describe('Bot', () => {
         },
         {
           id: 'u5' as const,
-          cost: { r0: 1000 },
+          cost: { r0: { baseCost: 1000 } },
           purchaseLimit: 1,
           goalType: 'buy-upgrade' as const,
           prerequisites: { type: 'all' as const, items: [{ type: 'upgrade' as const, id: 'u4' }] },

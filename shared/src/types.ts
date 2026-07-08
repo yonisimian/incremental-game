@@ -20,6 +20,18 @@ export interface UpgradePosition {
 }
 
 /**
+ * The cost of a single currency, with optional per-level scaling. `baseCost` is
+ * the level-0 price. When `scaleType`/`scaleFactor` are absent the cost is flat;
+ * `linear` grows additively (`baseCost + scaleFactor*level`) and `exponential`
+ * compounds (`baseCost * scaleFactor**level`). Shared by upgrades and generators.
+ */
+export interface CostEntry {
+  readonly baseCost: number
+  readonly scaleType?: 'linear' | 'exponential'
+  readonly scaleFactor?: number
+}
+
+/**
  * A declarative, serializable reference to a registered effect: a `type`
  * discriminant plus inline params (validated by the effect's `parse` when
  * applied). See `shared/src/effects` for the registry and implementations.
@@ -32,12 +44,11 @@ export interface EffectRef {
 /** Static definition of an upgrade (cost, modifiers, prerequisites). */
 export interface UpgradeDefinition {
   readonly id: string
-  /** Cost as a currency→amount map (e.g. `{ r0: 15 }` or `{ r0: 15, r1: 5 }`). */
-  readonly cost: Readonly<Record<string, number>>
-  /** Optional dynamic cost scaling for repeatable upgrades. */
-  readonly costScaling?:
-    | { readonly type: 'linear'; readonly baseCost: number; readonly factor: number }
-    | { readonly type: 'exponential'; readonly baseCost: number; readonly factor: number }
+  /**
+   * Cost as a currency→{@link CostEntry} map (e.g. `{ r0: { baseCost: 15 } }`).
+   * Each currency carries its own optional per-level scaling.
+   */
+  readonly cost: Readonly<Record<string, CostEntry>>
   /**
    * Maximum number of times this upgrade can be purchased.
    * Use `1` for one-shot, `Infinity` for unlimited, or a finite number for a cap.
@@ -77,11 +88,11 @@ export interface UpgradeDefinition {
 /** Static definition of a generator building (repeatable, scaling cost). */
 export interface GeneratorDefinition {
   readonly id: string
-  readonly baseCost: number
-  /** Cost multiplier per owned copy (e.g., 1.15). */
-  readonly costScaling: number
-  /** Which resource pays for this generator. */
-  readonly costCurrency: string
+  /**
+   * Cost as a currency→{@link CostEntry} map. Generators are single-currency
+   * (enforced by `validateModeDefinition`), so this holds exactly one entry.
+   */
+  readonly cost: Readonly<Record<string, CostEntry>>
   /** What this generator produces. */
   readonly production: {
     readonly resource: string

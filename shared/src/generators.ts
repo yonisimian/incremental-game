@@ -1,10 +1,21 @@
-import type { GeneratorDefinition, PlayerState } from './types.js'
+import type { CostEntry, GeneratorDefinition, PlayerState } from './types.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 // Importing from the effects barrel ensures seed effects (incl. `generatorCost`)
 // are registered whenever cost factors are collected.
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
+import { isFlatCost, scaledCost } from './cost.js'
 import { anyOwned, generatorGateUpgrades } from './unlock-gates.js'
+
+/** The single currency a generator is paid in (generators are single-currency). */
+export function generatorCostCurrency(def: GeneratorDefinition): string {
+  return Object.keys(def.cost)[0] ?? ''
+}
+
+/** The generator's single {@link CostEntry} (its cost curve). */
+function generatorCostEntry(def: GeneratorDefinition): CostEntry {
+  return Object.values(def.cost)[0] ?? { baseCost: 0 }
+}
 
 /** Aggregated cost reductions for a single generator (1 = no reduction). */
 export interface GeneratorCostFactors {
@@ -57,20 +68,30 @@ export function collectGeneratorCostFactors(
 
 /**
  * Apply cost factors to a generator definition, returning a cost-adjusted copy.
- * `baseCost` is scaled by `costFactor`; the growth portion of `costScaling` is
- * scaled by `scalingFactor` (`1 + (costScaling - 1) * scalingFactor`). With
- * neutral factors the definition is returned unchanged.
+ * The cost entry's `base` is scaled by `costFactor`; the growth portion of its
+ * scaling is scaled by `scalingFactor` (exponential: `1 + (scaleFactor-1)*sf`;
+ * linear: `scaleFactor*sf`). With neutral factors the definition is unchanged.
  */
 export function applyGeneratorCostFactors(
   def: GeneratorDefinition,
   factors: GeneratorCostFactors = NEUTRAL_COST_FACTORS,
 ): GeneratorDefinition {
   if (factors.costFactor === 1 && factors.scalingFactor === 1) return def
-  return {
-    ...def,
-    baseCost: def.baseCost * factors.costFactor,
-    costScaling: 1 + (def.costScaling - 1) * factors.scalingFactor,
-  }
+  const currency = generatorCostCurrency(def)
+  const entry = generatorCostEntry(def)
+  const scaledBase = entry.baseCost * factors.costFactor
+  const scaled: CostEntry =
+    entry.scaleType !== undefined && entry.scaleFactor !== undefined
+      ? {
+          ...entry,
+          baseCost: scaledBase,
+          scaleFactor:
+            entry.scaleType === 'exponential'
+              ? 1 + (entry.scaleFactor - 1) * factors.scalingFactor
+              : entry.scaleFactor * factors.scalingFactor,
+        }
+      : { ...entry, baseCost: scaledBase }
+  return { ...def, cost: { [currency]: scaled } }
 }
 
 /**
@@ -89,7 +110,7 @@ export function resolveGeneratorDef(
 
 /** Compute the cost of the next copy of a generator. */
 export function getGeneratorCost(def: GeneratorDefinition, owned: number): number {
-  return Math.floor(def.baseCost * def.costScaling ** owned)
+  return Math.floor(scaledCost(generatorCostEntry(def), owned))
 }
 
 /** Compute the total cost to buy `quantity` additional copies. */
@@ -111,13 +132,13 @@ export function getMaxAffordableGeneratorCount(
   state: Readonly<PlayerState>,
   def: GeneratorDefinition,
 ): number {
-  const budget = state.resources[def.costCurrency] ?? 0
+  const budget = state.resources[generatorCostCurrency(def)] ?? 0
   if (budget <= 0) return 0
 
   const owned = state.generators[def.id] ?? 0
-  if (def.costScaling === 1) {
+  if (isFlatCost(generatorCostEntry(def))) {
     // Divide by the floored per-unit cost so the fast path matches
-    // `getGeneratorCost` (cost reductions can make `baseCost` fractional).
+    // `getGeneratorCost` (cost reductions can make `base` fractional).
     const unitCost = getGeneratorCost(def, owned)
     return unitCost <= 0 ? 0 : Math.floor(budget / unitCost)
   }
@@ -127,6 +148,10 @@ export function getMaxAffordableGeneratorCount(
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     const cost = getGeneratorCost(def, owned + affordable)
+    // Guard against a non-increasing curve (e.g. a degenerate `scaleFactor < 1`)
+    // whose floored cost hits 0: a free copy would loop forever. Stop counting,
+    // mirroring the flat fast-path's zero-cost bail-out.
+    if (cost <= 0) break
     if (cost > remaining) break
     remaining -= cost
     affordable += 1
@@ -141,7 +166,7 @@ export function canAffordGenerator(
   def: GeneratorDefinition,
 ): boolean {
   const cost = getGeneratorCost(def, state.generators[def.id] ?? 0)
-  return (state.resources[def.costCurrency] ?? 0) >= cost
+  return (state.resources[generatorCostCurrency(def)] ?? 0) >= cost
 }
 
 /**
@@ -170,6 +195,6 @@ export function applyGeneratorPurchase(
   const effectiveDef = resolveGeneratorDef(def, state, mode)
   const owned = state.generators[def.id] ?? 0
   const cost = getGeneratorCost(effectiveDef, owned)
-  state.resources[def.costCurrency] -= cost
+  state.resources[generatorCostCurrency(def)] -= cost
   state.generators[def.id] = owned + 1
 }

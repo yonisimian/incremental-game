@@ -414,7 +414,8 @@ export interface GeneratorRow {
   readonly name: string
   readonly icon: string
   readonly baseCost: number
-  readonly costScaling: number
+  readonly scaleType: 'flat' | 'linear' | 'exponential'
+  readonly scaleFactor: number
   readonly costCurrency: string
   readonly productionResource: string
   readonly productionRate: number
@@ -500,7 +501,7 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
   if (tree.resources.length <= 1) refs.push('the only resource')
   if (tree.scoreResource === key) refs.push('the score resource')
   for (const g of tree.generators) {
-    if (g.costCurrency === key) refs.push(`generator '${g.id}' cost`)
+    if (key in g.cost) refs.push(`generator '${g.id}' cost`)
     if (g.production.resource === key) refs.push(`generator '${g.id}' production`)
   }
   if (highlightKey(tree) === key) refs.push('the highlight meta')
@@ -552,7 +553,11 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
     if (m.field === oldKey) m.field = newKey
   }
   for (const g of tree.generators) {
-    if (g.costCurrency === oldKey) g.costCurrency = newKey
+    if (oldKey in g.cost) {
+      g.cost = Object.fromEntries(
+        Object.entries(g.cost).map(([k, v]) => [k === oldKey ? newKey : k, v]),
+      )
+    }
     if (g.production.resource === oldKey) g.production.resource = newKey
   }
   for (const { node } of walkPositioned(tree)) {
@@ -640,13 +645,15 @@ export function listGenerators(tree: TreeFile): GeneratorRow[] {
   const flavor = new Map((tree.flavors[0]?.generators ?? []).map((g) => [g.id, g]))
   return tree.generators.map((g) => {
     const f = flavor.get(g.id)
+    const [currency, entry] = Object.entries(g.cost)[0] ?? ['r0', { baseCost: 0 }]
     return {
       id: g.id,
       name: f?.name ?? g.id,
       icon: f?.icon ?? DEFAULT_GENERATOR_ICON,
-      baseCost: g.baseCost,
-      costScaling: g.costScaling,
-      costCurrency: g.costCurrency,
+      baseCost: entry.baseCost,
+      scaleType: entry.scaleType ?? 'flat',
+      scaleFactor: entry.scaleFactor ?? 0,
+      costCurrency: currency,
       productionResource: g.production.resource,
       productionRate: g.production.rate,
     }
@@ -663,9 +670,7 @@ export function addGenerator(tree: TreeFile): string {
   const resource = tree.resources[0] ?? 'r0'
   tree.generators.push({
     id,
-    baseCost: 10,
-    costScaling: 1.15,
-    costCurrency: resource,
+    cost: { [resource]: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1.15 } },
     production: { resource, rate: 1 },
   })
   for (const f of tree.flavors) {
@@ -742,7 +747,8 @@ export function setGeneratorField(
   id: string,
   patch: Partial<{
     baseCost: number
-    costScaling: number
+    scaleType: 'flat' | 'linear' | 'exponential'
+    scaleFactor: number
     costCurrency: string
     productionResource: string
     productionRate: number
@@ -750,9 +756,22 @@ export function setGeneratorField(
 ): void {
   const gen = tree.generators.find((g) => g.id === id)
   if (!gen) return
-  if (patch.baseCost !== undefined) gen.baseCost = patch.baseCost
-  if (patch.costScaling !== undefined) gen.costScaling = patch.costScaling
-  if (patch.costCurrency !== undefined) gen.costCurrency = patch.costCurrency
+  const touchesCost =
+    patch.baseCost !== undefined ||
+    patch.scaleType !== undefined ||
+    patch.scaleFactor !== undefined ||
+    patch.costCurrency !== undefined
+  if (touchesCost) {
+    const [currency, entry] = Object.entries(gen.cost)[0] ?? ['r0', { baseCost: 0 }]
+    const nextCurrency = patch.costCurrency ?? currency
+    const baseCost = patch.baseCost ?? entry.baseCost
+    const scaleType = patch.scaleType ?? entry.scaleType ?? 'flat'
+    const scaleFactor = patch.scaleFactor ?? entry.scaleFactor ?? 0
+    gen.cost =
+      scaleType === 'flat'
+        ? { [nextCurrency]: { baseCost } }
+        : { [nextCurrency]: { baseCost, scaleType, scaleFactor } }
+  }
   if (patch.productionResource !== undefined) gen.production.resource = patch.productionResource
   if (patch.productionRate !== undefined) gen.production.rate = patch.productionRate
 }

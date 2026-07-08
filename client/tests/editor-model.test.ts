@@ -641,10 +641,11 @@ describe('generators', () => {
   it('setGeneratorField patches mechanics in place', () => {
     const tree = idler()
     const id = tree.generators[0].id
-    setGeneratorField(tree, id, { baseCost: 999, costScaling: 2 })
+    setGeneratorField(tree, id, { baseCost: 999, scaleType: 'exponential', scaleFactor: 2 })
     const gen = tree.generators.find((g) => g.id === id)!
-    expect(gen.baseCost).toBe(999)
-    expect(gen.costScaling).toBe(2)
+    const entry = Object.values(gen.cost)[0]
+    expect(entry.baseCost).toBe(999)
+    expect(entry.scaleFactor).toBe(2)
   })
 
   it('removeGenerator drops an unreferenced generator and stays loadable', () => {

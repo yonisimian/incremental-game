@@ -15,15 +15,34 @@ import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../src
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function makeDef(overrides?: Partial<GeneratorDefinition>): GeneratorDefinition {
+interface GenOverrides {
+  id?: string
+  baseCost?: number
+  costScaling?: number
+  costCurrency?: string
+  production?: { resource: string; rate: number }
+}
+
+function makeDef(overrides?: GenOverrides): GeneratorDefinition {
+  const {
+    id = 'g0',
+    baseCost = 10,
+    costScaling = 1.5,
+    costCurrency = 'r0',
+    production = { resource: 'r0', rate: 1 },
+  } = overrides ?? {}
   return {
-    id: 'g0',
-    baseCost: 10,
-    costScaling: 1.5,
-    costCurrency: 'r0',
-    production: { resource: 'r0', rate: 1 },
-    ...overrides,
+    id,
+    cost: {
+      [costCurrency]: { baseCost, scaleType: 'exponential', scaleFactor: costScaling },
+    },
+    production,
   }
+}
+
+/** The single cost entry of a (single-currency) generator definition. */
+function entry(def: GeneratorDefinition) {
+  return Object.values(def.cost)[0]
 }
 
 function makeState(overrides?: Partial<PlayerState>): PlayerState {
@@ -131,6 +150,14 @@ describe('getMaxAffordableGeneratorCount', () => {
     const state = makeState({ resources: { r0: 100 }, generators: {} })
     // costs: 10, 20, 40, 80 → can buy 3 copies for 70
     expect(getMaxAffordableGeneratorCount(state, def)).toBe(3)
+  })
+
+  it('terminates on a degenerate decreasing curve whose cost floors to 0', () => {
+    // base 3, exp 0.5 → floored costs 3, 1, 0, 0, … A free copy would loop
+    // forever without the zero-cost guard; counting stops when cost hits 0.
+    const def = makeDef({ baseCost: 3, costScaling: 0.5 })
+    const state = makeState({ resources: { r0: 1000 }, generators: {} })
+    expect(getMaxAffordableGeneratorCount(state, def)).toBe(2) // 3 + 1, then 0
   })
 })
 
@@ -264,7 +291,7 @@ describe('isGeneratorUnlocked', () => {
 function makeUpgrade(overrides: Partial<UpgradeDefinition>): UpgradeDefinition {
   return {
     id: 'u0',
-    cost: { r0: 10 },
+    cost: { r0: { baseCost: 10 } },
     purchaseLimit: 1,
     ...overrides,
   }
@@ -287,16 +314,16 @@ describe('applyGeneratorCostFactors', () => {
   it('scales base cost by costFactor', () => {
     const def = makeDef({ baseCost: 100, costScaling: 1.5 })
     const adjusted = applyGeneratorCostFactors(def, { costFactor: 0.95, scalingFactor: 1 })
-    expect(adjusted.baseCost).toBeCloseTo(95)
-    expect(adjusted.costScaling).toBe(1.5)
+    expect(entry(adjusted).baseCost).toBeCloseTo(95)
+    expect(entry(adjusted).scaleFactor).toBe(1.5)
   })
 
   it('scales the growth portion of costScaling by scalingFactor', () => {
     const def = makeDef({ baseCost: 100, costScaling: 1.5 })
     // growth 0.5 * 0.98 = 0.49 → scaling 1.49
     const adjusted = applyGeneratorCostFactors(def, { costFactor: 1, scalingFactor: 0.98 })
-    expect(adjusted.costScaling).toBeCloseTo(1.49)
-    expect(adjusted.baseCost).toBe(100)
+    expect(entry(adjusted).scaleFactor).toBeCloseTo(1.49)
+    expect(entry(adjusted).baseCost).toBe(100)
   })
 })
 
@@ -384,8 +411,8 @@ describe('resolveGeneratorDef', () => {
       ],
     )
     const resolved = resolveGeneratorDef(def, makeState({ upgrades: { u0: 1 } }), mode)
-    expect(resolved.baseCost).toBeCloseTo(95)
-    expect(resolved.costScaling).toBeCloseTo(1.49)
+    expect(entry(resolved).baseCost).toBeCloseTo(95)
+    expect(entry(resolved).scaleFactor).toBeCloseTo(1.49)
   })
 
   it('returns the original definition when no reduction applies', () => {

@@ -43,6 +43,71 @@ function migrateV1toV2(json: unknown): unknown {
 }
 
 /**
+ * V2 → V3: unify cost authoring into a per-currency `CostEntry` map
+ * (`{ baseCost, scaleType?, scaleFactor? }`) shared by upgrades and generators.
+ *
+ * Upgrades: the old `cost` number-map plus a single `costScaling`
+ * (`{type, baseCost, factor}`) applied to every currency become one map where
+ * each currency's `baseCost` is its old amount. Both `linear` and `exponential`
+ * keep the old `factor` as `scaleFactor` (linear is now the arithmetic
+ * `baseCost + factor*level`). No `costScaling` → flat entries (`{ baseCost }`).
+ * A one-shot upgrade (`purchaseLimit === 1`) is only ever bought at level 0, so
+ * any old `costScaling` on it was inert; drop it here so the migration never
+ * emits the scaled-one-shot shape the schema now rejects (keeps v2→v3 total).
+ *
+ * Generators: the flat `baseCost`/`costScaling`/`costCurrency` fields collapse
+ * into `cost: { [costCurrency]: { baseCost, scaleType: 'exponential', scaleFactor } }`.
+ */
+function migrateV2toV3(json: unknown): unknown {
+  const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
+    const { costScaling, cost, children, ...rest } = node
+    const out: Record<string, unknown> = { ...rest }
+
+    let scaleType: 'linear' | 'exponential' | undefined
+    let scaleFactor: number | undefined
+    const old = costScaling as { type?: unknown; baseCost?: unknown; factor?: unknown } | undefined
+    // Scaling is inert on a one-shot node, so ignore it there (the resulting
+    // scaled entry would be rejected by the schema's one-shot invariant).
+    if (node.purchaseLimit !== 1 && old && typeof old === 'object' && 'baseCost' in old) {
+      scaleType = old.type === 'linear' ? 'linear' : 'exponential'
+      scaleFactor = typeof old.factor === 'number' ? old.factor : 0
+    }
+
+    const oldCost = (cost as Record<string, unknown> | undefined) ?? {}
+    const newCost: Record<string, unknown> = {}
+    for (const [currency, amount] of Object.entries(oldCost)) {
+      const baseCost = typeof amount === 'number' ? amount : 0
+      newCost[currency] =
+        scaleType !== undefined ? { baseCost, scaleType, scaleFactor } : { baseCost }
+    }
+    out.cost = newCost
+
+    if (Array.isArray(children)) {
+      out.children = (children as unknown[]).map((c) => migrateNode(c as Record<string, unknown>))
+    }
+    return out
+  }
+
+  const migrateGenerator = (g: Record<string, unknown>): Record<string, unknown> => {
+    const { baseCost, costScaling, costCurrency, ...rest } = g
+    const amount = typeof baseCost === 'number' ? baseCost : 0
+    const scaleFactor = typeof costScaling === 'number' ? costScaling : 1
+    const currency = typeof costCurrency === 'string' ? costCurrency : 'r0'
+    return {
+      ...rest,
+      cost: { [currency]: { baseCost: amount, scaleType: 'exponential', scaleFactor } },
+    }
+  }
+
+  const file = json as Record<string, unknown>
+  const rawUpgrades: unknown[] = Array.isArray(file.upgrades) ? file.upgrades : []
+  const upgrades = rawUpgrades.map((u) => migrateNode(u as Record<string, unknown>))
+  const rawGenerators: unknown[] = Array.isArray(file.generators) ? file.generators : []
+  const generators = rawGenerators.map((g) => migrateGenerator(g as Record<string, unknown>))
+  return { ...file, version: 3, upgrades, generators }
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -54,6 +119,7 @@ function migrateV1toV2(json: unknown): unknown {
 function migrateTreeFile(json: unknown): unknown {
   let raw = json
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
+  if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(

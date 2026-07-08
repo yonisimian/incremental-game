@@ -6,7 +6,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 2
+export const CURRENT_TREE_VERSION = 3
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -19,13 +19,27 @@ const ModifierSchema = z.strictObject({
   value: z.number(),
 })
 
-/** Cost as a `currency → amount` map (e.g. `{ r0: 15, r1: 5 }`). */
-const CostSchema = z.record(z.string(), z.number())
+/**
+ * A single currency's cost: `base` (level-0 price) plus optional per-level
+ * scaling. Absent `scaleType`/`scaleFactor` = flat. Shared by upgrades and
+ * generators (see the runtime `CostEntry`).
+ *
+ * `scaleType` and `scaleFactor` must co-occur: a scaled entry needs both, and a
+ * flat entry carries neither. Refusing the half-specified states keeps the file
+ * the single source of truth (rather than silently degrading to flat at runtime).
+ */
+const CostEntrySchema = z
+  .strictObject({
+    baseCost: z.number(),
+    scaleType: z.enum(['linear', 'exponential']).optional(),
+    scaleFactor: z.number().optional(),
+  })
+  .refine((e) => (e.scaleType === undefined) === (e.scaleFactor === undefined), {
+    message: 'scaleType and scaleFactor must be set together (or both omitted for a flat cost)',
+  })
 
-const CostScalingSchema = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('linear'), baseCost: z.number(), factor: z.number() }),
-  z.strictObject({ type: z.literal('exponential'), baseCost: z.number(), factor: z.number() }),
-])
+/** Cost as a `currency → CostEntry` map (e.g. `{ r0: { baseCost: 15 } }`). */
+const CostSchema = z.record(z.string(), CostEntrySchema)
 
 /**
  * Recursive AND/OR prerequisite expression. Annotated with the existing runtime
@@ -64,9 +78,7 @@ const GoalSchema = z.discriminatedUnion('type', [
 
 const GeneratorSchema = z.strictObject({
   id: z.string(),
-  baseCost: z.number(),
-  costScaling: z.number(),
-  costCurrency: z.string(),
+  cost: CostSchema,
   production: z.strictObject({ resource: z.string(), rate: z.number() }),
 })
 
@@ -140,22 +152,40 @@ const ModeFlavorSchema = z.strictObject({
  * cannot encode `Infinity`), and `position` is expressed as a relative `offset`.
  * The `codec` maps `null → Infinity` and flattens offsets to absolute positions.
  */
-const UpgradeNodeSchema = z.strictObject({
-  id: z.string(),
-  cost: CostSchema,
-  costScaling: CostScalingSchema.optional(),
-  /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
-  purchaseLimit: z.number().nullable(),
-  choiceGroup: z.string().optional(),
-  choiceLabel: z.string().optional(),
-  prerequisites: PrerequisiteSchema.optional(),
-  goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
-  effects: z.array(EffectRefSchema).optional(),
-  offset: PositionSchema,
-  get children() {
-    return z.array(UpgradeNodeSchema).optional()
-  },
-})
+const UpgradeNodeSchema = z
+  .strictObject({
+    id: z.string(),
+    cost: CostSchema,
+    /** Max purchases; `null` means unlimited (maps to `Infinity` at runtime). */
+    purchaseLimit: z.number().nullable(),
+    choiceGroup: z.string().optional(),
+    choiceLabel: z.string().optional(),
+    prerequisites: PrerequisiteSchema.optional(),
+    goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
+    effects: z.array(EffectRefSchema).optional(),
+    offset: PositionSchema,
+    get children() {
+      return z.array(UpgradeNodeSchema).optional()
+    },
+  })
+  .check((ctx) => {
+    // A one-shot upgrade (purchaseLimit === 1) is only ever bought at level 0,
+    // where scaling never applies. Forbid authoring scaling on such a node so the
+    // file stays the single source of truth rather than carrying inert scaling
+    // (which the editor greys out but must never silently ship).
+    const node = ctx.value
+    if (node.purchaseLimit !== 1) return
+    for (const [currency, entry] of Object.entries(node.cost)) {
+      if (entry.scaleType !== undefined || entry.scaleFactor !== undefined) {
+        ctx.issues.push({
+          code: 'custom',
+          input: entry,
+          path: ['cost', currency],
+          message: `one-shot upgrade '${node.id}' (purchaseLimit 1) must not scale cost; remove scaleType/scaleFactor from '${currency}'`,
+        })
+      }
+    }
+  })
 
 // ─── Top-level tree file ─────────────────────────────────────────────
 

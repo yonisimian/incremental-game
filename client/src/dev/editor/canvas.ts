@@ -4,7 +4,7 @@
  * wiring live in `index.ts`.
  */
 
-import type { TreeFile } from '@game/shared'
+import type { CostEntry, TreeFile } from '@game/shared'
 import { walkPositioned, prerequisiteRefs, type PositionedNode } from './model.js'
 
 /**
@@ -43,10 +43,12 @@ function escapeHtml(s: string): string {
 }
 
 /** Short, human-readable summary of a cost map (e.g. `r0:15 · r1:5`). */
-function costSummary(cost: Record<string, number>): string {
+function costSummary(cost: Record<string, CostEntry>): string {
   const entries = Object.entries(cost)
   if (entries.length === 0) return 'free'
-  return entries.map(([k, v]) => `${k}:${v}`).join(' · ')
+  return entries
+    .map(([k, v]) => `${k}:${v.baseCost}${v.scaleType ? `×${v.scaleFactor}` : ''}`)
+    .join(' · ')
 }
 
 function computeBounds(positioned: readonly PositionedNode[]): CanvasBounds {
