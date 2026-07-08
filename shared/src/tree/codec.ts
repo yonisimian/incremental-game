@@ -51,6 +51,9 @@ function migrateV1toV2(json: unknown): unknown {
  * each currency's `baseCost` is its old amount. Both `linear` and `exponential`
  * keep the old `factor` as `scaleFactor` (linear is now the arithmetic
  * `baseCost + factor*level`). No `costScaling` → flat entries (`{ baseCost }`).
+ * A one-shot upgrade (`purchaseLimit === 1`) is only ever bought at level 0, so
+ * any old `costScaling` on it was inert; drop it here so the migration never
+ * emits the scaled-one-shot shape the schema now rejects (keeps v2→v3 total).
  *
  * Generators: the flat `baseCost`/`costScaling`/`costCurrency` fields collapse
  * into `cost: { [costCurrency]: { baseCost, scaleType: 'exponential', scaleFactor } }`.
@@ -63,7 +66,9 @@ function migrateV2toV3(json: unknown): unknown {
     let scaleType: 'linear' | 'exponential' | undefined
     let scaleFactor: number | undefined
     const old = costScaling as { type?: unknown; baseCost?: unknown; factor?: unknown } | undefined
-    if (old && typeof old === 'object' && 'baseCost' in old) {
+    // Scaling is inert on a one-shot node, so ignore it there (the resulting
+    // scaled entry would be rejected by the schema's one-shot invariant).
+    if (node.purchaseLimit !== 1 && old && typeof old === 'object' && 'baseCost' in old) {
       scaleType = old.type === 'linear' ? 'linear' : 'exponential'
       scaleFactor = typeof old.factor === 'number' ? old.factor : 0
     }

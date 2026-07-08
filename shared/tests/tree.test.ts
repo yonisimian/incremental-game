@@ -174,6 +174,27 @@ describe('tree codec — versioning', () => {
     expect('baseCost' in parsed.generators[0]).toBe(false)
     expect('costScaling' in parsed.upgrades[0]).toBe(false)
   })
+
+  it('drops inert cost scaling from a one-shot upgrade when migrating v2→v3', () => {
+    const v2: unknown = {
+      ...minimalTree(),
+      version: 2,
+      upgrades: [
+        {
+          id: 'a',
+          cost: { r0: 10 },
+          costScaling: { type: 'exponential', baseCost: 10, factor: 1.15 },
+          purchaseLimit: 1,
+          offset: { x: 0, y: 0 },
+        },
+      ],
+    }
+    // Without normalization the migration would emit a scaled one-shot entry,
+    // which the schema's one-shot invariant rejects — so parsing must succeed
+    // and yield a flat cost instead of throwing.
+    const parsed = parseTreeFile(v2)
+    expect(parsed.upgrades[0].cost).toEqual({ r0: { baseCost: 10 } })
+  })
 })
 
 // ─── Structural + semantic validation failures ───────────────────────
