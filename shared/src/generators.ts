@@ -14,7 +14,7 @@ export function generatorCostCurrency(def: GeneratorDefinition): string {
 
 /** The generator's single {@link CostEntry} (its cost curve). */
 function generatorCostEntry(def: GeneratorDefinition): CostEntry {
-  return Object.values(def.cost)[0] ?? { base: 0 }
+  return Object.values(def.cost)[0] ?? { baseCost: 0 }
 }
 
 /** Aggregated cost reductions for a single generator (1 = no reduction). */
@@ -79,18 +79,18 @@ export function applyGeneratorCostFactors(
   if (factors.costFactor === 1 && factors.scalingFactor === 1) return def
   const currency = generatorCostCurrency(def)
   const entry = generatorCostEntry(def)
-  const scaledBase = entry.base * factors.costFactor
+  const scaledBase = entry.baseCost * factors.costFactor
   const scaled: CostEntry =
     entry.scaleType !== undefined && entry.scaleFactor !== undefined
       ? {
           ...entry,
-          base: scaledBase,
+          baseCost: scaledBase,
           scaleFactor:
             entry.scaleType === 'exponential'
               ? 1 + (entry.scaleFactor - 1) * factors.scalingFactor
               : entry.scaleFactor * factors.scalingFactor,
         }
-      : { ...entry, base: scaledBase }
+      : { ...entry, baseCost: scaledBase }
   return { ...def, cost: { [currency]: scaled } }
 }
 

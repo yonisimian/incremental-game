@@ -9,7 +9,7 @@ import { canBuy, formatTime, formatUpgradesPurchased, isUnlocked } from '../src/
 function makeUpgrade(overrides: Partial<UpgradeDefinition> = {}): UpgradeDefinition {
   return {
     id: 'test-upgrade',
-    cost: { r0: { base: 10 } },
+    cost: { r0: { baseCost: 10 } },
     purchaseLimit: 1,
     ...overrides,
   }
@@ -192,14 +192,14 @@ describe('isUnlocked', () => {
 
 describe('canBuy', () => {
   it('returns true when unlocked AND can afford', () => {
-    const u = makeUpgrade({ cost: { r0: { base: 50 } } })
+    const u = makeUpgrade({ cost: { r0: { baseCost: 50 } } })
     const state = makeState({ resources: { r0: 100, r1: 0 } })
     expect(canBuy(state, u)).toBe(true)
   })
 
   it('returns false when locked even if affordable', () => {
     const u = makeUpgrade({
-      cost: { r0: { base: 50 } },
+      cost: { r0: { baseCost: 50 } },
       prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ghost' }] },
     })
     const state = makeState({ resources: { r0: 9999, r1: 9999 } })
@@ -207,13 +207,13 @@ describe('canBuy', () => {
   })
 
   it('returns false when unlocked but cannot afford', () => {
-    const u = makeUpgrade({ cost: { r0: { base: 50 } } })
+    const u = makeUpgrade({ cost: { r0: { baseCost: 50 } } })
     const state = makeState({ resources: { r0: 0, r1: 9999 } })
     expect(canBuy(state, u)).toBe(false)
   })
 
   it('returns false for one-shot upgrade already owned', () => {
-    const u = makeUpgrade({ cost: { r0: { base: 10 } } })
+    const u = makeUpgrade({ cost: { r0: { baseCost: 10 } } })
     const state = makeState({
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 1 },
@@ -222,7 +222,7 @@ describe('canBuy', () => {
   })
 
   it('returns true for unlimited upgrades already owned (with funds)', () => {
-    const u = makeUpgrade({ cost: { r0: { base: 10 } }, purchaseLimit: Infinity })
+    const u = makeUpgrade({ cost: { r0: { baseCost: 10 } }, purchaseLimit: Infinity })
     const state = makeState({
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 3 },

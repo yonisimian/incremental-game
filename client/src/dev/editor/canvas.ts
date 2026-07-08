@@ -47,7 +47,7 @@ function costSummary(cost: Record<string, CostEntry>): string {
   const entries = Object.entries(cost)
   if (entries.length === 0) return 'free'
   return entries
-    .map(([k, v]) => `${k}:${v.base}${v.scaleType ? `×${v.scaleFactor}` : ''}`)
+    .map(([k, v]) => `${k}:${v.baseCost}${v.scaleType ? `×${v.scaleFactor}` : ''}`)
     .join(' · ')
 }
 

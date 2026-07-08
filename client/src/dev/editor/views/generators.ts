@@ -163,11 +163,11 @@ function buildRow(
   nameInput.addEventListener('input', commitFlavor)
 
   // ── Mechanics ──
-  const base = numberInput(
+  const baseCost = numberInput(
     ctx,
-    row.base,
+    row.baseCost,
     (n) => {
-      setGeneratorField(tree, row.id, { base: n })
+      setGeneratorField(tree, row.id, { baseCost: n })
     },
     { onDone: renderPreview },
   )
@@ -235,7 +235,7 @@ function buildRow(
   fields.append(
     labeled('Icon', iconInput),
     labeled('Name', nameInput),
-    labeled('Base cost', base),
+    labeled('Base cost', baseCost),
     labeled('Scaling', scaleType),
     labeled('Factor', scaleFactor),
     labeled('Cost currency', currency),

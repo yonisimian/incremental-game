@@ -156,7 +156,7 @@ describe('validateUpgradePrerequisites', () => {
   ): UpgradeDefinition {
     return {
       id,
-      cost: { r0: { base: 0 } },
+      cost: { r0: { baseCost: 0 } },
       purchaseLimit: 1,
       prerequisites,
     }

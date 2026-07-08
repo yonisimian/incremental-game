@@ -32,7 +32,7 @@
       "id": "g0",
       "cost": {
         "r1": {
-          "base": 10,
+          "baseCost": 10,
           "scaleType": "exponential",
           "scaleFactor": 1.15
         }
@@ -46,7 +46,7 @@
       "id": "g1",
       "cost": {
         "r1": {
-          "base": 10,
+          "baseCost": 10,
           "scaleType": "exponential",
           "scaleFactor": 1.15
         }
@@ -60,7 +60,7 @@
       "id": "g2",
       "cost": {
         "r1": {
-          "base": 50,
+          "baseCost": 50,
           "scaleType": "exponential",
           "scaleFactor": 1.2
         }
@@ -74,7 +74,7 @@
       "id": "g3",
       "cost": {
         "r0": {
-          "base": 600,
+          "baseCost": 600,
           "scaleType": "exponential",
           "scaleFactor": 1.5
         }
@@ -669,7 +669,7 @@
       "id": "goal",
       "cost": {
         "r0": {
-          "base": 30000
+          "baseCost": 30000
         }
       },
       "purchaseLimit": 1,
@@ -1316,7 +1316,7 @@
       "id": "sc-unlock",
       "cost": {
         "r0": {
-          "base": 50
+          "baseCost": 50
         }
       },
       "purchaseLimit": 1,
@@ -1341,7 +1341,7 @@
           "id": "sc-af-cp",
           "cost": {
             "r0": {
-              "base": 25,
+              "baseCost": 25,
               "scaleType": "exponential",
               "scaleFactor": 1.15
             }
@@ -1368,7 +1368,7 @@
               "id": "sc-mf-cp",
               "cost": {
                 "r0": {
-                  "base": 200,
+                  "baseCost": 200,
                   "scaleType": "exponential",
                   "scaleFactor": 1.5
                 }

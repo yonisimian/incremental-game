@@ -413,7 +413,7 @@ export interface GeneratorRow {
   readonly id: string
   readonly name: string
   readonly icon: string
-  readonly base: number
+  readonly baseCost: number
   readonly scaleType: 'flat' | 'linear' | 'exponential'
   readonly scaleFactor: number
   readonly costCurrency: string
@@ -645,12 +645,12 @@ export function listGenerators(tree: TreeFile): GeneratorRow[] {
   const flavor = new Map((tree.flavors[0]?.generators ?? []).map((g) => [g.id, g]))
   return tree.generators.map((g) => {
     const f = flavor.get(g.id)
-    const [currency, entry] = Object.entries(g.cost)[0] ?? ['r0', { base: 0 }]
+    const [currency, entry] = Object.entries(g.cost)[0] ?? ['r0', { baseCost: 0 }]
     return {
       id: g.id,
       name: f?.name ?? g.id,
       icon: f?.icon ?? DEFAULT_GENERATOR_ICON,
-      base: entry.base,
+      baseCost: entry.baseCost,
       scaleType: entry.scaleType ?? 'flat',
       scaleFactor: entry.scaleFactor ?? 0,
       costCurrency: currency,
@@ -670,7 +670,7 @@ export function addGenerator(tree: TreeFile): string {
   const resource = tree.resources[0] ?? 'r0'
   tree.generators.push({
     id,
-    cost: { [resource]: { base: 10, scaleType: 'exponential', scaleFactor: 1.15 } },
+    cost: { [resource]: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1.15 } },
     production: { resource, rate: 1 },
   })
   for (const f of tree.flavors) {
@@ -746,7 +746,7 @@ export function setGeneratorField(
   tree: TreeFile,
   id: string,
   patch: Partial<{
-    base: number
+    baseCost: number
     scaleType: 'flat' | 'linear' | 'exponential'
     scaleFactor: number
     costCurrency: string
@@ -757,20 +757,20 @@ export function setGeneratorField(
   const gen = tree.generators.find((g) => g.id === id)
   if (!gen) return
   const touchesCost =
-    patch.base !== undefined ||
+    patch.baseCost !== undefined ||
     patch.scaleType !== undefined ||
     patch.scaleFactor !== undefined ||
     patch.costCurrency !== undefined
   if (touchesCost) {
-    const [currency, entry] = Object.entries(gen.cost)[0] ?? ['r0', { base: 0 }]
+    const [currency, entry] = Object.entries(gen.cost)[0] ?? ['r0', { baseCost: 0 }]
     const nextCurrency = patch.costCurrency ?? currency
-    const base = patch.base ?? entry.base
+    const baseCost = patch.baseCost ?? entry.baseCost
     const scaleType = patch.scaleType ?? entry.scaleType ?? 'flat'
     const scaleFactor = patch.scaleFactor ?? entry.scaleFactor ?? 0
     gen.cost =
       scaleType === 'flat'
-        ? { [nextCurrency]: { base } }
-        : { [nextCurrency]: { base, scaleType, scaleFactor } }
+        ? { [nextCurrency]: { baseCost } }
+        : { [nextCurrency]: { baseCost, scaleType, scaleFactor } }
   }
   if (patch.productionResource !== undefined) gen.production.resource = patch.productionResource
   if (patch.productionRate !== undefined) gen.production.rate = patch.productionRate

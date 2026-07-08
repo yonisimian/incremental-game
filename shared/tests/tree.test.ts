@@ -83,7 +83,7 @@ describe('tree codec — purchaseLimit sentinel', () => {
   it('maps null to Infinity when assembling the runtime definition', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
+      { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(toModeDefinition(tree).upgrades[0].purchaseLimit).toBe(Infinity)
@@ -92,7 +92,7 @@ describe('tree codec — purchaseLimit sentinel', () => {
   it('preserves the null sentinel across a round-trip (Infinity is not JSON-encodable)', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
+      { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
@@ -164,12 +164,12 @@ describe('tree codec — versioning', () => {
     expect(parsed.version).toBe(CURRENT_TREE_VERSION)
     // The single old costScaling applies to every cost currency.
     expect(parsed.upgrades[0].cost).toEqual({
-      r0: { base: 10, scaleType: 'exponential', scaleFactor: 1.15 },
-      r1: { base: 5, scaleType: 'exponential', scaleFactor: 1.15 },
+      r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1.15 },
+      r1: { baseCost: 5, scaleType: 'exponential', scaleFactor: 1.15 },
     })
     // Generator fields collapse into a single-currency exponential entry.
     expect(parsed.generators[0].cost).toEqual({
-      r1: { base: 20, scaleType: 'exponential', scaleFactor: 1.2 },
+      r1: { baseCost: 20, scaleType: 'exponential', scaleFactor: 1.2 },
     })
     expect('baseCost' in parsed.generators[0]).toBe(false)
     expect('costScaling' in parsed.upgrades[0]).toBe(false)
@@ -190,7 +190,7 @@ describe('tree codec — validation failures', () => {
   it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
     const tree = minimalTree()
     tree.upgrades = [
-      { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 0 } },
+      { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
@@ -203,7 +203,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: { base: 5, scaleType: 'exponential' } },
+        cost: { r0: { baseCost: 5, scaleType: 'exponential' } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
       },
@@ -217,7 +217,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: { base: 5, scaleFactor: 1.15 } },
+        cost: { r0: { baseCost: 5, scaleFactor: 1.15 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
       },
@@ -231,11 +231,11 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: { base: 5 } },
+        cost: { r0: { baseCost: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
         children: [
-          { id: 'a', cost: { r0: { base: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 150 } },
+          { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 150 } },
         ],
       },
     ]
@@ -248,7 +248,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: { base: 5 } },
+        cost: { r0: { baseCost: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
         effects: [{ type: 'doesNotExist' }],
@@ -263,7 +263,7 @@ describe('tree codec — validation failures', () => {
     tree.upgrades = [
       {
         id: 'a',
-        cost: { r0: { base: 5 } },
+        cost: { r0: { baseCost: 5 } },
         purchaseLimit: 1,
         offset: { x: 0, y: 0 },
         effects: [{ type: 'highlightMultiplier', multiplier: 2, boostUpgradeId: 'b' }],

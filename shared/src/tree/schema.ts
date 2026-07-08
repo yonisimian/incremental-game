@@ -30,7 +30,7 @@ const ModifierSchema = z.strictObject({
  */
 const CostEntrySchema = z
   .strictObject({
-    base: z.number(),
+    baseCost: z.number(),
     scaleType: z.enum(['linear', 'exponential']).optional(),
     scaleFactor: z.number().optional(),
   })
@@ -38,7 +38,7 @@ const CostEntrySchema = z
     message: 'scaleType and scaleFactor must be set together (or both omitted for a flat cost)',
   })
 
-/** Cost as a `currency → CostEntry` map (e.g. `{ r0: { base: 15 } }`). */
+/** Cost as a `currency → CostEntry` map (e.g. `{ r0: { baseCost: 15 } }`). */
 const CostSchema = z.record(z.string(), CostEntrySchema)
 
 /**

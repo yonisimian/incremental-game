@@ -8,17 +8,17 @@ import type { UpgradeDefinition } from '../src/types.js'
 
 const fixed: UpgradeDefinition = {
   id: 'f',
-  cost: { r0: { base: 10 } },
+  cost: { r0: { baseCost: 10 } },
   purchaseLimit: 5,
 }
 const linear: UpgradeDefinition = {
   id: 'l',
-  cost: { r0: { base: 5, scaleType: 'linear', scaleFactor: 0.4 } },
+  cost: { r0: { baseCost: 5, scaleType: 'linear', scaleFactor: 2 } },
   purchaseLimit: 5,
 }
 const expo: UpgradeDefinition = {
   id: 'e',
-  cost: { r0: { base: 3, scaleType: 'exponential', scaleFactor: 2 } },
+  cost: { r0: { baseCost: 3, scaleType: 'exponential', scaleFactor: 2 } },
   purchaseLimit: 5,
 }
 
@@ -43,11 +43,11 @@ describe('upgrade costs', () => {
   it('scales only currencies with an entry, leaving others flat', () => {
     const mixed: UpgradeDefinition = {
       id: 'm',
-      cost: { r0: { base: 8, scaleType: 'linear', scaleFactor: 0.5 }, r1: { base: 10 } },
+      cost: { r0: { baseCost: 8, scaleType: 'linear', scaleFactor: 4 }, r1: { baseCost: 10 } },
       purchaseLimit: 5,
     }
     expect(getUpgradeNextCost(mixed, 0)).toEqual({ r0: 8, r1: 10 })
-    // r0 grows (8 * (1 + 0.5*2) = 16); r1 has no entry so stays flat.
+    // r0 grows (8 + 4*2 = 16); r1 has no entry so stays flat.
     expect(getUpgradeNextCost(mixed, 2)).toEqual({ r0: 16, r1: 10 })
   })
 

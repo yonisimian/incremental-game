@@ -146,7 +146,7 @@ function buildParentSection(ctx: InspectorContext): HTMLElement {
   return wrap
 }
 
-function buildCostSection(ctx: InspectorContext): HTMLElement {
+function buildCostSection(ctx: InspectorContext): { element: HTMLElement; refresh: () => void } {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Cost'))
   const rows = el('div', 'ed-rows')
@@ -184,7 +184,7 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
   add.addEventListener('click', () => {
     const free = ctx.currencies.find((c) => !(c.key in ctx.node.cost))
     if (!free) return
-    ctx.node.cost = { ...ctx.node.cost, [free.key]: { base: 0 } }
+    ctx.node.cost = { ...ctx.node.cost, [free.key]: { baseCost: 0 } }
     ctx.onChange()
     render()
   })
@@ -195,10 +195,10 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
     el(
       'p',
       'ed-hint',
-      'Each currency has an optional per-level scaling: Flat (constant), Linear (base·(1 + factor·level)), or Exponential (base·factor^level). Level-0 price is the base above.',
+      'Each currency has an optional per-level scaling: Flat (constant), Linear (baseCost + factor·level), or Exponential (baseCost·factor^level). Level-0 price is the base above. One-shot upgrades (purchase limit 1) ignore scaling.',
     ),
   )
-  return section
+  return { element: section, refresh: render }
 }
 
 /**
@@ -208,6 +208,8 @@ function buildCostSection(ctx: InspectorContext): HTMLElement {
  * change, removal) call `rerender` so sibling rows refresh available currencies.
  *
  * "Flat" writes an entry with no scaling; its factor box is disabled.
+ * A one-shot upgrade (`purchaseLimit === 1`) is only ever bought at level 0, so
+ * its scaling controls are disabled (the stored entry is left untouched).
  */
 function buildCostRow(
   ctx: InspectorContext,
@@ -216,12 +218,14 @@ function buildCostRow(
   available: readonly Currency[],
   rerender: () => void,
 ): HTMLDivElement {
+  // Scaling is meaningless for one-shot upgrades (only bought once, at level 0).
+  const oneShot = ctx.node.purchaseLimit === 1
   const row = el('div', 'ed-cost-row')
   const keySelect = buildCurrencySelect(available, key)
   keySelect.classList.add('ed-cost-key')
   const amountInput = el('input', 'ed-input ed-cost-amount')
   amountInput.type = 'number'
-  amountInput.value = String(entry.base)
+  amountInput.value = String(entry.baseCost)
 
   const typeSelect = el('select', 'ed-input ed-cost-scaling')
   const scalingOptions: readonly (readonly [string, string])[] = [
@@ -235,14 +239,17 @@ function buildCostRow(
     if (value === (entry.scaleType ?? 'flat')) opt.selected = true
     typeSelect.append(opt)
   }
-  typeSelect.title = 'Per-level cost growth for this currency'
+  typeSelect.disabled = oneShot
+  typeSelect.title = oneShot
+    ? 'One-shot upgrades (purchase limit 1) are only ever bought once, so scaling has no effect'
+    : 'Per-level cost growth for this currency'
 
   const factorInput = el('input', 'ed-input ed-cost-factor')
   factorInput.type = 'number'
   factorInput.step = '0.01'
   factorInput.title = 'Per-level growth factor'
   factorInput.value = String(entry.scaleFactor ?? 0)
-  factorInput.disabled = entry.scaleType === undefined
+  factorInput.disabled = oneShot || entry.scaleType === undefined
 
   const remove = el('button', 'ed-btn ed-btn-remove', '✕')
   remove.type = 'button'
@@ -250,11 +257,11 @@ function buildCostRow(
   // Write this currency's entry from the current controls (Flat = no scaling).
   const commit = (): void => {
     const scaleType = typeSelect.value as 'flat' | 'linear' | 'exponential'
-    const base = Number(amountInput.value) || 0
+    const baseCost = Number(amountInput.value) || 0
     const next: CostEntry =
       scaleType === 'flat'
-        ? { base }
-        : { base, scaleType, scaleFactor: Number(factorInput.value) || 0 }
+        ? { baseCost }
+        : { baseCost, scaleType, scaleFactor: Number(factorInput.value) || 0 }
     ctx.node.cost = { ...ctx.node.cost, [key]: next }
     ctx.onChange()
   }
@@ -307,7 +314,7 @@ function buildCurrencySelect(currencies: readonly Currency[], value: string): HT
   return select
 }
 
-function buildPurchaseLimitSection(ctx: InspectorContext): HTMLElement {
+function buildPurchaseLimitSection(ctx: InspectorContext, onLimitChange?: () => void): HTMLElement {
   const unlimited = el('input')
   unlimited.type = 'checkbox'
   unlimited.checked = ctx.node.purchaseLimit === null
@@ -321,6 +328,8 @@ function buildPurchaseLimitSection(ctx: InspectorContext): HTMLElement {
     ctx.node.purchaseLimit = unlimited.checked ? null : Math.max(1, Number(number.value) || 1)
     number.disabled = unlimited.checked
     ctx.onChange()
+    // Toggling one-shot (limit 1) enables/disables the cost scaling controls.
+    onLimitChange?.()
   }
   unlimited.addEventListener('change', sync)
   number.addEventListener('change', sync)
@@ -496,11 +505,12 @@ function buildChoiceSection(ctx: InspectorContext): HTMLElement {
 /** Render the inspector for the selected node into `container`. */
 export function renderInspector(container: HTMLElement, ctx: InspectorContext): void {
   container.innerHTML = ''
+  const cost = buildCostSection(ctx)
   container.append(
     buildIdSection(ctx),
     buildParentSection(ctx),
-    buildCostSection(ctx),
-    buildPurchaseLimitSection(ctx),
+    cost.element,
+    buildPurchaseLimitSection(ctx, cost.refresh),
     buildPrerequisitesSection(ctx),
     buildEffectsSection({
       tree: ctx.tree,

@@ -20,13 +20,13 @@ export interface UpgradePosition {
 }
 
 /**
- * The cost of a single currency, with optional per-level scaling. `base` is the
- * level-0 price. When `scaleType`/`scaleFactor` are absent the cost is flat;
- * `linear` grows additively (`base * (1 + scaleFactor*level)`) and `exponential`
- * compounds (`base * scaleFactor**level`). Shared by upgrades and generators.
+ * The cost of a single currency, with optional per-level scaling. `baseCost` is
+ * the level-0 price. When `scaleType`/`scaleFactor` are absent the cost is flat;
+ * `linear` grows additively (`baseCost + scaleFactor*level`) and `exponential`
+ * compounds (`baseCost * scaleFactor**level`). Shared by upgrades and generators.
  */
 export interface CostEntry {
-  readonly base: number
+  readonly baseCost: number
   readonly scaleType?: 'linear' | 'exponential'
   readonly scaleFactor?: number
 }
@@ -45,7 +45,7 @@ export interface EffectRef {
 export interface UpgradeDefinition {
   readonly id: string
   /**
-   * Cost as a currency→{@link CostEntry} map (e.g. `{ r0: { base: 15 } }`).
+   * Cost as a currency→{@link CostEntry} map (e.g. `{ r0: { baseCost: 15 } }`).
    * Each currency carries its own optional per-level scaling.
    */
   readonly cost: Readonly<Record<string, CostEntry>>

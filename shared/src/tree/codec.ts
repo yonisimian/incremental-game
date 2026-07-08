@@ -44,16 +44,16 @@ function migrateV1toV2(json: unknown): unknown {
 
 /**
  * V2 → V3: unify cost authoring into a per-currency `CostEntry` map
- * (`{ base, scaleType?, scaleFactor? }`) shared by upgrades and generators.
+ * (`{ baseCost, scaleType?, scaleFactor? }`) shared by upgrades and generators.
  *
  * Upgrades: the old `cost` number-map plus a single `costScaling`
  * (`{type, baseCost, factor}`) applied to every currency become one map where
- * each currency's `base` is its old amount. Exponential keeps `factor` as
- * `scaleFactor`; linear's old slope `factor/baseCost` becomes `scaleFactor`
- * (guarding `baseCost <= 0`). No `costScaling` → flat entries (`{ base }`).
+ * each currency's `baseCost` is its old amount. Both `linear` and `exponential`
+ * keep the old `factor` as `scaleFactor` (linear is now the arithmetic
+ * `baseCost + factor*level`). No `costScaling` → flat entries (`{ baseCost }`).
  *
  * Generators: the flat `baseCost`/`costScaling`/`costCurrency` fields collapse
- * into `cost: { [costCurrency]: { base, scaleType: 'exponential', scaleFactor } }`.
+ * into `cost: { [costCurrency]: { baseCost, scaleType: 'exponential', scaleFactor } }`.
  */
 function migrateV2toV3(json: unknown): unknown {
   const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
@@ -65,16 +65,15 @@ function migrateV2toV3(json: unknown): unknown {
     const old = costScaling as { type?: unknown; baseCost?: unknown; factor?: unknown } | undefined
     if (old && typeof old === 'object' && 'baseCost' in old) {
       scaleType = old.type === 'linear' ? 'linear' : 'exponential'
-      const baseCost = typeof old.baseCost === 'number' ? old.baseCost : 0
-      const oldFactor = typeof old.factor === 'number' ? old.factor : 0
-      scaleFactor = scaleType === 'linear' ? (baseCost > 0 ? oldFactor / baseCost : 0) : oldFactor
+      scaleFactor = typeof old.factor === 'number' ? old.factor : 0
     }
 
     const oldCost = (cost as Record<string, unknown> | undefined) ?? {}
     const newCost: Record<string, unknown> = {}
     for (const [currency, amount] of Object.entries(oldCost)) {
-      const base = typeof amount === 'number' ? amount : 0
-      newCost[currency] = scaleType !== undefined ? { base, scaleType, scaleFactor } : { base }
+      const baseCost = typeof amount === 'number' ? amount : 0
+      newCost[currency] =
+        scaleType !== undefined ? { baseCost, scaleType, scaleFactor } : { baseCost }
     }
     out.cost = newCost
 
@@ -86,10 +85,13 @@ function migrateV2toV3(json: unknown): unknown {
 
   const migrateGenerator = (g: Record<string, unknown>): Record<string, unknown> => {
     const { baseCost, costScaling, costCurrency, ...rest } = g
-    const base = typeof baseCost === 'number' ? baseCost : 0
+    const amount = typeof baseCost === 'number' ? baseCost : 0
     const scaleFactor = typeof costScaling === 'number' ? costScaling : 1
     const currency = typeof costCurrency === 'string' ? costCurrency : 'r0'
-    return { ...rest, cost: { [currency]: { base, scaleType: 'exponential', scaleFactor } } }
+    return {
+      ...rest,
+      cost: { [currency]: { baseCost: amount, scaleType: 'exponential', scaleFactor } },
+    }
   }
 
   const file = json as Record<string, unknown>

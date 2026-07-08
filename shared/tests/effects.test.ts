@@ -190,7 +190,7 @@ describe('collectModifiers effect wiring', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
       id: 'uEffect',
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: 1, // Gated by placement: per-upgrade effects run only once `uEffect` is owned.
       effects: [{ type: 'highlightMultiplier', multiplier: 3 }],
     }
@@ -243,7 +243,7 @@ describe('collectModifiers effect wiring', () => {
     const base = getModeDefinition('idler')
     const up: UpgradeDefinition = {
       id: 'uMul',
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
       effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 }],
     }
@@ -263,7 +263,7 @@ describe('collectModifiers effect wiring', () => {
     const gen = base.generators[0]
     const up: UpgradeDefinition = {
       id: 'uGen',
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
       effects: [{ type: 'baseModifier', stage: 'additive', field: gen.id, value: 3 }],
     }
@@ -473,7 +473,7 @@ describe('unlockAttack effect', () => {
     const base = getModeDefinition('idler')
     const upgrade: UpgradeDefinition = {
       id: upgradeId,
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: 1,
       effects: [{ type: 'unlockAttack', attack: attackId }],
     }
@@ -522,7 +522,7 @@ describe('unlockPact effect', () => {
     const base = getModeDefinition('idler')
     const upgrade: UpgradeDefinition = {
       id: upgradeId,
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: 1,
       effects: [{ type: 'unlockPact', pact: pactId }],
     }
@@ -724,7 +724,7 @@ describe('relativeModifier effect', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
       id: 'uRel',
-      cost: { r0: { base: 10 } },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: 1,
       effects: [
         {
@@ -756,7 +756,7 @@ describe('relativeModifier mode validation', () => {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uBad',
-      cost: { r0: { base: 1 } },
+      cost: { r0: { baseCost: 1 } },
       purchaseLimit: 1,
       effects: [effect],
     }
@@ -820,7 +820,7 @@ describe('accessEnemyData mode validation', () => {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uIntel',
-      cost: { r0: { base: 1 } },
+      cost: { r0: { baseCost: 1 } },
       purchaseLimit: 1,
       effects: [{ type: 'accessEnemyData', data }],
     }

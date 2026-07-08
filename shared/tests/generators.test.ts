@@ -34,7 +34,7 @@ function makeDef(overrides?: GenOverrides): GeneratorDefinition {
   return {
     id,
     cost: {
-      [costCurrency]: { base: baseCost, scaleType: 'exponential', scaleFactor: costScaling },
+      [costCurrency]: { baseCost, scaleType: 'exponential', scaleFactor: costScaling },
     },
     production,
   }
@@ -291,7 +291,7 @@ describe('isGeneratorUnlocked', () => {
 function makeUpgrade(overrides: Partial<UpgradeDefinition>): UpgradeDefinition {
   return {
     id: 'u0',
-    cost: { r0: { base: 10 } },
+    cost: { r0: { baseCost: 10 } },
     purchaseLimit: 1,
     ...overrides,
   }
@@ -314,7 +314,7 @@ describe('applyGeneratorCostFactors', () => {
   it('scales base cost by costFactor', () => {
     const def = makeDef({ baseCost: 100, costScaling: 1.5 })
     const adjusted = applyGeneratorCostFactors(def, { costFactor: 0.95, scalingFactor: 1 })
-    expect(entry(adjusted).base).toBeCloseTo(95)
+    expect(entry(adjusted).baseCost).toBeCloseTo(95)
     expect(entry(adjusted).scaleFactor).toBe(1.5)
   })
 
@@ -323,7 +323,7 @@ describe('applyGeneratorCostFactors', () => {
     // growth 0.5 * 0.98 = 0.49 → scaling 1.49
     const adjusted = applyGeneratorCostFactors(def, { costFactor: 1, scalingFactor: 0.98 })
     expect(entry(adjusted).scaleFactor).toBeCloseTo(1.49)
-    expect(entry(adjusted).base).toBe(100)
+    expect(entry(adjusted).baseCost).toBe(100)
   })
 })
 
@@ -411,7 +411,7 @@ describe('resolveGeneratorDef', () => {
       ],
     )
     const resolved = resolveGeneratorDef(def, makeState({ upgrades: { u0: 1 } }), mode)
-    expect(entry(resolved).base).toBeCloseTo(95)
+    expect(entry(resolved).baseCost).toBeCloseTo(95)
     expect(entry(resolved).scaleFactor).toBeCloseTo(1.49)
   })
 

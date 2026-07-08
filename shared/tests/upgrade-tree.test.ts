@@ -7,7 +7,7 @@ function node(
   offset: { x: number; y: number },
   extra: Partial<UpgradeTreeNode> = {},
 ): UpgradeTreeNode {
-  return { id, cost: { r0: { base: 1 } }, purchaseLimit: 1, offset, ...extra }
+  return { id, cost: { r0: { baseCost: 1 } }, purchaseLimit: 1, offset, ...extra }
 }
 
 describe('flattenUpgradeTree', () => {
@@ -66,7 +66,7 @@ describe('flattenUpgradeTree', () => {
         'a',
         { x: 5, y: 5 },
         {
-          cost: { r0: { base: 25 }, r1: { base: 5 } },
+          cost: { r0: { baseCost: 25 }, r1: { baseCost: 5 } },
           purchaseLimit: Infinity,
           goalType: 'buy-upgrade',
           prerequisites: { type: 'upgrade', id: 'x' },
@@ -81,7 +81,7 @@ describe('flattenUpgradeTree', () => {
     const a = flattenUpgradeTree(tree).find((u) => u.id === 'a')!
     expect(a).toEqual({
       id: 'a',
-      cost: { r0: { base: 25 }, r1: { base: 5 } },
+      cost: { r0: { baseCost: 25 }, r1: { baseCost: 5 } },
       purchaseLimit: Infinity,
       goalType: 'buy-upgrade',
       prerequisites: { type: 'upgrade', id: 'x' },
