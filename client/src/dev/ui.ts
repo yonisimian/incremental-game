@@ -20,6 +20,7 @@ import type { ChartMarker } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
 import { initEditor } from './editor/index.js'
+import { initQueueSim } from './queue-sim.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ export function initDevPanel(root: HTMLElement): void {
   const simPane = root.querySelector<HTMLDivElement>('#pane-simulation')!
   const livePane = root.querySelector<HTMLDivElement>('#pane-live')!
   const editorPane = root.querySelector<HTMLDivElement>('#pane-editor')!
+  const queuePane = root.querySelector<HTMLDivElement>('#pane-queue')!
 
   // ── Simulation pane wiring ──
   const modeSelect = root.querySelector<HTMLSelectElement>('#mode-select')!
@@ -69,12 +71,15 @@ export function initDevPanel(root: HTMLElement): void {
   // The editor is mounted lazily on first entry and torn down on leave (it owns
   // pan/zoom listeners); `editorTeardown` is non-null only while it is mounted.
   let editorTeardown: (() => void) | null = null
+  // The queue editor is mounted once, lazily, on first entry.
+  let queueMounted = false
 
-  function switchTab(tab: 'simulation' | 'live' | 'editor'): void {
+  function switchTab(tab: 'simulation' | 'live' | 'editor' | 'queue'): void {
     tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab))
     simPane.classList.toggle('hidden', tab !== 'simulation')
     livePane.classList.toggle('hidden', tab !== 'live')
     editorPane.classList.toggle('hidden', tab !== 'editor')
+    queuePane.classList.toggle('hidden', tab !== 'queue')
 
     if (tab === 'live') {
       startLiveListener((state) => {
@@ -96,11 +101,16 @@ export function initDevPanel(root: HTMLElement): void {
       editorTeardown()
       editorTeardown = null
     }
+
+    if (tab === 'queue' && !queueMounted) {
+      queueMounted = true
+      initQueueSim(queuePane)
+    }
   }
 
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
-      switchTab(btn.dataset.tab as 'simulation' | 'live' | 'editor')
+      switchTab(btn.dataset.tab as 'simulation' | 'live' | 'editor' | 'queue')
     })
   })
 
@@ -164,6 +174,7 @@ function buildLayout(): string {
     </header>
     <nav class="dev-tabs">
       <button class="dev-tab active" data-tab="simulation">Simulation</button>
+      <button class="dev-tab" data-tab="queue">Queue</button>
       <button class="dev-tab" data-tab="live">Live</button>
       <button class="dev-tab" data-tab="editor">Editor</button>
     </nav>
@@ -221,6 +232,7 @@ function buildLayout(): string {
       </section>
     </div>
     <div id="pane-editor" class="hidden"></div>
+    <div id="pane-queue" class="hidden"></div>
   `
 }
 

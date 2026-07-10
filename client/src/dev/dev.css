@@ -1085,3 +1085,207 @@ body {
   flex: 0 0 auto;
   width: auto;
 }
+
+/* ─── Queue Simulation tab ─────────────────────────────────────────── */
+
+.q-layout {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.q-sidebar {
+  flex: 0 0 220px;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.q-sidebar h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--dev-accent);
+}
+
+.q-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.q-list-item.selected {
+  background: var(--dev-bg);
+  outline: 1px solid var(--dev-accent);
+}
+
+.q-list-name {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--dev-text);
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.q-list-name:hover {
+  color: var(--dev-accent);
+}
+
+.q-editor {
+  flex: 1;
+  min-width: 0;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.q-name-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.q-name-label input {
+  margin-left: 6px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-width: 220px;
+}
+
+.q-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.q-table th,
+.q-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.q-table tr.editing {
+  background: var(--dev-bg);
+}
+
+.q-empty {
+  color: var(--dev-muted);
+  font-style: italic;
+}
+
+.q-row-controls {
+  white-space: nowrap;
+}
+
+.q-row-btn {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 2px;
+  cursor: pointer;
+}
+
+.q-row-btn:hover:not(:disabled) {
+  border-color: var(--dev-accent);
+}
+
+.q-row-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.q-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dev-border);
+}
+
+.q-params {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.q-params label,
+.q-form > select {
+  font-size: 13px;
+}
+
+.q-params input,
+.q-params select,
+.q-form > select {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-left: 4px;
+}
+
+.q-params input[type='number'] {
+  width: 70px;
+}
+
+.q-form-error {
+  flex-basis: 100%;
+  color: #ff6b6b;
+  font-size: 12px;
+  min-height: 14px;
+}
+
+.dev-report {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.dev-report h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--dev-accent);
+}
+
+.q-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.q-report-table th,
+.q-report-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.q-notreached {
+  color: var(--dev-muted);
+}
+
+.q-problems {
+  color: #ffb86c;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.q-hint {
+  color: var(--dev-muted);
+}
