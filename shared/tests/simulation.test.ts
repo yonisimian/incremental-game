@@ -6,6 +6,7 @@ import type { PlayerState, UpgradeDefinition } from '../src/types.js'
 import {
   applySimAction,
   parseStrategy,
+  serializeStrategy,
   simulate,
   validateStrategyForMode,
 } from '../src/simulation/index.js'
@@ -228,6 +229,43 @@ describe('parseStrategy', () => {
 
   it('rejects a non-positive count', () => {
     expect(() => parseStrategy(strat([{ kind: 'buy', upgradeId: 'u_rep', count: 0 }]))).toThrow()
+  })
+})
+
+describe('serializeStrategy — round-trip', () => {
+  const full = strat([
+    { kind: 'buy', upgradeId: 'u_rep', count: 2 },
+    { kind: 'buy_generator', generatorId: 'g0' },
+    { kind: 'set_highlight', highlight: 'r0' },
+    { kind: 'set_click_rate', resource: 'r0', cps: 5 },
+    { kind: 'set_click_rate', cps: 3 },
+    { kind: 'wait', until: { kind: 'seconds', seconds: 5 } },
+    { kind: 'wait', until: { kind: 'resource_at_least', resource: 'r0', amount: 100 } },
+  ])
+
+  it('parse(serialize(s)) preserves the strategy', () => {
+    expect(parseStrategy(JSON.parse(serializeStrategy(full)))).toEqual(full)
+  })
+
+  it('is byte-stable across repeated round-trips', () => {
+    const once = serializeStrategy(full)
+    const twice = serializeStrategy(parseStrategy(JSON.parse(once)))
+    expect(twice).toBe(once)
+  })
+
+  it('emits a fixed key order regardless of input key order', () => {
+    // Same buy action, keys authored back-to-front — output must be identical.
+    const scrambled = strat([{ count: 2, upgradeId: 'u_rep', kind: 'buy' } as never])
+    const canonical = strat([{ kind: 'buy', upgradeId: 'u_rep', count: 2 }])
+    expect(serializeStrategy(scrambled)).toBe(serializeStrategy(canonical))
+    // `kind` is serialized before its payload.
+    expect(serializeStrategy(canonical).indexOf('"kind"')).toBeLessThan(
+      serializeStrategy(canonical).indexOf('"upgradeId"'),
+    )
+  })
+
+  it('ends with a trailing newline', () => {
+    expect(serializeStrategy(full).endsWith('}\n')).toBe(true)
   })
 })
 

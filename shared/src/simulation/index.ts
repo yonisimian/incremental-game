@@ -1,6 +1,11 @@
 // @game/shared — queue-strategy simulation barrel.
 
-export { QueueStrategySchema, parseStrategy, validateStrategyForMode } from './strategy.js'
+export {
+  QueueStrategySchema,
+  parseStrategy,
+  serializeStrategy,
+  validateStrategyForMode,
+} from './strategy.js'
 export type {
   QueueStrategy,
   SimAction,

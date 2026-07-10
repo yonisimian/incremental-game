@@ -85,6 +85,60 @@ export function parseStrategy(raw: unknown): QueueStrategy {
   return QueueStrategySchema.parse(raw)
 }
 
+// ─── Canonical serialization (save/load round-trip stability) ─────────
+//
+// Emit JSON with a fixed key order and pretty-printing so that load → edit →
+// save produces clean git diffs. Order is authoritative and preserved verbatim
+// (no re-sort of actions); only the *key* order within each object is fixed.
+
+function canonicalWait(until: WaitCondition): Record<string, unknown> {
+  return until.kind === 'seconds'
+    ? { kind: 'seconds', seconds: until.seconds }
+    : { kind: 'resource_at_least', resource: until.resource, amount: until.amount }
+}
+
+function canonicalAction(action: SimAction): Record<string, unknown> {
+  switch (action.kind) {
+    case 'buy':
+      return {
+        kind: 'buy',
+        upgradeId: action.upgradeId,
+        ...(action.count !== undefined && { count: action.count }),
+      }
+    case 'buy_generator':
+      return {
+        kind: 'buy_generator',
+        generatorId: action.generatorId,
+        ...(action.count !== undefined && { count: action.count }),
+      }
+    case 'set_highlight':
+      return { kind: 'set_highlight', highlight: action.highlight }
+    case 'set_click_rate':
+      return {
+        kind: 'set_click_rate',
+        ...(action.resource !== undefined && { resource: action.resource }),
+        cps: action.cps,
+      }
+    case 'wait':
+      return { kind: 'wait', until: canonicalWait(action.until) }
+  }
+}
+
+/**
+ * Serialize a strategy to canonical, pretty-printed JSON (trailing newline).
+ * Key order is fixed (`version, name, mode, actions`; `kind` first per action)
+ * so repeated save round-trips are byte-stable and git diffs stay minimal.
+ */
+export function serializeStrategy(strategy: QueueStrategy): string {
+  const canonical = {
+    version: strategy.version,
+    name: strategy.name,
+    mode: strategy.mode,
+    actions: strategy.actions.map(canonicalAction),
+  }
+  return `${JSON.stringify(canonical, null, 2)}\n`
+}
+
 /**
  * Verify that every upgrade / generator / resource referenced by the strategy
  * exists in the given mode. Returns a list of human-readable problems (empty =

@@ -2,10 +2,11 @@
  * Queue Simulation tab — author a strategy as an ordered action queue (no
  * timestamps), run it through the shared `simulate()` engine, and chart the
  * result with action markers + a run report. See
- * docs/plans/23-timeline-strategy-simulation.md (phase 3).
+ * docs/plans/23-timeline-strategy-simulation.md (phases 3–4).
  *
- * Save/load to files (phase 4) and the envelope overlay (phase 5) are not wired
- * here yet — strategies live in memory for the session.
+ * Strategies save/load to JSON files (phase 4); reference strategies under
+ * `shared/strategies/<mode>/` are bundled and listed alongside session ones. The
+ * envelope overlay (phase 5) is not wired here yet.
  */
 
 import { MAX_CPS, getModeFlavor, simulate, validateStrategyForMode } from '@game/shared'
@@ -13,6 +14,7 @@ import type { GameMode, ModeDefinition, QueueStrategy, SimAction, SimResult } fr
 
 import { renderChart } from './chart.js'
 import type { ChartMarker } from './chart.js'
+import { loadBundledStrategies, loadStrategyFromFile, saveStrategyToFile } from './strategy-io.js'
 import {
   actionSummary,
   cloneStrategy,
@@ -39,9 +41,14 @@ export function initQueueSim(pane: HTMLElement): void {
   const mode = modeDefOf(MODE)
 
   // ── Session state ──
-  const strategies: QueueStrategy[] = [makeEmptyStrategy('Strategy 1', MODE)]
+  // Seed with bundled reference strategies for this mode; fall back to one
+  // empty scratch strategy so the editor always has a selection.
+  const bundled = loadBundledStrategies(MODE)
+  const strategies: QueueStrategy[] = bundled.length
+    ? bundled
+    : [makeEmptyStrategy('Strategy 1', MODE)]
   let selected = 0
-  const runChecked = new Set<number>([0])
+  const runChecked = new Set<number>(strategies.map((_, i) => i))
   let editingRow: number | null = null
 
   pane.innerHTML = layout()
@@ -56,6 +63,7 @@ export function initQueueSim(pane: HTMLElement): void {
   const formError = pane.querySelector<HTMLDivElement>('#q-form-error')!
   const chartsEl = pane.querySelector<HTMLDivElement>('#q-charts')!
   const reportEl = pane.querySelector<HTMLDivElement>('#q-report')!
+  const ioStatus = pane.querySelector<HTMLSpanElement>('#q-io-status')!
 
   // Populate the kind dropdown + params once.
   kindSelect.innerHTML = ACTION_KINDS.map(
@@ -319,6 +327,55 @@ export function initQueueSim(pane: HTMLElement): void {
     renderAll()
   })
 
+  function setStatus(msg: string, isError = false): void {
+    ioStatus.textContent = msg
+    ioStatus.classList.toggle('error', isError)
+  }
+
+  pane.querySelector<HTMLButtonElement>('#q-save')!.addEventListener('click', () => {
+    const strategy = current()
+    setStatus('')
+    saveStrategyToFile(strategy).then(
+      () => {
+        setStatus(`Saved "${strategy.name}".`)
+      },
+      (err: unknown) => {
+        setStatus(`Save failed: ${errText(err)}`, true)
+      },
+    )
+  })
+
+  pane.querySelector<HTMLButtonElement>('#q-load')!.addEventListener('click', () => {
+    setStatus('')
+    loadStrategyFromFile().then(
+      (loaded) => {
+        if (!loaded) return // cancelled
+        // Compare as strings: `GameMode` is a single-member union today, so a
+        // typed `!==` would be flagged as an always-false comparison.
+        const loadedMode: string = loaded.mode
+        if (loadedMode !== (MODE as string)) {
+          setStatus(`Strategy is for mode "${loadedMode}"; this panel runs "${MODE}".`, true)
+          return
+        }
+        strategies.push(loaded)
+        selected = strategies.length - 1
+        runChecked.add(selected)
+        editingRow = null
+        renderAll()
+        const issues = validateStrategyForMode(loaded, mode)
+        setStatus(
+          issues.length
+            ? `Loaded "${loaded.name}" with ${issues.length} issue(s) — see Run report.`
+            : `Loaded "${loaded.name}".`,
+          issues.length > 0,
+        )
+      },
+      (err: unknown) => {
+        setStatus(`Load failed: ${errText(err)}`, true)
+      },
+    )
+  })
+
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
@@ -484,7 +541,10 @@ function layout(): string {
       <button id="q-new">＋ New</button>
       <button id="q-dup">⧉ Duplicate</button>
       <button id="q-del">🗑 Delete</button>
+      <button id="q-save">💾 Save</button>
+      <button id="q-load">📂 Load</button>
       <button id="q-run">▶ Run</button>
+      <span id="q-io-status" class="q-io-status"></span>
     </section>
     <div class="q-layout">
       <aside class="q-sidebar">
@@ -511,6 +571,12 @@ function layout(): string {
     <section class="dev-charts" id="q-charts"></section>
     <section class="dev-report"><h2>Run Report</h2><div id="q-report"></div></section>
   `
+}
+
+/** Concise message from an unknown thrown value (ZodError, SyntaxError, …). */
+function errText(err: unknown): string {
+  if (err instanceof Error) return err.message.split('\n')[0]
+  return String(err)
 }
 
 function escapeHtml(s: string): string {
