@@ -24,7 +24,10 @@ function treeWithOverLeveledPrereq(): TreeFile {
     .map((id) => findNode(tree, id)!)
     .find((n) => typeof n.purchaseLimit === 'number')
   if (!target) throw new Error('fixture: idler has no finite-purchaseLimit node')
-  const host = findNode(tree, ids.find((id) => id !== target.id)!)!
+  const host = findNode(
+    tree,
+    ids.find((id) => id !== target.id)!,
+  )!
   host.prerequisites = {
     type: 'upgrade',
     id: target.id,
