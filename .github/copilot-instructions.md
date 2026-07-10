@@ -25,3 +25,12 @@ Every feature or non-trivial change follows this cycle:
 - **Test**: `pnpm --filter server test && pnpm --filter client test`
 - **Deploy**: Render (static site + web service), configured via `render.yaml`
 - **Remote**: `git@github.com:yonisimian/incremental-game.git` (SSH)
+
+## GitHub CLI
+
+- `gh pr edit` and `gh pr create` FAIL on this repo with a fatal `GraphQL: Projects (classic) is being deprecated` error (a known `gh` bug — it eagerly queries deprecated project cards). Do NOT use them.
+- To **create/edit PR title or body**, use the REST API instead, which bypasses the projects call:
+  - Edit: `gh api -X PATCH "repos/{owner}/{repo}/pulls/{n}" -f title="..." -F body=@body.md`
+  - Create: `gh api -X POST "repos/{owner}/{repo}/pulls" -f title="..." -F body=@body.md -f head="branch" -f base="main"`
+  - Resolve `{owner}/{repo}` with `gh repo view --json nameWithOwner --jq '.nameWithOwner'`.
+- Read-only `gh pr view --json ...` works fine.

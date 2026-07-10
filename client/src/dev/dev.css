@@ -933,6 +933,30 @@ body {
   margin-bottom: 6px;
 }
 
+/* Header and each row share one grid template so columns always line up:
+   currency | cost | scaling | factor | remove-button. */
+.ed-cost-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 0.5fr;
+  gap: 2px;
+  align-items: center;
+}
+
+.ed-cost-scaling,
+.ed-cost-factor {
+  min-width: 0;
+}
+
+.ed-cost-header {
+  margin-bottom: 2px;
+}
+
+.ed-cost-th {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+  padding-left: 2px;
+}
+
 .ed-input {
   flex: 1;
   min-width: 0;

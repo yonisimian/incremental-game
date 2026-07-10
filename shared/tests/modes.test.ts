@@ -113,12 +113,12 @@ describe('getAvailableUpgrades', () => {
   // Build a small synthetic mode so the test is independent of real mode tuning.
   const untagged: UpgradeDefinition = {
     id: 'untagged',
-    cost: { r0: 10 },
+    cost: { r0: { baseCost: 10 } },
     purchaseLimit: 1,
   }
   const trophy: UpgradeDefinition = {
     id: 'trophy',
-    cost: { r0: 100 },
+    cost: { r0: { baseCost: 100 } },
     purchaseLimit: 1,
     goalType: 'buy-upgrade',
   }
@@ -290,7 +290,7 @@ describe('collectModifiers', () => {
   it('scales unlimited upgrade modifiers by owned count', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uUnlim',
-      cost: { r0: 10 },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
       effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
     }
@@ -375,7 +375,7 @@ describe('applyPurchase', () => {
   it('increments count for unlimited upgrades', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uUnlim',
-      cost: { r1: 10 },
+      cost: { r1: { baseCost: 10 } },
       purchaseLimit: Infinity,
       effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
     }
@@ -397,7 +397,7 @@ describe('applyPurchase', () => {
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF1',
-      cost: { r0: 5 },
+      cost: { r0: { baseCost: 5 } },
       purchaseLimit: 3,
       effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 2 }],
     }
@@ -419,7 +419,7 @@ describe('applyPurchase', () => {
     const state = makeState(def)
     const fin: UpgradeDefinition = {
       id: 'uF2',
-      cost: { r0: 5 },
+      cost: { r0: { baseCost: 5 } },
       purchaseLimit: 2,
       effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
     }
@@ -456,7 +456,7 @@ describe('purchase timestamps (state.meta.purchasedAt)', () => {
   it('repeated purchase does not overwrite purchasedAt', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uRepeat',
-      cost: { r0: 10 },
+      cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
     }
     const customDef: ModeDefinition = {

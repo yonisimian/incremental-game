@@ -172,14 +172,43 @@ function buildRow(
     { onDone: renderPreview },
   )
 
-  const scaling = numberInput(
+  const scaleFactor = numberInput(
     ctx,
-    row.costScaling,
+    row.scaleFactor,
     (n) => {
-      setGeneratorField(tree, row.id, { costScaling: n })
+      setGeneratorField(tree, row.id, { scaleFactor: n })
     },
     { step: '0.01', onDone: renderPreview },
   )
+  scaleFactor.disabled = row.scaleType === 'flat'
+
+  const scaleType = el('select', 'ed-input')
+  const scaleOptions = [
+    ['flat', 'Flat'],
+    ['linear', 'Linear'],
+    ['exponential', 'Exponential'],
+  ] as const
+  for (const [value, label] of scaleOptions) {
+    const opt = el('option', undefined, label)
+    opt.value = value
+    if (value === row.scaleType) opt.selected = true
+    scaleType.append(opt)
+  }
+  scaleType.addEventListener('change', () => {
+    const value = scaleType.value as 'flat' | 'linear' | 'exponential'
+    const enabled = value !== 'flat'
+    scaleFactor.disabled = !enabled
+    // Give a sensible default when switching on from a flat/zeroed factor.
+    if (enabled && Number(scaleFactor.value) === 0)
+      scaleFactor.value = value === 'exponential' ? '1.15' : '1'
+    else if (!enabled) scaleFactor.value = '0'
+    setGeneratorField(tree, row.id, {
+      scaleType: value,
+      scaleFactor: Number(scaleFactor.value) || 0,
+    })
+    ctx.markDirty()
+    renderPreview()
+  })
 
   const currency = resourceSelect(tree, row.costCurrency, (value) => {
     setGeneratorField(tree, row.id, { costCurrency: value })
@@ -207,7 +236,8 @@ function buildRow(
     labeled('Icon', iconInput),
     labeled('Name', nameInput),
     labeled('Base cost', baseCost),
-    labeled('Cost scaling', scaling),
+    labeled('Scaling', scaleType),
+    labeled('Factor', scaleFactor),
     labeled('Cost currency', currency),
     labeled('Produces', prodResource),
     labeled('Rate /s', rate),

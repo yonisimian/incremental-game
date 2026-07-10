@@ -79,7 +79,7 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
   const base: ModeDefinition = {
     resources: ['r0'],
     scoreResource: 'r0',
-    upgrades: [{ id: 'u0', cost: { r0: 10 }, purchaseLimit: 1 }],
+    upgrades: [{ id: 'u0', cost: { r0: { baseCost: 10 } }, purchaseLimit: 1 }],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     nativeModifiers: [],
     clicksEnabled: true,
@@ -168,9 +168,7 @@ describe('validateModeDefinition — negative tests', () => {
       generators: [
         {
           id: 'g0',
-          baseCost: 5,
-          costScaling: 1,
-          costCurrency: 'r0',
+          cost: { r0: { baseCost: 5, scaleType: 'exponential', scaleFactor: 1 } },
           production: { resource: 'r0', rate: 1 },
         },
       ],
@@ -299,7 +297,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'generatorUnlock', generator: 'g-missing' }],
         },
@@ -315,7 +313,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'unlockAttack', attack: 'a-missing' }],
         },
@@ -332,7 +330,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'unlockAttack', attack: 'a0' }],
         },
@@ -457,7 +455,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'unlockPact', pact: 'p-missing' }],
         },
@@ -474,7 +472,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'unlockPact', pact: 'p0' }],
         },
@@ -509,7 +507,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'generatorCost', generator: 'g-missing', costFactor: 0.95 }],
         },
@@ -528,16 +526,14 @@ describe('validateModeDefinition — negative tests', () => {
         generators: [
           {
             id: 'g0',
-            baseCost: 10,
-            costScaling: 1.5,
-            costCurrency: 'r0',
+            cost: { r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1.5 } },
             production: { resource: 'r0', rate: 1 },
           },
         ],
         upgrades: [
           {
             id: 'u0',
-            cost: { r0: 10 },
+            cost: { r0: { baseCost: 10 } },
             purchaseLimit: 1,
             effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.95 }],
           },
@@ -555,7 +551,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'accessEnemyData', data: 'r-missing' }],
         },
@@ -571,7 +567,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [{ type: 'accessEnemyData', data: 'r-missing:rate' }],
         },
@@ -587,7 +583,7 @@ describe('validateModeDefinition — negative tests', () => {
       upgrades: [
         {
           id: 'u0',
-          cost: { r0: 10 },
+          cost: { r0: { baseCost: 10 } },
           purchaseLimit: 1,
           effects: [
             { type: 'accessEnemyData', data: 'r0' },

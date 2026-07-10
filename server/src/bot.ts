@@ -8,6 +8,7 @@ import type {
 import {
   getPrerequisiteUpgradeIds,
   getCostCurrency,
+  generatorCostCurrency,
   getGeneratorCost,
   getUpgradeNextCost,
   isCostAffordable,
@@ -47,7 +48,8 @@ const GENERATOR_SEED_TARGET = 12
 function dominantGeneratorCurrency(generators: readonly GeneratorDefinition[]): string | null {
   const counts = new Map<string, number>()
   for (const g of generators) {
-    counts.set(g.costCurrency, (counts.get(g.costCurrency) ?? 0) + 1)
+    const currency = generatorCostCurrency(g)
+    counts.set(currency, (counts.get(currency) ?? 0) + 1)
   }
   let best: string | null = null
   let bestCount = 0
@@ -222,12 +224,12 @@ export class IdlerBot implements BotStrategy {
       let pick: { gen: GeneratorDefinition; cost: number } | null = null
       for (const gen of unlocked) {
         const cost = getGeneratorCost(resolved.get(gen.id)!, owned[gen.id] ?? 0)
-        if ((wallet[gen.costCurrency] ?? 0) < cost) continue
+        if ((wallet[generatorCostCurrency(gen)] ?? 0) < cost) continue
         if (!pick || cost < pick.cost) pick = { gen, cost }
       }
       if (!pick) break
       actions.push({ type: 'buy_generator', generatorId: pick.gen.id })
-      wallet[pick.gen.costCurrency] -= pick.cost
+      wallet[generatorCostCurrency(pick.gen)] -= pick.cost
       owned[pick.gen.id] = (owned[pick.gen.id] ?? 0) + 1
     }
   }
