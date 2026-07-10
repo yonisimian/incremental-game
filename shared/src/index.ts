@@ -15,6 +15,8 @@ export * from './unlock-gates.js'
 export * from './prerequisites.js'
 export * from './upgrade-groups.js'
 export * from './upgrade-costs.js'
+export * from './purchase-validation.js'
+export * from './simulation/index.js'
 export * from './balance/index.js'
 export * from './tree/index.js'
 export type {
