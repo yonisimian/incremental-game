@@ -13,7 +13,7 @@ import { MAX_CPS, getModeFlavor, simulate, validateStrategyForMode } from '@game
 import type { GameMode, ModeDefinition, QueueStrategy, SimAction, SimResult } from '@game/shared'
 
 import { renderChart } from './chart.js'
-import type { ChartMarker } from './chart.js'
+import type { ChartMarker, ChartSeries } from './chart.js'
 import { loadBundledStrategies, loadStrategyFromFile, saveStrategyToFile } from './strategy-io.js'
 import {
   actionSummary,
@@ -50,6 +50,8 @@ export function initQueueSim(pane: HTMLElement): void {
   let selected = 0
   const runChecked = new Set<number>(strategies.map((_, i) => i))
   let editingRow: number | null = null
+  // Titles of charts the user has collapsed — persisted across re-runs.
+  const collapsedCharts = new Set<string>()
 
   pane.innerHTML = layout()
 
@@ -379,7 +381,7 @@ export function initQueueSim(pane: HTMLElement): void {
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
-    runStrategies(toRun, mode, chartsEl, reportEl)
+    runStrategies(toRun, mode, chartsEl, reportEl, collapsedCharts)
   })
 
   renderAll()
@@ -392,6 +394,7 @@ function runStrategies(
   mode: ModeDefinition,
   chartsEl: HTMLDivElement,
   reportEl: HTMLDivElement,
+  collapsed: Set<string>,
 ): void {
   const results: SimResult[] = []
   const problems: { name: string; issues: string[] }[] = []
@@ -404,7 +407,7 @@ function runStrategies(
     results.push(simulate(s, { modeDef: mode }))
   }
 
-  renderCharts(results, mode, chartsEl)
+  renderCharts(results, mode, chartsEl, collapsed)
   renderReport(results, problems, reportEl)
 }
 
@@ -414,17 +417,81 @@ function markersFor(result: SimResult): ChartMarker[] {
     .map((e) => ({ x: e.timeSec, label: e.label }))
 }
 
-function renderCharts(results: SimResult[], mode: ModeDefinition, container: HTMLDivElement): void {
+function renderCharts(
+  results: SimResult[],
+  mode: ModeDefinition,
+  container: HTMLDivElement,
+  collapsed: Set<string>,
+): void {
   container.innerHTML = ''
   if (results.length === 0) return
   const xData = results[0].snapshots.map((s) => s.timeSec)
+  const cards: HTMLElement[] = []
 
-  const scoreDiv = document.createElement('div')
-  container.appendChild(scoreDiv)
-  renderChart(
-    scoreDiv,
+  // "Collapse all / Expand all" toolbar.
+  const toolbar = document.createElement('section')
+  toolbar.className = 'q-charts-toolbar'
+  const collapseAllBtn = document.createElement('button')
+  collapseAllBtn.className = 'q-collapse-all'
+  toolbar.appendChild(collapseAllBtn)
+  container.appendChild(toolbar)
+
+  const syncCollapseAll = (): void => {
+    const allCollapsed = cards.length > 0 && cards.every((c) => c.classList.contains('collapsed'))
+    collapseAllBtn.textContent = allCollapsed ? '▸ Expand all' : '▾ Collapse all'
+  }
+
+  // Build one collapsible chart card. The chart is rendered while visible so
+  // uPlot measures the right width; collapse is applied afterward.
+  const addCard = (title: string, series: ChartSeries[]): void => {
+    const card = document.createElement('section')
+    card.className = 'q-chart-card'
+    card.dataset.title = title
+
+    const head = document.createElement('button')
+    head.className = 'q-chart-head'
+    head.innerHTML = '<span class="q-caret" aria-hidden="true">▾</span>'
+    head.append(document.createTextNode(` ${title}`))
+
+    const body = document.createElement('div')
+    body.className = 'q-chart-body'
+
+    card.append(head, body)
+    container.appendChild(card)
+    cards.push(card)
+
+    renderChart(body, title, xData, series)
+
+    const setCollapsed = (v: boolean): void => {
+      card.classList.toggle('collapsed', v)
+      head.setAttribute('aria-expanded', String(!v))
+      if (v) collapsed.add(title)
+      else collapsed.delete(title)
+      syncCollapseAll()
+    }
+    setCollapsed(collapsed.has(title))
+    head.addEventListener('click', () => {
+      setCollapsed(!card.classList.contains('collapsed'))
+    })
+  }
+
+  collapseAllBtn.addEventListener('click', () => {
+    const shouldCollapse = !cards.every((c) => c.classList.contains('collapsed'))
+    for (const card of cards) {
+      const title = card.dataset.title ?? ''
+      card.classList.toggle('collapsed', shouldCollapse)
+      card.querySelector('.q-chart-head')?.setAttribute('aria-expanded', String(!shouldCollapse))
+      if (shouldCollapse) collapsed.add(title)
+      else collapsed.delete(title)
+    }
+    syncCollapseAll()
+  })
+
+  const flavorRes = getModeFlavor(mode).resources
+  const resName = (key: string): string => flavorRes.find((r) => r.key === key)?.displayName ?? key
+
+  addCard(
     'Score',
-    xData,
     results.map((r) => ({
       label: r.name,
       data: r.snapshots.map((s) => s.score),
@@ -433,21 +500,25 @@ function renderCharts(results: SimResult[], mode: ModeDefinition, container: HTM
   )
 
   for (const resKey of mode.resources) {
-    const resName =
-      getModeFlavor(mode).resources.find((r) => r.key === resKey)?.displayName ?? resKey
-    const balDiv = document.createElement('div')
-    container.appendChild(balDiv)
-    renderChart(
-      balDiv,
-      `${resName} Balance`,
-      xData,
+    addCard(
+      `${resName(resKey)} Balance`,
       results.map((r) => ({
         label: r.name,
         data: r.snapshots.map((s) => s.resources[resKey] ?? 0),
         markers: markersFor(r),
       })),
     )
+    addCard(
+      `${resName(resKey)}/sec`,
+      results.map((r) => ({
+        label: r.name,
+        data: r.snapshots.map((s) => s.incomePerSec[resKey] ?? 0),
+        markers: markersFor(r),
+      })),
+    )
   }
+
+  syncCollapseAll()
 }
 
 function renderReport(
