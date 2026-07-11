@@ -13,7 +13,7 @@ import { MAX_CPS, getModeFlavor, simulate, validateStrategyForMode } from '@game
 import type { GameMode, ModeDefinition, QueueStrategy, SimAction, SimResult } from '@game/shared'
 
 import { renderChart } from './chart.js'
-import type { ChartMarker, ChartSeries } from './chart.js'
+import type { ChartMarker, ChartPoint, ChartSeries } from './chart.js'
 import { loadBundledStrategies, loadStrategyFromFile, saveStrategyToFile } from './strategy-io.js'
 import {
   actionSummary,
@@ -417,6 +417,38 @@ function markersFor(result: SimResult): ChartMarker[] {
     .map((e) => ({ x: e.timeSec, label: e.label }))
 }
 
+/** Cumulative count of upgrade/generator purchases at each snapshot time. */
+function cumulativePurchases(result: SimResult, xData: number[]): number[] {
+  const times = result.events
+    .filter((e) => e.kind === 'buy' || e.kind === 'buy_generator')
+    .map((e) => e.timeSec)
+    .sort((a, b) => a - b)
+  let idx = 0
+  return xData.map((x) => {
+    while (idx < times.length && times[idx] <= x) idx++
+    return idx
+  })
+}
+
+/**
+ * One labeled dot per purchase, sitting on the cumulative line (y = the running
+ * count after that buy). The label is the bought upgrade/generator's flavor
+ * name (falling back to its id).
+ */
+function purchasePoints(result: SimResult, mode: ModeDefinition): ChartPoint[] {
+  const flavor = getModeFlavor(mode)
+  const upName = new Map(flavor.upgrades.map((u) => [u.id, u.name]))
+  const genName = new Map(flavor.generators.map((g) => [g.id, g.name]))
+  return result.events
+    .filter((e) => e.kind === 'buy' || e.kind === 'buy_generator')
+    .sort((a, b) => a.timeSec - b.timeSec)
+    .map((e, i) => {
+      const id = e.label.replace(/^[^:]*:/, '')
+      const name = e.kind === 'buy' ? (upName.get(id) ?? id) : (genName.get(id) ?? id)
+      return { x: e.timeSec, y: i + 1, label: name }
+    })
+}
+
 function renderCharts(
   results: SimResult[],
   mode: ModeDefinition,
@@ -496,6 +528,18 @@ function renderCharts(
       label: r.name,
       data: r.snapshots.map((s) => s.score),
       markers: markersFor(r),
+    })),
+  )
+
+  // Cumulative upgrade/generator purchases over time. The step line shows the
+  // pace of buying; each labeled dot marks a specific purchase (hover to see
+  // what was bought and when).
+  addCard(
+    'Purchases',
+    results.map((r) => ({
+      label: r.name,
+      data: cumulativePurchases(r, xData),
+      points: purchasePoints(r, mode),
     })),
   )
 

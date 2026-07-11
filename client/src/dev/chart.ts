@@ -34,12 +34,21 @@ export interface ChartMarker {
   label: string
 }
 
+/** A labeled dot drawn at a data-space (x, y) coordinate, with a hover label. */
+export interface ChartPoint {
+  x: number
+  y: number
+  label: string
+}
+
 /** @public */
 export interface ChartSeries {
   label: string
   data: number[]
-  /** Optional markers for this series (purchase events) */
+  /** Optional markers for this series (purchase events), drawn as vertical lines */
   markers?: ChartMarker[]
+  /** Optional labeled dots on the line (e.g. purchases); label shows on hover */
+  points?: ChartPoint[]
 }
 
 // ─── Render ──────────────────────────────────────────────────────────
@@ -105,6 +114,14 @@ export function renderChart(
   // Collect all markers from all series for the draw hook
   const allMarkers: ChartMarker[] = series.flatMap((s) => s.markers ?? [])
 
+  // Labeled dots, tagged with their series color. Drawn in the draw hook; their
+  // on-screen positions (CSS px, relative to the plot box) are recorded in
+  // `dotHits` each frame so setCursor can show a label on hover.
+  const pointSets = series
+    .map((s, i) => ({ color: PALETTE[i % PALETTE.length], points: s.points ?? [] }))
+    .filter((p) => p.points.length > 0)
+  let dotHits: { cx: number; cy: number; label: string }[] = []
+
   // Build uPlot series config: first entry is x-axis descriptor
   const uSeries: uPlot.Series[] = [
     {
@@ -164,30 +181,60 @@ export function renderChart(
       setSeries: [],
       draw: [
         (u: uPlot) => {
-          if (allMarkers.length === 0) return
           const ctx = u.ctx
-          ctx.save()
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
-          ctx.lineWidth = 1
-          ctx.setLineDash([4, 4])
+          const dpr = devicePixelRatio || 1
 
-          // Deduplicate markers at same x position (multiple strategies may buy at same time)
-          const seen = new Set<number>()
-          for (const m of allMarkers) {
-            const px = u.valToPos(m.x, 'x', true)
-            if (seen.has(m.x)) continue
-            seen.add(m.x)
+          // Vertical purchase-marker lines.
+          if (allMarkers.length > 0) {
+            ctx.save()
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
+            ctx.lineWidth = 1
+            ctx.setLineDash([4, 4])
 
-            // Only draw if within the visible plot area
-            if (px >= u.bbox.left && px <= u.bbox.left + u.bbox.width) {
-              ctx.beginPath()
-              ctx.moveTo(px, u.bbox.top)
-              ctx.lineTo(px, u.bbox.top + u.bbox.height)
-              ctx.stroke()
+            // Deduplicate markers at same x position (multiple strategies may buy at same time)
+            const seen = new Set<number>()
+            for (const m of allMarkers) {
+              const px = u.valToPos(m.x, 'x', true)
+              if (seen.has(m.x)) continue
+              seen.add(m.x)
+
+              // Only draw if within the visible plot area
+              if (px >= u.bbox.left && px <= u.bbox.left + u.bbox.width) {
+                ctx.beginPath()
+                ctx.moveTo(px, u.bbox.top)
+                ctx.lineTo(px, u.bbox.top + u.bbox.height)
+                ctx.stroke()
+              }
             }
+            ctx.restore()
           }
 
-          ctx.restore()
+          // Labeled dots on the line (e.g. purchases). Record hitboxes for hover.
+          dotHits = []
+          if (pointSets.length > 0) {
+            ctx.save()
+            ctx.lineWidth = 1
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)'
+            for (const { color, points } of pointSets) {
+              ctx.fillStyle = color
+              for (const p of points) {
+                const px = u.valToPos(p.x, 'x', true)
+                const py = u.valToPos(p.y, 'y', true)
+                if (px < u.bbox.left || px > u.bbox.left + u.bbox.width) continue
+                if (py < u.bbox.top || py > u.bbox.top + u.bbox.height) continue
+                ctx.beginPath()
+                ctx.arc(px, py, 3.5 * dpr, 0, Math.PI * 2)
+                ctx.fill()
+                ctx.stroke()
+                dotHits.push({
+                  cx: (px - u.bbox.left) / dpr,
+                  cy: (py - u.bbox.top) / dpr,
+                  label: p.label,
+                })
+              }
+            }
+            ctx.restore()
+          }
         },
       ],
       setCursor: [
@@ -203,6 +250,22 @@ export function renderChart(
           const top = u.cursor.top ?? -1
           if (idx === null || idx === undefined || left < 0 || top < 0) {
             tip.style.display = 'none'
+            return
+          }
+
+          // A labeled dot under the cursor wins — show what was purchased.
+          let nearestDot: { label: string; dist: number } | null = null
+          for (const d of dotHits) {
+            const dist = Math.hypot(d.cx - left, d.cy - top)
+            if (dist <= 8 && (!nearestDot || dist < nearestDot.dist)) {
+              nearestDot = { label: d.label, dist }
+            }
+          }
+          if (nearestDot) {
+            tip.textContent = nearestDot.label
+            tip.style.display = 'block'
+            tip.style.left = `${left + 4}px`
+            tip.style.top = `${top - 24}px`
             return
           }
 
