@@ -4,3 +4,6 @@ coverage/
 .env
 *.local
 .claude/
+
+# Windows "mark of the web" metadata streams (appear in WSL on downloaded files)
+*:Zone.Identifier

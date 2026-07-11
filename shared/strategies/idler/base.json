@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "name": "Base",
+  "mode": "idler",
+  "actions": [
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr",
+      "count": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr",
+      "count": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-g2",
+      "count": 1
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-unlock",
+      "count": 1
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp",
+      "count": 10
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-unlock",
+      "count": 1
+    },
+    {
+      "kind": "set_highlight",
+      "highlight": "r0"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar",
+      "count": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp",
+      "count": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-pcps",
+      "count": 1
+    }
+  ]
+}
