@@ -51,6 +51,30 @@ export interface ChartSeries {
   points?: ChartPoint[]
 }
 
+/**
+ * Position the hover tooltip near (left, top) — coordinates relative to the plot
+ * `over` element — flipping it to the left of the cursor and clamping vertically
+ * so it never spills outside the plot (which would clip it under the chart edge).
+ * Caller must set `tip.textContent` first so width/height measure correctly.
+ */
+function placeTooltip(tip: HTMLElement, over: HTMLElement, left: number, top: number): void {
+  tip.style.display = 'block'
+  const overW = over.clientWidth
+  const overH = over.clientHeight
+  const tw = tip.offsetWidth
+  const th = tip.offsetHeight
+  // Prefer the right of the cursor; flip left if it would overflow the right edge.
+  let x = left + 8
+  if (x + tw > overW) x = left - 8 - tw
+  x = Math.max(0, Math.min(x, Math.max(0, overW - tw)))
+  // Prefer above the cursor; drop below (then clamp) if it would clip the top.
+  let y = top - th - 6
+  if (y < 0) y = top + 12
+  y = Math.max(0, Math.min(y, Math.max(0, overH - th)))
+  tip.style.left = `${x}px`
+  tip.style.top = `${y}px`
+}
+
 // ─── Render ──────────────────────────────────────────────────────────
 
 /** Active uPlot instances — tracked for cleanup on re-render. */
@@ -263,9 +287,7 @@ export function renderChart(
           }
           if (nearestDot) {
             tip.textContent = nearestDot.label
-            tip.style.display = 'block'
-            tip.style.left = `${left + 4}px`
-            tip.style.top = `${top - 24}px`
+            placeTooltip(tip, u.over, left, top)
             return
           }
 
@@ -295,9 +317,7 @@ export function renderChart(
             return
           }
           tip.textContent = `${bestLabel}: ${bestVal.toFixed(1)}`
-          tip.style.display = 'block'
-          tip.style.left = `${left + 4}px`
-          tip.style.top = `${top - 24}px`
+          placeTooltip(tip, u.over, left, top)
         },
       ],
     },
