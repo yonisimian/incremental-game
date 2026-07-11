@@ -65,11 +65,28 @@ export interface SimResult {
   notReached: NotReached[]
 }
 
+/**
+ * When the simulation stops:
+ * - `timed`: run for exactly `durationSec`.
+ * - `score`: run until score ≥ `target` (or the safety cap is hit).
+ * - `race_to_buy`: run until the whole queue completes — i.e. the last action
+ *   (the goal purchase) fires — or the safety cap is hit.
+ */
+export type SimGoal =
+  | { kind: 'timed'; durationSec: number }
+  | { kind: 'score'; target: number; safetyCapSec?: number }
+  | { kind: 'race_to_buy'; safetyCapSec?: number }
+
+/** Fallback cap for open-ended goals (`score`, `race_to_buy`) that never resolve. */
+export const DEFAULT_SIM_CAP_SEC = 600
+
 export interface SimulateOptions {
   /** Override the mode definition instead of resolving from the registry (tests). */
   modeDef?: ModeDefinition
   /** Override the round length; defaults to the mode's timed goal, else 35s. */
   roundDurationSec?: number
+  /** Termination condition. Defaults to a timed goal of `roundDurationSec`. */
+  goal?: SimGoal
 }
 
 // ─── Engine ──────────────────────────────────────────────────────────
@@ -82,10 +99,16 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
   const state = createInitialState(modeDef)
 
   const timedGoal = modeDef.goals.find((g) => g.type === 'timed')
-  const roundDurationSec =
+  const defaultDurationSec =
     options?.roundDurationSec ?? (timedGoal?.type === 'timed' ? timedGoal.durationSec : 35)
+  const goal: SimGoal = options?.goal ?? { kind: 'timed', durationSec: defaultDurationSec }
+
   const tickSec = TICK_INTERVAL_MS / 1000
-  const totalTicks = Math.round((roundDurationSec * 1000) / TICK_INTERVAL_MS)
+  // Timed runs exactly `durationSec`; open-ended goals loop up to a safety cap
+  // and break early when their condition is met (checked at the end of each tick).
+  const capSec =
+    goal.kind === 'timed' ? goal.durationSec : (goal.safetyCapSec ?? DEFAULT_SIM_CAP_SEC)
+  const totalTicks = Math.round((capSec * 1000) / TICK_INTERVAL_MS)
 
   const snapshots: TickSnapshot[] = []
   const events: SimEvent[] = []
@@ -225,6 +248,10 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
       incomePerSec: rates,
       event: tickEvents.join(', '),
     })
+
+    // 5) goal reached? (open-ended goals only) — stop once satisfied.
+    if (goal.kind === 'score' && state.score >= goal.target) break
+    if (goal.kind === 'race_to_buy' && cursor >= strategy.actions.length) break
   }
 
   // Round ended: report anything left in the queue.

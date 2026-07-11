@@ -10,7 +10,14 @@
  */
 
 import { MAX_CPS, getModeFlavor, simulate, validateStrategyForMode } from '@game/shared'
-import type { GameMode, ModeDefinition, QueueStrategy, SimAction, SimResult } from '@game/shared'
+import type {
+  GameMode,
+  ModeDefinition,
+  QueueStrategy,
+  SimAction,
+  SimGoal,
+  SimResult,
+} from '@game/shared'
 
 import { renderChart } from './chart.js'
 import type { ChartMarker, ChartPoint, ChartSeries } from './chart.js'
@@ -66,6 +73,34 @@ export function initQueueSim(pane: HTMLElement): void {
   const chartsEl = pane.querySelector<HTMLDivElement>('#q-charts')!
   const reportEl = pane.querySelector<HTMLDivElement>('#q-report')!
   const ioStatus = pane.querySelector<HTMLSpanElement>('#q-io-status')!
+  const goalSelect = pane.querySelector<HTMLSelectElement>('#q-goal')!
+  const goalTimeInput = pane.querySelector<HTMLInputElement>('#q-goal-time')!
+  const goalScoreInput = pane.querySelector<HTMLInputElement>('#q-goal-score')!
+
+  // Show only the input relevant to the selected goal kind.
+  function syncGoalFields(): void {
+    const kind = goalSelect.value
+    pane.querySelector('#q-goal-time-wrap')!.classList.toggle('hidden', kind !== 'timed')
+    pane.querySelector('#q-goal-score-wrap')!.classList.toggle('hidden', kind !== 'score')
+    pane.querySelector('#q-goal-race-hint')!.classList.toggle('hidden', kind !== 'race_to_buy')
+  }
+  goalSelect.addEventListener('change', syncGoalFields)
+  syncGoalFields()
+
+  function buildGoal(): SimGoal {
+    switch (goalSelect.value) {
+      case 'score': {
+        const target = Number(goalScoreInput.value)
+        return { kind: 'score', target: target > 0 ? target : 1000 }
+      }
+      case 'race_to_buy':
+        return { kind: 'race_to_buy' }
+      default: {
+        const durationSec = Number(goalTimeInput.value)
+        return { kind: 'timed', durationSec: durationSec > 0 ? durationSec : 35 }
+      }
+    }
+  }
 
   // Populate the kind dropdown + params once.
   kindSelect.innerHTML = ACTION_KINDS.map(
@@ -381,7 +416,7 @@ export function initQueueSim(pane: HTMLElement): void {
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
-    runStrategies(toRun, mode, chartsEl, reportEl, collapsedCharts)
+    runStrategies(toRun, mode, buildGoal(), chartsEl, reportEl, collapsedCharts)
   })
 
   renderAll()
@@ -392,6 +427,7 @@ export function initQueueSim(pane: HTMLElement): void {
 function runStrategies(
   toRun: QueueStrategy[],
   mode: ModeDefinition,
+  goal: SimGoal,
   chartsEl: HTMLDivElement,
   reportEl: HTMLDivElement,
   collapsed: Set<string>,
@@ -404,11 +440,11 @@ function runStrategies(
       problems.push({ name: s.name, issues })
       continue
     }
-    results.push(simulate(s, { modeDef: mode }))
+    results.push(simulate(s, { modeDef: mode, goal }))
   }
 
   renderCharts(results, mode, chartsEl, collapsed)
-  renderReport(results, problems, reportEl)
+  renderReport(results, goal, problems, reportEl)
 }
 
 function markersFor(result: SimResult): ChartMarker[] {
@@ -567,6 +603,7 @@ function renderCharts(
 
 function renderReport(
   results: SimResult[],
+  goal: SimGoal,
   problems: { name: string; issues: string[] }[],
   container: HTMLDivElement,
 ): void {
@@ -580,16 +617,31 @@ function renderReport(
     html += '</div>'
   }
 
+  const endSec = (r: SimResult): number => r.snapshots.at(-1)?.timeSec ?? 0
+  // Whether the run actually met its goal (vs. hitting the safety cap / timing out).
+  const reachedGoal = (r: SimResult): boolean => {
+    if (goal.kind === 'timed') return true
+    if (goal.kind === 'score') return r.finalScore >= goal.target
+    return r.notReached.length === 0 // race_to_buy
+  }
+
   if (results.length > 0) {
     const best = Math.max(...results.map((r) => r.finalScore))
+    // Timed: rank by score. Score/race: goal-reachers first, then fastest time.
+    const sorted = [...results].sort((a, b) => {
+      if (goal.kind === 'timed') return b.finalScore - a.finalScore
+      if (reachedGoal(a) !== reachedGoal(b)) return reachedGoal(a) ? -1 : 1
+      return endSec(a) - endSec(b)
+    })
     html += `
       <table class="q-report-table">
         <thead>
-          <tr><th>Strategy</th><th>Score</th><th>% Best</th><th>Actions fired</th><th>Not reached</th></tr>
+          <tr><th>Strategy</th><th>Score</th><th>% Best</th><th>Time (s)</th><th>Actions fired</th><th>Not reached</th></tr>
         </thead>
         <tbody>`
-    for (const r of [...results].sort((a, b) => b.finalScore - a.finalScore)) {
+    for (const r of sorted) {
       const pct = best > 0 ? ((r.finalScore / best) * 100).toFixed(0) : '0'
+      const time = reachedGoal(r) ? endSec(r).toFixed(1) : `${endSec(r).toFixed(1)} (cap)`
       const notReached =
         r.notReached.length === 0
           ? '—'
@@ -599,6 +651,7 @@ function renderReport(
           <td>${escapeHtml(r.name)}</td>
           <td>${r.finalScore.toFixed(1)}</td>
           <td>${pct}%</td>
+          <td>${escapeHtml(time)}</td>
           <td>${r.events.length}</td>
           <td class="q-notreached">${escapeHtml(notReached)}</td>
         </tr>`
@@ -658,6 +711,20 @@ function layout(): string {
       <button id="q-del">🗑 Delete</button>
       <button id="q-save">💾 Save</button>
       <button id="q-load">📂 Load</button>
+      <label class="q-goal-label">Goal
+        <select id="q-goal">
+          <option value="timed">Timed</option>
+          <option value="score">Score</option>
+          <option value="race_to_buy">Race to buy</option>
+        </select>
+      </label>
+      <label class="q-goal-field" id="q-goal-time-wrap">Seconds
+        <input id="q-goal-time" type="number" min="1" step="1" value="35" />
+      </label>
+      <label class="q-goal-field hidden" id="q-goal-score-wrap">Score
+        <input id="q-goal-score" type="number" min="1" step="1" value="1000" />
+      </label>
+      <span class="q-goal-hint hidden" id="q-goal-race-hint">Ends when the last action is purchased.</span>
       <button id="q-run">▶ Run</button>
       <span id="q-io-status" class="q-io-status"></span>
     </section>

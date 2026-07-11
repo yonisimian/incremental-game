@@ -18,5 +18,12 @@ export type {
 } from './strategy.js'
 export { applySimAction } from './apply.js'
 export type { GameAction, SimApplyResult } from './apply.js'
-export { simulate } from './simulate.js'
-export type { SimResult, SimEvent, SimulateOptions, TickSnapshot, NotReached } from './simulate.js'
+export { simulate, DEFAULT_SIM_CAP_SEC } from './simulate.js'
+export type {
+  SimResult,
+  SimEvent,
+  SimulateOptions,
+  SimGoal,
+  TickSnapshot,
+  NotReached,
+} from './simulate.js'

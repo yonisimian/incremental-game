@@ -176,6 +176,47 @@ describe('simulate — round-end reporting', () => {
   })
 })
 
+describe('simulate — goals', () => {
+  it('score goal stops early once the target is reached', () => {
+    // passive 2 r0/sec → score target 20 reached ~10s, well under the cap.
+    const result = simulate(strat([]), {
+      modeDef: mode,
+      goal: { kind: 'score', target: 20, safetyCapSec: 120 },
+    })
+    expect(result.finalScore).toBeGreaterThanOrEqual(20)
+    expect(result.snapshots.at(-1)!.timeSec).toBeLessThan(120)
+  })
+
+  it('score goal stops at the safety cap when unreachable', () => {
+    const result = simulate(strat([]), {
+      modeDef: mode,
+      goal: { kind: 'score', target: 1e9, safetyCapSec: 3 },
+    })
+    expect(result.snapshots.at(-1)!.timeSec).toBeCloseTo(3, 1)
+    expect(result.finalScore).toBeLessThan(1e9)
+  })
+
+  it('race_to_buy stops when the final purchase fires', () => {
+    // u_rep costs 20; at 2 r0/sec it becomes affordable ~10s, completing the queue.
+    const result = simulate(strat([{ kind: 'buy', upgradeId: 'u_rep', count: 1 }]), {
+      modeDef: mode,
+      goal: { kind: 'race_to_buy', safetyCapSec: 120 },
+    })
+    expect(result.notReached).toHaveLength(0)
+    expect(result.events.some((e) => e.kind === 'buy')).toBe(true)
+    expect(result.snapshots.at(-1)!.timeSec).toBeLessThan(120)
+  })
+
+  it('race_to_buy hits the cap when the final purchase never becomes affordable', () => {
+    const result = simulate(strat([{ kind: 'buy', upgradeId: 'u_rep', count: 3 }]), {
+      modeDef: mode,
+      goal: { kind: 'race_to_buy', safetyCapSec: 2 },
+    })
+    expect(result.snapshots.at(-1)!.timeSec).toBeCloseTo(2, 1)
+    expect(result.notReached.length).toBeGreaterThan(0)
+  })
+})
+
 // ─── applySimAction (pure single step) ────────────────────────────────
 
 describe('applySimAction', () => {

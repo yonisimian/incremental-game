@@ -1334,6 +1334,24 @@ body {
   font-size: 12px;
 }
 
+/* Goal picker (Run controls) */
+.q-goal-field input {
+  width: 72px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.q-goal-hint {
+  align-self: center;
+  color: var(--dev-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 .q-io-status.error {
   color: #ff6b6b;
 }
