@@ -716,9 +716,9 @@ function layout(): string {
       <button id="q-load">📂 Load</button>
       <label class="q-goal-label">Goal
         <select id="q-goal">
+          <option value="race_to_buy" selected>Race to buy</option>
           <option value="timed">Timed</option>
           <option value="score">Score</option>
-          <option value="race_to_buy">Race to buy</option>
         </select>
       </label>
       <label class="q-goal-field" id="q-goal-time-wrap">Seconds
