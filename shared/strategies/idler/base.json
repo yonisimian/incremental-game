@@ -5,13 +5,23 @@
   "actions": [
     {
       "kind": "buy",
+      "upgradeId": "sc-unlock",
+      "count": 1
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10
+    },
+    {
+      "kind": "buy",
       "upgradeId": "be-af-mr",
-      "count": 10
+      "count": 4
     },
     {
       "kind": "buy",
       "upgradeId": "be-mf-mr",
-      "count": 10
+      "count": 1
     },
     {
       "kind": "buy",
@@ -20,18 +30,8 @@
     },
     {
       "kind": "buy",
-      "upgradeId": "sc-unlock",
-      "count": 1
-    },
-    {
-      "kind": "buy",
       "upgradeId": "sc-af-cp",
-      "count": 10
-    },
-    {
-      "kind": "set_click_rate",
-      "resource": "r0",
-      "cps": 10
+      "count": 2
     },
     {
       "kind": "buy",
