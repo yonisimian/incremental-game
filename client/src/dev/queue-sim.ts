@@ -77,6 +77,15 @@ export function initQueueSim(pane: HTMLElement): void {
   const goalTimeInput = pane.querySelector<HTMLInputElement>('#q-goal-time')!
   const goalScoreInput = pane.querySelector<HTMLInputElement>('#q-goal-score')!
 
+  // Name the actual goal upgrade in the race hint (falls back to generic text).
+  const goalUpgrade = mode.upgrades.find((u) => u.goalType === 'buy-upgrade')
+  if (goalUpgrade) {
+    const goalName =
+      getModeFlavor(mode).upgrades.find((u) => u.id === goalUpgrade.id)?.name ?? goalUpgrade.id
+    pane.querySelector<HTMLSpanElement>('#q-goal-race-hint')!.textContent =
+      `Ends when ${goalName} can be bought (even if it isn't in the queue).`
+  }
+
   // Show only the input relevant to the selected goal kind.
   function syncGoalFields(): void {
     const kind = goalSelect.value
@@ -618,19 +627,13 @@ function renderReport(
   }
 
   const endSec = (r: SimResult): number => r.snapshots.at(-1)?.timeSec ?? 0
-  // Whether the run actually met its goal (vs. hitting the safety cap / timing out).
-  const reachedGoal = (r: SimResult): boolean => {
-    if (goal.kind === 'timed') return true
-    if (goal.kind === 'score') return r.finalScore >= goal.target
-    return r.notReached.length === 0 // race_to_buy
-  }
 
   if (results.length > 0) {
     const best = Math.max(...results.map((r) => r.finalScore))
     // Timed: rank by score. Score/race: goal-reachers first, then fastest time.
     const sorted = [...results].sort((a, b) => {
       if (goal.kind === 'timed') return b.finalScore - a.finalScore
-      if (reachedGoal(a) !== reachedGoal(b)) return reachedGoal(a) ? -1 : 1
+      if (a.goalReached !== b.goalReached) return a.goalReached ? -1 : 1
       return endSec(a) - endSec(b)
     })
     html += `
@@ -641,7 +644,7 @@ function renderReport(
         <tbody>`
     for (const r of sorted) {
       const pct = best > 0 ? ((r.finalScore / best) * 100).toFixed(0) : '0'
-      const time = reachedGoal(r) ? endSec(r).toFixed(1) : `${endSec(r).toFixed(1)} (cap)`
+      const time = r.goalReached ? endSec(r).toFixed(1) : `${endSec(r).toFixed(1)} (cap)`
       const notReached =
         r.notReached.length === 0
           ? '—'
@@ -724,7 +727,7 @@ function layout(): string {
       <label class="q-goal-field hidden" id="q-goal-score-wrap">Score
         <input id="q-goal-score" type="number" min="1" step="1" value="1000" />
       </label>
-      <span class="q-goal-hint hidden" id="q-goal-race-hint">Ends when the last action is purchased.</span>
+      <span class="q-goal-hint hidden" id="q-goal-race-hint">Ends when the goal upgrade can be bought.</span>
       <button id="q-run">▶ Run</button>
       <span id="q-io-status" class="q-io-status"></span>
     </section>

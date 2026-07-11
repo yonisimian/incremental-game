@@ -63,22 +63,31 @@ export interface SimResult {
   finalScore: number
   events: SimEvent[]
   notReached: NotReached[]
+  /** Whether the goal was met (timed: always; score: target hit; race: goal upgrade bought). */
+  goalReached: boolean
 }
 
 /**
  * When the simulation stops:
  * - `timed`: run for exactly `durationSec`.
  * - `score`: run until score ≥ `target` (or the safety cap is hit).
- * - `race_to_buy`: run until the whole queue completes — i.e. the last action
- *   (the goal purchase) fires — or the safety cap is hit.
+ * - `race_to_buy`: keep running the queue while, every tick, *also* attempting
+ *   to buy the goal upgrade (`upgradeId`, or the mode's `goalType: 'buy-upgrade'`
+ *   upgrade if omitted). Stop the instant that purchase succeeds — even if the
+ *   upgrade isn't in the queue. Falls back to queue-completion if no goal
+ *   upgrade can be resolved. Bounded by the safety cap.
  */
 export type SimGoal =
   | { kind: 'timed'; durationSec: number }
   | { kind: 'score'; target: number; safetyCapSec?: number }
-  | { kind: 'race_to_buy'; safetyCapSec?: number }
+  | { kind: 'race_to_buy'; upgradeId?: string; safetyCapSec?: number }
 
-/** Fallback cap for open-ended goals (`score`, `race_to_buy`) that never resolve. */
-export const DEFAULT_SIM_CAP_SEC = 600
+/**
+ * Fallback cap for open-ended goals (`score`, `race_to_buy`) that never resolve.
+ * Generous (20 min) so a legitimate race to an expensive goal upgrade isn't cut
+ * short — the sim still breaks the instant the goal is met.
+ */
+export const DEFAULT_SIM_CAP_SEC = 1200
 
 export interface SimulateOptions {
   /** Override the mode definition instead of resolving from the registry (tests). */
@@ -109,6 +118,17 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
   const capSec =
     goal.kind === 'timed' ? goal.durationSec : (goal.safetyCapSec ?? DEFAULT_SIM_CAP_SEC)
   const totalTicks = Math.round((capSec * 1000) / TICK_INTERVAL_MS)
+
+  // Race-to-buy target: the explicit upgrade, else the mode's goal-tagged
+  // ("buy-upgrade") upgrade. If neither resolves, race falls back to
+  // queue-completion. The upgrade need NOT appear in the strategy queue — we
+  // attempt it every tick independently.
+  const raceTargetId =
+    goal.kind === 'race_to_buy'
+      ? (goal.upgradeId ?? modeDef.upgrades.find((u) => u.goalType === 'buy-upgrade')?.id)
+      : undefined
+  const raceBuy: SimAction | null = raceTargetId ? { kind: 'buy', upgradeId: raceTargetId } : null
+  let stoppedEarly = false
 
   const snapshots: TickSnapshot[] = []
   const events: SimEvent[] = []
@@ -236,6 +256,13 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
     // 3) advance the queue
     const eventsBefore = events.length
     processCursor(timeSec)
+
+    // 3b) race-to-buy: independently attempt the goal purchase (not queue-driven).
+    if (raceBuy && applySimAction(state, raceBuy, modeDef, upgradeMap).status === 'applied') {
+      events.push({ timeSec, index: -1, kind: 'buy', label: label(raceBuy) })
+      stoppedEarly = true
+    }
+
     const tickEvents = events.slice(eventsBefore).map((e) => e.label)
 
     // 4) snapshot
@@ -250,12 +277,24 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
     })
 
     // 5) goal reached? (open-ended goals only) — stop once satisfied.
-    if (goal.kind === 'score' && state.score >= goal.target) break
-    if (goal.kind === 'race_to_buy' && cursor >= strategy.actions.length) break
+    if (goal.kind === 'score' && state.score >= goal.target) {
+      stoppedEarly = true
+      break
+    }
+    if (goal.kind === 'race_to_buy') {
+      // With a target: stop when it was bought (set above). Without one: fall
+      // back to stopping when the whole queue has completed.
+      if (raceBuy ? stoppedEarly : cursor >= strategy.actions.length) {
+        stoppedEarly = true
+        break
+      }
+    }
   }
 
-  // Round ended: report anything left in the queue.
-  if (cursor < strategy.actions.length) {
+  // Report anything left in the queue when the run ended on time / at the cap.
+  // A run that stopped early because its goal was met skips this — the leftover
+  // actions simply weren't needed.
+  if (!stoppedEarly && cursor < strategy.actions.length) {
     const current = strategy.actions[cursor]
     notReached.push({
       index: cursor,
@@ -270,6 +309,15 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
     }
   }
 
+  const goalReached =
+    goal.kind === 'timed'
+      ? true
+      : goal.kind === 'score'
+        ? state.score >= goal.target
+        : raceBuy
+          ? stoppedEarly // race with a target: was it bought?
+          : cursor >= strategy.actions.length // race fallback: queue completed
+
   return {
     name: strategy.name,
     mode: strategy.mode,
@@ -277,6 +325,7 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
     finalScore: Math.round(state.score * 100) / 100,
     events,
     notReached,
+    goalReached,
   }
 
   function blockReasonAtRoundEnd(action: SimAction): string {

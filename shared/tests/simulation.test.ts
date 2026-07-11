@@ -214,6 +214,21 @@ describe('simulate — goals', () => {
     })
     expect(result.snapshots.at(-1)!.timeSec).toBeCloseTo(2, 1)
     expect(result.notReached.length).toBeGreaterThan(0)
+    expect(result.goalReached).toBe(false)
+  })
+
+  it('race_to_buy targets an upgrade outside the queue and stops when it can be bought', () => {
+    // Empty queue: u_rep (cost 20) is never queued, but is the explicit target.
+    // At 2 r0/sec it becomes affordable ~10s and the run stops there.
+    const result = simulate(strat([]), {
+      modeDef: mode,
+      goal: { kind: 'race_to_buy', upgradeId: 'u_rep', safetyCapSec: 120 },
+    })
+    expect(result.goalReached).toBe(true)
+    expect(result.events.some((e) => e.label === 'buy:u_rep')).toBe(true)
+    const end = result.snapshots.at(-1)!.timeSec
+    expect(end).toBeGreaterThan(5)
+    expect(end).toBeLessThan(120)
   })
 })
 
