@@ -175,205 +175,205 @@
         },
         {
           "id": "be-af-mr",
-          "name": "be-af-mr",
+          "name": "🌱 Axe Handling",
           "icon": "🌱",
           "description": "+1 base 🪵/sec"
         },
         {
           "id": "be-mf-mr",
-          "name": "be-mf-mr",
+          "name": "🌱 Sharpen Axe",
           "icon": "🌱",
           "description": "*1.1 base 🪵/sec"
         },
         {
           "id": "be-mr-bank",
-          "name": "be-mr-bank",
+          "name": "🌱 Wood Bank",
           "icon": "🌱",
           "description": "For each 1000 🪵 you have, gain 1% base 🪵/sec"
         },
         {
           "id": "be-af-sr",
-          "name": "be-af-sr",
+          "name": "🌱 Brew for dummies",
           "icon": "🌱",
           "description": "+1 base 🍺/sec"
         },
         {
           "id": "be-mf-sr",
-          "name": "be-mf-sr",
+          "name": "🌱 Samogon tutorial",
           "icon": "🌱",
           "description": "*1.1 base 🍺/sec"
         },
         {
           "id": "be-sr-bank",
-          "name": "be-sr-bank",
+          "name": "🌱 Ale Bank",
           "icon": "🌱",
           "description": "For each 1000 🍺 you have, gain 1% base 🍺/sec"
         },
         {
           "id": "ae-mf-ar",
-          "name": "ae-mf-ar",
+          "name": "🌳 Work optimization",
           "icon": "🌳",
           "description": "All resources gain *1.1/sec"
         },
         {
           "id": "ae-mf-ar-time",
-          "name": "ae-mf-ar-time",
+          "name": "🌳 Timed schedule",
           "icon": "🌳",
           "description": "A global multiplier that increased as time pass after its purchase\n(minute gives 10% boost (base))"
         },
         {
           "id": "ae-atf",
-          "name": "ae-atf",
+          "name": "🌳 Better timing",
           "icon": "🌳",
           "description": "Increase the time bonus factor for new seconds"
         },
         {
           "id": "ae-tf-retro",
-          "name": "ae-tf-retro",
+          "name": "🌳 Retro time",
           "icon": "🌳",
           "description": "The better time factor now works retro which give big bonus."
         },
         {
           "id": "g1-g2",
-          "name": "g1-g2",
+          "name": "⚙️ First Generation",
           "icon": "⚙️",
           "description": "Unlock the Generators Panel and give access to G1 and G2."
         },
         {
           "id": "g1-af",
-          "name": "g1-af",
+          "name": "⚙️ G1 Good",
           "icon": "⚙️",
           "description": "G1 doing +1/sec"
         },
         {
           "id": "g1-mf",
-          "name": "g1-mf",
+          "name": "⚙️ G1 Very Good",
           "icon": "⚙️",
           "description": "G1 doing *1.1/sec"
         },
         {
           "id": "g1-dp",
-          "name": "g1-dp",
+          "name": "⚙️ G1 Cheap",
           "icon": "⚙️",
           "description": "G1 price decrease by 5%"
         },
         {
           "id": "g1-dpf",
-          "name": "g1-dpf",
+          "name": "⚙️ G1 Very Cheap",
           "icon": "⚙️",
           "description": "G1 price factor decrease by 2%"
         },
         {
           "id": "g2-dpf",
-          "name": "g2-dpf",
+          "name": "⚙️ G2 Very Cheap",
           "icon": "⚙️",
           "description": "G2 price factor decrease by 2%"
         },
         {
           "id": "g2-dp",
-          "name": "g2-dp",
+          "name": "⚙️ G2 Cheap",
           "icon": "⚙️",
           "description": "G2 price decrease by 5%"
         },
         {
           "id": "g2-mf",
-          "name": "g2-mf",
+          "name": "⚙️ G2 Very Good",
           "icon": "⚙️",
           "description": "G2 doing *1.1/sec"
         },
         {
           "id": "g2-af",
-          "name": "g2-af",
+          "name": "⚙️ G2 Good",
           "icon": "⚙️",
           "description": "G2 doing +1/sec"
         },
         {
           "id": "g3-g4",
-          "name": "g3-g4",
+          "name": "⚙️ Second Generation",
           "icon": "⚙️",
           "description": "Give access to G3 and G4."
         },
         {
           "id": "g3-af",
-          "name": "g3-af",
+          "name": "⚙️ G3 Good",
           "icon": "⚙️",
           "description": "G3 doing +1/sec"
         },
         {
           "id": "g3-mf",
-          "name": "g3-mf",
+          "name": "⚙️ G3 Very Good",
           "icon": "⚙️",
           "description": "G3 doing *1.1/sec"
         },
         {
           "id": "g3-dp",
-          "name": "g3-dp",
+          "name": "⚙️ G3 Cheap",
           "icon": "⚙️",
           "description": "G3 price decrease by 5%"
         },
         {
           "id": "g3-dpf",
-          "name": "g3-dpf",
+          "name": "⚙️ G3 Very Cheap",
           "icon": "⚙️",
           "description": "G3 price factor decrease by 2%"
         },
         {
           "id": "g4-af",
-          "name": "g4-af",
+          "name": "⚙️ G4 Good",
           "icon": "⚙️",
           "description": "G4 doing +1/sec"
         },
         {
           "id": "g4-mf",
-          "name": "g4-mf",
+          "name": "⚙️ G4 Very Good",
           "icon": "⚙️",
           "description": "G4 doing *1.1/sec"
         },
         {
           "id": "g4-dp",
-          "name": "g4-dp",
+          "name": "⚙️ G4 Cheap",
           "icon": "⚙️",
           "description": "G4 price decrease by 5%"
         },
         {
           "id": "g4-dpf",
-          "name": "g4-dpf",
+          "name": "⚙️ G4 Very Cheap",
           "icon": "⚙️",
           "description": "G4 price factor decrease by 2%"
         },
         {
           "id": "lower-g",
-          "name": "lower-g",
+          "name": "⚙️ Pyramid",
           "icon": "⚙️",
           "description": "Lower tier G give boost to higher tiers."
         },
         {
           "id": "balance-g",
-          "name": "balance-g",
+          "name": "⚙️ Socialism",
           "icon": "⚙️",
           "description": "Gain boost when all the generators have the same amount."
         },
         {
           "id": "higher-g",
-          "name": "higher-g",
+          "name": "⚙️ Capitalism",
           "icon": "⚙️",
           "description": "The generator with the highest amount gain additional boost."
         },
         {
           "id": "sc-unlock",
-          "name": "sc-unlock",
+          "name": "🖱️ Click",
           "icon": "🖱️",
           "description": "Unlock clicking."
         },
         {
           "id": "sc-af-cp",
-          "name": "sc-af-cp",
+          "name": "🖱️ Stronger Click",
           "icon": "🖱️",
           "description": "Clicking give +1 more resource per click."
         },
         {
           "id": "sc-mf-cp",
-          "name": "sc-mf-cp",
+          "name": "🖱️ Smarter Click",
           "icon": "🖱️",
           "description": "Clicking give *1.1 more resource per click."
         },
@@ -391,13 +391,13 @@
         },
         {
           "id": "sh-unlock",
-          "name": "sh-unlock",
+          "name": "🔎 Highlight",
           "icon": "🔎",
           "description": "Unlock highlight."
         },
         {
           "id": "sh-mf-hp",
-          "name": "sh-mf-hp",
+          "name": "🔎 Clearer Lens",
           "icon": "🔎",
           "description": "Increase highlight factor."
         },
@@ -463,55 +463,55 @@
         },
         {
           "id": "e-se-mr",
-          "name": "e-se-mr",
+          "name": "🕵 First Spy",
           "icon": "🕵",
           "description": "Unlock Espionage Panel and See enemy main resource (maybe move the espionage unlocks to the espionage panel itself)"
         },
         {
           "id": "e-se-mr-ps",
-          "name": "e-se-mr-ps",
+          "name": "🕵 Better Spy",
           "icon": "🕵",
           "description": "See enemy main resources per sec."
         },
         {
           "id": "e-se-sr",
-          "name": "e-se-sr",
+          "name": "🕵 Second Spy",
           "icon": "🕵",
           "description": "See enemy secondary resources."
         },
         {
           "id": "e-se-sr-ps",
-          "name": "e-se-sr-ps",
+          "name": "🕵 Better second spy",
           "icon": "🕵",
           "description": "See enemy secondary resources per sec."
         },
         {
           "id": "e-se-cps",
-          "name": "e-se-cps",
+          "name": "🕵 How much he clicks",
           "icon": "🕵",
           "description": "See enemy clicks per second."
         },
         {
           "id": "e-se-p",
-          "name": "e-se-p",
+          "name": "🕵 Purchase receipts",
           "icon": "🕵",
           "description": "A popup when enemy purchase generator or upgrade."
         },
         {
           "id": "e-p-ug",
-          "name": "e-p-ug",
+          "name": "🕵 Upgrade/Generator",
           "icon": "🕵",
           "description": "The popup differs when enemy purchase upgrade or generator."
         },
         {
           "id": "e-p-g",
-          "name": "e-p-g",
+          "name": "🕵 Know the generator",
           "icon": "🕵",
           "description": "The popup tells which generator the enemy brought."
         },
         {
           "id": "e-p-u",
-          "name": "e-p-u",
+          "name": "🕵 Know the upgrade",
           "icon": "🕵",
           "description": "The popup tells which upgrade the enemy brought."
         },
@@ -535,7 +535,7 @@
         },
         {
           "id": "sc-pcps",
-          "name": "sc-pcps",
+          "name": "🖱️ Gotta click fast",
           "icon": "🖱️",
           "description": "Gain additional click income as your peak cps."
         },
@@ -681,7 +681,13 @@
     },
     {
       "id": "be-af-mr",
-      "cost": {},
+      "cost": {
+        "r0": {
+          "baseCost": 10,
+          "scaleType": "linear",
+          "scaleFactor": 5
+        }
+      },
       "purchaseLimit": null,
       "effects": [
         {
@@ -698,11 +704,18 @@
       "children": [
         {
           "id": "be-mf-mr",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 40,
+              "scaleType": "exponential",
+              "scaleFactor": 1.15
+            }
+          },
           "purchaseLimit": null,
           "prerequisites": {
             "type": "upgrade",
-            "id": "be-af-mr"
+            "id": "be-af-mr",
+            "minLevel": 4
           },
           "effects": [
             {
@@ -719,11 +732,16 @@
           "children": [
             {
               "id": "be-mr-bank",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 1000
+                }
+              },
               "purchaseLimit": 1,
               "prerequisites": {
                 "type": "upgrade",
-                "id": "be-mf-mr"
+                "id": "be-mf-mr",
+                "minLevel": 5
               },
               "effects": [
                 {
@@ -743,12 +761,20 @@
         },
         {
           "id": "be-af-sr",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 10,
+              "scaleType": "linear",
+              "scaleFactor": 5
+            },
+            "r1": {
+              "baseCost": 10
+            }
+          },
           "purchaseLimit": null,
           "prerequisites": {
             "type": "upgrade",
-            "id": "be-af-mr",
-            "minLevel": 5
+            "id": "be-af-mr"
           },
           "effects": [
             {
@@ -765,11 +791,23 @@
           "children": [
             {
               "id": "be-mf-sr",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 40,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                },
+                "r1": {
+                  "baseCost": 20,
+                  "scaleType": "linear",
+                  "scaleFactor": 20
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
-                "id": "be-af-sr"
+                "id": "be-af-sr",
+                "minLevel": 4
               },
               "effects": [
                 {
@@ -786,11 +824,19 @@
               "children": [
                 {
                   "id": "be-sr-bank",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 400
+                    },
+                    "r1": {
+                      "baseCost": 1000
+                    }
+                  },
                   "purchaseLimit": 1,
                   "prerequisites": {
                     "type": "upgrade",
-                    "id": "be-mf-sr"
+                    "id": "be-mf-sr",
+                    "minLevel": 5
                   },
                   "effects": [
                     {
@@ -814,7 +860,18 @@
     },
     {
       "id": "ae-mf-ar",
-      "cost": {},
+      "cost": {
+        "r0": {
+          "baseCost": 50,
+          "scaleType": "exponential",
+          "scaleFactor": 1.15
+        },
+        "r1": {
+          "baseCost": 50,
+          "scaleType": "exponential",
+          "scaleFactor": 1.15
+        }
+      },
       "purchaseLimit": null,
       "effects": [
         {
@@ -837,7 +894,14 @@
       "children": [
         {
           "id": "ae-mf-ar-time",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 500
+            },
+            "r1": {
+              "baseCost": 150
+            }
+          },
           "purchaseLimit": 1,
           "offset": {
             "x": 0,
@@ -846,7 +910,13 @@
           "children": [
             {
               "id": "ae-atf",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 100,
+                  "scaleType": "exponential",
+                  "scaleFactor": 2
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -859,11 +929,16 @@
               "children": [
                 {
                   "id": "ae-tf-retro",
-                  "cost": {},
+                  "cost": {
+                    "r1": {
+                      "baseCost": 10000
+                    }
+                  },
                   "purchaseLimit": 1,
                   "prerequisites": {
                     "type": "upgrade",
-                    "id": "ae-atf"
+                    "id": "ae-atf",
+                    "minLevel": 2
                   },
                   "offset": {
                     "x": 0,
@@ -878,7 +953,11 @@
     },
     {
       "id": "g1-g2",
-      "cost": {},
+      "cost": {
+        "r0": {
+          "baseCost": 50
+        }
+      },
       "purchaseLimit": 1,
       "effects": [
         {
@@ -901,7 +980,13 @@
       "children": [
         {
           "id": "g1-af",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 15,
+              "scaleType": "linear",
+              "scaleFactor": 7
+            }
+          },
           "purchaseLimit": null,
           "prerequisites": {
             "type": "upgrade",
@@ -922,7 +1007,13 @@
           "children": [
             {
               "id": "g1-dp",
-              "cost": {},
+              "cost": {
+                "r1": {
+                  "baseCost": 10,
+                  "scaleType": "linear",
+                  "scaleFactor": 5
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -942,7 +1033,18 @@
               "children": [
                 {
                   "id": "g1-dpf",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 50,
+                      "scaleType": "exponential",
+                      "scaleFactor": 2
+                    },
+                    "r1": {
+                      "baseCost": 50,
+                      "scaleType": "linear",
+                      "scaleFactor": 50
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -964,7 +1066,13 @@
             },
             {
               "id": "g1-mf",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 40,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -987,7 +1095,13 @@
         },
         {
           "id": "g2-af",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 10,
+              "scaleType": "linear",
+              "scaleFactor": 8
+            }
+          },
           "purchaseLimit": null,
           "prerequisites": {
             "type": "upgrade",
@@ -1008,7 +1122,13 @@
           "children": [
             {
               "id": "g2-mf",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 50,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -1029,7 +1149,13 @@
             },
             {
               "id": "g2-dp",
-              "cost": {},
+              "cost": {
+                "r1": {
+                  "baseCost": 20,
+                  "scaleType": "linear",
+                  "scaleFactor": 10
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -1049,7 +1175,18 @@
               "children": [
                 {
                   "id": "g2-dpf",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 100,
+                      "scaleType": "linear",
+                      "scaleFactor": 200
+                    },
+                    "r1": {
+                      "baseCost": 130,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1073,7 +1210,14 @@
         },
         {
           "id": "g3-g4",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 400
+            },
+            "r1": {
+              "baseCost": 80
+            }
+          },
           "purchaseLimit": 1,
           "prerequisites": {
             "type": "upgrade",
@@ -1096,7 +1240,13 @@
           "children": [
             {
               "id": "g3-af",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 70,
+                  "scaleType": "linear",
+                  "scaleFactor": 80
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -1117,7 +1267,13 @@
               "children": [
                 {
                   "id": "g3-mf",
-                  "cost": {},
+                  "cost": {
+                    "r1": {
+                      "baseCost": 50,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1138,7 +1294,13 @@
                 },
                 {
                   "id": "g3-dp",
-                  "cost": {},
+                  "cost": {
+                    "r1": {
+                      "baseCost": 50,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1158,7 +1320,13 @@
                   "children": [
                     {
                       "id": "g3-dpf",
-                      "cost": {},
+                      "cost": {
+                        "r1": {
+                          "baseCost": 80,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
                       "purchaseLimit": null,
                       "prerequisites": {
                         "type": "upgrade",
@@ -1182,7 +1350,13 @@
             },
             {
               "id": "g4-af",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 60,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -1203,7 +1377,13 @@
               "children": [
                 {
                   "id": "g4-mf",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 80,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1224,7 +1404,13 @@
                 },
                 {
                   "id": "g4-dp",
-                  "cost": {},
+                  "cost": {
+                    "r1": {
+                      "baseCost": 100,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1244,7 +1430,13 @@
                   "children": [
                     {
                       "id": "g4-dpf",
-                      "cost": {},
+                      "cost": {
+                        "r1": {
+                          "baseCost": 150,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
                       "purchaseLimit": null,
                       "prerequisites": {
                         "type": "upgrade",
@@ -1268,7 +1460,11 @@
             },
             {
               "id": "higher-g",
-              "cost": {},
+              "cost": {
+                "r1": {
+                  "baseCost": 700
+                }
+              },
               "purchaseLimit": 1,
               "choiceGroup": "g-choice",
               "prerequisites": {
@@ -1282,7 +1478,14 @@
             },
             {
               "id": "balance-g",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 500
+                },
+                "r1": {
+                  "baseCost": 500
+                }
+              },
               "purchaseLimit": 1,
               "choiceGroup": "g-choice",
               "prerequisites": {
@@ -1296,7 +1499,11 @@
             },
             {
               "id": "lower-g",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 1000
+                }
+              },
               "purchaseLimit": 1,
               "choiceGroup": "g-choice",
               "prerequisites": {
@@ -1423,7 +1630,11 @@
         },
         {
           "id": "sh-unlock",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 50
+            }
+          },
           "purchaseLimit": 1,
           "effects": [
             {
@@ -1442,7 +1653,13 @@
           "children": [
             {
               "id": "sh-mf-hp",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 50,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                }
+              },
               "purchaseLimit": null,
               "prerequisites": {
                 "type": "upgrade",
@@ -1573,7 +1790,11 @@
         },
         {
           "id": "sc-pcps",
-          "cost": {},
+          "cost": {
+            "r0": {
+              "baseCost": 800
+            }
+          },
           "purchaseLimit": 1,
           "prerequisites": {
             "type": "upgrade",

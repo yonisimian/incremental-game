@@ -1,15 +1,9 @@
-import {
-  MAX_CPS,
-  canAffordGenerator,
-  isGeneratorUnlocked,
-  resolveGeneratorDef,
-  isMaxed,
-  isPrerequisiteSatisfied,
-  isChoiceGroupAvailable,
-  getUpgradeNextCost,
-  isCostAffordable,
-} from '@game/shared'
-import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
+import { MAX_CPS } from '@game/shared'
+
+// The purchase validators are pure game rules built from shared primitives, so
+// they live in `@game/shared` (shared with the headless strategy simulator) and
+// are re-exported here for existing server/test call sites.
+export { isValidPurchase, isValidGeneratorPurchase } from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.
@@ -29,46 +23,4 @@ export function isValidClick(recentTimestamps: number[]): boolean {
   if (recentTimestamps.length >= MAX_CPS) return false
   recentTimestamps.push(now)
   return true
-}
-
-/**
- * Validate a purchase action.
- * Returns true if the player can afford the upgrade, doesn't already own it
- * beyond its max level, and all prerequisites are owned.
- */
-export function isValidPurchase(
-  state: PlayerState,
-  upgradeId: string,
-  upgradeMap: ReadonlyMap<string, UpgradeDefinition>,
-): boolean {
-  const def = upgradeMap.get(upgradeId)
-  if (!def) return false
-
-  const owned = state.upgrades[upgradeId] ?? 0
-  if (isMaxed(def, owned)) return false
-
-  // All prerequisites must be satisfied
-  if (!isPrerequisiteSatisfied(def.prerequisites, state)) return false
-
-  // Only one choice from a mutual-exclusion group may be selected.
-  if (!isChoiceGroupAvailable(def, state, Array.from(upgradeMap.values()))) return false
-
-  // Every currency in the cost map must be affordable.
-  return isCostAffordable(state.resources, getUpgradeNextCost(def, owned))
-}
-
-/**
- * Validate a generator purchase.
- * Returns true if the generator exists, is unlocked, and the player can afford
- * the next (cost-adjusted) copy.
- */
-export function isValidGeneratorPurchase(
-  state: PlayerState,
-  generatorId: string,
-  mode: ModeDefinition,
-): boolean {
-  const def = mode.generators.find((g) => g.id === generatorId)
-  if (!def) return false
-  if (!isGeneratorUnlocked(state, def, mode)) return false
-  return canAffordGenerator(state, resolveGeneratorDef(def, state, mode))
 }

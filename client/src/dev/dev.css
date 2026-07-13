@@ -211,6 +211,84 @@ body {
   background: var(--dev-muted);
 }
 
+/* ─── Collapsible chart cards ─────────────────────────────────────── */
+
+.q-charts-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -8px; /* absorb the flex gap above the first card */
+}
+
+.q-collapse-all {
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--dev-muted);
+  background: transparent;
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.q-collapse-all:hover {
+  color: var(--dev-text);
+  border-color: var(--dev-muted);
+}
+
+.q-chart-card {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.q-chart-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--dev-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.q-chart-head:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.q-caret {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--dev-muted);
+  transition: transform 0.15s;
+}
+
+.q-chart-card.collapsed .q-caret {
+  transform: rotate(-90deg);
+}
+
+.q-chart-body {
+  padding: 0 12px 12px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dev-border) transparent;
+}
+
+.q-chart-card.collapsed .q-chart-body {
+  display: none;
+}
+
+/* The card header already shows the title — hide uPlot's duplicate. */
+.q-chart-card .u-title {
+  display: none;
+}
+
 /* uPlot overrides for dark theme */
 .dev-charts .u-legend {
   font-size: 11px;
@@ -1084,4 +1162,236 @@ body {
 .ed-effect-check {
   flex: 0 0 auto;
   width: auto;
+}
+
+/* ─── Queue Simulation tab ─────────────────────────────────────────── */
+
+.q-layout {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.q-sidebar {
+  flex: 0 0 220px;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.q-sidebar h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--dev-accent);
+}
+
+.q-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.q-list-item.selected {
+  background: var(--dev-bg);
+  outline: 1px solid var(--dev-accent);
+}
+
+.q-list-name {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--dev-text);
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.q-list-name:hover {
+  color: var(--dev-accent);
+}
+
+.q-editor {
+  flex: 1;
+  min-width: 0;
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.q-name-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.q-name-label input {
+  margin-left: 6px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-width: 220px;
+}
+
+.q-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.q-table th,
+.q-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.q-table tr.editing {
+  background: var(--dev-bg);
+}
+
+.q-empty {
+  color: var(--dev-muted);
+  font-style: italic;
+}
+
+.q-row-controls {
+  white-space: nowrap;
+}
+
+.q-row-btn {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 2px;
+  cursor: pointer;
+}
+
+.q-row-btn:hover:not(:disabled) {
+  border-color: var(--dev-accent);
+}
+
+.q-row-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.q-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dev-border);
+}
+
+.q-params {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.q-params label,
+.q-form > select {
+  font-size: 13px;
+}
+
+.q-params input,
+.q-params select,
+.q-form > select {
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-left: 4px;
+}
+
+.q-params input[type='number'] {
+  width: 70px;
+}
+
+.q-form-error {
+  flex-basis: 100%;
+  color: #ff6b6b;
+  font-size: 12px;
+  min-height: 14px;
+}
+
+.q-io-status {
+  align-self: center;
+  color: var(--dev-muted);
+  font-size: 12px;
+}
+
+/* Goal picker (Run controls) */
+.q-goal-field input {
+  width: 72px;
+  background: var(--dev-bg);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.q-goal-hint {
+  align-self: center;
+  color: var(--dev-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.q-io-status.error {
+  color: #ff6b6b;
+}
+
+.dev-report {
+  background: var(--dev-surface);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.dev-report h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--dev-accent);
+}
+
+.q-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.q-report-table th,
+.q-report-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.q-notreached {
+  color: var(--dev-muted);
+}
+
+.q-problems {
+  color: #ffb86c;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.q-hint {
+  color: var(--dev-muted);
 }

@@ -74,9 +74,9 @@ describe('isValidPurchase', () => {
   }
 
   it('accepts a valid purchase', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 5 } }), 'sh-unlock', testUpgradeMap)).toBe(
-      true,
-    )
+    expect(
+      isValidPurchase(makeState({ resources: { r0: 100 } }), 'sh-unlock', testUpgradeMap),
+    ).toBe(true)
   })
 
   it('accepts at exact cost', () => {
