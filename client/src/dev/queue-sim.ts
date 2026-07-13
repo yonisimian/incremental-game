@@ -649,13 +649,16 @@ function renderReport(
         r.notReached.length === 0
           ? '—'
           : r.notReached.map((n) => `#${n.index + 1} ${n.action.kind} (${n.reason})`).join(', ')
+      // Count distinct queue rows that fired, not per-unit events (a `count: N`
+      // buy emits N events but is one authored action).
+      const actionsFired = new Set(r.events.map((e) => e.index)).size
       html += `
         <tr>
           <td>${escapeHtml(r.name)}</td>
           <td>${r.finalScore.toFixed(1)}</td>
           <td>${pct}%</td>
           <td>${escapeHtml(time)}</td>
-          <td>${r.events.length}</td>
+          <td>${actionsFired}</td>
           <td class="q-notreached">${escapeHtml(notReached)}</td>
         </tr>`
     }
@@ -670,7 +673,10 @@ function renderReport(
 function optionsHtml(opts: Option[], includeBlank?: string): string {
   const blank = includeBlank ? `<option value="">${includeBlank}</option>` : ''
   return (
-    blank + opts.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')
+    blank +
+    opts
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join('')
   )
 }
 

@@ -134,6 +134,23 @@ describe('simulate — wait predicates', () => {
     expect(gen?.timeSec).toBe(5) // r0 hits 10 at t=5, then buy fires same tick
     expect(result.notReached).toHaveLength(0)
   })
+
+  it('seconds is measured relative to when the wait begins', () => {
+    // g0 fires at t=5; the 3s wait then starts at t=5 and clears at t=8, so the
+    // highlight fires at t=8 — not t=3, which an absolute "3s since round start"
+    // reading would give (5 ≥ 3 would already hold when the cursor arrives).
+    const result = simulate(
+      strat([
+        { kind: 'buy_generator', generatorId: 'g0' },
+        { kind: 'wait', until: { kind: 'seconds', seconds: 3 } },
+        { kind: 'set_highlight', highlight: 'r0' },
+      ]),
+      { modeDef: mode },
+    )
+    expect(result.events.find((e) => e.label === 'gen:g0')?.timeSec).toBe(5)
+    expect(result.events.find((e) => e.label === 'highlight:r0')?.timeSec).toBe(8)
+    expect(result.notReached).toHaveLength(0)
+  })
 })
 
 describe('simulate — structural blocks are reported, not stalled', () => {
