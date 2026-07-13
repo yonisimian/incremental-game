@@ -520,7 +520,10 @@ function renderCharts(
 ): void {
   container.innerHTML = ''
   if (results.length === 0) return
-  const xData = results[0].snapshots.map((s) => s.timeSec)
+  // The x-axis must span the LONGEST-running strategy (uPlot sizes every series
+  // to xData's length), otherwise shorter-first ordering would clip the others.
+  const longest = results.reduce((a, b) => (b.snapshots.length > a.snapshots.length ? b : a))
+  const xData = longest.snapshots.map((s) => s.timeSec)
   const cards: HTMLElement[] = []
 
   // "Collapse all / Expand all" toolbar.
