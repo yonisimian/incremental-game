@@ -20,7 +20,9 @@ import type { ChartMarker } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
 import { initEditor } from './editor/index.js'
-import { initQueueSim } from './queue-sim.js'
+import { initQueueSim, importStrategyToQueue } from './queue-sim.js'
+import { liveActionsToStrategy } from './live-export.js'
+import { saveStrategyToFile } from './strategy-io.js'
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -66,6 +68,25 @@ export function initDevPanel(root: HTMLElement): void {
   const liveScoreChart = root.querySelector<HTMLDivElement>('#live-chart-score')!
   const liveIncomeChart = root.querySelector<HTMLDivElement>('#live-chart-income')!
   const liveResourceCharts = root.querySelector<HTMLDivElement>('#live-chart-resources')!
+  const liveExportBtn = root.querySelector<HTMLButtonElement>('#live-export-btn')!
+  const liveExportStatus = root.querySelector<HTMLSpanElement>('#live-export-status')!
+
+  // Export the recorded playthrough as a strategy: save it to a file and hand a
+  // copy to the Queue tab so it can be compared against other strategies.
+  liveExportBtn.addEventListener('click', () => {
+    const state = getLiveState()
+    if (!state.mode || state.actions.length === 0) {
+      liveExportStatus.textContent = 'Nothing recorded yet.'
+      return
+    }
+    const name = `Live ${state.mode} ${new Date().toLocaleTimeString()}`
+    const strategy = liveActionsToStrategy(state.actions, state.mode as GameMode, name)
+    importStrategyToQueue(strategy)
+    saveStrategyToFile(strategy).catch((err: unknown) => {
+      liveExportStatus.textContent = `Save failed: ${err instanceof Error ? err.message : String(err)}`
+    })
+    liveExportStatus.textContent = `Exported "${name}" (${strategy.actions.length} actions) → Queue tab.`
+  })
 
   // ── Tab switching ──
   // The editor is mounted lazily on first entry and torn down on leave (it owns
@@ -85,11 +106,13 @@ export function initDevPanel(root: HTMLElement): void {
       startLiveListener((state) => {
         renderLiveStatus(liveStatus, state)
         renderLiveCharts(state, liveScoreChart, liveIncomeChart, liveResourceCharts)
+        liveExportBtn.disabled = state.actions.length === 0
       })
       // Render existing state (if any) now that the pane is visible
       const current = getLiveState()
       renderLiveStatus(liveStatus, current)
       renderLiveCharts(current, liveScoreChart, liveIncomeChart, liveResourceCharts)
+      liveExportBtn.disabled = current.actions.length === 0
     } else {
       stopLiveListener()
     }
@@ -223,6 +246,10 @@ function buildLayout(): string {
         <div id="live-status" class="live-status">
           <span class="live-dot waiting"></span>
           Waiting for game… Open the game with <code>?dev</code> in the URL.
+        </div>
+        <div class="live-export">
+          <button id="live-export-btn" disabled>⤓ Export as strategy</button>
+          <span id="live-export-status" class="live-export-status"></span>
         </div>
       </section>
       <section class="dev-charts">

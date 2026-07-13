@@ -8,9 +8,10 @@
 
 import type { DevMessage, LiveSnapshot } from '../dev-recorder.js'
 import { DEV_CHANNEL } from '../dev-recorder.js'
+import type { PlayerAction } from '@game/shared'
 import type { TickSnapshot, SimResult } from './simulate.js'
 
-// ─── Types ───────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────
 
 /** @public */
 export type LiveStatus = 'waiting' | 'recording' | 'ended'
@@ -19,6 +20,8 @@ export interface LiveState {
   status: LiveStatus
   /** Accumulated snapshots for the current (or last) round. */
   snapshots: TickSnapshot[]
+  /** Player actions recorded this round, in order (for strategy export). */
+  actions: PlayerAction[]
   /** Game mode of the current/last round. */
   mode: string | null
   /** Round duration in seconds. */
@@ -34,6 +37,7 @@ type LiveChangeHandler = (state: Readonly<LiveState>) => void
 const liveState: LiveState = {
   status: 'waiting',
   snapshots: [],
+  actions: [],
   mode: null,
   roundDurationSec: 0,
   finalScore: null,
@@ -57,6 +61,7 @@ export function startLiveListener(handler: LiveChangeHandler): void {
       case 'round-start':
         liveState.status = 'recording'
         liveState.snapshots = []
+        liveState.actions = []
         liveState.mode = msg.mode
         liveState.roundDurationSec = msg.roundDurationSec
         liveState.finalScore = null
@@ -66,6 +71,11 @@ export function startLiveListener(handler: LiveChangeHandler): void {
 
       case 'tick':
         liveState.snapshots.push(toTickSnapshot(msg.snapshot, tickCounter++))
+        onChange(liveState)
+        break
+
+      case 'action':
+        liveState.actions.push(msg.action)
         onChange(liveState)
         break
 

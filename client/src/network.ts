@@ -14,6 +14,8 @@ import type {
 } from '@game/shared'
 import { loadTree } from '@game/shared'
 
+import { recorderAction } from './dev-recorder.js'
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 type ServerMessageHandler = (msg: ServerMessage) => void
@@ -107,6 +109,7 @@ export async function connect(): Promise<void> {
 /** Queue a player action to be sent in the next batch. */
 export function queueAction(action: PlayerAction): void {
   pendingActions.push(action)
+  recorderAction(action)
 }
 
 /** Enter the quick-match queue. Returns false if not connected. */

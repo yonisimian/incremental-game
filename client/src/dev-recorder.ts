@@ -12,7 +12,7 @@
  * additional dependencies — BroadcastChannel is a native browser API.
  */
 
-import type { GameMode, PlayerState } from '@game/shared'
+import type { GameMode, PlayerAction, PlayerState } from '@game/shared'
 import { collectModifiers, computePassiveRates, getModeDefinition } from '@game/shared'
 
 // ─── Channel name (shared with dev panel listener) ───────────────────
@@ -54,7 +54,17 @@ export interface LiveRoundEnd {
   finalScore: number
 }
 
-export type DevMessage = LiveRoundStart | LiveTick | LiveRoundEnd
+/**
+ * A player action as it happened, broadcast so the dev panel can reconstruct
+ * the round as an authorable strategy (Live → Queue export).
+ * @public
+ */
+export interface LiveAction {
+  kind: 'action'
+  action: PlayerAction
+}
+
+export type DevMessage = LiveRoundStart | LiveTick | LiveRoundEnd | LiveAction
 
 // ─── Recorder state ─────────────────────────────────────────────────
 
@@ -122,4 +132,14 @@ export function recorderRoundEnd(finalScore: number): void {
   if (!enabled) return
   channel!.postMessage({ kind: 'round-end', finalScore } satisfies LiveRoundEnd)
   currentMode = null
+}
+
+/**
+ * Call for every player action issued locally (buy / generator / highlight /
+ * click). Broadcast in order so the dev panel can rebuild the round as a
+ * strategy. No-op unless recording an active round.
+ */
+export function recorderAction(action: PlayerAction): void {
+  if (!enabled || !currentMode) return
+  channel!.postMessage({ kind: 'action', action } satisfies LiveAction)
 }

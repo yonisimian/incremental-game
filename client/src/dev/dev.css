@@ -416,6 +416,36 @@ body {
   font-size: 0.85rem;
 }
 
+.live-export {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.live-export button {
+  background: var(--dev-surface);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.live-export button:hover:not(:disabled) {
+  border-color: var(--dev-accent);
+}
+
+.live-export button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.live-export-status {
+  font-size: 0.85rem;
+  color: var(--dev-muted);
+}
+
 .live-dot {
   width: 10px;
   height: 10px;
