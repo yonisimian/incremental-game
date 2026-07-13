@@ -9,7 +9,13 @@
  * envelope overlay (phase 5) is not wired here yet.
  */
 
-import { MAX_CPS, getModeFlavor, simulate, validateStrategyForMode } from '@game/shared'
+import {
+  MAX_CPS,
+  ROUND_DURATION_SEC,
+  getModeFlavor,
+  simulate,
+  validateStrategyForMode,
+} from '@game/shared'
 import type {
   GameMode,
   ModeDefinition,
@@ -77,6 +83,18 @@ export function initQueueSim(pane: HTMLElement): void {
   const goalTimeInput = pane.querySelector<HTMLInputElement>('#q-goal-time')!
   const goalScoreInput = pane.querySelector<HTMLInputElement>('#q-goal-score')!
 
+  // Seed the goal inputs from the mode's own authored goals, so changing a
+  // mode's default duration / target score (in its tree JSON) is the single
+  // source that flows through here too. Fall back to the generic round length /
+  // the mode's timed target when a goal type isn't authored.
+  const timedGoalDef = mode.goals.find((g) => g.type === 'timed')
+  const scoreGoalDef = mode.goals.find((g) => g.type === 'target-score')
+  const defaultGoalSeconds =
+    timedGoalDef?.type === 'timed' ? timedGoalDef.durationSec : ROUND_DURATION_SEC
+  const defaultGoalScore = scoreGoalDef?.type === 'target-score' ? scoreGoalDef.target : 1000
+  goalTimeInput.value = String(defaultGoalSeconds)
+  goalScoreInput.value = String(defaultGoalScore)
+
   // Name the actual goal upgrade in the race hint (falls back to generic text).
   const goalUpgrade = mode.upgrades.find((u) => u.goalType === 'buy-upgrade')
   if (goalUpgrade) {
@@ -100,13 +118,13 @@ export function initQueueSim(pane: HTMLElement): void {
     switch (goalSelect.value) {
       case 'score': {
         const target = Number(goalScoreInput.value)
-        return { kind: 'score', target: target > 0 ? target : 1000 }
+        return { kind: 'score', target: target > 0 ? target : defaultGoalScore }
       }
       case 'race_to_buy':
         return { kind: 'race_to_buy' }
       default: {
         const durationSec = Number(goalTimeInput.value)
-        return { kind: 'timed', durationSec: durationSec > 0 ? durationSec : 35 }
+        return { kind: 'timed', durationSec: durationSec > 0 ? durationSec : defaultGoalSeconds }
       }
     }
   }
@@ -728,10 +746,10 @@ function layout(): string {
         </select>
       </label>
       <label class="q-goal-field" id="q-goal-time-wrap">Seconds
-        <input id="q-goal-time" type="number" min="1" step="1" value="35" />
+        <input id="q-goal-time" type="number" min="1" step="1" />
       </label>
       <label class="q-goal-field hidden" id="q-goal-score-wrap">Score
-        <input id="q-goal-score" type="number" min="1" step="1" value="1000" />
+        <input id="q-goal-score" type="number" min="1" step="1" />
       </label>
       <span class="q-goal-hint hidden" id="q-goal-race-hint">Ends when the goal upgrade can be bought.</span>
       <button id="q-run">▶ Run</button>
