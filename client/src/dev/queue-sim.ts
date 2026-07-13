@@ -161,7 +161,16 @@ export function initQueueSim(pane: HTMLElement): void {
         editingRow = null
         renderAll()
       })
-      item.append(cb, name)
+      item.append(
+        cb,
+        name,
+        rowBtn('↑', i === 0, () => {
+          reorderStrategy(i, i - 1)
+        }),
+        rowBtn('↓', i === strategies.length - 1, () => {
+          reorderStrategy(i, i + 1)
+        }),
+      )
       listEl.appendChild(item)
     })
   }
@@ -242,6 +251,22 @@ export function initQueueSim(pane: HTMLElement): void {
     if (editingRow === from) editingRow = to
     else if (editingRow === to) editingRow = from
     renderEditor()
+  }
+
+  // Swap two strategies in the list, keeping the selection and the run
+  // checkboxes attached to their strategies (both are index-based).
+  function reorderStrategy(from: number, to: number): void {
+    if (to < 0 || to >= strategies.length) return
+    ;[strategies[from], strategies[to]] = [strategies[to], strategies[from]]
+    if (selected === from) selected = to
+    else if (selected === to) selected = from
+    const hadFrom = runChecked.has(from)
+    const hadTo = runChecked.has(to)
+    runChecked.delete(from)
+    runChecked.delete(to)
+    if (hadTo) runChecked.add(from)
+    if (hadFrom) runChecked.add(to)
+    renderAll()
   }
 
   function deleteRow(i: number): void {
