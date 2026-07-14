@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "name": "Real - Tal",
+  "mode": "idler",
+  "actions": [
+    {
+      "kind": "buy",
+      "upgradeId": "sc-unlock"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 8.5
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-g2"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 2
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af",
+      "count": 2
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr",
+      "count": 2
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 9.3
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 7
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r1",
+      "cps": 11
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 4
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r1",
+      "cps": 9.5
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 4
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af",
+      "count": 2
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp",
+      "count": 2
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dpf"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 2
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr",
+      "count": 3
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp",
+      "count": 4
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 14
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af",
+      "count": 4
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf",
+      "count": 3
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp",
+      "count": 8
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dpf",
+      "count": 4
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 18
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af",
+      "count": 4
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-pcps"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10.8
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r1",
+      "cps": 8.8
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 18
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp",
+      "count": 9
+    }
+  ]
+}
