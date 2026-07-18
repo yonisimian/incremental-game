@@ -32,6 +32,7 @@ import { loadBundledStrategies, loadStrategyFromFile, saveStrategyToFile } from 
 import {
   actionSummary,
   cloneStrategy,
+  enumerationToQueue,
   generatorOptions,
   makeEmptyStrategy,
   modeDefOf,
@@ -40,6 +41,7 @@ import {
   upgradeOptions,
 } from './queue-model.js'
 import type { Option } from './queue-model.js'
+import { generateStrategies } from './strategies.js'
 
 const MODE: GameMode = 'idler'
 
@@ -482,6 +484,23 @@ export function initQueueSim(pane: HTMLElement): void {
     )
   })
 
+  pane.querySelector<HTMLButtonElement>('#q-seed')!.addEventListener('click', () => {
+    setStatus('')
+    const generated = generateStrategies(mode)
+    if (generated.length === 0) {
+      setStatus('Enumeration produced no strategies for this mode.', true)
+      return
+    }
+    for (const g of generated) {
+      strategies.push(enumerationToQueue(g, MODE))
+      runChecked.add(strategies.length - 1)
+    }
+    selected = strategies.length - 1
+    editingRow = null
+    renderAll()
+    setStatus(`Seeded ${generated.length} strategy(ies) from enumeration.`)
+  })
+
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
@@ -799,6 +818,7 @@ function layout(): string {
       <button id="q-del">🗑 Delete</button>
       <button id="q-save">💾 Save</button>
       <button id="q-load">📂 Load</button>
+      <button id="q-seed" title="Append every enumerated strategy for this mode as a starting point">＋ Seed from enumeration</button>
       <label class="q-goal-label">Goal
         <select id="q-goal">
           <option value="race_to_buy" selected>Race to buy</option>
