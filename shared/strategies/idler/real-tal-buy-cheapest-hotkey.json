@@ -1,0 +1,1866 @@
+{
+  "version": 1,
+  "name": "Real - Tal - Buy Cheapest Hotkey",
+  "mode": "idler",
+  "actions": [
+    {
+      "kind": "buy",
+      "upgradeId": "sc-unlock"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 8.6
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-clicking"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sb-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "a-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ir-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "d-alert"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "node"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "node-2"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "node-3"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "node-4"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "pact-node"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "pact-node-2"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "pact-node-3"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "pact-node-4"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-mr-ps"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "d-as"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "d-aa"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-sr-ps"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-cps"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-se-p"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-p-ug"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10.6
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-g2"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 3
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 9
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-p-u"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "e-p-g"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp",
+      "count": 2
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r1",
+      "cps": 9.9
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 6
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp",
+      "count": 2
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 9.5
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-unlock"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 8.8
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-unlock"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "set_click_rate",
+      "resource": "r0",
+      "cps": 10.8
+    },
+    {
+      "kind": "set_highlight",
+      "highlight": "r1"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp",
+      "count": 2
+    },
+    {
+      "kind": "set_highlight",
+      "highlight": "r0"
+    },
+    {
+      "kind": "set_highlight",
+      "highlight": "r1"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 30
+    },
+    {
+      "kind": "set_highlight",
+      "highlight": "r0"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-lcp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g0",
+      "count": 3
+    },
+    {
+      "kind": "buy_generator",
+      "generatorId": "g1",
+      "count": 12
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-pcps"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mr-bank"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-g4"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "lower-g"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar-time"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-atf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-mf-ar"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-bp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mc"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-cs"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "shb-mf-ds"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-sr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-af-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-dp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g4-dpf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "ae-atf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sh-mf-hp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g3-af"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "be-mf-mr"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g1-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "g2-mf"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-af-cp"
+    },
+    {
+      "kind": "buy",
+      "upgradeId": "sc-mf-cp"
+    }
+  ]
+}

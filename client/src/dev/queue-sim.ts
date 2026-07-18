@@ -42,6 +42,21 @@ import type { Option } from './queue-model.js'
 
 const MODE: GameMode = 'idler'
 
+// ─── Cross-tab import bridge ─────────────────────────────────────────
+//
+// The Live tab exports a recorded playthrough as a strategy and hands it here.
+// The Queue tab mounts lazily, so an import that arrives before the first mount
+// is buffered and drained on mount; later imports go straight to the live sink.
+
+let queueImportSink: ((strategy: QueueStrategy) => void) | null = null
+const pendingImports: QueueStrategy[] = []
+
+/** Add a strategy to the Queue tab's session list (from another dev-panel tab). */
+export function importStrategyToQueue(strategy: QueueStrategy): void {
+  if (queueImportSink) queueImportSink(strategy)
+  else pendingImports.push(strategy)
+}
+
 const ACTION_KINDS: { value: SimAction['kind']; label: string }[] = [
   { value: 'buy', label: 'Buy upgrade' },
   { value: 'buy_generator', label: 'Buy generator' },
@@ -470,6 +485,18 @@ export function initQueueSim(pane: HTMLElement): void {
     if (toRun.length === 0) return
     runStrategies(toRun, mode, buildGoal(), chartsEl, reportEl, collapsedCharts)
   })
+
+  // Accept strategies handed over from other tabs (e.g. Live export): append,
+  // select, and check it for the next run. Drain anything buffered before mount.
+  const acceptImport = (strategy: QueueStrategy): void => {
+    strategies.push(strategy)
+    selected = strategies.length - 1
+    runChecked.add(selected)
+    editingRow = null
+    renderAll()
+  }
+  pendingImports.splice(0).forEach(acceptImport)
+  queueImportSink = acceptImport
 
   renderAll()
 }
