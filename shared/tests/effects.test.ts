@@ -359,16 +359,24 @@ describe('lowerTierBoost effect', () => {
 })
 
 describe('dominantGenerator effect', () => {
-  it('boosts every generator tied at the maximum owned count', () => {
+  it('boosts only the single generator at the maximum owned count', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    const [g0, g1] = mode.generators.map((g) => g.id)
+    state.generators[g0] = 5
+    state.generators[g1] = 4
+    const out = applyEffect({ type: 'dominantGenerator', multiplier: 3 }, state, mode) as Modifier[]
+    expect(out).toEqual([{ stage: 'multiplicative', field: g0, value: 3 }])
+  })
+
+  it('breaks ties at the maximum by definition order, boosting only the earliest generator', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
     const [g0, g1] = mode.generators.map((g) => g.id)
     state.generators[g0] = 5
     state.generators[g1] = 5
     const out = applyEffect({ type: 'dominantGenerator', multiplier: 3 }, state, mode) as Modifier[]
-    expect(out).toHaveLength(2)
-    expect(out).toContainEqual({ stage: 'multiplicative', field: g0, value: 3 })
-    expect(out).toContainEqual({ stage: 'multiplicative', field: g1, value: 3 })
+    expect(out).toEqual([{ stage: 'multiplicative', field: g0, value: 3 }])
   })
 
   it('returns null when no generators are owned', () => {
