@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "Base Economy",
+  "mode": "idler",
+  "actions": [
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-mf-mr", "count": 2 },
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 3 },
+    { "kind": "buy", "upgradeId": "be-af-sr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-mf-mr", "count": 2 },
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-mf-sr", "count": 2 },
+    { "kind": "buy", "upgradeId": "be-mf-mr", "count": 2 },
+    { "kind": "buy", "upgradeId": "ae-mf-ar", "count": 2 },
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-mf-mr", "count": 3 },
+    { "kind": "buy", "upgradeId": "ae-mf-ar", "count": 2 }
+  ]
+}

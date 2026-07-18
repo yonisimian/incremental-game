@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "Ale Economy",
+  "mode": "idler",
+  "actions": [
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-af-sr", "count": 4 },
+    { "kind": "buy", "upgradeId": "be-mf-sr", "count": 2 },
+    { "kind": "buy", "upgradeId": "sh-unlock" },
+    { "kind": "set_highlight", "highlight": "r1" },
+    { "kind": "buy", "upgradeId": "sc-unlock" },
+    { "kind": "set_click_rate", "resource": "r1", "cps": 20 },
+    { "kind": "buy", "upgradeId": "be-af-sr", "count": 3 },
+    { "kind": "buy", "upgradeId": "be-mf-sr", "count": 2 },
+    { "kind": "buy", "upgradeId": "sh-mf-hp", "count": 3 },
+    { "kind": "buy", "upgradeId": "be-af-sr", "count": 3 },
+    { "kind": "buy", "upgradeId": "be-mf-sr", "count": 3 },
+    { "kind": "buy", "upgradeId": "sh-mf-hp", "count": 4 },
+    { "kind": "buy", "upgradeId": "ae-mf-ar", "count": 3 }
+  ]
+}

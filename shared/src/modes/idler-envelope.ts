@@ -3,23 +3,33 @@ import type { TargetEnvelope } from '../balance/types.js'
 /**
  * Target envelope for Idler timed mode (35s).
  *
- * **These values are placeholders (TBD).** The correct workflow is:
- * 1. Run all strategies through the simulator (both timing variants).
- * 2. Use P10/P90 of cumulative scores at each timestamp as initial bounds.
- * 3. Tighten or shift the bounds to match the desired pacing feel.
- * 4. Re-validate — at least minViableStrategies must still land within bounds.
+ * **Loose guardrail bands** — calibrated over the strategy corpus in
+ * `shared/strategies/idler/` (run `pnpm check:balance` to re-validate). The
+ * intent is to catch *gross* regressions and exploits, not to enforce a tight
+ * pacing corridor:
+ * - `minScore` sits just below the weakest legit archetype (Generator Turtle),
+ *   so the floor only trips if income broadly collapses toward the do-nothing
+ *   baseline (~1 pt/s native).
+ * - `maxScore` sits ~2.5–3× above the strongest legit archetype but well under
+ *   the click-rush outlier, so only a genuine exploit exceeds it (surfaced as an
+ *   exploit warning).
+ *
+ * Known balance debt (see docs/plans): idler is click-dominated — the "Click
+ * Rush" strategy scores ~6–12× the normal cluster at every checkpoint and is
+ * intentionally retained as an exploit-warning demonstrator. Pure economy /
+ * generator openings can't ramp within 35s. Both are tracked as mode-tuning
+ * follow-ups, not envelope-system bugs.
  */
 export const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
   mode: 'idler',
   goalType: 'timed',
   checkpoints: [
-    // TBD — derive from sim P10/P90 once calibrated
-    { timeSec: 5, minScore: 3, maxScore: 8, phase: 'Discovery' },
-    { timeSec: 10, minScore: 15, maxScore: 40, phase: 'First Choice' },
-    { timeSec: 15, minScore: 40, maxScore: 100, phase: 'Acceleration' },
-    { timeSec: 25, minScore: 120, maxScore: 350, phase: 'Optimization' },
-    { timeSec: 35, minScore: 250, maxScore: 600, phase: 'Sprint (final)' },
+    { timeSec: 5, minScore: 8, maxScore: 150, phase: 'Discovery' },
+    { timeSec: 10, minScore: 15, maxScore: 400, phase: 'First Choice' },
+    { timeSec: 15, minScore: 25, maxScore: 800, phase: 'Acceleration' },
+    { timeSec: 25, minScore: 45, maxScore: 2500, phase: 'Optimization' },
+    { timeSec: 35, minScore: 75, maxScore: 5000, phase: 'Sprint (final)' },
   ],
-  minViableStrategies: 3,
-  maxStrategySpread: 1.15,
+  minViableStrategies: 6,
+  maxStrategySpread: 30,
 }
