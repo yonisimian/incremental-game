@@ -555,7 +555,7 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   ): void => {
     for (const o of normalizeEffectOutputs(out)) {
       if ('kind' in o && o.kind === 'baseModifier') {
-        if (owned !== undefined) routeBaseModifier(o, owned)
+        routeBaseModifier(o, owned ?? 1)
       } else if ('stage' in o) {
         routeModifier(o)
       }

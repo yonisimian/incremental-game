@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
-import type { Modifier } from '../../modifiers/types.js'
 import type { PlayerState } from '../../types.js'
-import type { EffectDef } from '../types.js'
+import type { BaseModifierOutput, EffectDef } from '../types.js'
 
 /**
  * Schema for the `highlightMultiplier` effect's params.
@@ -24,10 +23,18 @@ export type HighlightMultiplierParams = z.infer<typeof schema>
  * The effect does not gate itself: as a per-upgrade effect it runs only when its
  * host upgrade is owned; as a mode-level effect it always runs.
  */
-function apply(p: HighlightMultiplierParams, state: Readonly<PlayerState>): Modifier | null {
+function apply(
+  p: HighlightMultiplierParams,
+  state: Readonly<PlayerState>,
+): BaseModifierOutput | null {
   // `?? 'r0'` mirrors the prior idler default when no resource is highlighted.
   const highlight = (state.meta.highlight as string | undefined) ?? 'r0'
-  return { stage: 'multiplicative', field: highlight, value: p.multiplier }
+  return {
+    kind: 'baseModifier',
+    stage: 'multiplicative',
+    field: highlight,
+    value: p.multiplier,
+  }
 }
 
 export const highlightMultiplier: EffectDef<HighlightMultiplierParams> = { schema, apply }
