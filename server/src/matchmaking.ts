@@ -103,8 +103,7 @@ function cancelTtlTimer(room: Room): void {
 }
 
 type CreateRoomResult =
-  | { ok: true; room: Room }
-  | { ok: false; reason: 'room_limit' | 'already_in_room' }
+  { ok: true; room: Room } | { ok: false; reason: 'room_limit' | 'already_in_room' }
 
 /**
  * Create a new room. The creator becomes the first player.

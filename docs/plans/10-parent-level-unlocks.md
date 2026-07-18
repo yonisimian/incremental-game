@@ -30,8 +30,7 @@ Enhance prerequisite leaves to include a minimum level requirement:
 
 ```ts
 export type Prerequisite =
-  | { type: 'upgrade'; id: UpgradeId }
-  | { type: 'upgrade'; id: UpgradeId; minLevel: number }
+  { type: 'upgrade'; id: UpgradeId } | { type: 'upgrade'; id: UpgradeId; minLevel: number }
 ```
 
 Existing `upgrade` leaves without `minLevel` remain equivalent to `minLevel: 1`.
