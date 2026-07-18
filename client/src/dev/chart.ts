@@ -52,6 +52,18 @@ export interface ChartSeries {
 }
 
 /**
+ * An optional shaded region drawn *behind* the series (a target envelope band).
+ * `mins`/`maxs` are the lower/upper bounds at each `xs`; all three arrays must be
+ * the same length or the band is skipped.
+ */
+export interface ChartBand {
+  xs: number[]
+  mins: number[]
+  maxs: number[]
+  label?: string
+}
+
+/**
  * Position the hover tooltip near (left, top) — coordinates relative to the plot
  * `over` element — flipping it to the left of the cursor and clamping vertically
  * so it never spills outside the plot (which would clip it under the chart edge).
@@ -124,6 +136,7 @@ export function renderChart(
   title: string,
   xData: number[],
   series: ChartSeries[],
+  band?: ChartBand,
 ): void {
   // Cleanup previous chart
   const prev = instances.get(container)
@@ -165,6 +178,13 @@ export function renderChart(
   // Build uPlot data: [xData, ...yDatas]
   const uData: uPlot.AlignedData = [xData, ...series.map((s) => s.data)]
 
+  // A band is valid only when all three arrays are non-empty and equal-length.
+  const bandValid =
+    band !== undefined &&
+    band.xs.length > 0 &&
+    band.xs.length === band.mins.length &&
+    band.xs.length === band.maxs.length
+
   // Subtract padding so the canvas fits inside the padded container
   const style = getComputedStyle(container)
   const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
@@ -203,6 +223,49 @@ export function renderChart(
     ],
     hooks: {
       setSeries: [],
+      drawClear: [
+        (u: uPlot) => {
+          // The envelope band, painted right after uPlot clears the canvas and
+          // before it draws axes/series, so it sits *behind* the score lines.
+          // Presentational only — never throw here (that would blank the chart).
+          if (!bandValid) return
+          const ctx = u.ctx
+          const toX = (v: number): number => u.valToPos(v, 'x', true)
+          const toY = (v: number): number => u.valToPos(v, 'y', true)
+
+          ctx.save()
+          ctx.beginPath()
+          // Forward along the lower bound, then back along the upper bound.
+          band.xs.forEach((x, i) => {
+            const px = toX(x)
+            const py = toY(band.mins[i])
+            if (i === 0) ctx.moveTo(px, py)
+            else ctx.lineTo(px, py)
+          })
+          for (let i = band.xs.length - 1; i >= 0; i--) {
+            ctx.lineTo(toX(band.xs[i]), toY(band.maxs[i]))
+          }
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(76, 175, 80, 0.10)'
+          ctx.fill()
+
+          // Dashed edges along the min and max bounds.
+          ctx.strokeStyle = 'rgba(76, 175, 80, 0.5)'
+          ctx.lineWidth = 1
+          ctx.setLineDash([5, 4])
+          for (const bounds of [band.mins, band.maxs]) {
+            ctx.beginPath()
+            band.xs.forEach((x, i) => {
+              const px = toX(x)
+              const py = toY(bounds[i])
+              if (i === 0) ctx.moveTo(px, py)
+              else ctx.lineTo(px, py)
+            })
+            ctx.stroke()
+          }
+          ctx.restore()
+        },
+      ],
       draw: [
         (u: uPlot) => {
           const ctx = u.ctx
