@@ -20,8 +20,9 @@ const schema = z.strictObject({
 export type DominantGeneratorParams = z.infer<typeof schema>
 
 /**
- * Emits a multiplicative modifier for every generator tied at the maximum owned
- * count; `null` when no generators are owned. Multi-modifier return covers ties.
+ * Emits a multiplicative modifier for the generator that currently holds the
+ * maximum owned count. If a later generator catches up and ties the current max,
+ * the original leader keeps the bonus while the new tie does not.
  */
 function apply(
   p: DominantGeneratorParams,
@@ -29,13 +30,18 @@ function apply(
   mode: ModeDefinition,
 ): Modifier[] | null {
   let max = 0
+  let leaderId: string | null = null
+
   for (const gen of mode.generators) {
-    max = Math.max(max, state.generators[gen.id] ?? 0)
+    const owned = state.generators[gen.id] ?? 0
+    if (owned > max) {
+      max = owned
+      leaderId = gen.id
+    }
   }
-  if (max <= 0) return null
-  return mode.generators
-    .filter((gen) => (state.generators[gen.id] ?? 0) === max)
-    .map((gen) => ({ stage: 'multiplicative', field: gen.id, value: p.multiplier }))
+
+  if (max <= 0 || leaderId === null) return null
+  return [{ stage: 'multiplicative', field: leaderId, value: p.multiplier }]
 }
 
 export const dominantGenerator: EffectDef<DominantGeneratorParams> = { schema, apply }
