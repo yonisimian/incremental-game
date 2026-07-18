@@ -80,6 +80,12 @@ describe('highlightMultiplier params', () => {
     return applyEffect(ref, state, mode)
   }
 
+  it('rejects a multiplier less than or equal to 1', () => {
+    expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: 1 })).toThrow(
+      /multiplier/u,
+    )
+  })
+
   it('rejects a non-finite multiplier', () => {
     expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: Infinity })).toThrow(
       /multiplier/u,
@@ -199,6 +205,34 @@ describe('highlightMultiplier behavior (golden)', () => {
 // ─── collectModifiers effect wiring ──────────────────────────────────
 
 describe('collectModifiers effect wiring', () => {
+  it('rejects a baseModifier with a non-positive value', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 0 },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/value/u)
+  })
+
+  it('rejects a relativeModifier with a non-positive factor', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'r0',
+          stage: 'multiplicative',
+          factor: 0,
+        },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/factor/u)
+  })
+
   it('applies per-upgrade effects only when the upgrade is owned', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
@@ -459,6 +493,17 @@ describe('balancedGenerators effect', () => {
 })
 
 describe('generatorCost effect', () => {
+  it('rejects a generatorCost with a non-positive factor', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'generatorCost', generator: mode.generators[0].id, costFactor: 0 },
+        createInitialState(mode),
+        mode,
+      ),
+    ).toThrow(/costFactor/u)
+  })
+
   it('emits a generatorCost output carrying both factors', () => {
     const mode = getModeDefinition('idler')
     const gen = mode.generators[0].id

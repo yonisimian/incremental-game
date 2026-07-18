@@ -30,9 +30,9 @@ const ModifierSchema = z.strictObject({
  */
 const CostEntrySchema = z
   .strictObject({
-    baseCost: z.number(),
+    baseCost: z.number().positive(),
     scaleType: z.enum(['linear', 'exponential']).optional(),
-    scaleFactor: z.number().optional(),
+    scaleFactor: z.number().positive().optional(),
   })
   .refine((e) => (e.scaleType === undefined) === (e.scaleFactor === undefined), {
     message: 'scaleType and scaleFactor must be set together (or both omitted for a flat cost)',

@@ -233,6 +233,34 @@ describe('tree codec — validation failures', () => {
     expect(() => parseTreeFile(tree)).toThrow()
   })
 
+  it('rejects a non-positive baseCost', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { baseCost: 0 } },
+        purchaseLimit: null,
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).toThrow(/baseCost/u)
+  })
+
+  it('rejects a non-positive scaleFactor', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { baseCost: 5, scaleType: 'exponential', scaleFactor: 0 } },
+        purchaseLimit: null,
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).toThrow(/scaleFactor/u)
+  })
+
   it('rejects a cost entry with scaleFactor but no scaleType (must co-occur)', () => {
     const tree = minimalTree()
     tree.upgrades = [

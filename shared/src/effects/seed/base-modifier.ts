@@ -16,7 +16,7 @@ import type { EffectDef } from '../types.js'
 const schema = z.strictObject({
   stage: z.enum(['additive', 'multiplicative']),
   field: z.string(),
-  value: z.number(),
+  value: z.number().gt(0),
 })
 
 /** Params for the `baseModifier` effect (inferred from its schema). */

@@ -13,7 +13,7 @@ import type { BaseModifierOutput, EffectDef } from '../types.js'
  * so finiteness needs no extra guard.
  */
 const schema = z.strictObject({
-  multiplier: z.number(),
+  multiplier: z.number().gt(1),
 })
 
 /** Params for the `highlightMultiplier` effect (inferred from its schema). */

@@ -26,7 +26,7 @@ const schema = z.strictObject({
   source: z.string(),
   field: z.string(),
   stage: z.enum(['additive', 'multiplicative']),
-  factor: z.number().optional(),
+  factor: z.number().gt(0).optional(),
 })
 
 /** Params for the `relativeModifier` effect (inferred from its schema). */
