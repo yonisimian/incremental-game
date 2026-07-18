@@ -1471,6 +1471,12 @@
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "dominantGenerator",
+                  "multiplier": 3
+                }
+              ],
               "offset": {
                 "x": -192,
                 "y": 120
@@ -1492,6 +1498,12 @@
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "balancedGenerators",
+                  "multiplier": 2
+                }
+              ],
               "offset": {
                 "x": -96,
                 "y": 120
@@ -1510,6 +1522,12 @@
                 "type": "upgrade",
                 "id": "g3-g4"
               },
+              "effects": [
+                {
+                  "type": "lowerTierBoost",
+                  "perUnit": 0.1
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 120
