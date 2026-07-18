@@ -8,9 +8,10 @@ import type { EffectDef } from '../types.js'
 /**
  * Schema for the `dominantGenerator` effect's params.
  *
- * "The generator with the highest amount gains an additional boost": the
- * generator(s) holding the maximum owned count are multiplied by `multiplier`.
- * Ties all receive the boost.
+ * "The generator with the highest amount gains an additional boost": the single
+ * generator holding the maximum owned count is multiplied by `multiplier`. Ties
+ * are broken deterministically in favor of the earliest generator in definition
+ * order.
  */
 const schema = z.strictObject({
   multiplier: z.number(),
@@ -20,9 +21,10 @@ const schema = z.strictObject({
 export type DominantGeneratorParams = z.infer<typeof schema>
 
 /**
- * Emits a multiplicative modifier for the generator that currently holds the
- * maximum owned count. If a later generator catches up and ties the current max,
- * the original leader keeps the bonus while the new tie does not.
+ * Emits a single multiplicative modifier for the generator holding the maximum
+ * owned count; `null` when no generators are owned. This function is stateless,
+ * so ties are resolved deterministically by definition order: the earliest
+ * generator in `mode.generators` among those at the maximum wins the bonus.
  */
 function apply(
   p: DominantGeneratorParams,

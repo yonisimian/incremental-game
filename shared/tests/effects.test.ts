@@ -359,7 +359,7 @@ describe('lowerTierBoost effect', () => {
 })
 
 describe('dominantGenerator effect', () => {
-  it('boosts the current leader when no tie has formed yet', () => {
+  it('boosts only the single generator at the maximum owned count', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
     const [g0, g1] = mode.generators.map((g) => g.id)
@@ -369,7 +369,7 @@ describe('dominantGenerator effect', () => {
     expect(out).toEqual([{ stage: 'multiplicative', field: g0, value: 3 }])
   })
 
-  it('keeps the original leader boosted when a later generator catches up to the same maximum', () => {
+  it('breaks ties at the maximum by definition order, boosting only the earliest generator', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
     const [g0, g1] = mode.generators.map((g) => g.id)
