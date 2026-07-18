@@ -13,7 +13,7 @@ import type { EffectDef } from '../types.js'
  * the order generators appear in `mode.generators`.
  */
 const schema = z.strictObject({
-  perUnit: z.number(),
+  perUnit: z.number().gt(0),
 })
 
 /** Params for the `lowerTierBoost` effect (inferred from its schema). */

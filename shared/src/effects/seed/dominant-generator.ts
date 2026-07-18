@@ -14,7 +14,7 @@ import type { EffectDef } from '../types.js'
  * order.
  */
 const schema = z.strictObject({
-  multiplier: z.number(),
+  multiplier: z.number().gt(1),
 })
 
 /** Params for the `dominantGenerator` effect (inferred from its schema). */

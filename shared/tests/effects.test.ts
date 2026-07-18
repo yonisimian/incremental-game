@@ -338,6 +338,13 @@ describe('collectModifiers effect wiring', () => {
 // ─── Generator synergy effects ───────────────────────────────────────
 
 describe('lowerTierBoost effect', () => {
+  it('rejects a non-positive perUnit value', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'lowerTierBoost', perUnit: 0 }, createInitialState(mode), mode),
+    ).toThrow(/perUnit/u)
+  })
+
   it('boosts higher tiers by the units owned in lower tiers', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
@@ -359,6 +366,13 @@ describe('lowerTierBoost effect', () => {
 })
 
 describe('dominantGenerator effect', () => {
+  it('rejects a multiplier less than or equal to 1', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'dominantGenerator', multiplier: 1 }, createInitialState(mode), mode),
+    ).toThrow(/multiplier/u)
+  })
+
   it('boosts only the single generator at the maximum owned count', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
@@ -388,6 +402,13 @@ describe('dominantGenerator effect', () => {
 })
 
 describe('balancedGenerators effect', () => {
+  it('rejects a multiplier less than or equal to 1', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'balancedGenerators', multiplier: 1 }, createInitialState(mode), mode),
+    ).toThrow(/multiplier/u)
+  })
+
   it('emits a single global multiplier when all generators are owned equally', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
