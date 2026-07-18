@@ -16,8 +16,9 @@ import {
   isPacingEnvelope,
   simResultsToScores,
   validateEnvelope,
+  validatePacing,
 } from '@game/shared'
-import type { GameMode, SimGoal, SimResult, TargetEnvelope } from '@game/shared'
+import type { GameMode, PacingEnvelope, SimGoal, SimResult, TargetEnvelope } from '@game/shared'
 
 import type { ChartBand } from './chart.js'
 
@@ -39,13 +40,13 @@ export function envelopeSectionHtml(mode: GameMode, results: SimResult[], goal: 
     return '<p class="envelope-none">No envelope for this goal.</p>'
   }
 
-  // Pacing (score / race) envelopes are wired in phase 6; show the empty state.
-  if (isPacingEnvelope(envelope)) {
-    return '<p class="envelope-none">Pacing envelope not yet evaluated (score / race goals).</p>'
-  }
-
   if (results.length === 0) {
     return '<p class="envelope-none">Run a strategy to see the envelope verdict.</p>'
+  }
+
+  // Pacing (score / race) envelopes are goal-terminated — no duration guard.
+  if (isPacingEnvelope(envelope)) {
+    return pacingReportHtml(envelope, results)
   }
 
   const lastCheckpoint = envelope.checkpoints.at(-1)
@@ -106,6 +107,53 @@ function envelopeReportHtml(envelope: TargetEnvelope, results: SimResult[]): str
       <div class="envelope-warnings">
         ⚠️ <strong>Exploit warnings:</strong> ${report.exploitWarnings.map(escapeHtml).join(', ')}
         (exceeded maxScore at one or more checkpoints)
+      </div>`
+  }
+
+  return html
+}
+
+/** Build the pacing verdict banner + per-strategy time table + exploit warnings. */
+function pacingReportHtml(envelope: PacingEnvelope, results: SimResult[]): string {
+  const report = validatePacing(envelope, results)
+
+  const icon = report.pass ? '✅' : '❌'
+  const spreadText =
+    report.spreadRatio !== null ? report.spreadRatio.toFixed(3) : 'N/A (< 2 viable)'
+
+  let html = `
+    <div class="envelope-verdict ${report.pass ? 'pass' : 'fail'}">
+      ${icon} <strong>${report.pass ? 'PASS' : 'FAIL'}</strong>
+      — ${report.viableCount}/${envelope.minViableStrategies} viable required,
+      spread: ${spreadText} (max: ${envelope.maxTimeSpread})
+      <em>· time-to-milestone</em>
+    </div>
+    <table class="envelope-table">
+      <thead>
+        <tr><th>Strategy</th><th>Time</th><th>Viable</th><th>Status</th></tr>
+      </thead>
+      <tbody>`
+
+  for (const s of report.strategies) {
+    const viableIcon = s.viable ? '🟢' : '🔴'
+    const lastStatus = s.milestoneStatuses.at(-1) ?? 'above'
+    const timeText = s.timeSec === null ? '—' : `${s.timeSec.toFixed(1)}s`
+    html += `
+        <tr class="envelope-row-${lastStatus}">
+          <td>${escapeHtml(s.name)}</td>
+          <td>${timeText}</td>
+          <td>${viableIcon}</td>
+          <td>${lastStatus}</td>
+        </tr>`
+  }
+
+  html += '</tbody></table>'
+
+  if (report.exploitWarnings.length > 0) {
+    html += `
+      <div class="envelope-warnings">
+        ⚠️ <strong>Exploit warnings:</strong> ${report.exploitWarnings.map(escapeHtml).join(', ')}
+        (reached a milestone suspiciously fast)
       </div>`
   }
 

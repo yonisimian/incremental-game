@@ -1,4 +1,4 @@
-import type { TargetEnvelope } from '../balance/types.js'
+import type { PacingEnvelope, TargetEnvelope } from '../balance/types.js'
 
 /**
  * Target envelope for Idler timed mode (35s).
@@ -32,4 +32,40 @@ export const IDLER_TIMED_ENVELOPE: TargetEnvelope = {
   ],
   minViableStrategies: 6,
   maxStrategySpread: 30,
+}
+
+/**
+ * Pacing envelope for Idler **target-score** mode (reach 364, the mode's
+ * authored target). The time-axis analog of the timed envelope: instead of
+ * "score at time T", it bands "seconds to reach milestone M". Same loose
+ * guardrail intent — `minTimeSec` sits just above the click-rush outlier (so
+ * finishing suspiciously fast trips an exploit warning) and `maxTimeSec` sits
+ * above the slowest legit archetype (Generator Turtle ≈ 80s) with margin.
+ */
+export const IDLER_SCORE_ENVELOPE: PacingEnvelope = {
+  mode: 'idler',
+  goalType: 'target-score',
+  checkpoints: [
+    { atScore: 100, minTimeSec: 4, maxTimeSec: 60, phase: 'Opening' },
+    { atScore: 200, minTimeSec: 6, maxTimeSec: 75, phase: 'Midgame' },
+    { atScore: 364, minTimeSec: 10, maxTimeSec: 110, phase: 'Target' },
+  ],
+  minViableStrategies: 6,
+  maxTimeSpread: 10,
+}
+
+/**
+ * Pacing envelope for Idler **race-to-buy** mode (buy the goal upgrade, 30000
+ * r0). A single time-to-buy band around the real racer cluster (≈ 40–105s). The
+ * sprint-oriented economy/generator archetypes take 600s+ to grind the target
+ * and are (correctly) non-viable here — being built for a 35s round, they are
+ * simply not race strategies, which is an honest finding rather than a band to
+ * widen. `minTimeSec` is a future-proof exploit floor (nothing trips it today).
+ */
+export const IDLER_RACE_ENVELOPE: PacingEnvelope = {
+  mode: 'idler',
+  goalType: 'buy-upgrade',
+  checkpoints: [{ minTimeSec: 20, maxTimeSec: 130, phase: 'Buy the Throne' }],
+  minViableStrategies: 4,
+  maxTimeSpread: 5,
 }

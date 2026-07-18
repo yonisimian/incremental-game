@@ -1,4 +1,5 @@
 export * from './types.js'
 export * from './validate.js'
 export * from './project.js'
+export * from './pacing.js'
 export * from './registry.js'

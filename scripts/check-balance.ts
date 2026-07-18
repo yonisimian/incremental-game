@@ -27,13 +27,17 @@ import { createRequire } from 'node:module'
 import {
   allEnvelopes,
   AVAILABLE_MODES,
+  firstTimeAtScore,
   isPacingEnvelope,
   loadTree,
   parseStrategy,
   simResultsToScores,
   simulate,
   validateEnvelope,
+  validatePacing,
   type BalanceEnvelope,
+  type PacingCheckpoint,
+  type PacingEnvelope,
   type QueueStrategy,
   type SimGoal,
   type SimResult,
@@ -66,11 +70,19 @@ function loadStrategies(mode: string): QueueStrategy[] {
 /** The simulation goal an envelope's strategies should be run at. */
 function goalForEnvelope(envelope: BalanceEnvelope): SimGoal {
   if (isPacingEnvelope(envelope)) {
-    // Phase 6 wires score/race pacing; until then callers skip pacing envelopes.
-    throw new Error('pacing envelopes are not yet supported by the balance gate')
+    if (envelope.goalType === 'buy-upgrade') return { kind: 'race_to_buy' }
+    // target-score: run until the final (largest) score milestone.
+    const target = Math.max(...envelope.checkpoints.map((cp) => cp.atScore ?? 0))
+    return { kind: 'score', target }
   }
   const last = envelope.checkpoints[envelope.checkpoints.length - 1]
   return { kind: 'timed', durationSec: last.timeSec }
+}
+
+/** Elapsed time to a pacing milestone (mirrors `validatePacing`'s internal rule). */
+function pacingTime(result: SimResult, cp: PacingCheckpoint): number | null {
+  if (cp.atScore !== undefined) return firstTimeAtScore(result, cp.atScore)
+  return result.goalReached ? (result.snapshots.at(-1)?.timeSec ?? null) : null
 }
 
 /** Linear-interpolated percentile (0–100) of an unsorted numeric sample. */
@@ -102,6 +114,21 @@ function printSuggestion(envelope: TargetEnvelope, results: SimResult[]): void {
         `  // now [${cp.minScore}, ${cp.maxScore}]`,
     )
   })
+}
+
+/** Print the observed P10/P90 spread per milestone as a suggested-time-bands block. */
+function printPacingSuggestion(envelope: PacingEnvelope, results: SimResult[]): void {
+  console.info('\n  Suggested time bands (P10 / P90 of observed times — a starting point):')
+  for (const cp of envelope.checkpoints) {
+    const times = results.map((r) => pacingTime(r, cp)).filter((t): t is number => t !== null)
+    const p10 = percentile(times, 10)
+    const p90 = percentile(times, 90)
+    const at = cp.atScore !== undefined ? `atScore: ${cp.atScore}, ` : ''
+    console.info(
+      `    { ${at}minTimeSec: ${fmt(p10)}, maxTimeSec: ${fmt(p90)}, phase: '${cp.phase}' },` +
+        `  // now [${cp.minTimeSec}, ${cp.maxTimeSec}]`,
+    )
+  }
 }
 
 /** Validate one timed envelope; returns true on pass. */
@@ -142,6 +169,39 @@ function checkTimed(envelope: TargetEnvelope): boolean {
   return report.pass
 }
 
+/** Validate one pacing (score / race) envelope; returns true on pass. */
+function checkPacing(envelope: PacingEnvelope): boolean {
+  const strategies = loadStrategies(envelope.mode)
+  const label = `${envelope.mode}:${envelope.goalType}`
+
+  if (strategies.length === 0) {
+    console.error(`✗ ${label}: no strategies found under shared/strategies/${envelope.mode}/`)
+    return false
+  }
+
+  const goal = goalForEnvelope(envelope)
+  const results = strategies.map((s) => simulate(s, { goal }))
+  const report = validatePacing(envelope, results)
+
+  console.info(`\n${report.pass ? '✓' : '✗'} ${label}  (time-to-milestone)`)
+  console.info(
+    `  viable: ${report.viableCount}/${strategies.length} (need ${envelope.minViableStrategies})` +
+      `   spread: ${report.spreadRatio === null ? 'n/a' : `${report.spreadRatio.toFixed(3)} (max ${envelope.maxTimeSpread})`}`,
+  )
+  for (const s of report.strategies) {
+    const mark = s.viable ? 'viable ' : '       '
+    const time = s.timeSec === null ? '   —' : `${s.timeSec.toFixed(1)}s`
+    console.info(`    ${mark} ${time.padStart(8)}  ${s.name}`)
+  }
+  if (report.exploitWarnings.length > 0) {
+    console.info(`  ⚠ exploit candidates (suspiciously fast): ${report.exploitWarnings.join(', ')}`)
+  }
+
+  if (SUGGEST) printPacingSuggestion(envelope, results)
+
+  return report.pass
+}
+
 function main(): void {
   const envelopes = allEnvelopes()
   if (envelopes.length === 0) {
@@ -151,11 +211,8 @@ function main(): void {
 
   let allPass = true
   for (const envelope of envelopes) {
-    if (isPacingEnvelope(envelope)) {
-      console.info(`\n· ${envelope.mode}:${envelope.goalType}: pacing envelope (not yet gated)`)
-      continue
-    }
-    if (!checkTimed(envelope)) allPass = false
+    const ok = isPacingEnvelope(envelope) ? checkPacing(envelope) : checkTimed(envelope)
+    if (!ok) allPass = false
   }
 
   if (SUGGEST) {

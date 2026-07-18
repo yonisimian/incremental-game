@@ -107,3 +107,32 @@ export interface PacingEnvelope {
   /** Maximum allowed ratio between fastest and slowest *viable* strategy times. */
   readonly maxTimeSpread: number
 }
+
+/** Per-strategy result within a pacing report (time-axis mirror of `StrategyReport`). */
+export interface PacingStrategyReport {
+  /** Strategy name. */
+  readonly name: string
+  /** Elapsed seconds to reach the final milestone, or `null` if it was never reached. */
+  readonly timeSec: number | null
+  /** Whether the strategy is viable (goal reached AND final time within band). */
+  readonly viable: boolean
+  /**
+   * Per-milestone status: `below` = suspiciously fast (exploit), `above` = too
+   * slow or never reached, `within` = on pace.
+   */
+  readonly milestoneStatuses: readonly CheckpointStatus[]
+}
+
+/** Full pacing validation report (time-axis mirror of `EnvelopeReport`). */
+export interface PacingReport {
+  /** Whether the pacing constraints are satisfied. */
+  readonly pass: boolean
+  /** Number of viable strategies at the final milestone. */
+  readonly viableCount: number
+  /** Ratio between slowest and fastest viable *times* (or null if < 2 viable). */
+  readonly spreadRatio: number | null
+  /** Per-strategy breakdown. */
+  readonly strategies: readonly PacingStrategyReport[]
+  /** Strategies suspiciously fast (below minTimeSec at any milestone) — exploit warnings. */
+  readonly exploitWarnings: readonly string[]
+}

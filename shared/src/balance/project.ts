@@ -45,3 +45,15 @@ export function goalTypeOf(goal: SimGoal): TargetEnvelope['goalType'] {
       return 'buy-upgrade'
   }
 }
+
+/**
+ * Elapsed time (seconds) at which a run first reached `atScore`, or `null` if it
+ * never did. The time-axis analog of `simResultsToScores` for pacing envelopes;
+ * snapshots are time-ordered, so the first crossing is a forward scan.
+ */
+export function firstTimeAtScore(result: SimResult, atScore: number): number | null {
+  for (const snapshot of result.snapshots) {
+    if (snapshot.score >= atScore) return snapshot.timeSec
+  }
+  return null
+}

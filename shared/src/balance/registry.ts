@@ -5,7 +5,11 @@
  * type is a pure data addition — see docs/plans/24-envelope-integration.md.
  */
 
-import { IDLER_TIMED_ENVELOPE } from '../modes/idler-envelope.js'
+import {
+  IDLER_RACE_ENVELOPE,
+  IDLER_SCORE_ENVELOPE,
+  IDLER_TIMED_ENVELOPE,
+} from '../modes/idler-envelope.js'
 import type { GameMode } from '../types.js'
 import type { PacingEnvelope, TargetEnvelope } from './types.js'
 
@@ -19,6 +23,8 @@ export function isPacingEnvelope(envelope: BalanceEnvelope): envelope is PacingE
 
 const ENVELOPES: Record<string, BalanceEnvelope | undefined> = {
   'idler:timed': IDLER_TIMED_ENVELOPE,
+  'idler:target-score': IDLER_SCORE_ENVELOPE,
+  'idler:buy-upgrade': IDLER_RACE_ENVELOPE,
 }
 
 /** Look up the balance envelope for a mode + goal type, or `undefined` if none is authored. */

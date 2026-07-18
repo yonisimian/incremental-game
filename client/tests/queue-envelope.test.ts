@@ -30,14 +30,25 @@ function fullRun(name: string, score: number): SimResult {
   }
 }
 
-describe('envelopeSectionHtml', () => {
-  it('shows the empty state when no envelope exists for the goal', () => {
-    // No pacing envelope is registered yet, so a score goal has none.
-    expect(envelopeSectionHtml('idler', [fullRun('A', 100)], SCORE)).toContain(
-      'No envelope for this goal',
-    )
-  })
+/** A result built from explicit (time, score) samples — for pacing (time-to-milestone) tests. */
+function pacingRun(
+  name: string,
+  samples: readonly [number, number][],
+  goalReached = true,
+): SimResult {
+  const snapshots = samples.map(([t, s]) => snap(t, s))
+  return {
+    name,
+    mode: 'idler',
+    snapshots,
+    finalScore: snapshots.at(-1)?.score ?? 0,
+    events: [],
+    notReached: [],
+    goalReached,
+  }
+}
 
+describe('envelopeSectionHtml', () => {
   it('shows a prompt when there are no results', () => {
     expect(envelopeSectionHtml('idler', [], TIMED)).toContain('Run a strategy')
   })
@@ -80,6 +91,48 @@ describe('envelopeSectionHtml', () => {
     const html = envelopeSectionHtml('idler', [fullRun('<script>', 1e9)], TIMED)
     expect(html).toContain('&lt;script&gt;')
     expect(html).not.toContain('<script>')
+  })
+})
+
+describe('envelopeSectionHtml — pacing (score goal)', () => {
+  // Score envelope milestones: 100@[4,60], 200@[6,75], 364@[10,110].
+  it('renders a time-to-milestone verdict for a score goal', () => {
+    const viable = pacingRun('Steady', [
+      [5, 50],
+      [20, 120],
+      [40, 250],
+      [60, 400],
+    ])
+    const html = envelopeSectionHtml('idler', [viable], SCORE)
+    expect(html).toContain('time-to-milestone')
+    expect(html).toContain('envelope-verdict')
+    expect(html).toContain('Steady')
+    // Final milestone (364) reached at 60s ∈ [10, 110] → viable.
+    expect(html).toContain('🟢')
+  })
+
+  it('flags a suspiciously-fast strategy as an exploit and non-viable', () => {
+    const exploit = pacingRun('Rusher', [
+      [1, 400],
+      [2, 500],
+    ])
+    const html = envelopeSectionHtml('idler', [exploit], SCORE)
+    expect(html).toContain('envelope-verdict fail')
+    expect(html).toContain('envelope-warnings')
+    expect(html).toContain('suspiciously fast')
+    expect(html).toContain('envelope-row-below')
+  })
+
+  it('marks a strategy that never reaches the final milestone as non-viable', () => {
+    const slow = pacingRun('Grinder', [
+      [5, 50],
+      [35, 150],
+    ])
+    const html = envelopeSectionHtml('idler', [slow], SCORE)
+    expect(html).toContain('envelope-row-above')
+    expect(html).toContain('🔴')
+    // The dash marks the unreached final-milestone time.
+    expect(html).toContain('—')
   })
 })
 
