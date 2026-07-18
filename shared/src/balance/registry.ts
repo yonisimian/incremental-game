@@ -1,41 +1,45 @@
 /**
- * Registry mapping `mode:goalType` to its balance envelope. Timed goals use a
+ * Registry mapping each `mode` to its balance envelopes. Timed goals use a
  * score-band `TargetEnvelope`; goal-terminated goals (target-score / buy-upgrade)
- * use a time-band `PacingEnvelope`. Union-typed from the start so adding a goal
- * type is a pure data addition — see docs/plans/24-envelope-integration.md.
+ * use a time-band `PacingEnvelope`. Envelopes are **development / CI metadata**
+ * authored in a sidecar (`shared/balance/<mode>.json`) and registered by
+ * `loadBalance` — see docs/plans/25-envelope-integration.md (phase 7).
+ *
+ * The registry is empty in production (gameplay never calls `loadBalance`), so
+ * `envelopeFor` / `allEnvelopes` **fail soft**: an unregistered mode yields no
+ * envelope, exactly as a missing key does.
  */
 
-import {
-  IDLER_RACE_ENVELOPE,
-  IDLER_SCORE_ENVELOPE,
-  IDLER_TIMED_ENVELOPE,
-} from '../modes/idler-envelope.js'
 import type { GameMode } from '../types.js'
-import type { PacingEnvelope, TargetEnvelope } from './types.js'
+import type { BalanceEnvelope, PacingEnvelope, TargetEnvelope } from './types.js'
 
-/** Either kind of balance envelope, keyed in the registry by `mode:goalType`. */
-export type BalanceEnvelope = TargetEnvelope | PacingEnvelope
+export type { BalanceEnvelope } from './types.js'
+
+/** Loaded envelopes, keyed by mode. Empty until `loadBalance` registers a sidecar. */
+const BALANCE_REGISTRY = new Map<GameMode, BalanceEnvelope[]>()
 
 /** True when the envelope is a time-band pacing envelope (score/race), not a score-band one. */
 export function isPacingEnvelope(envelope: BalanceEnvelope): envelope is PacingEnvelope {
   return 'maxTimeSpread' in envelope
 }
 
-const ENVELOPES: Record<string, BalanceEnvelope | undefined> = {
-  'idler:timed': IDLER_TIMED_ENVELOPE,
-  'idler:target-score': IDLER_SCORE_ENVELOPE,
-  'idler:buy-upgrade': IDLER_RACE_ENVELOPE,
+/**
+ * Register a mode's authored envelopes. Idempotent: re-registering the same mode
+ * overwrites it. Called by `loadBalance` after parsing + validating a sidecar.
+ */
+export function registerBalance(mode: GameMode, envelopes: BalanceEnvelope[]): void {
+  BALANCE_REGISTRY.set(mode, envelopes)
 }
 
-/** Look up the balance envelope for a mode + goal type, or `undefined` if none is authored. */
+/** Look up the balance envelope for a mode + goal type, or `undefined` if none is registered. */
 export function envelopeFor(
   mode: GameMode,
   goalType: TargetEnvelope['goalType'],
 ): BalanceEnvelope | undefined {
-  return ENVELOPES[`${mode}:${goalType}`]
+  return BALANCE_REGISTRY.get(mode)?.find((e) => e.goalType === goalType)
 }
 
-/** All authored envelopes, in registration order (used by the CI balance gate). */
+/** All registered envelopes across loaded modes (used by the CI balance gate). */
 export function allEnvelopes(): BalanceEnvelope[] {
-  return Object.values(ENVELOPES).filter((e): e is BalanceEnvelope => e !== undefined)
+  return [...BALANCE_REGISTRY.values()].flat()
 }

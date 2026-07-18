@@ -9,8 +9,8 @@
  * are caught here rather than at game load.
  */
 
-import type { TreeFile } from '@game/shared'
-import { parseTreeFile, serializeTree, toModeDefinition } from '@game/shared'
+import type { BalanceFile, TreeFile } from '@game/shared'
+import { parseBalanceFile, parseTreeFile, serializeTree, toModeDefinition } from '@game/shared'
 
 /**
  * Run the engine's full load-time validation on the working tree. Throws with a
@@ -57,4 +57,26 @@ export async function importTreeFromFile(file: File): Promise<TreeFile> {
   // above the referenced upgrade's purchaseLimit) reject the file on import.
   assertLoadable(tree)
   return tree
+}
+
+/**
+ * Serialize the working balance sidecar to its canonical JSON string. Validates
+ * the shape (round-trips through `parseBalanceFile`) so a malformed working copy
+ * fails here rather than at the CI gate. Cross-checks against the mode's goals
+ * happen at `loadBalance` time, which the gate runs.
+ */
+export function balanceToJson(balance: BalanceFile): string {
+  return `${JSON.stringify(parseBalanceFile(balance), null, 2)}\n`
+}
+
+/** Serialize the working balance sidecar and trigger a browser download. */
+export function exportBalance(balance: BalanceFile): void {
+  const json = balanceToJson(balance)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${balance.mode}.json`
+  a.click()
+  URL.revokeObjectURL(url)
 }

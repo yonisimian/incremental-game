@@ -10,6 +10,7 @@
       "default": "./dist/index.js"
     },
     "./trees/*.json": "./trees/*.json",
+    "./balance/*.json": "./balance/*.json",
     "./package.json": "./package.json"
   },
   "scripts": {

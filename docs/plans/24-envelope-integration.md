@@ -507,6 +507,112 @@ are complete without it (score/race just show the empty state).
 > completeness and future modes, but if calibration reveals no stable design
 > target, registering nothing is the correct outcome — not a forced band.
 
+### Phase 7 — Editor-authored envelopes (move out of hardcode)
+
+Phases 1–6 leave the three envelopes **hardcoded** in
+[shared/src/modes/idler-envelope.ts](../../shared/src/modes/idler-envelope.ts)
+and wired via a static `mode:goalType` map in
+[shared/src/balance/registry.ts](../../shared/src/balance/registry.ts). This
+phase makes them **authored data** in the mode's tree JSON
+([shared/trees/idler.json](../../shared/trees/idler.json)), editable in the
+`/dev.html` editor next to resources / generators / attacks. The same JSON that
+defines a mode's mechanics now also defines the balance bands the CI gate checks
+it against. This is data-plumbing + a UI surface — the envelope _values_ don't
+change, and **`check:balance` must produce the identical three PASS verdicts**
+before and after (the proof it's behavior-preserving).
+
+**Design decision: envelopes travel with the mode.** A top-level `envelopes`
+array in the tree file is decoded into a new `ModeDefinition.envelopes` field
+(mirroring `goals`/`generators`/`flavors`). The registry stops importing
+constants and **derives** `envelopeFor` / `allEnvelopes` from loaded modes. This
+adds no new lifecycle (`loadTree()` already registers the mode before any
+lookup; the dev app, server, and `check-balance` all load first) and no runtime
+import cycle — `modes/types.ts` gains a **type-only** import of `BalanceEnvelope`
+from `balance/types.ts`, and `balance/types.ts` imports nothing from `modes/`,
+so the edge stays one-directional. The `mode` field is redundant with the tree
+id, so the **JSON omits it** and the codec injects `tree.id`; the interfaces keep
+the field (populated by the codec) to avoid churn in `validatePacing`,
+`check-balance.ts`, and the UI.
+
+**No version bump.** `envelopes` is added as **optional with `.default([])`**, a
+purely additive schema change — a file without it still parses (yields `[]`) and
+the checked-in `idler.json` stays `version: 3`, just gaining the array. (The
+v1→v2/v2→v3 migrations exist only for _breaking_ structural rewrites; an additive
+optional field needs none.)
+
+1. **Schema (`shared/src/tree/schema.ts`).** Add checkpoint leaf schemas
+   (`ScoreCheckpointSchema` = `{ timeSec, minScore, maxScore, phase }`;
+   `TimeCheckpointSchema` = `{ atScore?, minTimeSec, maxTimeSec, phase }`) and an
+   `EnvelopeSchema` discriminated on `goalType` (`timed` → score-band +
+   `maxStrategySpread`; `target-score`/`buy-upgrade` → time-band +
+   `maxTimeSpread`), with **no** `mode` field. Add
+   `envelopes: z.array(EnvelopeSchema).default([])` to `TreeFileSchema`. Keep zod
+   to structural checks; ordering / cross-field semantics live in
+   `validateModeDefinition` (step 3) to match the existing mode-validation voice.
+
+2. **Codec (`shared/src/tree/codec.ts`).** In `toModeDefinition`, map each
+   authored envelope to a `BalanceEnvelope` by injecting `mode: tree.id`, and
+   assign to `def.envelopes`. No migration step.
+
+3. **`ModeDefinition` + validation.** Add
+   `readonly envelopes: readonly BalanceEnvelope[]` to
+   [shared/src/modes/types.ts](../../shared/src/modes/types.ts) (type-only import
+   of `BalanceEnvelope`). In `validateModeDefinition`
+   ([shared/src/modes/index.ts](../../shared/src/modes/index.ts)) add
+   `validateEnvelopes(id, def)`: at most one envelope per `goalType`; the
+   `goalType` must exist in `def.goals`; `checkpoints` non-empty and ordered
+   (`min ≤ max` per band; score checkpoints ascending by `timeSec`; time
+   checkpoints with `atScore` ascending); `target-score` `atScore` ≤ the mode's
+   `target-score` goal `target` when such a goal exists; `minViableStrategies ≥ 0`,
+   spread ≥ 1. Throw with an `idler: envelope[timed]: …`-style message. Also add
+   `getLoadedModeDefinitions(): ModeDefinition[]` (`[...MODE_REGISTRY.values()]`).
+
+4. **Registry derives from modes (`shared/src/balance/registry.ts`).** Drop the
+   `idler-envelope.js` import and the static map. `envelopeFor(mode, goalType)` →
+   safely look up the loaded mode (return `undefined` if unloaded / no match) and
+   `.envelopes.find(e => e.goalType === goalType)`. `allEnvelopes()` →
+   `getLoadedModeDefinitions().flatMap(d => d.envelopes)`. Keep `BalanceEnvelope`
+   - `isPacingEnvelope` unchanged. **Fail soft** (never throw on an unloaded mode
+     — degrade to "no envelope" exactly as an unregistered key does today).
+
+5. **Delete** [shared/src/modes/idler-envelope.ts](../../shared/src/modes/idler-envelope.ts)
+   and its `export { IDLER_TIMED_ENVELOPE }` re-export in `modes/index.ts`.
+
+6. **Author the bands into JSON.** Add the `"envelopes"` array to
+   `shared/trees/idler.json` with the current calibrated bands verbatim (minus
+   `mode`): the `timed` `TargetEnvelope`, the `target-score` and `buy-upgrade`
+   `PacingEnvelope`s.
+
+7. **Editor UI (client).** Add pure model helpers to
+   `client/src/dev/editor/model.ts` (`listEnvelopes`, `addEnvelope(goalType)`
+   seeded with one checkpoint, `removeEnvelope`, `updateEnvelopeScalars`,
+   `addCheckpoint`/`removeCheckpoint`/`updateCheckpoint`). Add a new
+   `client/src/dev/editor/views/envelopes.ts` `EditorView` (mirrors
+   `views/resources.ts`): one block per envelope with a kind-appropriate
+   checkpoint table (score-band vs time-band columns) plus the scalar fields;
+   "Add envelope" gated to `goalType`s the mode has a goal for and lacks an
+   envelope for. Register `{ id: 'envelopes', label: '🎯 Envelopes' }` in
+   `client/src/dev/editor/index.ts`. Reuse existing `ed-form-*` classes (no new
+   CSS → keeps `lint:css` green). Also clean up the **legacy** dev panel
+   `client/src/dev/ui.ts` — drop the `IDLER_TIMED_ENVELOPE` import + local
+   `ENVELOPES` map, resolve via `envelopeFor(mode, 'timed')`.
+   _(A live envelope-vs-corpus preview inside the editor is a **follow-up** — the
+   Queue tab already renders verdicts.)_
+
+8. **Tests + gate.** shared: v3 `idler.json` round-trips envelopes;
+   `toModeDefinition` injects `mode`; a file without `envelopes` yields `[]`;
+   `validateEnvelopes` rejects out-of-order checkpoints, inverted bands,
+   duplicate goalType, an envelope for an absent goal, and `atScore` past the
+   score target. Switch `project.test.ts` (and any other importer of the deleted
+   constants) to `loadTree` + `envelopeFor`. client: editor model/view unit tests
+   for the envelope helpers + add-gating. server: `tree-file.test.ts` still loads
+   `idler.json` and `allEnvelopes()` returns 3 post-load. Then the full gate,
+   with `check:balance` producing the **same three PASS verdicts**.
+
+> **Scope:** envelope _evaluation_ (`validateEnvelope`/`validatePacing`) and the
+> Queue-tab verdict UI are untouched — only the _source_ of the envelope data and
+> its editability change. Independently shippable after Phase 6.
+
 ---
 
 ## Testing Strategy

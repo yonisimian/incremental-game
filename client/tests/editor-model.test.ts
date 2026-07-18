@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { parseTreeFile, toModeDefinition, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import {
+  parseBalanceFile,
+  parseTreeFile,
+  toModeDefinition,
+  type TreeFile,
+  type TreeUpgradeNode,
+} from '@game/shared'
+import idlerBalanceFile from '@game/shared/balance/idler.json'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import {
   cloneTree,
+  cloneBalance,
   walkPositioned,
   findNode,
   collectIds,
@@ -38,6 +46,15 @@ import {
   attackReferences,
   setAttackKind,
   setAttackEffects,
+  listEnvelopes,
+  addableEnvelopeGoalTypes,
+  addEnvelope,
+  removeEnvelope,
+  setEnvelopeMinViable,
+  setEnvelopeSpread,
+  addCheckpoint,
+  removeCheckpoint,
+  setCheckpointField,
 } from '../src/dev/editor/model.js'
 import { renderCanvas, NODE_SIZE } from '../src/dev/editor/canvas.js'
 
@@ -729,5 +746,104 @@ describe('attacks', () => {
     ])
     expect(resourceReferences(tree, 'r1')).toContain('an enemyProductionModifier field')
     expect(removeResource(tree, 'r1').ok).toBe(false)
+  })
+})
+
+// ─── Envelopes ───────────────────────────────────────────────────────
+
+describe('envelope model helpers', () => {
+  it("lists the idler sidecar's three authored envelopes", () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    expect(
+      listEnvelopes(balance)
+        .map((e) => e.goalType)
+        .sort(),
+    ).toEqual(['buy-upgrade', 'target-score', 'timed'])
+  })
+
+  it('offers no add candidates when every goal type already has an envelope', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    const tree = cloneTree(parseTreeFile(idlerTreeFile))
+    expect(addableEnvelopeGoalTypes(balance, tree)).toEqual([])
+  })
+
+  it("offers a removed envelope's goal type as an add candidate again", () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    const tree = cloneTree(parseTreeFile(idlerTreeFile))
+    removeEnvelope(balance, 'timed')
+    expect(listEnvelopes(balance).some((e) => e.goalType === 'timed')).toBe(false)
+    expect(addableEnvelopeGoalTypes(balance, tree)).toEqual(['timed'])
+  })
+
+  it('never offers a goal type the mode has no goal for', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    const tree = cloneTree(parseTreeFile(idlerTreeFile))
+    // Strip all envelopes and all but the timed goal.
+    balance.envelopes = []
+    tree.goals = tree.goals.filter((g) => g.type === 'timed')
+    expect(addableEnvelopeGoalTypes(balance, tree)).toEqual(['timed'])
+  })
+
+  it('adds a seeded timed envelope (score-band checkpoint + strategy spread)', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    removeEnvelope(balance, 'timed')
+    addEnvelope(balance, 'timed')
+    const env = listEnvelopes(balance).find((e) => e.goalType === 'timed')!
+    expect(env.checkpoints).toHaveLength(1)
+    expect('timeSec' in env.checkpoints[0]).toBe(true)
+    expect('maxStrategySpread' in env).toBe(true)
+  })
+
+  it('adds a seeded target-score envelope (time-band checkpoint + time spread)', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    removeEnvelope(balance, 'target-score')
+    addEnvelope(balance, 'target-score')
+    const env = listEnvelopes(balance).find((e) => e.goalType === 'target-score')!
+    expect(env.checkpoints).toHaveLength(1)
+    expect('minTimeSec' in env.checkpoints[0]).toBe(true)
+    expect('atScore' in env.checkpoints[0]).toBe(true)
+    expect('maxTimeSpread' in env).toBe(true)
+  })
+
+  it('adds a seeded buy-upgrade envelope with no atScore on its checkpoint', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    removeEnvelope(balance, 'buy-upgrade')
+    addEnvelope(balance, 'buy-upgrade')
+    const env = listEnvelopes(balance).find((e) => e.goalType === 'buy-upgrade')!
+    expect('atScore' in env.checkpoints[0]).toBe(false)
+  })
+
+  it('sets minViableStrategies and the kind-appropriate spread', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    setEnvelopeMinViable(balance, 'timed', 9)
+    setEnvelopeSpread(balance, 'timed', 42)
+    const timed = listEnvelopes(balance).find((e) => e.goalType === 'timed')!
+    expect(timed.minViableStrategies).toBe(9)
+    expect('maxStrategySpread' in timed && timed.maxStrategySpread).toBe(42)
+
+    setEnvelopeSpread(balance, 'target-score', 7)
+    const race = listEnvelopes(balance).find((e) => e.goalType === 'target-score')!
+    expect('maxTimeSpread' in race && race.maxTimeSpread).toBe(7)
+  })
+
+  it('adds and removes checkpoints, keeping at least one', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    const before = listEnvelopes(balance).find((e) => e.goalType === 'timed')!.checkpoints.length
+    addCheckpoint(balance, 'timed')
+    const timed = () => listEnvelopes(balance).find((e) => e.goalType === 'timed')!
+    expect(timed().checkpoints).toHaveLength(before + 1)
+    // Remove down to one, then refuse to remove the last.
+    while (timed().checkpoints.length > 1) removeCheckpoint(balance, 'timed', 0)
+    expect(timed().checkpoints).toHaveLength(1)
+    removeCheckpoint(balance, 'timed', 0)
+    expect(timed().checkpoints).toHaveLength(1)
+  })
+
+  it('patches a checkpoint field in place', () => {
+    const balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
+    setCheckpointField(balance, 'timed', 0, { minScore: 123, phase: 'Renamed' })
+    const cp = listEnvelopes(balance).find((e) => e.goalType === 'timed')!.checkpoints[0]
+    expect('minScore' in cp && cp.minScore).toBe(123)
+    expect(cp.phase).toBe('Renamed')
   })
 })

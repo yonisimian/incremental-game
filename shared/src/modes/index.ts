@@ -32,8 +32,6 @@ import {
   systemGateUpgrades,
 } from '../unlock-gates.js'
 
-export { IDLER_TIMED_ENVELOPE } from './idler-envelope.js'
-
 // ─── Validation ──────────────────────────────────────────────────────
 
 /**
@@ -315,6 +313,20 @@ export function getModeDefinition(mode: GameMode): ModeDefinition {
     throw new Error(`Mode '${mode}' is not loaded — call loadTree() at startup before use`)
   }
   return def
+}
+
+/**
+ * Look up a mode definition, or `undefined` if it has not been loaded. Unlike
+ * {@link getModeDefinition} this never throws — for callers that must degrade
+ * gracefully when a mode's tree isn't loaded (e.g. the balance registry).
+ */
+export function getModeDefinitionOrUndefined(mode: GameMode): ModeDefinition | undefined {
+  return MODE_REGISTRY.get(mode)
+}
+
+/** All currently-loaded mode definitions (registration order). */
+export function getLoadedModeDefinitions(): ModeDefinition[] {
+  return [...MODE_REGISTRY.values()]
 }
 
 /**

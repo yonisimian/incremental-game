@@ -354,3 +354,27 @@ describe('tree codec — validation failures', () => {
     expect(() => toModeDefinition(tree)).toThrow()
   })
 })
+
+// ─── Envelopes moved to the balance sidecar ──────────────────────────
+
+describe('tree codec — envelopes are no longer tree data', () => {
+  it('rejects a tree file carrying an envelopes key', () => {
+    const withEnvelopes = {
+      ...minimalTree(),
+      envelopes: [
+        {
+          goalType: 'timed',
+          checkpoints: [{ timeSec: 5, minScore: 8, maxScore: 150, phase: 'A' }],
+          minViableStrategies: 1,
+          maxStrategySpread: 10,
+        },
+      ],
+    }
+    expect(() => parseTreeFile(withEnvelopes)).toThrow()
+  })
+
+  it('parses the canonical idler tree (which carries no envelopes)', () => {
+    const def = toModeDefinition(parseTreeFile(idlerTreeFileInput()))
+    expect(def).toEqual(getModeDefinition('idler'))
+  })
+})

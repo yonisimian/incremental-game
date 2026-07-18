@@ -2,11 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { envelopeFor } from '../src/balance/registry.js'
 import { firstTimeAtScore, goalTypeOf, simResultsToScores } from '../src/balance/project.js'
 import type { TargetEnvelope } from '../src/balance/types.js'
-import {
-  IDLER_RACE_ENVELOPE,
-  IDLER_SCORE_ENVELOPE,
-  IDLER_TIMED_ENVELOPE,
-} from '../src/modes/idler-envelope.js'
 import type { SimGoal, SimResult, TickSnapshot } from '../src/simulation/simulate.js'
 
 function snap(timeSec: number, score: number): TickSnapshot {
@@ -98,13 +93,15 @@ describe('goalTypeOf', () => {
 })
 
 describe('envelopeFor', () => {
-  it('returns the seeded envelope for a registered mode + goal type', () => {
-    expect(envelopeFor('idler', 'timed')).toBe(IDLER_TIMED_ENVELOPE)
+  it('returns the mode-authored envelope for a registered mode + goal type', () => {
+    const env = envelopeFor('idler', 'timed')
+    expect(env?.mode).toBe('idler')
+    expect(env?.goalType).toBe('timed')
   })
 
   it('resolves the pacing envelopes for score and race goal types', () => {
-    expect(envelopeFor('idler', 'target-score')).toBe(IDLER_SCORE_ENVELOPE)
-    expect(envelopeFor('idler', 'buy-upgrade')).toBe(IDLER_RACE_ENVELOPE)
+    expect(envelopeFor('idler', 'target-score')?.goalType).toBe('target-score')
+    expect(envelopeFor('idler', 'buy-upgrade')?.goalType).toBe('buy-upgrade')
   })
 })
 

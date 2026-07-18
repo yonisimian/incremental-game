@@ -136,3 +136,10 @@ export interface PacingReport {
   /** Strategies suspiciously fast (below minTimeSec at any milestone) — exploit warnings. */
   readonly exploitWarnings: readonly string[]
 }
+
+/**
+ * Either kind of balance envelope, keyed in the registry by `mode:goalType`.
+ * Timed goals use a score-band `TargetEnvelope`; goal-terminated goals use a
+ * time-band `PacingEnvelope`.
+ */
+export type BalanceEnvelope = TargetEnvelope | PacingEnvelope

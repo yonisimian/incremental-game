@@ -29,6 +29,7 @@ import {
   AVAILABLE_MODES,
   firstTimeAtScore,
   isPacingEnvelope,
+  loadBalance,
   loadTree,
   parseStrategy,
   simResultsToScores,
@@ -49,10 +50,15 @@ const STRATEGY_ROOT = join(ROOT, '..', 'shared', 'strategies')
 
 const SUGGEST = process.argv.includes('--suggest')
 
-// Register every mode's tree before simulating (mirrors the server's startup).
+// Register every mode's tree, then its balance sidecar, before simulating. The
+// tree loads the mode (gameplay data); the sidecar registers its envelopes
+// (dev/CI metadata) — envelopes are validated against the loaded mode's goals.
 const require = createRequire(import.meta.url)
 for (const mode of AVAILABLE_MODES) {
   loadTree(JSON.parse(readFileSync(require.resolve(`@game/shared/trees/${mode}.json`), 'utf8')))
+  loadBalance(
+    JSON.parse(readFileSync(require.resolve(`@game/shared/balance/${mode}.json`), 'utf8')),
+  )
 }
 
 /** Load and parse every authored strategy JSON for a mode. */

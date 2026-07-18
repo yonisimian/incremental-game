@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "mode": "idler",
+  "envelopes": [
+    {
+      "goalType": "timed",
+      "checkpoints": [
+        { "timeSec": 5, "minScore": 8, "maxScore": 150, "phase": "Discovery" },
+        { "timeSec": 10, "minScore": 15, "maxScore": 400, "phase": "First Choice" },
+        { "timeSec": 15, "minScore": 25, "maxScore": 800, "phase": "Acceleration" },
+        { "timeSec": 25, "minScore": 45, "maxScore": 2500, "phase": "Optimization" },
+        { "timeSec": 35, "minScore": 75, "maxScore": 5000, "phase": "Sprint (final)" }
+      ],
+      "minViableStrategies": 6,
+      "maxStrategySpread": 30
+    },
+    {
+      "goalType": "target-score",
+      "checkpoints": [
+        { "atScore": 100, "minTimeSec": 4, "maxTimeSec": 60, "phase": "Opening" },
+        { "atScore": 200, "minTimeSec": 6, "maxTimeSec": 75, "phase": "Midgame" },
+        { "atScore": 364, "minTimeSec": 10, "maxTimeSec": 110, "phase": "Target" }
+      ],
+      "minViableStrategies": 6,
+      "maxTimeSpread": 10
+    },
+    {
+      "goalType": "buy-upgrade",
+      "checkpoints": [{ "minTimeSec": 20, "maxTimeSec": 130, "phase": "Buy the Throne" }],
+      "minViableStrategies": 4,
+      "maxTimeSpread": 5
+    }
+  ]
+}

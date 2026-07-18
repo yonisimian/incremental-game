@@ -5,7 +5,7 @@
  * mounts lazily and tears down on switch. Mirrors the game's `Panel` contract.
  */
 
-import type { TreeFile } from '@game/shared'
+import type { BalanceFile, TreeFile } from '@game/shared'
 
 /** What a mounted section can see and do, handed to it by the shell. */
 export interface EditorContext {
@@ -15,8 +15,17 @@ export interface EditorContext {
    * (import/reset), so a view never observes its `tree` reference swapped out.
    */
   readonly tree: TreeFile
-  /** Flag the document as having unsaved changes. */
+  /**
+   * The mutable balance-sidecar working copy (envelopes). Separate from `tree`
+   * because envelopes are dev/CI metadata that ship in `shared/balance/*.json`,
+   * not in the tree. Only the Envelopes section reads/writes it. Stable for the
+   * lifetime of a `mount` (the shell re-mounts on reset).
+   */
+  readonly balance: BalanceFile
+  /** Flag the tree document as having unsaved changes. */
   markDirty(): void
+  /** Flag the balance-sidecar document as having unsaved changes. */
+  markBalanceDirty(): void
   /** Set the shell's status line (errors render distinctly). */
   setStatus(text: string, isError?: boolean): void
   /** Re-render the active view in place (after a self-mutation it displays). */
