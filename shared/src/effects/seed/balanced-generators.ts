@@ -8,9 +8,9 @@ import type { EffectDef } from '../types.js'
 /**
  * Schema for the `balancedGenerators` effect's params.
  *
- * "Gain a boost when all generators are owned in equal amounts": when every
- * generator holds the same (non-zero) owned count, a multiplicative production
- * multiplier of `multiplier` applies.
+ * A global multiplicative production bonus applies when generator ownership is
+ * balanced. The bonus scales from no bonus for a highly skewed spread to a full
+ * `multiplier` when every generator has the same non-zero ownership.
  */
 const schema = z.strictObject({
   multiplier: z.number(),
@@ -20,9 +20,9 @@ const schema = z.strictObject({
 export type BalancedGeneratorsParams = z.infer<typeof schema>
 
 /**
- * Returns a multiplicative multiplier when all generators are owned in equal,
- * non-zero amounts; `null` otherwise (including when no generators exist or any
- * is unowned).
+ * Returns a multiplicative multiplier that scales with how evenly generators are
+ * owned. The bonus is `null` when there are no generators or when the average
+ * ownership is zero.
  */
 function apply(
   p: BalancedGeneratorsParams,
@@ -31,12 +31,22 @@ function apply(
 ): Modifier | null {
   const gens = mode.generators
   if (gens.length === 0) return null
-  const first = state.generators[gens[0].id] ?? 0
-  if (first <= 0) return null
-  for (const gen of gens) {
-    if ((state.generators[gen.id] ?? 0) !== first) return null
-  }
-  return { stage: 'multiplicative', field: 'globalMultiplier', value: p.multiplier }
+
+  const counts = gens.map((gen) => state.generators[gen.id] ?? 0)
+  const total = counts.reduce((sum, count) => sum + count, 0)
+  if (total <= 0) return null
+
+  const avg = total / counts.length
+  // Mean absolute deviation, normalized by the mean, gives a 0..1 skew measure;
+  // balanceRatio is 1 at perfect equality and 0 once ownership is heavily skewed.
+  const deviation = counts.reduce((sum, count) => sum + Math.abs(count - avg), 0) / counts.length
+  const balanceRatio = Math.max(0, 1 - deviation / avg)
+  if (balanceRatio <= 0) return null
+
+  // Interpolate between no bonus (1) and the full `multiplier`. `multiplier < 1`
+  // is clamped to a no-op — this effect only ever grants a bonus, never a penalty.
+  const value = 1 + balanceRatio * Math.max(0, p.multiplier - 1)
+  return { stage: 'multiplicative', field: 'globalMultiplier', value }
 }
 
 export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = { schema, apply }

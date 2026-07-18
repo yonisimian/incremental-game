@@ -399,15 +399,37 @@ describe('balancedGenerators effect', () => {
     })
   })
 
-  it('returns null when counts are unequal', () => {
+  it('scales the bonus when generator ownership is partially balanced', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
-    for (const gen of mode.generators) state.generators[gen.id] = 4
-    state.generators[mode.generators[0].id] = 5
+    // All generators equal except one unowned. Derive the expected value from
+    // the generator count so the test survives adding/removing generators.
+    const ids = mode.generators.map((gen) => gen.id)
+    for (const id of ids) state.generators[id] = 2
+    state.generators[ids[ids.length - 1]] = 0
+
+    const n = ids.length
+    const avg = (2 * (n - 1)) / n
+    const deviation = (Math.abs(2 - avg) * (n - 1) + avg) / n
+    const balanceRatio = 1 - deviation / avg
+    const expected = 1 + balanceRatio * (2 - 1)
+
+    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
+      stage: 'multiplicative',
+      field: 'globalMultiplier',
+      value: expected,
+    })
+  })
+
+  it('returns null when ownership is too skewed for any bonus', () => {
+    const mode = getModeDefinition('idler')
+    const state = createInitialState(mode)
+    // A single generator carrying everything drives balanceRatio to <= 0.
+    state.generators[mode.generators[0].id] = 10
     expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toBeNull()
   })
 
-  it('returns null when all generators are unowned', () => {
+  it('returns null when no generators are owned', () => {
     const mode = getModeDefinition('idler')
     expect(
       applyEffect({ type: 'balancedGenerators', multiplier: 2 }, createInitialState(mode), mode),
