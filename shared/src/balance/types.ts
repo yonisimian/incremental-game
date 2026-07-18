@@ -68,3 +68,42 @@ export interface SimScore {
   /** Score at each checkpoint timeSec (same order as envelope.checkpoints). */
   readonly scoresAtCheckpoints: readonly number[]
 }
+
+// ─── Pacing envelopes (goal-terminated goals: target-score / buy-upgrade) ───
+//
+// The time-axis mirror of `TargetEnvelope`. Where a `TargetEnvelope` asks "at
+// time T, is score within [minScore, maxScore]?", a `PacingEnvelope` asks "to
+// reach milestone M, is the elapsed time within [minTimeSec, maxTimeSec]?".
+// Used for goals that stop at a variable time (score target hit / goal upgrade
+// bought), where a score-at-time band is meaningless at the end. The validator
+// (`validatePacing`) and authored data land in phase 6; these declarations exist
+// now so the registry can be union-typed from the start.
+
+/** A single time milestone within a pacing envelope. */
+export interface PacingCheckpoint {
+  /**
+   * Score milestone this band applies to (target-score goals). Omitted for a
+   * race (`buy-upgrade`) goal, which has a single time-to-buy band.
+   */
+  readonly atScore?: number
+  /** Minimum acceptable elapsed time to reach the milestone (faster = suspicious). */
+  readonly minTimeSec: number
+  /** Maximum acceptable elapsed time (slower = too grindy). */
+  readonly maxTimeSec: number
+  /** Human-readable label for the milestone. */
+  readonly phase: string
+}
+
+/** Target pacing envelope: acceptable *time-to-milestone* bands for a goal-terminated goal. */
+export interface PacingEnvelope {
+  /** Game mode this envelope applies to. */
+  readonly mode: GameMode
+  /** Goal type — always one of the goal-terminated kinds. */
+  readonly goalType: 'target-score' | 'buy-upgrade'
+  /** Ordered milestones (by atScore ascending; a single entry for race). */
+  readonly checkpoints: readonly PacingCheckpoint[]
+  /** Minimum number of strategies that must be viable at the final milestone. */
+  readonly minViableStrategies: number
+  /** Maximum allowed ratio between fastest and slowest *viable* strategy times. */
+  readonly maxTimeSpread: number
+}
