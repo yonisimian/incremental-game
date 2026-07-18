@@ -28,3 +28,8 @@ export function envelopeFor(
 ): BalanceEnvelope | undefined {
   return ENVELOPES[`${mode}:${goalType}`]
 }
+
+/** All authored envelopes, in registration order (used by the CI balance gate). */
+export function allEnvelopes(): BalanceEnvelope[] {
+  return Object.values(ENVELOPES).filter((e): e is BalanceEnvelope => e !== undefined)
+}
