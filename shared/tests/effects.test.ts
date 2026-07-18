@@ -317,6 +317,22 @@ describe('collectModifiers effect wiring', () => {
       value: 5,
     })
   })
+
+  it('applies a mode-level baseModifier exactly once (owned defaults to 1)', () => {
+    const base = getModeDefinition('idler')
+    // Mode-level effects carry no owning-upgrade count, so a baseModifier there
+    // applies with an implicit count of 1 (`owned ?? 1`) rather than being dropped.
+    const def: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 7 }],
+    }
+    const state = createInitialState(def)
+    expect(collectModifiers(state, def)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 7,
+    })
+  })
 })
 
 // ─── Generator synergy effects ───────────────────────────────────────
