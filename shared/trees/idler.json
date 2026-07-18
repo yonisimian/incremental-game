@@ -351,7 +351,7 @@
           "id": "balance-g",
           "name": "⚙️ Socialism",
           "icon": "⚙️",
-          "description": "Gain boost when all the generators have the same amount."
+          "description": "Gain a boost that grows the more evenly your generators are owned, peaking when they all have the same amount."
         },
         {
           "id": "higher-g",

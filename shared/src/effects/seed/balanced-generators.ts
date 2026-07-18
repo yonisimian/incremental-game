@@ -37,10 +37,14 @@ function apply(
   if (total <= 0) return null
 
   const avg = total / counts.length
+  // Mean absolute deviation, normalized by the mean, gives a 0..1 skew measure;
+  // balanceRatio is 1 at perfect equality and 0 once ownership is heavily skewed.
   const deviation = counts.reduce((sum, count) => sum + Math.abs(count - avg), 0) / counts.length
   const balanceRatio = Math.max(0, 1 - deviation / avg)
   if (balanceRatio <= 0) return null
 
+  // Interpolate between no bonus (1) and the full `multiplier`. `multiplier < 1`
+  // is clamped to a no-op — this effect only ever grants a bonus, never a penalty.
   const value = 1 + balanceRatio * Math.max(0, p.multiplier - 1)
   return { stage: 'multiplicative', field: 'globalMultiplier', value }
 }
