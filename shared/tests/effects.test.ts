@@ -157,6 +157,19 @@ describe('highlightMultiplier behavior (golden)', () => {
     expect(r0Factor).toBeCloseTo(2.2)
   })
 
+  it('compounds the highlight boost across repeated purchases of sh-mf-hp', () => {
+    const def = getModeDefinition('idler')
+    const state = idlerState()
+    state.upgrades['sh-unlock'] = 1
+    state.upgrades['sh-mf-hp'] = 2
+    state.meta.highlight = 'r0'
+    const mods = collectModifiers(state, def)
+    const r0Factor = mods
+      .filter((m) => m.stage === 'multiplicative' && m.field === 'r0')
+      .reduce((acc, m) => acc * m.value, 1)
+    expect(r0Factor).toBeCloseTo(2.42)
+  })
+
   it('applies the ×2.2 boost to the highlighted resource when it changes (r1)', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
@@ -302,6 +315,22 @@ describe('collectModifiers effect wiring', () => {
       stage: 'multiplicative',
       field: 'r0',
       value: 5,
+    })
+  })
+
+  it('applies a mode-level baseModifier exactly once (owned defaults to 1)', () => {
+    const base = getModeDefinition('idler')
+    // Mode-level effects carry no owning-upgrade count, so a baseModifier there
+    // applies with an implicit count of 1 (`owned ?? 1`) rather than being dropped.
+    const def: ModeDefinition = {
+      ...base,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 7 }],
+    }
+    const state = createInitialState(def)
+    expect(collectModifiers(state, def)).toContainEqual({
+      stage: 'multiplicative',
+      field: 'r0',
+      value: 7,
     })
   })
 })

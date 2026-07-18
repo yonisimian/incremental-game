@@ -546,8 +546,9 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   }
 
   // Route an effect's outputs. Production `Modifier`s feed the pipeline verbatim;
-  // `baseModifier`s feed it with owned-count compounding (only when an owning
-  // upgrade count is supplied). Cost-track outputs (`GeneratorCostOutput`) and
+  // `baseModifier`s feed it with owned-count compounding — per-upgrade effects
+  // pass the owning upgrade's owned count, while mode-level effects (no count)
+  // apply once (`owned ?? 1`). Cost-track outputs (`GeneratorCostOutput`) and
   // the unlock outputs belong to other subsystems and are ignored here.
   const routeEffect = (
     out: EffectOutput | readonly EffectOutput[] | null,
@@ -555,7 +556,7 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   ): void => {
     for (const o of normalizeEffectOutputs(out)) {
       if ('kind' in o && o.kind === 'baseModifier') {
-        if (owned !== undefined) routeBaseModifier(o, owned)
+        routeBaseModifier(o, owned ?? 1)
       } else if ('stage' in o) {
         routeModifier(o)
       }
