@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MODIFIER_STAGES } from '../../modifiers/types.js'
+import { guardModifierValue } from '../../modifiers/value-guard.js'
 import type { BaseModifierOutput } from '../types.js'
 import type { EffectDef } from '../types.js'
 
@@ -13,11 +15,13 @@ import type { EffectDef } from '../types.js'
  * compounding happens in `collectModifiers`, which owns the
  * {@link BaseModifierOutput} kind.
  */
-const schema = z.strictObject({
-  stage: z.enum(['additive', 'multiplicative']),
-  field: z.string(),
-  value: z.number(),
-})
+const schema = z
+  .strictObject({
+    stage: z.enum(MODIFIER_STAGES),
+    field: z.string(),
+    value: z.number(),
+  })
+  .superRefine(guardModifierValue('bonus', 'baseModifier'))
 
 /** Params for the `baseModifier` effect (inferred from its schema). */
 export type BaseModifierParams = z.infer<typeof schema>

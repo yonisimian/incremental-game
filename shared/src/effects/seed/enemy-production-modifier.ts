@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MODIFIER_STAGES } from '../../modifiers/types.js'
+import { guardModifierValue } from '../../modifiers/value-guard.js'
 import type { EffectDef, EnemyModifierOutput } from '../types.js'
 
 /**
@@ -22,11 +24,13 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  * production 10%). `collectEnemyDebuffs` owns the wiring; the effect itself only
  * describes the bonus.
  */
-const schema = z.strictObject({
-  stage: z.enum(['additive', 'multiplicative']),
-  field: z.string(),
-  value: z.number(),
-})
+const schema = z
+  .strictObject({
+    stage: z.enum(MODIFIER_STAGES),
+    field: z.string(),
+    value: z.number(),
+  })
+  .superRefine(guardModifierValue('debuff', 'enemyProductionModifier'))
 
 /** Params for the `enemyProductionModifier` effect (inferred from its schema). */
 export type EnemyProductionModifierParams = z.infer<typeof schema>

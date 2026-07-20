@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { Modifier } from '../../modifiers/types.js'
+import { MODIFIER_STAGES, type Modifier } from '../../modifiers/types.js'
 import type { PlayerState } from '../../types.js'
 import type { EffectDef } from '../types.js'
 import { readSourceValue } from '../addressable.js'
@@ -21,12 +21,17 @@ import { readSourceValue } from '../addressable.js'
  * Because it returns a raw {@link Modifier} (not a `baseModifier` output), the
  * value is applied verbatim — it does *not* compound with the owning upgrade's
  * owned count.
+ *
+ * Unlike `baseModifier`/`enemyProductionModifier`, the `factor` guard is
+ * deliberately *stage-independent* (`> 0`, not stage-aware): `apply` normalizes
+ * per stage (`additive → v·factor`, `multiplicative → 1 + v·factor`), so a
+ * positive factor is always a meaningful bonus regardless of stage.
  */
 const schema = z.strictObject({
   source: z.string(),
   field: z.string(),
-  stage: z.enum(['additive', 'multiplicative']),
-  factor: z.number().optional(),
+  stage: z.enum(MODIFIER_STAGES),
+  factor: z.number().gt(0).optional(),
 })
 
 /** Params for the `relativeModifier` effect (inferred from its schema). */

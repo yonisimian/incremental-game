@@ -80,6 +80,12 @@ describe('highlightMultiplier params', () => {
     return applyEffect(ref, state, mode)
   }
 
+  it('rejects a multiplier less than or equal to 1', () => {
+    expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: 1 })).toThrow(
+      /multiplier/u,
+    )
+  })
+
   it('rejects a non-finite multiplier', () => {
     expect(() => applyHighlight({ type: 'highlightMultiplier', multiplier: Infinity })).toThrow(
       /multiplier/u,
@@ -199,6 +205,65 @@ describe('highlightMultiplier behavior (golden)', () => {
 // ─── collectModifiers effect wiring ──────────────────────────────────
 
 describe('collectModifiers effect wiring', () => {
+  it('rejects a baseModifier with a non-positive value', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 0 },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/value/u)
+  })
+
+  it('rejects a multiplicative baseModifier that is a no-op or self-penalty', () => {
+    const base = getModeDefinition('idler')
+    for (const value of [1, 0.5]) {
+      expect(() =>
+        applyEffect(
+          { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value },
+          createInitialState(base),
+          base,
+        ),
+      ).toThrow(/value/u)
+    }
+  })
+
+  it('rejects a non-positive additive baseModifier but accepts a positive one', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: -1 },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/value/u)
+    expect(
+      applyEffect(
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 },
+        createInitialState(base),
+        base,
+      ),
+    ).toEqual({ kind: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 })
+  })
+
+  it('rejects a relativeModifier with a non-positive factor', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'r0',
+          stage: 'multiplicative',
+          factor: 0,
+        },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/factor/u)
+  })
+
   it('applies per-upgrade effects only when the upgrade is owned', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
@@ -335,9 +400,53 @@ describe('collectModifiers effect wiring', () => {
   })
 })
 
+// ─── enemyProductionModifier stage-aware guard ───────────────────────
+
+describe('enemyProductionModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('accepts a multiplicative debuff in (0, 1) but rejects a no-op or enemy buff', () => {
+    expect(
+      apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 }),
+    ).toEqual({
+      kind: 'enemyModifier',
+      modifier: { stage: 'multiplicative', field: 'r0', value: 0.9 },
+    })
+    for (const value of [1, 1.5, 0]) {
+      expect(() =>
+        apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value }),
+      ).toThrow(/value/u)
+    }
+  })
+
+  it('accepts a negative additive debuff but rejects a non-negative one', () => {
+    expect(
+      apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value: -2 }),
+    ).toEqual({
+      kind: 'enemyModifier',
+      modifier: { stage: 'additive', field: 'r0', value: -2 },
+    })
+    for (const value of [0, 1]) {
+      expect(() =>
+        apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value }),
+      ).toThrow(/value/u)
+    }
+  })
+})
+
 // ─── Generator synergy effects ───────────────────────────────────────
 
 describe('lowerTierBoost effect', () => {
+  it('rejects a non-positive perUnit value', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'lowerTierBoost', perUnit: 0 }, createInitialState(mode), mode),
+    ).toThrow(/perUnit/u)
+  })
+
   it('boosts higher tiers by the units owned in lower tiers', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
@@ -359,6 +468,13 @@ describe('lowerTierBoost effect', () => {
 })
 
 describe('dominantGenerator effect', () => {
+  it('rejects a multiplier less than or equal to 1', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'dominantGenerator', multiplier: 1 }, createInitialState(mode), mode),
+    ).toThrow(/multiplier/u)
+  })
+
   it('boosts only the single generator at the maximum owned count', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
@@ -388,6 +504,13 @@ describe('dominantGenerator effect', () => {
 })
 
 describe('balancedGenerators effect', () => {
+  it('rejects a multiplier less than or equal to 1', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect({ type: 'balancedGenerators', multiplier: 1 }, createInitialState(mode), mode),
+    ).toThrow(/multiplier/u)
+  })
+
   it('emits a single global multiplier when all generators are owned equally', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
@@ -438,6 +561,17 @@ describe('balancedGenerators effect', () => {
 })
 
 describe('generatorCost effect', () => {
+  it('rejects a generatorCost with a non-positive factor', () => {
+    const mode = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'generatorCost', generator: mode.generators[0].id, costFactor: 0 },
+        createInitialState(mode),
+        mode,
+      ),
+    ).toThrow(/costFactor/u)
+  })
+
   it('emits a generatorCost output carrying both factors', () => {
     const mode = getModeDefinition('idler')
     const gen = mode.generators[0].id
@@ -777,6 +911,30 @@ describe('relativeModifier effect', () => {
         mode,
       ),
     ).toThrow()
+  })
+
+  it('rejects a non-positive factor on either stage but accepts a positive one', () => {
+    for (const stage of ['additive', 'multiplicative'] as const) {
+      for (const factor of [0, -1]) {
+        expect(() =>
+          applyRel({ type: 'relativeModifier', source: 'resource:r0', field: 'r0', stage, factor }),
+        ).toThrow(/factor/u)
+      }
+    }
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 2,
+        },
+        (s) => {
+          s.resources.r0 = 10
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
   })
 
   it('feeds a stockpile-relative bonus through collectModifiers when owned', () => {

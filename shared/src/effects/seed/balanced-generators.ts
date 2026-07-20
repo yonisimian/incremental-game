@@ -13,7 +13,7 @@ import type { EffectDef } from '../types.js'
  * `multiplier` when every generator has the same non-zero ownership.
  */
 const schema = z.strictObject({
-  multiplier: z.number(),
+  multiplier: z.number().gt(1),
 })
 
 /** Params for the `balancedGenerators` effect (inferred from its schema). */
