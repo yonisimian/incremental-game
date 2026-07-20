@@ -21,6 +21,11 @@ import { readSourceValue } from '../addressable.js'
  * Because it returns a raw {@link Modifier} (not a `baseModifier` output), the
  * value is applied verbatim — it does *not* compound with the owning upgrade's
  * owned count.
+ *
+ * Unlike `baseModifier`/`enemyProductionModifier`, the `factor` guard is
+ * deliberately *stage-independent* (`> 0`, not stage-aware): `apply` normalizes
+ * per stage (`additive → v·factor`, `multiplicative → 1 + v·factor`), so a
+ * positive factor is always a meaningful bonus regardless of stage.
  */
 const schema = z.strictObject({
   source: z.string(),

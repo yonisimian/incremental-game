@@ -913,6 +913,30 @@ describe('relativeModifier effect', () => {
     ).toThrow()
   })
 
+  it('rejects a non-positive factor on either stage but accepts a positive one', () => {
+    for (const stage of ['additive', 'multiplicative'] as const) {
+      for (const factor of [0, -1]) {
+        expect(() =>
+          applyRel({ type: 'relativeModifier', source: 'resource:r0', field: 'r0', stage, factor }),
+        ).toThrow(/factor/u)
+      }
+    }
+    expect(
+      applyRel(
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          stage: 'additive',
+          factor: 2,
+        },
+        (s) => {
+          s.resources.r0 = 10
+        },
+      ),
+    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
+  })
+
   it('feeds a stockpile-relative bonus through collectModifiers when owned', () => {
     const base = getModeDefinition('idler')
     const customUpgrade: UpgradeDefinition = {
