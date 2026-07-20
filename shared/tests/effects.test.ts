@@ -216,6 +216,37 @@ describe('collectModifiers effect wiring', () => {
     ).toThrow(/value/u)
   })
 
+  it('rejects a multiplicative baseModifier that is a no-op or self-penalty', () => {
+    const base = getModeDefinition('idler')
+    for (const value of [1, 0.5]) {
+      expect(() =>
+        applyEffect(
+          { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value },
+          createInitialState(base),
+          base,
+        ),
+      ).toThrow(/value/u)
+    }
+  })
+
+  it('rejects a non-positive additive baseModifier but accepts a positive one', () => {
+    const base = getModeDefinition('idler')
+    expect(() =>
+      applyEffect(
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: -1 },
+        createInitialState(base),
+        base,
+      ),
+    ).toThrow(/value/u)
+    expect(
+      applyEffect(
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 },
+        createInitialState(base),
+        base,
+      ),
+    ).toEqual({ kind: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 })
+  })
+
   it('rejects a relativeModifier with a non-positive factor', () => {
     const base = getModeDefinition('idler')
     expect(() =>
@@ -366,6 +397,43 @@ describe('collectModifiers effect wiring', () => {
       field: 'r0',
       value: 7,
     })
+  })
+})
+
+// ─── enemyProductionModifier stage-aware guard ───────────────────────
+
+describe('enemyProductionModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('accepts a multiplicative debuff in (0, 1) but rejects a no-op or enemy buff', () => {
+    expect(
+      apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 }),
+    ).toEqual({
+      kind: 'enemyModifier',
+      modifier: { stage: 'multiplicative', field: 'r0', value: 0.9 },
+    })
+    for (const value of [1, 1.5, 0]) {
+      expect(() =>
+        apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value }),
+      ).toThrow(/value/u)
+    }
+  })
+
+  it('accepts a negative additive debuff but rejects a non-negative one', () => {
+    expect(
+      apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value: -2 }),
+    ).toEqual({
+      kind: 'enemyModifier',
+      modifier: { stage: 'additive', field: 'r0', value: -2 },
+    })
+    for (const value of [0, 1]) {
+      expect(() =>
+        apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value }),
+      ).toThrow(/value/u)
+    }
   })
 })
 

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MODIFIER_STAGES } from '../modifiers/types.js'
+import { guardModifierValue } from '../modifiers/value-guard.js'
 import type { PrerequisiteExpression } from '../types.js'
 
 /**
@@ -13,11 +15,13 @@ export const CURRENT_TREE_VERSION = 3
 /** A position is the offset from a node's layout parent (roots: from the origin). */
 const PositionSchema = z.strictObject({ x: z.number(), y: z.number() })
 
-const ModifierSchema = z.strictObject({
-  stage: z.enum(['additive', 'multiplicative']),
-  field: z.string(),
-  value: z.number(),
-})
+const ModifierSchema = z
+  .strictObject({
+    stage: z.enum(MODIFIER_STAGES),
+    field: z.string(),
+    value: z.number(),
+  })
+  .superRefine(guardModifierValue('bonus', 'modifier'))
 
 /**
  * A single currency's cost: `base` (level-0 price) plus optional per-level

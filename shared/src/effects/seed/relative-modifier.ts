@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { Modifier } from '../../modifiers/types.js'
+import { MODIFIER_STAGES, type Modifier } from '../../modifiers/types.js'
 import type { PlayerState } from '../../types.js'
 import type { EffectDef } from '../types.js'
 import { readSourceValue } from '../addressable.js'
@@ -25,7 +25,7 @@ import { readSourceValue } from '../addressable.js'
 const schema = z.strictObject({
   source: z.string(),
   field: z.string(),
-  stage: z.enum(['additive', 'multiplicative']),
+  stage: z.enum(MODIFIER_STAGES),
   factor: z.number().gt(0).optional(),
 })
 

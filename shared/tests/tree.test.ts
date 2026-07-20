@@ -261,6 +261,24 @@ describe('tree codec — validation failures', () => {
     expect(() => parseTreeFile(tree)).toThrow(/scaleFactor/u)
   })
 
+  it('rejects a multiplicative nativeModifier that is a no-op or self-penalty', () => {
+    for (const value of [1, 0.5]) {
+      const tree = minimalTree()
+      tree.nativeModifiers = [{ stage: 'multiplicative', field: 'r0', value }]
+      expect(() => parseTreeFile(tree)).toThrow(/value/u)
+    }
+  })
+
+  it('rejects a non-positive additive nativeModifier but accepts a positive one', () => {
+    const bad = minimalTree()
+    bad.nativeModifiers = [{ stage: 'additive', field: 'r0', value: -1 }]
+    expect(() => parseTreeFile(bad)).toThrow(/value/u)
+
+    const good = minimalTree()
+    good.nativeModifiers = [{ stage: 'additive', field: 'r0', value: 0.5 }]
+    expect(() => parseTreeFile(good)).not.toThrow()
+  })
+
   it('rejects a cost entry with scaleFactor but no scaleType (must co-occur)', () => {
     const tree = minimalTree()
     tree.upgrades = [
