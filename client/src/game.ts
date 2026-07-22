@@ -60,6 +60,7 @@ import {
   shockwave,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
+import { roundStats } from './stats/round-stats.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -125,42 +126,6 @@ export interface GameState {
   serverActiveRooms: number
   /** Last room error reason (shown as toast, cleared on next action). */
   roomError: RoomErrorReason | null
-  /** Client-only clicking stats for the current round (never synced to the server). */
-  clickStats: ClickStats
-  /** Client-only highlight stats for the current round (never synced to the server). */
-  highlightStats: HighlightStats
-}
-
-/**
- * Per-round manual-clicking telemetry, tracked locally for the data panel. Not
- * authoritative and not sent to the server — each click's income is the
- * optimistic value credited at click time. Reset at the start of every match.
- */
-export interface ClickStats {
-  /** Total manual clicks this round. */
-  totalClicks: number
-  /** Total income credited by manual clicks this round (optimistic). */
-  totalIncome: number
-  /** Click income credited this round, keyed by resource (optimistic). */
-  incomeByResource: Record<string, number>
-  /** Highest clicks/sec (over the rolling window) reached this round. */
-  peakCps: number
-  /** Timestamps (ms) of recent clicks, for the rolling clicks/sec window. */
-  recentClickTimes: number[]
-}
-
-/** Rolling window used to derive the instantaneous clicks/sec (for peak tracking). */
-const CLICK_RATE_WINDOW_MS = 3000
-
-/**
- * Per-round highlight telemetry for the data panel. Dwell is measured in *game
- * seconds* (the server's `meta.gameSec` clock, which pauses when the match
- * pauses), accumulated each server tick against whichever resource was
- * highlighted. Reset at the start of every match.
- */
-export interface HighlightStats {
-  /** Seconds each resource has been the highlighted resource this round. */
-  dwellByResource: Record<string, number>
 }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
@@ -188,16 +153,6 @@ const EMPTY_PLAYER_STATE: PlayerState = {
 /** A fresh, empty opponent view (no intel unlocked yet). */
 function emptyOpponentView(): OpponentView {
   return { score: 0, resources: {}, rates: {} }
-}
-
-/** A fresh, zeroed click-stats record for a new round. */
-function emptyClickStats(): ClickStats {
-  return { totalClicks: 0, totalIncome: 0, incomeByResource: {}, peakCps: 0, recentClickTimes: [] }
-}
-
-/** A fresh, zeroed highlight-stats record for a new round. */
-function emptyHighlightStats(): HighlightStats {
-  return { dwellByResource: {} }
 }
 
 /**
@@ -229,8 +184,6 @@ const state: GameState = {
   isRoomCreator: false,
   serverActiveRooms: 0,
   roomError: null,
-  clickStats: emptyClickStats(),
-  highlightStats: emptyHighlightStats(),
 }
 
 const pendingBatches: PendingBatch[] = []
@@ -240,9 +193,6 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 /** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
 let lastFiredMilestoneTier = 0
-
-/** The `meta.gameSec` sampled at the last highlight-dwell accumulation (game seconds). */
-let lastHighlightGameSec = 0
 
 /**
  * Client-only: which resource the Space hotkey clicks. `null` falls back to the
@@ -438,17 +388,7 @@ export function doClick(target?: string): void {
 
   // Local click telemetry (data panel) — counted once per real click, never in
   // reconciliation, so optimistic re-application can't double-count.
-  const now = Date.now()
-  const stats = state.clickStats
-  stats.totalClicks += 1
-  stats.totalIncome += income
-  stats.incomeByResource[resource] = (stats.incomeByResource[resource] ?? 0) + income
-  stats.recentClickTimes.push(now)
-  pruneClickTimes(now)
-  // Peak is sampled at click time (the rolling rate only decays between clicks,
-  // so a click is exactly when a new maximum can occur).
-  const cps = (stats.recentClickTimes.length / CLICK_RATE_WINDOW_MS) * 1000
-  if (cps > stats.peakCps) stats.peakCps = cps
+  roundStats.recordClick(resource, income)
 
   // Visual effects (anchored to the clicked button)
   const anchorId = `click-btn-${resource}`
@@ -463,26 +403,6 @@ export function doClick(target?: string): void {
   queueAction({ type: 'click', timestamp: Date.now(), resource })
   trackPendingClick(resource)
   notify()
-}
-
-/** Drop click timestamps older than the rolling window (relative to `now`). */
-function pruneClickTimes(now: number): void {
-  const cutoff = now - CLICK_RATE_WINDOW_MS
-  const times = state.clickStats.recentClickTimes
-  let drop = 0
-  while (drop < times.length && times[drop] < cutoff) drop += 1
-  if (drop > 0) times.splice(0, drop)
-}
-
-/**
- * Average manual clicks per second over the round so far — total clicks divided
- * by elapsed game time (`meta.gameSec`, advanced by the server's passive tick).
- * Returns 0 until the clock has advanced.
- */
-export function getAverageCps(): number {
-  const elapsed = (state.player.meta.gameSec as number | undefined) ?? 0
-  if (elapsed <= 0) return 0
-  return state.clickStats.totalClicks / elapsed
 }
 
 /**
@@ -644,9 +564,7 @@ export function resetForMatch(): void {
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   state.opponentName = ''
-  state.clickStats = emptyClickStats()
-  state.highlightStats = emptyHighlightStats()
-  lastHighlightGameSec = 0
+  roundStats.reset()
   resetRoom()
   pendingBatches.length = 0
   resetSeq()
@@ -692,11 +610,9 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.vsBot = msg.vsBot
   state.countdown = COUNTDOWN_SEC
   state.endData = null
-  state.clickStats = emptyClickStats()
-  state.highlightStats = emptyHighlightStats()
+  roundStats.reset()
   pendingBatches.length = 0
   lastFiredMilestoneTier = 0
-  lastHighlightGameSec = 0
   clickTarget = null
   resetSeq()
   notify()
@@ -776,25 +692,9 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   state.player = reconciled
-  if (modeDef) accumulateHighlightDwell(reconciled, modeDef)
+  if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
   notify()
-}
-
-/**
- * Credit elapsed game time (since the last tick) to the currently-highlighted
- * resource. Uses the server's `meta.gameSec` clock, so paused time isn't
- * counted; only runs while the highlight mechanic is active for this player.
- */
-function accumulateHighlightDwell(player: Readonly<PlayerState>, modeDef: ModeDefinition): void {
-  const gameSec = (player.meta.gameSec as number | undefined) ?? 0
-  const delta = gameSec - lastHighlightGameSec
-  lastHighlightGameSec = gameSec
-  if (delta <= 0) return
-  if (!isHighlightActive(player, modeDef)) return
-  const highlight = (player.meta.highlight as string | undefined) ?? modeDef.scoreResource
-  const dwell = state.highlightStats.dwellByResource
-  dwell[highlight] = (dwell[highlight] ?? 0) + delta
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {

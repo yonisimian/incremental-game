@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { getAverageCps } from '../../game.js'
+import { roundStats } from '../../stats/round-stats.js'
 import { formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
 import {
@@ -244,12 +244,12 @@ function updateNumbers(state: Readonly<GameState>): void {
   if (modeDef.clicksEnabled) {
     const clickIncome = computeClickIncome(collectModifiers(state.player, modeDef))
     setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
-    setText('data-click-peak', formatNumber(state.clickStats.peakCps, 1))
-    setText('data-click-avg', formatNumber(getAverageCps(), 1))
-    setText('data-click-total', formatNumber(state.clickStats.totalClicks))
-    setText('data-click-earned', formatNumber(state.clickStats.totalIncome))
+    setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
+    setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
+    setText('data-click-total', formatNumber(roundStats.totalClicks))
+    setText('data-click-earned', formatNumber(roundStats.totalIncome))
     for (const r of modeDef.resources) {
-      setText(`data-click-earned-${r}`, formatNumber(state.clickStats.incomeByResource[r] ?? 0))
+      setText(`data-click-earned-${r}`, formatNumber(roundStats.incomeByResource[r] ?? 0))
     }
   }
 
@@ -264,10 +264,7 @@ function updateNumbers(state: Readonly<GameState>): void {
     const mult = getHighlightMultiplier(state.player, modeDef)
     setText('data-hl-mult', `×${formatNumber(mult, Number.isInteger(mult) ? 0 : 2)}`)
     for (const r of modeDef.resources) {
-      setText(
-        `data-hl-dwell-${r}`,
-        `${formatNumber(state.highlightStats.dwellByResource[r] ?? 0, 1)}s`,
-      )
+      setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)
     }
   }
 

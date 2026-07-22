@@ -43,14 +43,6 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     isRoomCreator: false,
     serverActiveRooms: 0,
     roomError: null,
-    clickStats: {
-      totalClicks: 0,
-      totalIncome: 0,
-      incomeByResource: {},
-      peakCps: 0,
-      recentClickTimes: [],
-    },
-    highlightStats: { dwellByResource: {} },
   }
 }
 

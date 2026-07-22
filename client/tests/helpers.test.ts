@@ -50,14 +50,6 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     isRoomCreator: false,
     serverActiveRooms: 0,
     roomError: null,
-    clickStats: {
-      totalClicks: 0,
-      totalIncome: 0,
-      incomeByResource: {},
-      peakCps: 0,
-      recentClickTimes: [],
-    },
-    highlightStats: { dwellByResource: {} },
   }
 }
 
