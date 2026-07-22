@@ -21,7 +21,6 @@ export interface ModeUI {
 export const ALL_PANELS = [
   playPanel,
   upgradeTreePanel,
-  dataPanel,
   generatorsPanel,
   attackPanel,
   internationalRelationshipPanel,
