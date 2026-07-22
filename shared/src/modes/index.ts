@@ -677,6 +677,13 @@ function playerWithout(
  * `byGenerator` splits the generator bucket across owned generators in
  * proportion to their raw output (`rate × owned`); generators are mutually
  * additive, so this preserves the exact bucket sum.
+ *
+ * Attribution ordering: generators are removed first, then upgrades, so an
+ * upgrade that boosts *generator* output lands in the `generators` bucket, not
+ * `upgrades` (removing the generators already takes that boosted contribution
+ * with them). The `upgrades` bucket therefore reflects an upgrade's effect on
+ * the base/native floor only. Buckets still sum exactly to `total`; this only
+ * decides which bucket a cross-system interaction is credited to.
  */
 export function computeRateBreakdown(
   state: Readonly<PlayerState>,
