@@ -2,6 +2,7 @@ import type { GameMode } from '@game/shared'
 import { getModeDefinition, isPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
+import { dataPanel } from './panels/data-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
 import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
 import { attackPanel } from './panels/attack-panel.js'
@@ -57,6 +58,9 @@ export function getModeUI(mode: GameMode): ModeUI {
       isUnlocked: (state) => isPanelUnlocked(state.player, modeDef, panel.id),
     })
   }
+
+  // Analytics panel — always available (no gate), placed last.
+  panels.push({ index: panels.length, panel: dataPanel })
 
   return { panels }
 }

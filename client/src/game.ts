@@ -60,6 +60,7 @@ import {
   shockwave,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
+import { roundStats } from './stats/round-stats.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -385,6 +386,10 @@ export function doClick(target?: string): void {
   state.player.resources[resource] = (state.player.resources[resource] ?? 0) + income
   if (resource === modeDef.scoreResource) state.player.score += income
 
+  // Local click telemetry (data panel) — counted once per real click, never in
+  // reconciliation, so optimistic re-application can't double-count.
+  roundStats.recordClick(resource, income)
+
   // Visual effects (anchored to the clicked button)
   const anchorId = `click-btn-${resource}`
   spawnClickPopup(income, anchorId)
@@ -559,6 +564,7 @@ export function resetForMatch(): void {
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   state.opponentName = ''
+  roundStats.reset()
   resetRoom()
   pendingBatches.length = 0
   resetSeq()
@@ -604,6 +610,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.vsBot = msg.vsBot
   state.countdown = COUNTDOWN_SEC
   state.endData = null
+  roundStats.reset()
   pendingBatches.length = 0
   lastFiredMilestoneTier = 0
   clickTarget = null
@@ -685,6 +692,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   state.player = reconciled
+  if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
   notify()
 }

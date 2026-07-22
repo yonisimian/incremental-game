@@ -1,4 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
+import { computePassiveRates } from '../modifiers/pipeline.js'
 import type { EffectRef, GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
@@ -377,6 +378,35 @@ export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefini
   return isSystemUnlocked(state, mode, 'highlight')
 }
 
+/**
+ * The multiplicative bonus currently applied to the highlighted resource by
+ * `highlightMultiplier` effects — mode-level effects (always on) and owned
+ * upgrades (compounding `multiplier ^ owned`, matching `collectModifiers`).
+ * Returns `1` when nothing boosts the highlight. Independent of *which* resource
+ * is highlighted (the factor only moves between resources).
+ */
+export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeDefinition): number {
+  let mult = 1
+
+  const accumulate = (refs: readonly EffectRef[] | undefined, owned: number): void => {
+    for (const ref of refs ?? []) {
+      if (ref.type !== 'highlightMultiplier') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if ('kind' in out && out.kind === 'baseModifier' && out.stage === 'multiplicative') {
+          mult *= out.value ** owned
+        }
+      }
+    }
+  }
+
+  accumulate(mode.effects, 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) accumulate(upgrade.effects, owned)
+  }
+  return mult
+}
+
 /** Whether the click mechanic is currently active for this player. */
 export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
   if (!mode.clicksEnabled) return false
@@ -598,6 +628,108 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   }
 
   return modifiers
+}
+
+/**
+ * Attribution of one resource's passive rate to the systems that produce it.
+ * `base + generators + upgrades` always equals `total` (the same number the
+ * header shows), and `byGenerator` sums to `generators`. See
+ * {@link computeRateBreakdown}.
+ */
+export interface ResourceRateBreakdown {
+  /** Authoritative per-second rate (matches `computePassiveRates`). */
+  total: number
+  /** Native modifiers + mode-level effects (the always-on floor). */
+  base: number
+  /** Contribution of all generators producing this resource. */
+  generators: number
+  /** Contribution of owned upgrades (their production/base modifiers). */
+  upgrades: number
+  /** Per-generator contribution (owned generators producing this resource). */
+  byGenerator: Record<string, number>
+}
+
+/** Shallow player-state clone with the named collections optionally emptied. */
+function playerWithout(
+  state: Readonly<PlayerState>,
+  opts: { generators?: boolean; upgrades?: boolean },
+): PlayerState {
+  return {
+    score: state.score,
+    resources: { ...state.resources },
+    upgrades: opts.upgrades ? {} : { ...state.upgrades },
+    generators: opts.generators ? {} : { ...state.generators },
+    meta: structuredClone(state.meta),
+  }
+}
+
+/**
+ * Decompose each resource's passive rate into base / generator / upgrade
+ * contributions, for display (e.g. the data panel).
+ *
+ * Each bucket is measured by *differencing* the full pipeline against the
+ * pipeline with a system removed, so shared multiplicative stages (highlight,
+ * global multipliers, debuffs) cancel and the three buckets telescope back to
+ * the authoritative total — regardless of how the modifiers compose. Optional
+ * `debuffs` (from `collectEnemyDebuffs`) are merged in so the total matches the
+ * income the server actually applies.
+ *
+ * `byGenerator` splits the generator bucket across owned generators in
+ * proportion to their raw output (`rate × owned`); generators are mutually
+ * additive, so this preserves the exact bucket sum.
+ *
+ * Attribution ordering: generators are removed first, then upgrades, so an
+ * upgrade that boosts *generator* output lands in the `generators` bucket, not
+ * `upgrades` (removing the generators already takes that boosted contribution
+ * with them). The `upgrades` bucket therefore reflects an upgrade's effect on
+ * the base/native floor only. Buckets still sum exactly to `total`; this only
+ * decides which bucket a cross-system interaction is credited to.
+ */
+export function computeRateBreakdown(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  debuffs: readonly Modifier[] = [],
+): Record<string, ResourceRateBreakdown> {
+  const { resources } = mode
+  const rateFor = (player: Readonly<PlayerState>): Record<string, number> =>
+    computePassiveRates([...collectModifiers(player, mode), ...debuffs], resources)
+
+  const total = rateFor(state)
+  const noGen = rateFor(playerWithout(state, { generators: true }))
+  const noGenUpg = rateFor(playerWithout(state, { generators: true, upgrades: true }))
+
+  // Raw generator output per resource, for proportionally splitting the
+  // generator bucket across the individual generators that feed it.
+  const genRawByResource = new Map<string, { total: number; byId: Record<string, number> }>()
+  for (const gen of mode.generators) {
+    const owned = state.generators[gen.id] ?? 0
+    if (owned <= 0) continue
+    const raw = gen.production.rate * owned
+    if (raw <= 0) continue
+    const entry = genRawByResource.get(gen.production.resource) ?? { total: 0, byId: {} }
+    entry.total += raw
+    entry.byId[gen.id] = (entry.byId[gen.id] ?? 0) + raw
+    genRawByResource.set(gen.production.resource, entry)
+  }
+
+  const result: Record<string, ResourceRateBreakdown> = {}
+  for (const r of resources) {
+    const t = total[r] ?? 0
+    const generators = t - (noGen[r] ?? 0)
+    const upgrades = (noGen[r] ?? 0) - (noGenUpg[r] ?? 0)
+    const base = noGenUpg[r] ?? 0
+
+    const byGenerator: Record<string, number> = {}
+    const raw = genRawByResource.get(r)
+    if (raw && raw.total > 0) {
+      for (const [id, rawRate] of Object.entries(raw.byId)) {
+        byGenerator[id] = generators * (rawRate / raw.total)
+      }
+    }
+
+    result[r] = { total: t, base, generators, upgrades, byGenerator }
+  }
+  return result
 }
 
 /**

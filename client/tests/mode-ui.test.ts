@@ -17,6 +17,7 @@ describe('getModeUI', () => {
       'attack',
       'international-relationship',
       'espionage',
+      'data',
     ])
   })
 
