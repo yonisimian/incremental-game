@@ -1,6 +1,6 @@
 // ─── Number Formatting ───────────────────────────────────────────────
 //
-// Configurable number display: notation mode + digit grouping.
+// Configurable number display: notation mode + decimal separator.
 // All settings are persisted to localStorage and read synchronously.
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -8,12 +8,12 @@
 /** How large numbers are abbreviated. */
 export type NotationMode = 'name' | 'scientific' | 'engineering'
 
-/** Thousands separator style. */
-export type DigitGrouping = 'comma' | 'period' | 'space' | 'none'
+/** Decimal mark used for the fractional part (locale preference). */
+export type DecimalSeparator = 'period' | 'comma'
 
 interface NumberFormatSettings {
   notation: NotationMode
-  grouping: DigitGrouping
+  decimalSeparator: DecimalSeparator
 }
 
 // ─── Defaults & Persistence ──────────────────────────────────────────
@@ -22,7 +22,7 @@ const STORAGE_KEY = 'number-format'
 
 const DEFAULTS: NumberFormatSettings = {
   notation: 'scientific',
-  grouping: 'comma',
+  decimalSeparator: 'period',
 }
 
 let current: NumberFormatSettings = loadSettings()
@@ -34,7 +34,9 @@ function loadSettings(): NumberFormatSettings {
     const parsed = JSON.parse(raw) as Partial<NumberFormatSettings>
     return {
       notation: isNotation(parsed.notation) ? parsed.notation : DEFAULTS.notation,
-      grouping: isGrouping(parsed.grouping) ? parsed.grouping : DEFAULTS.grouping,
+      decimalSeparator: isDecimalSeparator(parsed.decimalSeparator)
+        ? parsed.decimalSeparator
+        : DEFAULTS.decimalSeparator,
     }
   } catch {
     return { ...DEFAULTS }
@@ -53,8 +55,8 @@ function isNotation(v: unknown): v is NotationMode {
   return v === 'name' || v === 'scientific' || v === 'engineering'
 }
 
-function isGrouping(v: unknown): v is DigitGrouping {
-  return v === 'comma' || v === 'period' || v === 'space' || v === 'none'
+function isDecimalSeparator(v: unknown): v is DecimalSeparator {
+  return v === 'period' || v === 'comma'
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -68,8 +70,8 @@ export function setNotation(notation: NotationMode): void {
   saveSettings()
 }
 
-export function setGrouping(grouping: DigitGrouping): void {
-  current = { ...current, grouping }
+export function setDecimalSeparator(decimalSeparator: DecimalSeparator): void {
+  current = { ...current, decimalSeparator }
   saveSettings()
 }
 
@@ -102,34 +104,15 @@ function nameSuffix(tier: number): string | null {
   )
 }
 
-// ─── Grouping ────────────────────────────────────────────────────────
+// ─── Decimal Separator ───────────────────────────────────────────────
 
-const SEPARATORS: Record<DigitGrouping, string> = {
-  comma: ',',
-  period: '.',
-  space: '\u2009', // thin space
-  none: '',
-}
-
-function applyGrouping(integerPart: string, grouping: DigitGrouping): string {
-  if (grouping === 'none') return integerPart
-
-  const sep = SEPARATORS[grouping]
-  // Handle negative numbers
-  const negative = integerPart.startsWith('-')
-  const digits = negative ? integerPart.slice(1) : integerPart
-
-  if (digits.length <= 3) return integerPart
-
-  let result = ''
-  let count = 0
-  for (let i = digits.length - 1; i >= 0; i--) {
-    if (count > 0 && count % 3 === 0) result = sep + result
-    result = digits[i] + result
-    count++
-  }
-
-  return negative ? `-${result}` : result
+/**
+ * Swap the decimal mark of an already-formatted number to match the user's
+ * preference. Numbers carry at most one '.', so a single replace suffices
+ * (suffix letters and the exponent 'e' contain no dot).
+ */
+function applyDecimalSeparator(formatted: string): string {
+  return current.decimalSeparator === 'comma' ? formatted.replace('.', ',') : formatted
 }
 
 // ─── Core Formatter ──────────────────────────────────────────────────
@@ -141,34 +124,25 @@ function applyGrouping(integerPart: string, grouping: DigitGrouping): string {
  * @param decimals - Max decimal places for name mode values below 1000 (default: 0).
  */
 export function formatNumber(value: number, decimals = 0): string {
-  const { notation, grouping } = current
-
   if (!isFinite(value)) return String(value)
 
-  switch (notation) {
+  switch (current.notation) {
     case 'name':
-      return formatName(value, decimals, grouping)
+      return applyDecimalSeparator(formatName(value, decimals))
     case 'scientific':
-      return formatScientific(value)
+      return applyDecimalSeparator(formatScientific(value))
     case 'engineering':
-      return formatEngineering(value)
+      return applyDecimalSeparator(formatEngineering(value))
   }
 }
 
-function formatName(value: number, decimals: number, grouping: DigitGrouping): string {
+function formatName(value: number, decimals: number): string {
   const abs = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
   if (abs < 1000) {
     const rounded = decimals > 0 ? Number(abs.toFixed(decimals)) : Math.floor(abs)
-    const str = decimals > 0 ? rounded.toFixed(decimals) : String(rounded)
-    const [intPart, fracPart] = str.split('.')
-    const grouped = applyGrouping(intPart, grouping)
-    if (fracPart) {
-      const decimalPoint = grouping === 'period' ? ',' : '.'
-      return sign + grouped + decimalPoint + fracPart
-    }
-    return sign + grouped
+    return sign + (decimals > 0 ? rounded.toFixed(decimals) : String(rounded))
   }
 
   // Find the appropriate suffix tier

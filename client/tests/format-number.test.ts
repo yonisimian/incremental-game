@@ -1,10 +1,10 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { formatNumber, setNotation, setGrouping } from '../src/ui/format-number.js'
+import { formatNumber, setNotation, setDecimalSeparator } from '../src/ui/format-number.js'
 
 // Reset to defaults before each test
 beforeEach(() => {
   setNotation('scientific')
-  setGrouping('comma')
+  setDecimalSeparator('period')
 })
 
 describe('formatNumber — scientific notation', () => {
@@ -120,42 +120,42 @@ describe('formatNumber — engineering notation', () => {
   })
 })
 
-describe('digit grouping', () => {
-  it('comma grouping', () => {
-    setNotation('name')
-    setGrouping('comma')
-    expect(formatNumber(999.5, 1)).toBe('999.5')
-  })
-
-  it('period grouping swaps decimal point to comma below 1000 in name mode', () => {
-    setNotation('name')
-    setGrouping('period')
-    expect(formatNumber(999.5, 1)).toBe('999,5')
-  })
-
-  it('space grouping keeps decimal point as dot', () => {
-    setNotation('name')
-    setGrouping('space')
-    expect(formatNumber(999.5, 1)).toBe('999.5')
-  })
-
-  it('no grouping keeps decimal point as dot', () => {
-    setNotation('name')
-    setGrouping('none')
-    expect(formatNumber(999.5, 1)).toBe('999.5')
-  })
-
-  it('grouping does not affect scientific notation', () => {
+describe('decimal separator', () => {
+  it('defaults to a period across all notations', () => {
     setNotation('scientific')
-    setGrouping('period')
     expect(formatNumber(123456)).toBe('1.23e5')
+    setNotation('engineering')
+    expect(formatNumber(123456)).toBe('123.46e3')
+    setNotation('name')
+    expect(formatNumber(1500)).toBe('1.5K')
   })
 
-  it('grouping only affects name mode below 1000 threshold', () => {
+  it('applies comma to the scientific mantissa', () => {
+    setNotation('scientific')
+    setDecimalSeparator('comma')
+    expect(formatNumber(123456)).toBe('1,23e5')
+  })
+
+  it('applies comma to the engineering mantissa', () => {
+    setNotation('engineering')
+    setDecimalSeparator('comma')
+    expect(formatNumber(123456)).toBe('123,46e3')
+  })
+
+  it('applies comma to name-notation values', () => {
     setNotation('name')
-    setGrouping('period')
+    setDecimalSeparator('comma')
+    expect(formatNumber(1500)).toBe('1,5K')
+    expect(formatNumber(1.5e36)).toBe('1,5UDc')
     expect(formatNumber(999.5, 1)).toBe('999,5')
-    // Above 1000, name takes over
-    expect(formatNumber(1500)).toBe('1.5K')
+  })
+
+  it('leaves integers untouched regardless of separator', () => {
+    setDecimalSeparator('comma')
+    setNotation('name')
+    expect(formatNumber(999)).toBe('999')
+    expect(formatNumber(1000)).toBe('1K')
+    setNotation('scientific')
+    expect(formatNumber(100000)).toBe('1e5')
   })
 })

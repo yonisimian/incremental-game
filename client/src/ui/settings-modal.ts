@@ -1,14 +1,14 @@
 // ─── Settings Modal ──────────────────────────────────────────────────
 //
 // A full-screen overlay accessible from the lobby via the gear icon.
-// Manages number display preferences (notation + grouping).
+// Manages number display preferences (notation + decimal separator).
 
 import {
   type NotationMode,
-  type DigitGrouping,
+  type DecimalSeparator,
   getNumberFormatSettings,
   setNotation,
-  setGrouping,
+  setDecimalSeparator,
   formatNumber,
 } from './format-number.js'
 
@@ -20,11 +20,9 @@ const NOTATION_OPTIONS: { value: NotationMode; label: string; example: string }[
   { value: 'engineering', label: 'Engineering', example: '123.5e3' },
 ]
 
-const GROUPING_OPTIONS: { value: DigitGrouping; label: string; example: string }[] = [
-  { value: 'comma', label: 'Comma', example: '1,234,567' },
-  { value: 'period', label: 'Period', example: '1.234.567' },
-  { value: 'space', label: 'Space', example: '1\u2009234\u2009567' },
-  { value: 'none', label: 'None', example: '1234567' },
+const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string; example: string }[] = [
+  { value: 'period', label: 'Period', example: '1.23e5' },
+  { value: 'comma', label: 'Comma', example: '1,23e5' },
 ]
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -65,12 +63,12 @@ function renderContent(): string {
           </section>
 
           <section class="settings-section">
-            <h3 class="settings-section-title">Digit Grouping</h3>
-            <div class="settings-chips" id="grouping-chips">
-              ${GROUPING_OPTIONS.map(
+            <h3 class="settings-section-title">Decimal Separator</h3>
+            <div class="settings-chips" id="decimal-chips">
+              ${DECIMAL_SEPARATOR_OPTIONS.map(
                 (opt) => `
-                <button class="settings-chip${settings.grouping === opt.value ? ' selected' : ''}"
-                        data-grouping="${opt.value}">
+                <button class="settings-chip${settings.decimalSeparator === opt.value ? ' selected' : ''}"
+                        data-decimal="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
                   <span class="chip-example">${opt.example}</span>
                 </button>`,
@@ -112,10 +110,10 @@ export function openSettings(): void {
     refreshModal()
   })
 
-  document.getElementById('grouping-chips')!.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-grouping]')
+  document.getElementById('decimal-chips')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-decimal]')
     if (!btn) return
-    setGrouping(btn.dataset.grouping as DigitGrouping)
+    setDecimalSeparator(btn.dataset.decimal as DecimalSeparator)
     refreshModal()
   })
 
@@ -151,8 +149,8 @@ function refreshModal(): void {
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-notation]')) {
     chip.classList.toggle('selected', chip.dataset.notation === settings.notation)
   }
-  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-grouping]')) {
-    chip.classList.toggle('selected', chip.dataset.grouping === settings.grouping)
+  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-decimal]')) {
+    chip.classList.toggle('selected', chip.dataset.decimal === settings.decimalSeparator)
   }
 
   // Update preview
