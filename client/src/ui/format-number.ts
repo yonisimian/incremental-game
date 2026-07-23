@@ -1,19 +1,19 @@
 // ─── Number Formatting ───────────────────────────────────────────────
 //
-// Configurable number display: notation mode + digit grouping.
+// Configurable number display: notation mode + decimal separator.
 // All settings are persisted to localStorage and read synchronously.
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 /** How large numbers are abbreviated. */
-export type NotationMode = 'standard' | 'name' | 'scientific' | 'engineering'
+export type NotationMode = 'name' | 'scientific' | 'engineering'
 
-/** Thousands separator style. */
-export type DigitGrouping = 'comma' | 'period' | 'space' | 'none'
+/** Decimal mark used for the fractional part (locale preference). */
+export type DecimalSeparator = 'period' | 'comma'
 
 interface NumberFormatSettings {
   notation: NotationMode
-  grouping: DigitGrouping
+  decimalSeparator: DecimalSeparator
 }
 
 // ─── Defaults & Persistence ──────────────────────────────────────────
@@ -21,8 +21,8 @@ interface NumberFormatSettings {
 const STORAGE_KEY = 'number-format'
 
 const DEFAULTS: NumberFormatSettings = {
-  notation: 'standard',
-  grouping: 'comma',
+  notation: 'scientific',
+  decimalSeparator: 'period',
 }
 
 let current: NumberFormatSettings = loadSettings()
@@ -31,30 +31,73 @@ function loadSettings(): NumberFormatSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...DEFAULTS }
-    const parsed = JSON.parse(raw) as Partial<NumberFormatSettings>
-    return {
-      notation: isNotation(parsed.notation) ? parsed.notation : DEFAULTS.notation,
-      grouping: isGrouping(parsed.grouping) ? parsed.grouping : DEFAULTS.grouping,
-    }
+    const migrated = migrateSettings(JSON.parse(raw))
+    // LEGACY MIGRATION (remove before release): rewrite the canonical shape
+    // back when the stored blob differs (legacy `standard`/`grouping` keys,
+    // extra fields). This purges stale data so the migration can eventually be
+    // removed. On removal, replace the two lines below with a direct return of
+    // `migrated` and inline field validation here.
+    const canonical = JSON.stringify(migrated)
+    if (canonical !== raw) writeSettings(canonical)
+    return migrated
   } catch {
     return { ...DEFAULTS }
   }
 }
 
+/**
+ * LEGACY MIGRATION (remove before release).
+ *
+ * Normalize a persisted settings blob into current-schema settings, migrating
+ * legacy shapes from before the standard-notation removal / grouping rework:
+ *
+ *  - `notation: 'standard'` (removed) falls back to the default (scientific).
+ *  - The old four-way `grouping` field is mapped to `decimalSeparator`: only
+ *    `'period'` grouping rendered a comma decimal mark, so it becomes `'comma'`;
+ *    every other grouping used a dot, so it becomes `'period'`.
+ *
+ * Once released clients have re-persisted the canonical shape (see the
+ * write-back in `loadSettings`), delete this function and its callers.
+ */
+export function migrateSettings(parsed: unknown): NumberFormatSettings {
+  const obj = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<
+    string,
+    unknown
+  >
+
+  const notation = isNotation(obj.notation) ? obj.notation : DEFAULTS.notation
+
+  let decimalSeparator: DecimalSeparator
+  if (isDecimalSeparator(obj.decimalSeparator)) {
+    decimalSeparator = obj.decimalSeparator
+  } else if (obj.grouping !== undefined) {
+    // Legacy grouping field: 'period' meant a comma decimal mark.
+    decimalSeparator = obj.grouping === 'period' ? 'comma' : 'period'
+  } else {
+    decimalSeparator = DEFAULTS.decimalSeparator
+  }
+
+  return { notation, decimalSeparator }
+}
+
 function saveSettings(): void {
+  writeSettings(JSON.stringify(current))
+}
+
+function writeSettings(serialized: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current))
+    localStorage.setItem(STORAGE_KEY, serialized)
   } catch {
     /* localStorage unavailable */
   }
 }
 
 function isNotation(v: unknown): v is NotationMode {
-  return v === 'standard' || v === 'name' || v === 'scientific' || v === 'engineering'
+  return v === 'name' || v === 'scientific' || v === 'engineering'
 }
 
-function isGrouping(v: unknown): v is DigitGrouping {
-  return v === 'comma' || v === 'period' || v === 'space' || v === 'none'
+function isDecimalSeparator(v: unknown): v is DecimalSeparator {
+  return v === 'period' || v === 'comma'
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -68,95 +111,109 @@ export function setNotation(notation: NotationMode): void {
   saveSettings()
 }
 
-export function setGrouping(grouping: DigitGrouping): void {
-  current = { ...current, grouping }
+export function setDecimalSeparator(decimalSeparator: DecimalSeparator): void {
+  current = { ...current, decimalSeparator }
   saveSettings()
 }
 
 // ─── Name Suffixes ───────────────────────────────────────────────────
+//
+// Tiers 0–10 use the traditional fixed abbreviations. Everything above is
+// generated from Conway–Wechsler short-scale roots: each "illion" name is a
+// combination of ones/tens/hundreds components, so three small arrays cover
+// tiers up to 1e2997 — far beyond what a JS double (~1.8e308) can represent.
 
-const NAME_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc']
+const SMALL_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No']
 
-// ─── Grouping ────────────────────────────────────────────────────────
+// Latin roots for the illion index (decillion = 10th illion, index 10 onward).
+const ONES = ['', 'U', 'D', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No']
+const TENS = ['', 'Dc', 'Vg', 'Tg', 'Qd', 'Qq', 'Sg', 'St', 'Og', 'Ng']
+const HUNDREDS = ['', 'Ce', 'Dn', 'Tc', 'Qe', 'Qu', 'Se', 'Si', 'Ot', 'Ne']
 
-const SEPARATORS: Record<DigitGrouping, string> = {
-  comma: ',',
-  period: '.',
-  space: '\u2009', // thin space
-  none: '',
+/**
+ * Abbreviated suffix for a power-of-1000 tier (tier 1 = "K", tier 2 = "M", …).
+ * Returns null past the generator's range (tier ≥ 1000, i.e. ≥ 1e3000), which
+ * is unreachable for finite doubles but guards against emitting garbage.
+ */
+function nameSuffix(tier: number): string | null {
+  if (tier < SMALL_SUFFIXES.length) return SMALL_SUFFIXES[tier]
+  if (tier >= 1000) return null
+
+  const illion = tier - 1
+  return (
+    ONES[illion % 10] + TENS[Math.floor(illion / 10) % 10] + HUNDREDS[Math.floor(illion / 100) % 10]
+  )
 }
 
-function applyGrouping(integerPart: string, grouping: DigitGrouping): string {
-  if (grouping === 'none') return integerPart
+// ─── Decimal Separator ───────────────────────────────────────────────
 
-  const sep = SEPARATORS[grouping]
-  // Handle negative numbers
-  const negative = integerPart.startsWith('-')
-  const digits = negative ? integerPart.slice(1) : integerPart
-
-  if (digits.length <= 3) return integerPart
-
-  let result = ''
-  let count = 0
-  for (let i = digits.length - 1; i >= 0; i--) {
-    if (count > 0 && count % 3 === 0) result = sep + result
-    result = digits[i] + result
-    count++
-  }
-
-  return negative ? `-${result}` : result
+/**
+ * Swap the decimal mark of an already-formatted number to match the requested
+ * preference. Numbers carry at most one '.', so a single replace suffices
+ * (suffix letters and the exponent 'e' contain no dot).
+ */
+function applyDecimalSeparator(formatted: string, separator: DecimalSeparator): string {
+  return separator === 'comma' ? formatted.replace('.', ',') : formatted
 }
 
 // ─── Core Formatter ──────────────────────────────────────────────────
 
 /**
- * Format a number for display according to current settings.
+ * Format a number for display according to the current settings.
  *
  * @param value - The number to format.
- * @param decimals - Max decimal places for standard/name mode (default: 0).
+ * @param decimals - Max decimal places for name mode values below 1000 (default: 0).
  */
 export function formatNumber(value: number, decimals = 0): string {
-  const { notation, grouping } = current
+  return formatNumberAs(value, current.notation, current.decimalSeparator, decimals)
+}
 
+/**
+ * Format a number in an explicit notation / decimal separator, independent of
+ * the persisted settings. Used to render settings previews that show the same
+ * value across every notation without mutating global state.
+ */
+export function formatNumberAs(
+  value: number,
+  notation: NotationMode,
+  decimalSeparator: DecimalSeparator,
+  decimals = 0,
+): string {
   if (!isFinite(value)) return String(value)
 
+  return applyDecimalSeparator(formatWithNotation(value, notation, decimals), decimalSeparator)
+}
+
+/** Render the number in the given notation, without applying the decimal separator. */
+function formatWithNotation(value: number, notation: NotationMode, decimals: number): string {
   switch (notation) {
-    case 'standard':
-      return formatStandard(value, decimals, grouping)
     case 'name':
-      return formatName(value, grouping)
+      return formatName(value, decimals)
     case 'scientific':
       return formatScientific(value)
     case 'engineering':
       return formatEngineering(value)
+    default:
+      return assertNever(notation)
   }
 }
 
-function formatStandard(value: number, decimals: number, grouping: DigitGrouping): string {
-  const rounded = decimals > 0 ? Number(value.toFixed(decimals)) : Math.floor(value)
-  const str = decimals > 0 ? rounded.toFixed(decimals) : String(rounded)
-
-  const [intPart, fracPart] = str.split('.')
-  const grouped = applyGrouping(intPart, grouping)
-
-  if (fracPart) {
-    // Use opposite separator as decimal point when grouping uses period
-    const decimalPoint = grouping === 'period' ? ',' : '.'
-    return grouped + decimalPoint + fracPart
-  }
-  return grouped
-}
-
-function formatName(value: number, grouping: DigitGrouping): string {
+function formatName(value: number, decimals: number): string {
   const abs = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
   if (abs < 1000) {
-    return sign + applyGrouping(String(Math.floor(abs)), grouping)
+    const rounded = decimals > 0 ? Number(abs.toFixed(decimals)) : Math.floor(abs)
+    return sign + (decimals > 0 ? rounded.toFixed(decimals) : String(rounded))
   }
 
   // Find the appropriate suffix tier
-  const tier = Math.min(Math.floor(Math.log10(abs) / 3), NAME_SUFFIXES.length - 1)
+  const tier = Math.floor(Math.log10(abs) / 3)
+  const suffix = nameSuffix(tier)
+  // Past the nameable range, fall back to scientific rather than emitting a
+  // broken mantissa+suffix hybrid (unreachable for finite doubles).
+  if (suffix === null) return sign + formatScientific(abs)
+
   const scaled = abs / Math.pow(1000, tier)
 
   // Show up to 2 decimal places, trim trailing zeros
@@ -169,7 +226,7 @@ function formatName(value: number, grouping: DigitGrouping): string {
     numStr = scaled.toFixed(2).replace(/\.?0+$/, '')
   }
 
-  return sign + numStr + NAME_SUFFIXES[tier]
+  return sign + numStr + suffix
 }
 
 function formatScientific(value: number): string {
@@ -201,4 +258,9 @@ function formatEngineering(value: number): string {
   const mantissaStr = mantissa.toFixed(2).replace(/\.?0+$/, '')
 
   return `${sign}${mantissaStr}e${engExp}`
+}
+
+/** Compile-time exhaustiveness guard: unreachable unless a notation is unhandled. */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled notation: ${String(value)}`)
 }
