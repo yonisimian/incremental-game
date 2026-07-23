@@ -1,5 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest'
-import { formatNumber, setNotation, setDecimalSeparator } from '../src/ui/format-number.js'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import {
+  formatNumber,
+  setNotation,
+  setDecimalSeparator,
+  migrateSettings,
+} from '../src/ui/format-number.js'
 
 // Reset to defaults before each test
 beforeEach(() => {
@@ -157,5 +162,86 @@ describe('decimal separator', () => {
     expect(formatNumber(1000)).toBe('1K')
     setNotation('scientific')
     expect(formatNumber(100000)).toBe('1e5')
+  })
+})
+
+// LEGACY MIGRATION tests (remove before release, alongside migrateSettings).
+describe('migrateSettings', () => {
+  it('maps the removed standard notation to the default', () => {
+    expect(migrateSettings({ notation: 'standard' })).toEqual({
+      notation: 'scientific',
+      decimalSeparator: 'period',
+    })
+  })
+
+  it('preserves still-valid notation modes', () => {
+    expect(migrateSettings({ notation: 'name' }).notation).toBe('name')
+    expect(migrateSettings({ notation: 'engineering' }).notation).toBe('engineering')
+  })
+
+  it('maps legacy period grouping to a comma decimal separator', () => {
+    expect(migrateSettings({ notation: 'name', grouping: 'period' })).toEqual({
+      notation: 'name',
+      decimalSeparator: 'comma',
+    })
+  })
+
+  it('maps other legacy groupings to a period decimal separator', () => {
+    for (const grouping of ['comma', 'space', 'none']) {
+      expect(migrateSettings({ grouping }).decimalSeparator).toBe('period')
+    }
+  })
+
+  it('keeps an explicit decimalSeparator over a legacy grouping field', () => {
+    expect(migrateSettings({ decimalSeparator: 'comma', grouping: 'comma' }).decimalSeparator).toBe(
+      'comma',
+    )
+  })
+
+  it('falls back to defaults for missing or malformed input', () => {
+    expect(migrateSettings(null)).toEqual({ notation: 'scientific', decimalSeparator: 'period' })
+    expect(migrateSettings({})).toEqual({ notation: 'scientific', decimalSeparator: 'period' })
+    expect(migrateSettings({ notation: 42, decimalSeparator: 'nonsense' })).toEqual({
+      notation: 'scientific',
+      decimalSeparator: 'period',
+    })
+  })
+})
+
+// LEGACY MIGRATION tests (remove before release, alongside the write-back).
+describe('legacy settings write-back', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('rewrites the canonical shape back, purging legacy keys on load', async () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ notation: 'standard', grouping: 'period' }),
+      setItem,
+    })
+    // Fresh module instance so its top-level loadSettings() runs with the stub.
+    vi.resetModules()
+    await import('../src/ui/format-number.js')
+
+    expect(setItem).toHaveBeenCalledTimes(1)
+    const [key, value] = setItem.mock.calls[0] as [string, string]
+    expect(key).toBe('number-format')
+    expect(JSON.parse(value)).toEqual({ notation: 'scientific', decimalSeparator: 'comma' })
+    expect(value).not.toContain('standard')
+    expect(value).not.toContain('grouping')
+  })
+
+  it('does not rewrite when the stored blob is already canonical', async () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ notation: 'scientific', decimalSeparator: 'period' }),
+      setItem,
+    })
+    vi.resetModules()
+    await import('../src/ui/format-number.js')
+
+    expect(setItem).not.toHaveBeenCalled()
   })
 })

@@ -31,21 +31,62 @@ function loadSettings(): NumberFormatSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...DEFAULTS }
-    const parsed = JSON.parse(raw) as Partial<NumberFormatSettings>
-    return {
-      notation: isNotation(parsed.notation) ? parsed.notation : DEFAULTS.notation,
-      decimalSeparator: isDecimalSeparator(parsed.decimalSeparator)
-        ? parsed.decimalSeparator
-        : DEFAULTS.decimalSeparator,
-    }
+    const migrated = migrateSettings(JSON.parse(raw))
+    // LEGACY MIGRATION (remove before release): rewrite the canonical shape
+    // back when the stored blob differs (legacy `standard`/`grouping` keys,
+    // extra fields). This purges stale data so the migration can eventually be
+    // removed. On removal, replace the two lines below with a direct return of
+    // `migrated` and inline field validation here.
+    const canonical = JSON.stringify(migrated)
+    if (canonical !== raw) writeSettings(canonical)
+    return migrated
   } catch {
     return { ...DEFAULTS }
   }
 }
 
+/**
+ * LEGACY MIGRATION (remove before release).
+ *
+ * Normalize a persisted settings blob into current-schema settings, migrating
+ * legacy shapes from before the standard-notation removal / grouping rework:
+ *
+ *  - `notation: 'standard'` (removed) falls back to the default (scientific).
+ *  - The old four-way `grouping` field is mapped to `decimalSeparator`: only
+ *    `'period'` grouping rendered a comma decimal mark, so it becomes `'comma'`;
+ *    every other grouping used a dot, so it becomes `'period'`.
+ *
+ * Once released clients have re-persisted the canonical shape (see the
+ * write-back in `loadSettings`), delete this function and its callers.
+ */
+export function migrateSettings(parsed: unknown): NumberFormatSettings {
+  const obj = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<
+    string,
+    unknown
+  >
+
+  const notation = isNotation(obj.notation) ? obj.notation : DEFAULTS.notation
+
+  let decimalSeparator: DecimalSeparator
+  if (isDecimalSeparator(obj.decimalSeparator)) {
+    decimalSeparator = obj.decimalSeparator
+  } else if (obj.grouping !== undefined) {
+    // Legacy grouping field: 'period' meant a comma decimal mark.
+    decimalSeparator = obj.grouping === 'period' ? 'comma' : 'period'
+  } else {
+    decimalSeparator = DEFAULTS.decimalSeparator
+  }
+
+  return { notation, decimalSeparator }
+}
+
 function saveSettings(): void {
+  writeSettings(JSON.stringify(current))
+}
+
+function writeSettings(serialized: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current))
+    localStorage.setItem(STORAGE_KEY, serialized)
   } catch {
     /* localStorage unavailable */
   }
