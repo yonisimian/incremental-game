@@ -64,6 +64,30 @@ describe('formatNumber — name notation', () => {
     expect(formatNumber(1_000_000_000)).toBe('1B')
   })
 
+  it('uses the highest small-scale suffix (No) then switches to generated names', () => {
+    expect(formatNumber(1e30)).toBe('1No')
+    expect(formatNumber(1e33)).toBe('1Dc')
+  })
+
+  it('generates suffixes far beyond the traditional range', () => {
+    expect(formatNumber(1.5e36)).toBe('1.5UDc')
+    expect(formatNumber(1e40)).toBe('10DDc')
+    expect(formatNumber(1e63)).toBe('1Vg')
+  })
+
+  it('abbreviates very large numbers around 1e67', () => {
+    expect(formatNumber(1e67)).toBe('10UVg')
+    expect(formatNumber(9.99e67)).toBe('99.9UVg')
+  })
+
+  it('names numbers up to the top of the double range', () => {
+    expect(formatNumber(1e93)).toBe('1Tg')
+    expect(formatNumber(1e100)).toBe('10DTg')
+    expect(formatNumber(1e150)).toBe('1NoQd')
+    // ~1.8e308 is the largest finite double; it must stay named, not raw.
+    expect(formatNumber(1.7e308)).toBe('170UCe')
+  })
+
   it('handles negative numbers', () => {
     expect(formatNumber(-5000)).toBe('-5K')
   })

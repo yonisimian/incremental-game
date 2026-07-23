@@ -74,8 +74,33 @@ export function setGrouping(grouping: DigitGrouping): void {
 }
 
 // ─── Name Suffixes ───────────────────────────────────────────────────
+//
+// Tiers 0–10 use the traditional fixed abbreviations. Everything above is
+// generated from Conway–Wechsler short-scale roots: each "illion" name is a
+// combination of ones/tens/hundreds components, so three small arrays cover
+// tiers up to 1e2997 — far beyond what a JS double (~1.8e308) can represent.
 
-const NAME_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc']
+const SMALL_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No']
+
+// Latin roots for the illion index (decillion = 10th illion, index 10 onward).
+const ONES = ['', 'U', 'D', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No']
+const TENS = ['', 'Dc', 'Vg', 'Tg', 'Qd', 'Qq', 'Sg', 'St', 'Og', 'Ng']
+const HUNDREDS = ['', 'Ce', 'Dn', 'Tc', 'Qe', 'Qu', 'Se', 'Si', 'Ot', 'Ne']
+
+/**
+ * Abbreviated suffix for a power-of-1000 tier (tier 1 = "K", tier 2 = "M", …).
+ * Returns null past the generator's range (tier ≥ 1000, i.e. ≥ 1e3000), which
+ * is unreachable for finite doubles but guards against emitting garbage.
+ */
+function nameSuffix(tier: number): string | null {
+  if (tier < SMALL_SUFFIXES.length) return SMALL_SUFFIXES[tier]
+  if (tier >= 1000) return null
+
+  const illion = tier - 1
+  return (
+    ONES[illion % 10] + TENS[Math.floor(illion / 10) % 10] + HUNDREDS[Math.floor(illion / 100) % 10]
+  )
+}
 
 // ─── Grouping ────────────────────────────────────────────────────────
 
@@ -147,7 +172,12 @@ function formatName(value: number, decimals: number, grouping: DigitGrouping): s
   }
 
   // Find the appropriate suffix tier
-  const tier = Math.min(Math.floor(Math.log10(abs) / 3), NAME_SUFFIXES.length - 1)
+  const tier = Math.floor(Math.log10(abs) / 3)
+  const suffix = nameSuffix(tier)
+  // Past the nameable range, fall back to scientific rather than emitting a
+  // broken mantissa+suffix hybrid (unreachable for finite doubles).
+  if (suffix === null) return sign + formatScientific(abs)
+
   const scaled = abs / Math.pow(1000, tier)
 
   // Show up to 2 decimal places, trim trailing zeros
@@ -160,7 +190,7 @@ function formatName(value: number, decimals: number, grouping: DigitGrouping): s
     numStr = scaled.toFixed(2).replace(/\.?0+$/, '')
   }
 
-  return sign + numStr + NAME_SUFFIXES[tier]
+  return sign + numStr + suffix
 }
 
 function formatScientific(value: number): string {
