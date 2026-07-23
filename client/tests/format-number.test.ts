@@ -1,35 +1,37 @@
-import { describe, expect, it, beforeEach } from 'vitest'
-import { formatNumber, setNotation, setGrouping } from '../src/ui/format-number.js'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import {
+  formatNumber,
+  formatNumberAs,
+  setNotation,
+  setDecimalSeparator,
+  migrateSettings,
+} from '../src/ui/format-number.js'
 
 // Reset to defaults before each test
 beforeEach(() => {
-  setNotation('standard')
-  setGrouping('comma')
+  setNotation('scientific')
+  setDecimalSeparator('period')
 })
 
-describe('formatNumber — standard notation', () => {
-  it('formats small integers without grouping separators', () => {
+describe('formatNumber — scientific notation', () => {
+  it('leaves numbers below 1000 as-is', () => {
     expect(formatNumber(0)).toBe('0')
-    expect(formatNumber(999)).toBe('999')
+    expect(formatNumber(500)).toBe('500')
   })
 
-  it('applies comma grouping to large numbers', () => {
-    expect(formatNumber(1000)).toBe('1,000')
-    expect(formatNumber(1234567)).toBe('1,234,567')
-  })
-
-  it('floors by default (decimals = 0)', () => {
-    expect(formatNumber(99.9)).toBe('99')
-    expect(formatNumber(1234.567)).toBe('1,234')
-  })
-
-  it('respects decimals parameter', () => {
-    expect(formatNumber(1234.567, 2)).toBe('1,234.57')
-    expect(formatNumber(1000, 1)).toBe('1,000.0')
+  it('formats large numbers in scientific notation', () => {
+    expect(formatNumber(100000)).toBe('1e5')
+    expect(formatNumber(123456)).toBe('1.23e5')
+    expect(formatNumber(1000)).toBe('1e3')
   })
 
   it('handles negative numbers', () => {
-    expect(formatNumber(-5000)).toBe('-5,000')
+    expect(formatNumber(-50000)).toBe('-5e4')
+  })
+
+  it('formats very large numbers around 1e67 compactly', () => {
+    expect(formatNumber(1e67)).toBe('1e67')
+    expect(formatNumber(9.99e67)).toBe('9.99e67')
   })
 
   it('handles Infinity and NaN', () => {
@@ -43,9 +45,14 @@ describe('formatNumber — name notation', () => {
     setNotation('name')
   })
 
-  it('leaves numbers below 1000 as-is', () => {
+  it('floors numbers below 1000 by default', () => {
     expect(formatNumber(500)).toBe('500')
     expect(formatNumber(0)).toBe('0')
+  })
+
+  it('respects decimals parameter for numbers below 1000', () => {
+    expect(formatNumber(999.567, 2)).toBe('999.57')
+    expect(formatNumber(12.3, 1)).toBe('12.3')
   })
 
   it('abbreviates thousands as K', () => {
@@ -63,29 +70,32 @@ describe('formatNumber — name notation', () => {
     expect(formatNumber(1_000_000_000)).toBe('1B')
   })
 
+  it('uses the highest small-scale suffix (No) then switches to generated names', () => {
+    expect(formatNumber(1e30)).toBe('1No')
+    expect(formatNumber(1e33)).toBe('1Dc')
+  })
+
+  it('generates suffixes far beyond the traditional range', () => {
+    expect(formatNumber(1.5e36)).toBe('1.5UDc')
+    expect(formatNumber(1e40)).toBe('10DDc')
+    expect(formatNumber(1e63)).toBe('1Vg')
+  })
+
+  it('abbreviates very large numbers around 1e67', () => {
+    expect(formatNumber(1e67)).toBe('10UVg')
+    expect(formatNumber(9.99e67)).toBe('99.9UVg')
+  })
+
+  it('names numbers up to the top of the double range', () => {
+    expect(formatNumber(1e93)).toBe('1Tg')
+    expect(formatNumber(1e100)).toBe('10DTg')
+    expect(formatNumber(1e150)).toBe('1NoQd')
+    // ~1.8e308 is the largest finite double; it must stay named, not raw.
+    expect(formatNumber(1.7e308)).toBe('170UCe')
+  })
+
   it('handles negative numbers', () => {
     expect(formatNumber(-5000)).toBe('-5K')
-  })
-})
-
-describe('formatNumber — scientific notation', () => {
-  beforeEach(() => {
-    setNotation('scientific')
-  })
-
-  it('leaves numbers below 1000 as-is', () => {
-    expect(formatNumber(500)).toBe('500')
-    expect(formatNumber(0)).toBe('0')
-  })
-
-  it('formats large numbers in scientific notation', () => {
-    expect(formatNumber(100000)).toBe('1e5')
-    expect(formatNumber(123456)).toBe('1.23e5')
-    expect(formatNumber(1000)).toBe('1e3')
-  })
-
-  it('handles negative numbers', () => {
-    expect(formatNumber(-50000)).toBe('-5e4')
   })
 })
 
@@ -109,36 +119,155 @@ describe('formatNumber — engineering notation', () => {
   it('handles negative numbers', () => {
     expect(formatNumber(-5000)).toBe('-5e3')
   })
+
+  it('formats very large numbers around 1e67 with exponent multiple of 3', () => {
+    expect(formatNumber(1e67)).toBe('10e66')
+    expect(formatNumber(9.99e67)).toBe('99.9e66')
+  })
 })
 
-describe('digit grouping', () => {
-  it('comma grouping', () => {
-    setGrouping('comma')
-    expect(formatNumber(1234567)).toBe('1,234,567')
-  })
-
-  it('period grouping with comma decimal point', () => {
-    setGrouping('period')
-    expect(formatNumber(1234567)).toBe('1.234.567')
-    expect(formatNumber(1234.5, 1)).toBe('1.234,5')
-  })
-
-  it('space grouping (thin space)', () => {
-    setGrouping('space')
-    expect(formatNumber(1234567)).toBe('1\u2009234\u2009567')
-  })
-
-  it('no grouping', () => {
-    setGrouping('none')
-    expect(formatNumber(1234567)).toBe('1234567')
-  })
-
-  it('grouping only affects standard and name modes below 1000 threshold', () => {
+describe('decimal separator', () => {
+  it('defaults to a period across all notations', () => {
+    setNotation('scientific')
+    expect(formatNumber(123456)).toBe('1.23e5')
+    setNotation('engineering')
+    expect(formatNumber(123456)).toBe('123.46e3')
     setNotation('name')
-    setGrouping('comma')
-    // Name mode uses grouping for numbers < 1000
-    expect(formatNumber(999)).toBe('999')
-    // Above 1000, name takes over
     expect(formatNumber(1500)).toBe('1.5K')
+  })
+
+  it('applies comma to the scientific mantissa', () => {
+    setNotation('scientific')
+    setDecimalSeparator('comma')
+    expect(formatNumber(123456)).toBe('1,23e5')
+  })
+
+  it('applies comma to the engineering mantissa', () => {
+    setNotation('engineering')
+    setDecimalSeparator('comma')
+    expect(formatNumber(123456)).toBe('123,46e3')
+  })
+
+  it('applies comma to name-notation values', () => {
+    setNotation('name')
+    setDecimalSeparator('comma')
+    expect(formatNumber(1500)).toBe('1,5K')
+    expect(formatNumber(1.5e36)).toBe('1,5UDc')
+    expect(formatNumber(999.5, 1)).toBe('999,5')
+  })
+
+  it('leaves integers untouched regardless of separator', () => {
+    setDecimalSeparator('comma')
+    setNotation('name')
+    expect(formatNumber(999)).toBe('999')
+    expect(formatNumber(1000)).toBe('1K')
+    setNotation('scientific')
+    expect(formatNumber(100000)).toBe('1e5')
+  })
+})
+
+describe('formatNumberAs — explicit notation/separator (settings preview)', () => {
+  // The settings modal formats one sample value across every notation so the
+  // examples and preview always agree; lock that behavior here.
+  const SAMPLE = 15_500_000
+
+  it('renders the same value across notations with a period separator', () => {
+    expect(formatNumberAs(SAMPLE, 'name', 'period')).toBe('15.5M')
+    expect(formatNumberAs(SAMPLE, 'scientific', 'period')).toBe('1.55e7')
+    expect(formatNumberAs(SAMPLE, 'engineering', 'period')).toBe('15.5e6')
+  })
+
+  it('surfaces the comma separator in every notation', () => {
+    expect(formatNumberAs(SAMPLE, 'name', 'comma')).toBe('15,5M')
+    expect(formatNumberAs(SAMPLE, 'scientific', 'comma')).toBe('1,55e7')
+    expect(formatNumberAs(SAMPLE, 'engineering', 'comma')).toBe('15,5e6')
+  })
+
+  it('ignores the persisted settings', () => {
+    setNotation('scientific')
+    setDecimalSeparator('period')
+    // Explicit args win regardless of the current global settings.
+    expect(formatNumberAs(SAMPLE, 'name', 'comma')).toBe('15,5M')
+  })
+})
+
+// LEGACY MIGRATION tests (remove before release, alongside migrateSettings).
+describe('migrateSettings', () => {
+  it('maps the removed standard notation to the default', () => {
+    expect(migrateSettings({ notation: 'standard' })).toEqual({
+      notation: 'scientific',
+      decimalSeparator: 'period',
+    })
+  })
+
+  it('preserves still-valid notation modes', () => {
+    expect(migrateSettings({ notation: 'name' }).notation).toBe('name')
+    expect(migrateSettings({ notation: 'engineering' }).notation).toBe('engineering')
+  })
+
+  it('maps legacy period grouping to a comma decimal separator', () => {
+    expect(migrateSettings({ notation: 'name', grouping: 'period' })).toEqual({
+      notation: 'name',
+      decimalSeparator: 'comma',
+    })
+  })
+
+  it('maps other legacy groupings to a period decimal separator', () => {
+    for (const grouping of ['comma', 'space', 'none']) {
+      expect(migrateSettings({ grouping }).decimalSeparator).toBe('period')
+    }
+  })
+
+  it('keeps an explicit decimalSeparator over a legacy grouping field', () => {
+    expect(migrateSettings({ decimalSeparator: 'comma', grouping: 'comma' }).decimalSeparator).toBe(
+      'comma',
+    )
+  })
+
+  it('falls back to defaults for missing or malformed input', () => {
+    expect(migrateSettings(null)).toEqual({ notation: 'scientific', decimalSeparator: 'period' })
+    expect(migrateSettings({})).toEqual({ notation: 'scientific', decimalSeparator: 'period' })
+    expect(migrateSettings({ notation: 42, decimalSeparator: 'nonsense' })).toEqual({
+      notation: 'scientific',
+      decimalSeparator: 'period',
+    })
+  })
+})
+
+// LEGACY MIGRATION tests (remove before release, alongside the write-back).
+describe('legacy settings write-back', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('rewrites the canonical shape back, purging legacy keys on load', async () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ notation: 'standard', grouping: 'period' }),
+      setItem,
+    })
+    // Fresh module instance so its top-level loadSettings() runs with the stub.
+    vi.resetModules()
+    await import('../src/ui/format-number.js')
+
+    expect(setItem).toHaveBeenCalledTimes(1)
+    const [key, value] = setItem.mock.calls[0] as [string, string]
+    expect(key).toBe('number-format')
+    expect(JSON.parse(value)).toEqual({ notation: 'scientific', decimalSeparator: 'comma' })
+    expect(value).not.toContain('standard')
+    expect(value).not.toContain('grouping')
+  })
+
+  it('does not rewrite when the stored blob is already canonical', async () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ notation: 'scientific', decimalSeparator: 'period' }),
+      setItem,
+    })
+    vi.resetModules()
+    await import('../src/ui/format-number.js')
+
+    expect(setItem).not.toHaveBeenCalled()
   })
 })

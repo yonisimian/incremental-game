@@ -1,31 +1,35 @@
 // ─── Settings Modal ──────────────────────────────────────────────────
 //
 // A full-screen overlay accessible from the lobby via the gear icon.
-// Manages number display preferences (notation + grouping).
+// Manages number display preferences (notation + decimal separator).
 
 import {
   type NotationMode,
-  type DigitGrouping,
+  type DecimalSeparator,
   getNumberFormatSettings,
   setNotation,
-  setGrouping,
+  setDecimalSeparator,
   formatNumber,
+  formatNumberAs,
 } from './format-number.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
-const NOTATION_OPTIONS: { value: NotationMode; label: string; example: string }[] = [
-  { value: 'standard', label: 'Standard', example: '123,456' },
-  { value: 'name', label: 'Named', example: '123.5K' },
-  { value: 'scientific', label: 'Scientific', example: '1.23e5' },
-  { value: 'engineering', label: 'Engineering', example: '123.5e3' },
+// A single sample value drives the notation chips, the decimal separator
+// chips, and the preview, so every example shows the same number formatted
+// consistently. Chosen in the 1e7 range with a non-round mantissa so every
+// notation surfaces the decimal separator (e.g. 15.5M / 1.55e7 / 15.5e6).
+const SAMPLE_VALUE = 15_500_000
+
+const NOTATION_OPTIONS: { value: NotationMode; label: string }[] = [
+  { value: 'name', label: 'Named' },
+  { value: 'scientific', label: 'Scientific' },
+  { value: 'engineering', label: 'Engineering' },
 ]
 
-const GROUPING_OPTIONS: { value: DigitGrouping; label: string; example: string }[] = [
-  { value: 'comma', label: 'Comma', example: '1,234,567' },
-  { value: 'period', label: 'Period', example: '1.234.567' },
-  { value: 'space', label: 'Space', example: '1\u2009234\u2009567' },
-  { value: 'none', label: 'None', example: '1234567' },
+const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string }[] = [
+  { value: 'period', label: 'Period' },
+  { value: 'comma', label: 'Comma' },
 ]
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -36,7 +40,7 @@ let overlayEl: HTMLElement | null = null
 
 function renderContent(): string {
   const settings = getNumberFormatSettings()
-  const preview = formatNumber(123456.78, 2)
+  const preview = formatNumber(SAMPLE_VALUE)
 
   return `
     <div class="settings-overlay" id="settings-overlay">
@@ -59,23 +63,21 @@ function renderContent(): string {
                 <button class="settings-chip${settings.notation === opt.value ? ' selected' : ''}"
                         data-notation="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
-                  <span class="chip-example">${opt.example}</span>
+                  <span class="chip-example">${formatNumberAs(SAMPLE_VALUE, opt.value, settings.decimalSeparator)}</span>
                 </button>`,
               ).join('')}
             </div>
           </section>
 
-          <section class="settings-section${settings.notation !== 'standard' ? ' disabled' : ''}">
-            <h3 class="settings-section-title">Digit Grouping</h3>
-            ${settings.notation !== 'standard' ? '<p class="settings-hint">Only applies to Standard notation</p>' : ''}
-            <div class="settings-chips" id="grouping-chips">
-              ${GROUPING_OPTIONS.map(
+          <section class="settings-section">
+            <h3 class="settings-section-title">Decimal Separator</h3>
+            <div class="settings-chips" id="decimal-chips">
+              ${DECIMAL_SEPARATOR_OPTIONS.map(
                 (opt) => `
-                <button class="settings-chip${settings.grouping === opt.value ? ' selected' : ''}"
-                        data-grouping="${opt.value}"
-                        ${settings.notation !== 'standard' ? 'disabled' : ''}>
+                <button class="settings-chip${settings.decimalSeparator === opt.value ? ' selected' : ''}"
+                        data-decimal="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
-                  <span class="chip-example">${opt.example}</span>
+                  <span class="chip-example">${formatNumberAs(SAMPLE_VALUE, settings.notation, opt.value)}</span>
                 </button>`,
               ).join('')}
             </div>
@@ -115,10 +117,10 @@ export function openSettings(): void {
     refreshModal()
   })
 
-  document.getElementById('grouping-chips')!.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-grouping]')
+  document.getElementById('decimal-chips')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-decimal]')
     if (!btn) return
-    setGrouping(btn.dataset.grouping as DigitGrouping)
+    setDecimalSeparator(btn.dataset.decimal as DecimalSeparator)
     refreshModal()
   })
 
@@ -148,31 +150,26 @@ function refreshModal(): void {
   if (!modal) return
 
   const settings = getNumberFormatSettings()
-  const preview = formatNumber(123456.78, 2)
+  const preview = formatNumber(SAMPLE_VALUE)
 
   // Update chip selection states
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-notation]')) {
-    chip.classList.toggle('selected', chip.dataset.notation === settings.notation)
-  }
-  // Update grouping section disabled state
-  const groupingSection = modal.querySelector('#grouping-chips')?.closest('.settings-section')
-  if (groupingSection) {
-    groupingSection.classList.toggle('disabled', settings.notation !== 'standard')
-    const hint = groupingSection.querySelector('.settings-hint')
-    if (settings.notation !== 'standard' && !hint) {
-      groupingSection
-        .querySelector('.settings-section-title')!
-        .insertAdjacentHTML(
-          'afterend',
-          '<p class="settings-hint">Only applies to Standard notation</p>',
-        )
-    } else if (settings.notation === 'standard' && hint) {
-      hint.remove()
+    const notation = chip.dataset.notation as NotationMode
+    chip.classList.toggle('selected', notation === settings.notation)
+    // The example reflects the current decimal separator, so refresh it too.
+    const example = chip.querySelector('.chip-example')
+    if (example) {
+      example.textContent = formatNumberAs(SAMPLE_VALUE, notation, settings.decimalSeparator)
     }
   }
-  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-grouping]')) {
-    chip.classList.toggle('selected', chip.dataset.grouping === settings.grouping)
-    chip.disabled = settings.notation !== 'standard'
+  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-decimal]')) {
+    const separator = chip.dataset.decimal as DecimalSeparator
+    chip.classList.toggle('selected', separator === settings.decimalSeparator)
+    // The example reflects the current notation, so refresh it too.
+    const example = chip.querySelector('.chip-example')
+    if (example) {
+      example.textContent = formatNumberAs(SAMPLE_VALUE, settings.notation, separator)
+    }
   }
 
   // Update preview

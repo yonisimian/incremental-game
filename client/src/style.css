@@ -1885,7 +1885,7 @@ body {
 
 .settings-chips {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
 }
 
@@ -1933,24 +1933,6 @@ body {
 
 .settings-chip.selected .chip-example {
   color: var(--accent);
-}
-
-.settings-chip:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.settings-section.disabled .settings-section-title {
-  opacity: 0.5;
-}
-
-.settings-hint {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
-  font-style: italic;
 }
 
 .settings-preview {
