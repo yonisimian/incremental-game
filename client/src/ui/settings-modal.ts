@@ -10,19 +10,26 @@ import {
   setNotation,
   setDecimalSeparator,
   formatNumber,
+  formatNumberAs,
 } from './format-number.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
-const NOTATION_OPTIONS: { value: NotationMode; label: string; example: string }[] = [
-  { value: 'name', label: 'Named', example: '123.5K' },
-  { value: 'scientific', label: 'Scientific', example: '1.23e5' },
-  { value: 'engineering', label: 'Engineering', example: '123.5e3' },
+// A single sample value drives the notation chips, the decimal separator
+// chips, and the preview, so every example shows the same number formatted
+// consistently. Chosen in the 1e7 range with a non-round mantissa so every
+// notation surfaces the decimal separator (e.g. 15.5M / 1.55e7 / 15.5e6).
+const SAMPLE_VALUE = 15_500_000
+
+const NOTATION_OPTIONS: { value: NotationMode; label: string }[] = [
+  { value: 'name', label: 'Named' },
+  { value: 'scientific', label: 'Scientific' },
+  { value: 'engineering', label: 'Engineering' },
 ]
 
-const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string; example: string }[] = [
-  { value: 'period', label: 'Period', example: '1.23e5' },
-  { value: 'comma', label: 'Comma', example: '1,23e5' },
+const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string }[] = [
+  { value: 'period', label: 'Period' },
+  { value: 'comma', label: 'Comma' },
 ]
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -33,7 +40,7 @@ let overlayEl: HTMLElement | null = null
 
 function renderContent(): string {
   const settings = getNumberFormatSettings()
-  const preview = formatNumber(123456.78, 2)
+  const preview = formatNumber(SAMPLE_VALUE)
 
   return `
     <div class="settings-overlay" id="settings-overlay">
@@ -56,7 +63,7 @@ function renderContent(): string {
                 <button class="settings-chip${settings.notation === opt.value ? ' selected' : ''}"
                         data-notation="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
-                  <span class="chip-example">${opt.example}</span>
+                  <span class="chip-example">${formatNumberAs(SAMPLE_VALUE, opt.value, settings.decimalSeparator)}</span>
                 </button>`,
               ).join('')}
             </div>
@@ -70,7 +77,7 @@ function renderContent(): string {
                 <button class="settings-chip${settings.decimalSeparator === opt.value ? ' selected' : ''}"
                         data-decimal="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
-                  <span class="chip-example">${opt.example}</span>
+                  <span class="chip-example">${formatNumberAs(SAMPLE_VALUE, settings.notation, opt.value)}</span>
                 </button>`,
               ).join('')}
             </div>
@@ -143,14 +150,26 @@ function refreshModal(): void {
   if (!modal) return
 
   const settings = getNumberFormatSettings()
-  const preview = formatNumber(123456.78, 2)
+  const preview = formatNumber(SAMPLE_VALUE)
 
   // Update chip selection states
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-notation]')) {
-    chip.classList.toggle('selected', chip.dataset.notation === settings.notation)
+    const notation = chip.dataset.notation as NotationMode
+    chip.classList.toggle('selected', notation === settings.notation)
+    // The example reflects the current decimal separator, so refresh it too.
+    const example = chip.querySelector('.chip-example')
+    if (example) {
+      example.textContent = formatNumberAs(SAMPLE_VALUE, notation, settings.decimalSeparator)
+    }
   }
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-decimal]')) {
-    chip.classList.toggle('selected', chip.dataset.decimal === settings.decimalSeparator)
+    const separator = chip.dataset.decimal as DecimalSeparator
+    chip.classList.toggle('selected', separator === settings.decimalSeparator)
+    // The example reflects the current notation, so refresh it too.
+    const example = chip.querySelector('.chip-example')
+    if (example) {
+      example.textContent = formatNumberAs(SAMPLE_VALUE, settings.notation, separator)
+    }
   }
 
   // Update preview

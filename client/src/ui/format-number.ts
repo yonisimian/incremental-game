@@ -148,32 +148,53 @@ function nameSuffix(tier: number): string | null {
 // ─── Decimal Separator ───────────────────────────────────────────────
 
 /**
- * Swap the decimal mark of an already-formatted number to match the user's
+ * Swap the decimal mark of an already-formatted number to match the requested
  * preference. Numbers carry at most one '.', so a single replace suffices
  * (suffix letters and the exponent 'e' contain no dot).
  */
-function applyDecimalSeparator(formatted: string): string {
-  return current.decimalSeparator === 'comma' ? formatted.replace('.', ',') : formatted
+function applyDecimalSeparator(formatted: string, separator: DecimalSeparator): string {
+  return separator === 'comma' ? formatted.replace('.', ',') : formatted
 }
 
 // ─── Core Formatter ──────────────────────────────────────────────────
 
 /**
- * Format a number for display according to current settings.
+ * Format a number for display according to the current settings.
  *
  * @param value - The number to format.
  * @param decimals - Max decimal places for name mode values below 1000 (default: 0).
  */
 export function formatNumber(value: number, decimals = 0): string {
+  return formatNumberAs(value, current.notation, current.decimalSeparator, decimals)
+}
+
+/**
+ * Format a number in an explicit notation / decimal separator, independent of
+ * the persisted settings. Used to render settings previews that show the same
+ * value across every notation without mutating global state.
+ */
+export function formatNumberAs(
+  value: number,
+  notation: NotationMode,
+  decimalSeparator: DecimalSeparator,
+  decimals = 0,
+): string {
   if (!isFinite(value)) return String(value)
 
-  switch (current.notation) {
+  return applyDecimalSeparator(formatWithNotation(value, notation, decimals), decimalSeparator)
+}
+
+/** Render the number in the given notation, without applying the decimal separator. */
+function formatWithNotation(value: number, notation: NotationMode, decimals: number): string {
+  switch (notation) {
     case 'name':
-      return applyDecimalSeparator(formatName(value, decimals))
+      return formatName(value, decimals)
     case 'scientific':
-      return applyDecimalSeparator(formatScientific(value))
+      return formatScientific(value)
     case 'engineering':
-      return applyDecimalSeparator(formatEngineering(value))
+      return formatEngineering(value)
+    default:
+      return assertNever(notation)
   }
 }
 
@@ -237,4 +258,9 @@ function formatEngineering(value: number): string {
   const mantissaStr = mantissa.toFixed(2).replace(/\.?0+$/, '')
 
   return `${sign}${mantissaStr}e${engExp}`
+}
+
+/** Compile-time exhaustiveness guard: unreachable unless a notation is unhandled. */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled notation: ${String(value)}`)
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
   formatNumber,
+  formatNumberAs,
   setNotation,
   setDecimalSeparator,
   migrateSettings,
@@ -162,6 +163,31 @@ describe('decimal separator', () => {
     expect(formatNumber(1000)).toBe('1K')
     setNotation('scientific')
     expect(formatNumber(100000)).toBe('1e5')
+  })
+})
+
+describe('formatNumberAs — explicit notation/separator (settings preview)', () => {
+  // The settings modal formats one sample value across every notation so the
+  // examples and preview always agree; lock that behavior here.
+  const SAMPLE = 15_500_000
+
+  it('renders the same value across notations with a period separator', () => {
+    expect(formatNumberAs(SAMPLE, 'name', 'period')).toBe('15.5M')
+    expect(formatNumberAs(SAMPLE, 'scientific', 'period')).toBe('1.55e7')
+    expect(formatNumberAs(SAMPLE, 'engineering', 'period')).toBe('15.5e6')
+  })
+
+  it('surfaces the comma separator in every notation', () => {
+    expect(formatNumberAs(SAMPLE, 'name', 'comma')).toBe('15,5M')
+    expect(formatNumberAs(SAMPLE, 'scientific', 'comma')).toBe('1,55e7')
+    expect(formatNumberAs(SAMPLE, 'engineering', 'comma')).toBe('15,5e6')
+  })
+
+  it('ignores the persisted settings', () => {
+    setNotation('scientific')
+    setDecimalSeparator('period')
+    // Explicit args win regardless of the current global settings.
+    expect(formatNumberAs(SAMPLE, 'name', 'comma')).toBe('15,5M')
   })
 })
 
