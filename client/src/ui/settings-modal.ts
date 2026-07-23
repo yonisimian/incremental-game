@@ -15,7 +15,6 @@ import {
 // ─── Options ─────────────────────────────────────────────────────────
 
 const NOTATION_OPTIONS: { value: NotationMode; label: string; example: string }[] = [
-  { value: 'standard', label: 'Standard', example: '123,456' },
   { value: 'name', label: 'Named', example: '123.5K' },
   { value: 'scientific', label: 'Scientific', example: '1.23e5' },
   { value: 'engineering', label: 'Engineering', example: '123.5e3' },
@@ -65,15 +64,13 @@ function renderContent(): string {
             </div>
           </section>
 
-          <section class="settings-section${settings.notation !== 'standard' ? ' disabled' : ''}">
+          <section class="settings-section">
             <h3 class="settings-section-title">Digit Grouping</h3>
-            ${settings.notation !== 'standard' ? '<p class="settings-hint">Only applies to Standard notation</p>' : ''}
             <div class="settings-chips" id="grouping-chips">
               ${GROUPING_OPTIONS.map(
                 (opt) => `
                 <button class="settings-chip${settings.grouping === opt.value ? ' selected' : ''}"
-                        data-grouping="${opt.value}"
-                        ${settings.notation !== 'standard' ? 'disabled' : ''}>
+                        data-grouping="${opt.value}">
                   <span class="chip-label">${opt.label}</span>
                   <span class="chip-example">${opt.example}</span>
                 </button>`,
@@ -154,25 +151,8 @@ function refreshModal(): void {
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-notation]')) {
     chip.classList.toggle('selected', chip.dataset.notation === settings.notation)
   }
-  // Update grouping section disabled state
-  const groupingSection = modal.querySelector('#grouping-chips')?.closest('.settings-section')
-  if (groupingSection) {
-    groupingSection.classList.toggle('disabled', settings.notation !== 'standard')
-    const hint = groupingSection.querySelector('.settings-hint')
-    if (settings.notation !== 'standard' && !hint) {
-      groupingSection
-        .querySelector('.settings-section-title')!
-        .insertAdjacentHTML(
-          'afterend',
-          '<p class="settings-hint">Only applies to Standard notation</p>',
-        )
-    } else if (settings.notation === 'standard' && hint) {
-      hint.remove()
-    }
-  }
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-grouping]')) {
     chip.classList.toggle('selected', chip.dataset.grouping === settings.grouping)
-    chip.disabled = settings.notation !== 'standard'
   }
 
   // Update preview

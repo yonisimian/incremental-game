@@ -6,7 +6,7 @@
 // ─── Types ───────────────────────────────────────────────────────────
 
 /** How large numbers are abbreviated. */
-export type NotationMode = 'standard' | 'name' | 'scientific' | 'engineering'
+export type NotationMode = 'name' | 'scientific' | 'engineering'
 
 /** Thousands separator style. */
 export type DigitGrouping = 'comma' | 'period' | 'space' | 'none'
@@ -21,7 +21,7 @@ interface NumberFormatSettings {
 const STORAGE_KEY = 'number-format'
 
 const DEFAULTS: NumberFormatSettings = {
-  notation: 'standard',
+  notation: 'scientific',
   grouping: 'comma',
 }
 
@@ -50,7 +50,7 @@ function saveSettings(): void {
 }
 
 function isNotation(v: unknown): v is NotationMode {
-  return v === 'standard' || v === 'name' || v === 'scientific' || v === 'engineering'
+  return v === 'name' || v === 'scientific' || v === 'engineering'
 }
 
 function isGrouping(v: unknown): v is DigitGrouping {
@@ -113,7 +113,7 @@ function applyGrouping(integerPart: string, grouping: DigitGrouping): string {
  * Format a number for display according to current settings.
  *
  * @param value - The number to format.
- * @param decimals - Max decimal places for standard/name mode (default: 0).
+ * @param decimals - Max decimal places for name mode values below 1000 (default: 0).
  */
 export function formatNumber(value: number, decimals = 0): string {
   const { notation, grouping } = current
@@ -121,10 +121,8 @@ export function formatNumber(value: number, decimals = 0): string {
   if (!isFinite(value)) return String(value)
 
   switch (notation) {
-    case 'standard':
-      return formatStandard(value, decimals, grouping)
     case 'name':
-      return formatName(value, grouping)
+      return formatName(value, decimals, grouping)
     case 'scientific':
       return formatScientific(value)
     case 'engineering':
@@ -132,27 +130,20 @@ export function formatNumber(value: number, decimals = 0): string {
   }
 }
 
-function formatStandard(value: number, decimals: number, grouping: DigitGrouping): string {
-  const rounded = decimals > 0 ? Number(value.toFixed(decimals)) : Math.floor(value)
-  const str = decimals > 0 ? rounded.toFixed(decimals) : String(rounded)
-
-  const [intPart, fracPart] = str.split('.')
-  const grouped = applyGrouping(intPart, grouping)
-
-  if (fracPart) {
-    // Use opposite separator as decimal point when grouping uses period
-    const decimalPoint = grouping === 'period' ? ',' : '.'
-    return grouped + decimalPoint + fracPart
-  }
-  return grouped
-}
-
-function formatName(value: number, grouping: DigitGrouping): string {
+function formatName(value: number, decimals: number, grouping: DigitGrouping): string {
   const abs = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
   if (abs < 1000) {
-    return sign + applyGrouping(String(Math.floor(abs)), grouping)
+    const rounded = decimals > 0 ? Number(abs.toFixed(decimals)) : Math.floor(abs)
+    const str = decimals > 0 ? rounded.toFixed(decimals) : String(rounded)
+    const [intPart, fracPart] = str.split('.')
+    const grouped = applyGrouping(intPart, grouping)
+    if (fracPart) {
+      const decimalPoint = grouping === 'period' ? ',' : '.'
+      return sign + grouped + decimalPoint + fracPart
+    }
+    return sign + grouped
   }
 
   // Find the appropriate suffix tier
