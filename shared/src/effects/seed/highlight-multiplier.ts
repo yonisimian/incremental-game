@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { ModeDefinition } from '../../modes/types.js'
 import type { PlayerState } from '../../types.js'
 import type { BaseModifierOutput, EffectDef } from '../types.js'
 
@@ -26,12 +27,18 @@ export type HighlightMultiplierParams = z.infer<typeof schema>
 function apply(
   p: HighlightMultiplierParams,
   state: Readonly<PlayerState>,
+  mode: ModeDefinition,
 ): BaseModifierOutput | null {
   // `?? 'r0'` mirrors the prior idler default when no resource is highlighted.
   const highlight = (state.meta.highlight as string | undefined) ?? 'r0'
+  // Highlighting a generator folds the multiplier into that single generator
+  // (`generator` scope); highlighting a resource scales its whole production
+  // (`global` scope, base + generators). Both preserve the pre-scope behavior.
+  const isGenerator = mode.generators.some((g) => g.id === highlight)
   return {
     kind: 'baseModifier',
     stage: 'multiplicative',
+    scope: isGenerator ? 'generator' : 'global',
     field: highlight,
     value: p.multiplier,
   }

@@ -69,7 +69,7 @@ function truthRate(state: PlayerState, mode: ModeDefinition, resource: string): 
 describe('computeRateBreakdown', () => {
   it('attributes native modifiers to base', () => {
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+      nativeModifiers: [{ stage: 'additive', scope: 'base', field: 'r0', value: 2 }],
     })
     const bd = computeRateBreakdown(makeState(), mode).r0
     expect(bd.total).toBe(2)
@@ -104,10 +104,12 @@ describe('computeRateBreakdown', () => {
       id: 'u0',
       cost: { r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1 } },
       purchaseLimit: 5,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1.5 }],
+      effects: [
+        { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 1.5 },
+      ],
     }
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+      nativeModifiers: [{ stage: 'additive', scope: 'base', field: 'r0', value: 1 }],
       generators: [makeGen('g0', 'r0', 2)],
       upgrades: [upgrade],
     })
@@ -122,8 +124,8 @@ describe('computeRateBreakdown', () => {
     // bucket must reflect its share of the multiplied total.
     const mode = makeMode({
       nativeModifiers: [
-        { stage: 'additive', field: 'r0', value: 1 },
-        { stage: 'multiplicative', field: 'r0', value: 2 },
+        { stage: 'additive', scope: 'base', field: 'r0', value: 1 },
+        { stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 },
       ],
       generators: [makeGen('g0', 'r0', 3)],
     })
@@ -138,9 +140,11 @@ describe('computeRateBreakdown', () => {
 
   it('folds debuffs into the total', () => {
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 10 }],
+      nativeModifiers: [{ stage: 'additive', scope: 'base', field: 'r0', value: 10 }],
     })
-    const debuffs: Modifier[] = [{ stage: 'multiplicative', field: 'r0', value: 0.5 }]
+    const debuffs: Modifier[] = [
+      { stage: 'multiplicative', scope: 'global', field: 'r0', value: 0.5 },
+    ]
     const bd = computeRateBreakdown(makeState(), mode, debuffs).r0
     expect(bd.total).toBeCloseTo(5) // 10 * 0.5
   })
@@ -155,5 +159,56 @@ describe('computeRateBreakdown', () => {
     expect(bd.r0.generators).toBe(6)
     expect(bd.r1.generators).toBe(5)
     expect(bd.r0.byGenerator.g1).toBeUndefined()
+  })
+})
+
+// ─── Modifier scope semantics ────────────────────────────────────────
+
+describe('modifier scope semantics', () => {
+  // A mode with a base floor of 10 (native) plus one generator producing r0 at
+  // rate 5, and a single owned-by-default upgrade carrying `upEffects`.
+  const scopedMode = (upEffects: UpgradeDefinition['effects']): ModeDefinition =>
+    makeMode({
+      nativeModifiers: [{ stage: 'additive', scope: 'base', field: 'r0', value: 10 }],
+      generators: [makeGen('g0', 'r0', 5)],
+      upgrades: [
+        { id: 'u0', cost: { r0: { baseCost: 1 } }, purchaseLimit: Infinity, effects: upEffects },
+      ],
+    })
+  const r0Rate = (mode: ModeDefinition, state: PlayerState): number =>
+    computePassiveRates(collectModifiers(state, mode), mode.resources).r0
+
+  it('base-scope multiplier scales only the base floor, leaving generators untouched', () => {
+    const mode = scopedMode([
+      { type: 'baseModifier', stage: 'multiplicative', scope: 'base', field: 'r0', value: 2 },
+    ])
+    const state = makeState({ generators: { g0: 2 }, upgrades: { u0: 1 } })
+    expect(r0Rate(mode, state)).toBeCloseTo(30) // base 10*2=20 + gen 5*2=10
+  })
+
+  it('generator aggregate multiplier scales all generators of the resource, not the base', () => {
+    const mode = scopedMode([
+      { type: 'baseModifier', stage: 'multiplicative', scope: 'generator', field: 'r0', value: 3 },
+    ])
+    const state = makeState({ generators: { g0: 2 }, upgrades: { u0: 1 } })
+    expect(r0Rate(mode, state)).toBeCloseTo(40) // base 10 + gen (5*2)*3=30
+  })
+
+  it('generator aggregate modifier is gated on at least one owned generator', () => {
+    const mode = scopedMode([
+      { type: 'baseModifier', stage: 'additive', scope: 'generator', field: 'r0', value: 100 },
+    ])
+    // Owns the upgrade but no generator → the aggregate bonus is dropped.
+    expect(r0Rate(mode, makeState({ upgrades: { u0: 1 } }))).toBeCloseTo(10)
+    // With a generator owned it applies: base 10 + gen 5 + aggregate 100.
+    expect(r0Rate(mode, makeState({ generators: { g0: 1 }, upgrades: { u0: 1 } }))).toBeCloseTo(115)
+  })
+
+  it('global-on-resource multiplier scales base + generators together', () => {
+    const mode = scopedMode([
+      { type: 'baseModifier', stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 },
+    ])
+    const state = makeState({ generators: { g0: 2 }, upgrades: { u0: 1 } })
+    expect(r0Rate(mode, state)).toBeCloseTo(40) // (base 10 + gen 10) * 2
   })
 })

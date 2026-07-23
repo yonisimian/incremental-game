@@ -91,12 +91,13 @@ export function addressableTargets(mode: ModeDefinition): AddressableField[] {
 /**
  * Target keys an *offensive* `enemyProductionModifier` (carried by a passive
  * attack) may feed on the opponent. Deliberately a **subset** of {@link
- * addressableTargetsFor}: the debuffs are merged into the opponent's pipeline
- * *after* `collectModifiers` has already folded generator output into resource
- * rates and only on the passive-income path — so generator-id and `clickIncome`
- * targets would silently do nothing. Only per-second resource rates and the
- * `globalMultiplier` (which scales every rate in `computePassiveRates`) actually
- * apply, so those are the only targets offered and validated.
+ * addressableTargetsFor}: a debuff is appended to the opponent's modifier list
+ * *after* `collectModifiers`, so it skips per-generator folding — a specific
+ * generator-id target would land on an unfinalized layer and do nothing, and
+ * `clickIncome` is out of scope. Per-second resource rates (whose `scope`
+ * chooses the base/generator/global layer) and the `globalMultiplier` (which
+ * scales every rate in `computePassiveRates`) do apply, so those are the only
+ * targets offered and validated.
  */
 export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): AddressableField[] {
   return [

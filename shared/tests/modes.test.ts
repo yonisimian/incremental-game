@@ -292,7 +292,7 @@ describe('collectModifiers', () => {
       id: 'uUnlim',
       cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 5 }],
     }
     const customDef: ModeDefinition = {
       ...getModeDefinition('idler'),
@@ -342,6 +342,7 @@ describe('collectEnemyDebuffs', () => {
     state.upgrades[attackGate(def, 'a2').id] = 1
     expect(collectEnemyDebuffs(state, def)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r0',
       value: 0.9,
     })
@@ -377,7 +378,7 @@ describe('applyPurchase', () => {
       id: 'uUnlim',
       cost: { r1: { baseCost: 10 } },
       purchaseLimit: Infinity,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 5 }],
     }
     const customDef: ModeDefinition = {
       ...getModeDefinition('idler'),
@@ -399,7 +400,7 @@ describe('applyPurchase', () => {
       id: 'uF1',
       cost: { r0: { baseCost: 5 } },
       purchaseLimit: 3,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 2 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 2 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
 
@@ -421,7 +422,7 @@ describe('applyPurchase', () => {
       id: 'uF2',
       cost: { r0: { baseCost: 5 } },
       purchaseLimit: 2,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 1 }],
     }
     const testMode = { ...def, upgrades: [...def.upgrades, fin] } as ModeDefinition
 

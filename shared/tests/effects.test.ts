@@ -125,7 +125,7 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades['sh-unlock'] = 1
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 })
   })
 
   it('follows the highlighted resource when it changes (r1)', () => {
@@ -134,7 +134,7 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades['sh-unlock'] = 1
     state.meta.highlight = 'r1'
     const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r1', value: 2 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', scope: 'global', field: 'r1', value: 2 })
     expect(mods.some((m) => m.stage === 'multiplicative' && m.field === 'r0')).toBe(false)
   })
 
@@ -144,7 +144,7 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.upgrades['sh-unlock'] = 1
     delete state.meta.highlight
     const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 })
   })
 
   it('raises the highlight to ×2.2 once the boost upgrade (sh-mf-hp) is owned', () => {
@@ -155,8 +155,13 @@ describe('highlightMultiplier behavior (golden)', () => {
     state.meta.highlight = 'r0'
     const mods = collectModifiers(state, def)
     // The boost is distributed: sh-unlock emits ×2 and sh-mf-hp emits ×1.1, stacking to ×2.2.
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 1.1 })
+    expect(mods).toContainEqual({ stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 })
+    expect(mods).toContainEqual({
+      stage: 'multiplicative',
+      scope: 'global',
+      field: 'r0',
+      value: 1.1,
+    })
     const r0Factor = mods
       .filter((m) => m.stage === 'multiplicative' && m.field === 'r0')
       .reduce((acc, m) => acc * m.value, 1)
@@ -209,7 +214,7 @@ describe('collectModifiers effect wiring', () => {
     const base = getModeDefinition('idler')
     expect(() =>
       applyEffect(
-        { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 0 },
+        { type: 'baseModifier', stage: 'multiplicative', scope: 'base', field: 'r0', value: 0 },
         createInitialState(base),
         base,
       ),
@@ -221,7 +226,7 @@ describe('collectModifiers effect wiring', () => {
     for (const value of [1, 0.5]) {
       expect(() =>
         applyEffect(
-          { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value },
+          { type: 'baseModifier', stage: 'multiplicative', scope: 'base', field: 'r0', value },
           createInitialState(base),
           base,
         ),
@@ -233,18 +238,18 @@ describe('collectModifiers effect wiring', () => {
     const base = getModeDefinition('idler')
     expect(() =>
       applyEffect(
-        { type: 'baseModifier', stage: 'additive', field: 'r0', value: -1 },
+        { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: -1 },
         createInitialState(base),
         base,
       ),
     ).toThrow(/value/u)
     expect(
       applyEffect(
-        { type: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 },
+        { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 0.5 },
         createInitialState(base),
         base,
       ),
-    ).toEqual({ kind: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 })
+    ).toEqual({ kind: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 0.5 })
   })
 
   it('rejects a relativeModifier with a non-positive factor', () => {
@@ -256,6 +261,7 @@ describe('collectModifiers effect wiring', () => {
           source: 'resource:r0',
           field: 'r0',
           stage: 'multiplicative',
+          scope: 'global',
           factor: 0,
         },
         createInitialState(base),
@@ -279,6 +285,7 @@ describe('collectModifiers effect wiring', () => {
     owned.meta.highlight = 'r1'
     expect(collectModifiers(owned, def)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r1',
       value: 3,
     })
@@ -323,7 +330,9 @@ describe('collectModifiers effect wiring', () => {
       id: 'uMul',
       cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
-      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 }],
+      effects: [
+        { type: 'baseModifier', stage: 'multiplicative', scope: 'global', field: 'r0', value: 2 },
+      ],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
     const state = createInitialState(def)
@@ -331,6 +340,7 @@ describe('collectModifiers effect wiring', () => {
     // 2 ** 3 = 8 — multiplicative bonuses compound with the upgrade's owned count.
     expect(collectModifiers(state, def)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r0',
       value: 8,
     })
@@ -343,7 +353,9 @@ describe('collectModifiers effect wiring', () => {
       id: 'uGen',
       cost: { r0: { baseCost: 10 } },
       purchaseLimit: Infinity,
-      effects: [{ type: 'baseModifier', stage: 'additive', field: gen.id, value: 3 }],
+      effects: [
+        { type: 'baseModifier', stage: 'additive', scope: 'generator', field: gen.id, value: 3 },
+      ],
     }
     const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
     const sumAdditive = (mods: readonly { field: string; stage: string; value: number }[]) =>
@@ -378,6 +390,7 @@ describe('collectModifiers effect wiring', () => {
     state.meta.highlight = 'r0'
     expect(collectModifiers(state, def)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r0',
       value: 5,
     })
@@ -389,11 +402,14 @@ describe('collectModifiers effect wiring', () => {
     // applies with an implicit count of 1 (`owned ?? 1`) rather than being dropped.
     const def: ModeDefinition = {
       ...base,
-      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 7 }],
+      effects: [
+        { type: 'baseModifier', stage: 'multiplicative', scope: 'global', field: 'r0', value: 7 },
+      ],
     }
     const state = createInitialState(def)
     expect(collectModifiers(state, def)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r0',
       value: 7,
     })
@@ -410,28 +426,52 @@ describe('enemyProductionModifier params', () => {
 
   it('accepts a multiplicative debuff in (0, 1) but rejects a no-op or enemy buff', () => {
     expect(
-      apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 }),
+      apply({
+        type: 'enemyProductionModifier',
+        stage: 'multiplicative',
+        scope: 'global',
+        field: 'r0',
+        value: 0.9,
+      }),
     ).toEqual({
       kind: 'enemyModifier',
-      modifier: { stage: 'multiplicative', field: 'r0', value: 0.9 },
+      modifier: { stage: 'multiplicative', scope: 'global', field: 'r0', value: 0.9 },
     })
     for (const value of [1, 1.5, 0]) {
       expect(() =>
-        apply({ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value }),
+        apply({
+          type: 'enemyProductionModifier',
+          stage: 'multiplicative',
+          scope: 'global',
+          field: 'r0',
+          value,
+        }),
       ).toThrow(/value/u)
     }
   })
 
   it('accepts a negative additive debuff but rejects a non-negative one', () => {
     expect(
-      apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value: -2 }),
+      apply({
+        type: 'enemyProductionModifier',
+        stage: 'additive',
+        scope: 'base',
+        field: 'r0',
+        value: -2,
+      }),
     ).toEqual({
       kind: 'enemyModifier',
-      modifier: { stage: 'additive', field: 'r0', value: -2 },
+      modifier: { stage: 'additive', scope: 'base', field: 'r0', value: -2 },
     })
     for (const value of [0, 1]) {
       expect(() =>
-        apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value }),
+        apply({
+          type: 'enemyProductionModifier',
+          stage: 'additive',
+          scope: 'base',
+          field: 'r0',
+          value,
+        }),
       ).toThrow(/value/u)
     }
   })
@@ -455,7 +495,12 @@ describe('lowerTierBoost effect', () => {
     state.generators[g1] = 3
     const out = applyEffect({ type: 'lowerTierBoost', perUnit: 0.1 }, state, mode) as Modifier[]
     // g1's two lower-tier units → ×(1 + 0.1 * 2) = ×1.2
-    expect(out).toContainEqual({ stage: 'multiplicative', field: g1, value: 1.2 })
+    expect(out).toContainEqual({
+      stage: 'multiplicative',
+      scope: 'generator',
+      field: g1,
+      value: 1.2,
+    })
     // g0 has no lower tier to draw from.
     expect(out.some((m) => m.field === g0)).toBe(false)
   })
@@ -482,7 +527,7 @@ describe('dominantGenerator effect', () => {
     state.generators[g0] = 5
     state.generators[g1] = 4
     const out = applyEffect({ type: 'dominantGenerator', multiplier: 3 }, state, mode) as Modifier[]
-    expect(out).toEqual([{ stage: 'multiplicative', field: g0, value: 3 }])
+    expect(out).toEqual([{ stage: 'multiplicative', scope: 'generator', field: g0, value: 3 }])
   })
 
   it('breaks ties at the maximum by definition order, boosting only the earliest generator', () => {
@@ -492,7 +537,7 @@ describe('dominantGenerator effect', () => {
     state.generators[g0] = 5
     state.generators[g1] = 5
     const out = applyEffect({ type: 'dominantGenerator', multiplier: 3 }, state, mode) as Modifier[]
-    expect(out).toEqual([{ stage: 'multiplicative', field: g0, value: 3 }])
+    expect(out).toEqual([{ stage: 'multiplicative', scope: 'generator', field: g0, value: 3 }])
   })
 
   it('returns null when no generators are owned', () => {
@@ -517,6 +562,7 @@ describe('balancedGenerators effect', () => {
     for (const gen of mode.generators) state.generators[gen.id] = 4
     expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'globalMultiplier',
       value: 2,
     })
@@ -539,6 +585,7 @@ describe('balancedGenerators effect', () => {
 
     expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'globalMultiplier',
       value: expected,
     })
@@ -808,12 +855,13 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
         },
         (s) => {
           s.resources.r0 = 40
         },
       ),
-    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 40 })
+    ).toEqual({ stage: 'additive', scope: 'base', field: 'clickIncome', value: 40 })
 
     expect(
       applyRel(
@@ -822,13 +870,14 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
           factor: 0.5,
         },
         (s) => {
           s.resources.r0 = 40
         },
       ),
-    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
+    ).toEqual({ stage: 'additive', scope: 'base', field: 'clickIncome', value: 20 })
   })
 
   it('multiplicative: feeds 1 + source × factor (so 0 source is a no-op, not a wipe)', () => {
@@ -839,13 +888,14 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'r1',
           stage: 'multiplicative',
+          scope: 'global',
           factor: 0.1,
         },
         (s) => {
           s.resources.r0 = 30
         },
       ),
-    ).toEqual({ stage: 'multiplicative', field: 'r1', value: 4 })
+    ).toEqual({ stage: 'multiplicative', scope: 'global', field: 'r1', value: 4 })
   })
 
   it('reads meta:peakCps as a source (peak-CPS click bonus)', () => {
@@ -856,12 +906,13 @@ describe('relativeModifier effect', () => {
           source: 'meta:peakCps',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
         },
         (s) => {
           s.meta.peakCps = 13
         },
       ),
-    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 13 })
+    ).toEqual({ stage: 'additive', scope: 'base', field: 'clickIncome', value: 13 })
   })
 
   it('is inactive (null) when the source is non-positive', () => {
@@ -872,6 +923,7 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
         },
         (s) => {
           s.resources.r0 = 0
@@ -884,6 +936,7 @@ describe('relativeModifier effect', () => {
         source: 'meta:peakCps',
         field: 'clickIncome',
         stage: 'additive',
+        scope: 'base',
       }),
     ).toBeNull() // no peakCps in meta
   })
@@ -893,7 +946,13 @@ describe('relativeModifier effect', () => {
     const state = createInitialState(mode)
     expect(() =>
       applyEffect(
-        { type: 'relativeModifier', source: 'resource:r0', field: 'clickIncome', stage: 'whoops' },
+        {
+          type: 'relativeModifier',
+          source: 'resource:r0',
+          field: 'clickIncome',
+          scope: 'base',
+          stage: 'whoops',
+        },
         state,
         mode,
       ),
@@ -905,6 +964,7 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
           extra: 1,
         },
         state,
@@ -928,13 +988,14 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
           factor: 2,
         },
         (s) => {
           s.resources.r0 = 10
         },
       ),
-    ).toEqual({ stage: 'additive', field: 'clickIncome', value: 20 })
+    ).toEqual({ stage: 'additive', scope: 'base', field: 'clickIncome', value: 20 })
   })
 
   it('feeds a stockpile-relative bonus through collectModifiers when owned', () => {
@@ -949,6 +1010,7 @@ describe('relativeModifier effect', () => {
           source: 'resource:r0',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
           factor: 2,
         },
       ],
@@ -960,6 +1022,7 @@ describe('relativeModifier effect', () => {
     owned.resources.r0 = 25
     expect(collectModifiers(owned, def)).toContainEqual({
       stage: 'additive',
+      scope: 'base',
       field: 'clickIncome',
       value: 50,
     })
@@ -995,6 +1058,7 @@ describe('relativeModifier mode validation', () => {
           source: 'resource:r1',
           field: 'g0',
           stage: 'additive',
+          scope: 'generator',
         }),
       )
     }).not.toThrow()
@@ -1009,6 +1073,7 @@ describe('relativeModifier mode validation', () => {
           source: 'resource:r9',
           field: 'clickIncome',
           stage: 'additive',
+          scope: 'base',
         }),
       )
     }).toThrow(/unknown source 'resource:r9'/u)
@@ -1023,6 +1088,7 @@ describe('relativeModifier mode validation', () => {
           source: 'meta:peakCps',
           field: 'nope',
           stage: 'additive',
+          scope: 'base',
         }),
       )
     }).toThrow(/unknown field 'nope'/u)
@@ -1120,6 +1186,7 @@ describe('idler relativeModifier upgrades', () => {
     s.resources.r0 = 50_000 // 1 + 50000 * 0.00001 = 1.5
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r0',
       value: 1.5,
     })
@@ -1131,6 +1198,7 @@ describe('idler relativeModifier upgrades', () => {
     s.resources.r1 = 100_000 // 1 + 100000 * 0.00001 = 2
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
+      scope: 'global',
       field: 'r1',
       value: 2,
     })
@@ -1142,6 +1210,7 @@ describe('idler relativeModifier upgrades', () => {
     s.meta.peakCps = 9
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'additive',
+      scope: 'base',
       field: 'clickIncome',
       value: 9,
     })

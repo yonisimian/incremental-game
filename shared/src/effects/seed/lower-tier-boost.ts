@@ -34,7 +34,12 @@ function apply(
   for (const gen of mode.generators) {
     const owned = state.generators[gen.id] ?? 0
     if (lowerOwned > 0 && owned > 0) {
-      mods.push({ stage: 'multiplicative', field: gen.id, value: 1 + p.perUnit * lowerOwned })
+      mods.push({
+        stage: 'multiplicative',
+        scope: 'generator',
+        field: gen.id,
+        value: 1 + p.perUnit * lowerOwned,
+      })
     }
     lowerOwned += owned
   }

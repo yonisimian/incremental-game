@@ -315,11 +315,11 @@ describe('game.ts', () => {
       enterPlaying(game)
       game.handleServerMessage(
         makeStateUpdate({
-          debuffs: [{ stage: 'multiplicative', field: 'r0', value: 0.9 }],
+          debuffs: [{ stage: 'multiplicative', scope: 'global', field: 'r0', value: 0.9 }],
         }),
       )
       expect(game.getState().debuffs).toEqual([
-        { stage: 'multiplicative', field: 'r0', value: 0.9 },
+        { stage: 'multiplicative', scope: 'global', field: 'r0', value: 0.9 },
       ])
 
       // An update without `debuffs` resets to empty (no lingering debuff).
@@ -331,7 +331,7 @@ describe('game.ts', () => {
       enterPlaying(game)
       game.handleServerMessage(
         makeStateUpdate({
-          debuffs: [{ stage: 'multiplicative', field: 'r0', value: 0.9 }],
+          debuffs: [{ stage: 'multiplicative', scope: 'global', field: 'r0', value: 0.9 }],
         }),
       )
       expect(game.getState().debuffs).toHaveLength(1)

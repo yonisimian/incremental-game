@@ -86,6 +86,7 @@ export interface EnemyDataAccessOutput {
 export interface BaseModifierOutput {
   readonly kind: 'baseModifier'
   readonly stage: Modifier['stage']
+  readonly scope: Modifier['scope']
   readonly field: string
   readonly value: number
 }

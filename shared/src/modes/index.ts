@@ -218,13 +218,46 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkRelativeModifier(`upgrade '${u.id}'`, ref)
   }
 
+  // A modifier's `scope` must be coherent with its `field`: only `generator`
+  // scope may name a specific generator id, and the special `clickIncome` /
+  // `globalMultiplier` fields are never generator-scoped. The other combinations
+  // silently produce no income at runtime (e.g. a `base`-scoped generator id
+  // lands on a layer `computePassiveRates` never reads), so reject them at boot.
+  // Covers the statically-known modifier carriers: `nativeModifiers` plus the
+  // `baseModifier` / `relativeModifier` / `enemyProductionModifier` effect refs.
+  const generatorIdSet = new Set(def.generators.map((g) => g.id))
+  const checkScopeField = (where: string, scope: unknown, field: unknown): void => {
+    if (typeof scope !== 'string' || typeof field !== 'string') return
+    if (generatorIdSet.has(field) && scope !== 'generator')
+      throw new Error(
+        `[${id}] ${where} targets generator '${field}' with '${scope}' scope (only 'generator' scope may target a generator id)`,
+      )
+    if ((field === 'clickIncome' || field === 'globalMultiplier') && scope === 'generator')
+      throw new Error(
+        `[${id}] ${where} targets '${field}' with 'generator' scope (generator scope applies only to resource/generator production)`,
+      )
+  }
+  const SCOPED_REF_TYPES = new Set(['baseModifier', 'relativeModifier', 'enemyProductionModifier'])
+  const checkRefScope = (where: string, ref: EffectRef): void => {
+    if (SCOPED_REF_TYPES.has(ref.type))
+      checkScopeField(`${where} ${ref.type}`, ref.scope, ref.field)
+  }
+  for (const m of def.nativeModifiers) checkScopeField('native modifier', m.scope, m.field)
+  for (const ref of def.effects ?? []) checkRefScope('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkRefScope(`upgrade '${u.id}'`, ref)
+  }
+  for (const a of def.attacks) {
+    for (const ref of a.effects ?? []) checkRefScope(`attack '${a.id}'`, ref)
+  }
+
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
   // opponent-pipeline target. It's a mode-specific string the generic schema
   // only checks is present, so validate it against the *enemy-debuff* target
   // catalog — a subset of `relativeModifier`'s (resource rates + globalMultiplier
-  // only). Generator-id and `clickIncome` targets are rejected here because the
-  // debuff merges into the opponent's pipeline after generator output is folded
-  // and only on the passive path, so they'd silently do nothing (see
+  // only). Generator-id and `clickIncome` targets are rejected here because a
+  // debuff is appended after `collectModifiers`, skipping per-generator folding,
+  // so they'd land on an unfinalized layer and do nothing (see
   // `enemyDebuffTargetsFor`). Also flags an offensive effect on an active attack,
   // which has no continuous behavior yet (likely an authoring mistake).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
@@ -546,32 +579,53 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     generatorModifiers.set(gen.id, { additive: 0, multiplicative: 1 })
   }
 
-  // Route a single state-derived modifier: generator-targeted ones accumulate
-  // into the per-generator totals; everything else is pushed directly.
+  // Resources that have at least one owned generator — the gate for aggregate
+  // generator-scope modifiers (`scope: 'generator'`, `field: <resource>`), so a
+  // "boost all generators of r" bonus can't manufacture generator production out
+  // of nothing and the rate-breakdown differencing telescope stays intact.
+  const resourcesWithOwnedGen = new Set<string>()
+  for (const gen of mode.generators) {
+    if ((state.generators[gen.id] ?? 0) > 0) resourcesWithOwnedGen.add(gen.production.resource)
+  }
+
+  // Push a non-per-generator modifier to the pipeline, dropping an aggregate
+  // generator-scope modifier whose resource has no owned generators (see above).
+  const pushScoped = (mod: Modifier): void => {
+    if (mod.scope === 'generator' && !resourcesWithOwnedGen.has(mod.field)) return
+    modifiers.push(mod)
+  }
+
+  // A `generator`-scope modifier naming a specific generator id folds into that
+  // generator's per-unit accumulator (applied per generator below).
+  const isSpecificGenerator = (scope: Modifier['scope'], field: string): boolean =>
+    scope === 'generator' && generatorIds.has(field)
+
+  // Route a single state-derived modifier: a specific-generator target
+  // accumulates into that generator's per-unit totals; everything else (base /
+  // global / aggregate-generator) is pushed to the pipeline with its scope.
   const routeModifier = (mod: Modifier): void => {
-    if (generatorIds.has(mod.field)) {
+    if (isSpecificGenerator(mod.scope, mod.field)) {
       const genState = generatorModifiers.get(mod.field)!
       if (mod.stage === 'additive') genState.additive += mod.value
       else genState.multiplicative *= mod.value
     } else {
-      modifiers.push(mod)
+      pushScoped(mod)
     }
   }
 
   // Route a `baseModifier` output with the owning upgrade's owned-count
   // compounding: additive scales linearly (× owned), multiplicative compounds
-  // (^ owned). Generator-targeted bonuses feed the per-generator
-  // accumulator (additive per-unit × owned, applied again per generator below);
-  // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
-  // `modifiers` array exactly.
+  // (^ owned). A specific-generator target feeds the per-generator accumulator
+  // (additive per-unit × owned, applied again per generator below); everything
+  // else is pushed to the pipeline with its scope preserved.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
-    if (generatorIds.has(o.field)) {
+    if (isSpecificGenerator(o.scope, o.field)) {
       const genState = generatorModifiers.get(o.field)!
       if (o.stage === 'additive') genState.additive += o.value * owned
       else genState.multiplicative *= o.value ** owned
     } else {
       const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
-      modifiers.push({ stage: o.stage, field: o.field, value })
+      pushScoped({ stage: o.stage, scope: o.scope, field: o.field, value })
     }
   }
 
@@ -620,8 +674,12 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     const additiveBonus = genState.additive * owned
     const effectiveRate = (baseRate + additiveBonus) * genState.multiplicative
 
+    // Folded generator output feeds the resource's `generator` layer, so an
+    // aggregate generator-scope modifier can scale the sum and `base`/`global`
+    // stay distinct from generator production.
     modifiers.push({
       stage: 'additive',
+      scope: 'generator',
       field: gen.production.resource,
       value: effectiveRate,
     })

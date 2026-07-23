@@ -1,5 +1,12 @@
-export type { Modifier, ModifierContext, ModifierStage } from './types.js'
-export { MODIFIER_STAGES } from './types.js'
+export type {
+  Modifier,
+  ModifierContext,
+  ModifierStage,
+  ModifierScope,
+  LayerAccumulator,
+  ResourceLayers,
+} from './types.js'
+export { MODIFIER_STAGES, MODIFIER_SCOPES } from './types.js'
 export {
   computeIncome,
   computeClickIncome,

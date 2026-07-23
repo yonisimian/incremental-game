@@ -46,7 +46,7 @@ function apply(
   // Interpolate between no bonus (1) and the full `multiplier`. `multiplier < 1`
   // is clamped to a no-op — this effect only ever grants a bonus, never a penalty.
   const value = 1 + balanceRatio * Math.max(0, p.multiplier - 1)
-  return { stage: 'multiplicative', field: 'globalMultiplier', value }
+  return { stage: 'multiplicative', scope: 'global', field: 'globalMultiplier', value }
 }
 
 export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = { schema, apply }

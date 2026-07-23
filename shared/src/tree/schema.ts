@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MODIFIER_STAGES } from '../modifiers/types.js'
+import { MODIFIER_SCOPES, MODIFIER_STAGES } from '../modifiers/types.js'
 import { guardModifierValue } from '../modifiers/value-guard.js'
 import type { PrerequisiteExpression } from '../types.js'
 
@@ -8,7 +8,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 3
+export const CURRENT_TREE_VERSION = 4
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ const PositionSchema = z.strictObject({ x: z.number(), y: z.number() })
 const ModifierSchema = z
   .strictObject({
     stage: z.enum(MODIFIER_STAGES),
+    scope: z.enum(MODIFIER_SCOPES),
     field: z.string(),
     value: z.number(),
   })

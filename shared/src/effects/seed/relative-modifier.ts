@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MODIFIER_STAGES, type Modifier } from '../../modifiers/types.js'
+import { MODIFIER_SCOPES, MODIFIER_STAGES, type Modifier } from '../../modifiers/types.js'
 import type { PlayerState } from '../../types.js'
 import type { EffectDef } from '../types.js'
 import { readSourceValue } from '../addressable.js'
@@ -31,6 +31,7 @@ const schema = z.strictObject({
   source: z.string(),
   field: z.string(),
   stage: z.enum(MODIFIER_STAGES),
+  scope: z.enum(MODIFIER_SCOPES),
   factor: z.number().gt(0).optional(),
 })
 
@@ -49,7 +50,7 @@ function apply(p: RelativeModifierParams, state: Readonly<PlayerState>): Modifie
   if (v === null || v <= 0) return null
   const factor = p.factor ?? 1
   const value = p.stage === 'additive' ? v * factor : 1 + v * factor
-  return { stage: p.stage, field: p.field, value }
+  return { stage: p.stage, scope: p.scope, field: p.field, value }
 }
 
 export const relativeModifier: EffectDef<RelativeModifierParams> = { schema, apply }

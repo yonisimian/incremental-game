@@ -280,6 +280,7 @@ describe('Match', () => {
       // the true, debuffed rate; the attacker (p1) is not debuffed.
       expect(latestUpdate(ws2).debuffs).toContainEqual({
         stage: 'multiplicative',
+        scope: 'global',
         field: 'r0',
         value: 0.9,
       })

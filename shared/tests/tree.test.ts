@@ -132,7 +132,7 @@ describe('tree codec — versioning', () => {
     // Existing effects are kept ahead of the migrated baseModifier.
     expect(parsed.upgrades[0].effects).toEqual([
       { type: 'highlightMultiplier', multiplier: 2 },
-      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 3 },
+      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 3, scope: 'base' },
     ])
     expect('modifiers' in parsed.upgrades[0]).toBe(false)
   })
@@ -173,6 +173,66 @@ describe('tree codec — versioning', () => {
     })
     expect('baseCost' in parsed.generators[0]).toBe(false)
     expect('costScaling' in parsed.upgrades[0]).toBe(false)
+  })
+
+  it('migrates v3 modifiers by inferring a behavior-preserving scope', () => {
+    const v3: unknown = {
+      ...minimalTree(),
+      version: 3,
+      nativeModifiers: [
+        { stage: 'additive', field: 'r0', value: 2 }, // resource additive → base
+        { stage: 'multiplicative', field: 'r0', value: 1.5 }, // resource mult → global
+      ],
+      generators: [
+        { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      upgrades: [
+        {
+          id: 'a',
+          cost: { r0: { baseCost: 5 } },
+          purchaseLimit: null,
+          offset: { x: 0, y: 0 },
+          effects: [
+            { type: 'baseModifier', stage: 'additive', field: 'g0', value: 3 }, // generator id → generator
+            { type: 'baseModifier', stage: 'multiplicative', field: 'globalMultiplier', value: 2 }, // → global
+            {
+              type: 'relativeModifier',
+              source: 'resource:r0',
+              field: 'r0',
+              stage: 'multiplicative',
+            }, // resource mult → global
+          ],
+        },
+      ],
+      flavors: [
+        {
+          id: 'test',
+          displayName: 'Test',
+          themeClass: 'theme-test',
+          scoreLabel: 'Score',
+          resources: [{ key: 'r0', displayName: 'R0', icon: 'x' }],
+          showClickStats: false,
+          upgrades: [{ id: 'a', name: 'A', icon: 'x', description: 'd' }],
+          generators: [{ id: 'g0', name: 'G0', icon: 'x' }],
+          attacks: [],
+          pacts: [],
+        },
+      ],
+    }
+    const parsed = parseTreeFile(v3)
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    expect(parsed.nativeModifiers).toEqual([
+      { stage: 'additive', scope: 'base', field: 'r0', value: 2 },
+      { stage: 'multiplicative', scope: 'global', field: 'r0', value: 1.5 },
+    ])
+    const effects = parsed.upgrades[0].effects!
+    expect(effects[0]).toMatchObject({ type: 'baseModifier', field: 'g0', scope: 'generator' })
+    expect(effects[1]).toMatchObject({
+      type: 'baseModifier',
+      field: 'globalMultiplier',
+      scope: 'global',
+    })
+    expect(effects[2]).toMatchObject({ type: 'relativeModifier', field: 'r0', scope: 'global' })
   })
 
   it('drops inert cost scaling from a one-shot upgrade when migrating v2→v3', () => {
@@ -264,18 +324,18 @@ describe('tree codec — validation failures', () => {
   it('rejects a multiplicative nativeModifier that is a no-op or self-penalty', () => {
     for (const value of [1, 0.5]) {
       const tree = minimalTree()
-      tree.nativeModifiers = [{ stage: 'multiplicative', field: 'r0', value }]
+      tree.nativeModifiers = [{ stage: 'multiplicative', scope: 'global', field: 'r0', value }]
       expect(() => parseTreeFile(tree)).toThrow(/value/u)
     }
   })
 
   it('rejects a non-positive additive nativeModifier but accepts a positive one', () => {
     const bad = minimalTree()
-    bad.nativeModifiers = [{ stage: 'additive', field: 'r0', value: -1 }]
+    bad.nativeModifiers = [{ stage: 'additive', scope: 'base', field: 'r0', value: -1 }]
     expect(() => parseTreeFile(bad)).toThrow(/value/u)
 
     const good = minimalTree()
-    good.nativeModifiers = [{ stage: 'additive', field: 'r0', value: 0.5 }]
+    good.nativeModifiers = [{ stage: 'additive', scope: 'base', field: 'r0', value: 0.5 }]
     expect(() => parseTreeFile(good)).not.toThrow()
   })
 

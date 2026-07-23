@@ -38,7 +38,7 @@ export const stubUpgrades: UpgradeDefinition[] = [
     id: 'u1',
     cost: { r0: { baseCost: 25 } },
     purchaseLimit: 1,
-    effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
+    effects: [{ type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 5 }],
     position: { x: 200, y: 0 },
   },
   {

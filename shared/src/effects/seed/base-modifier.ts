@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MODIFIER_STAGES } from '../../modifiers/types.js'
+import { MODIFIER_SCOPES, MODIFIER_STAGES } from '../../modifiers/types.js'
 import { guardModifierValue } from '../../modifiers/value-guard.js'
 import type { BaseModifierOutput } from '../types.js'
 import type { EffectDef } from '../types.js'
@@ -9,15 +9,16 @@ import type { EffectDef } from '../types.js'
  * Schema for the `baseModifier` effect's params.
  *
  * The flat per-upgrade production bonus: while the owning upgrade is held, apply
- * `value` to `field` at the given pipeline `stage`. `field` may name a resource
- * (e.g. `r0`), a generator (e.g. `g0`), or `clickIncome` / `globalMultiplier` —
- * matching what the legacy `modifiers` array accepted. The owned-count
- * compounding happens in `collectModifiers`, which owns the
- * {@link BaseModifierOutput} kind.
+ * `value` to `field` at the given pipeline `stage`, on the production layer named
+ * by `scope` (`base` / `generator` / `global` — see `MODIFIER_SCOPES`). `field`
+ * may name a resource (e.g. `r0`), a generator (e.g. `g0`, only under `generator`
+ * scope), or `clickIncome` / `globalMultiplier`. The owned-count compounding
+ * happens in `collectModifiers`, which owns the {@link BaseModifierOutput} kind.
  */
 const schema = z
   .strictObject({
     stage: z.enum(MODIFIER_STAGES),
+    scope: z.enum(MODIFIER_SCOPES),
     field: z.string(),
     value: z.number(),
   })
@@ -32,7 +33,7 @@ export type BaseModifierParams = z.infer<typeof schema>
  * `collectModifiers`, which owns this output.
  */
 function apply(p: BaseModifierParams): BaseModifierOutput {
-  return { kind: 'baseModifier', stage: p.stage, field: p.field, value: p.value }
+  return { kind: 'baseModifier', stage: p.stage, scope: p.scope, field: p.field, value: p.value }
 }
 
 export const baseModifier: EffectDef<BaseModifierParams> = { schema, apply }

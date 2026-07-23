@@ -43,7 +43,7 @@ function apply(
   }
 
   if (max <= 0 || leaderId === null) return null
-  return [{ stage: 'multiplicative', field: leaderId, value: p.multiplier }]
+  return [{ stage: 'multiplicative', scope: 'generator', field: leaderId, value: p.multiplier }]
 }
 
 export const dominantGenerator: EffectDef<DominantGeneratorParams> = { schema, apply }

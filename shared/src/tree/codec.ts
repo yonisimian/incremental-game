@@ -108,6 +108,76 @@ function migrateV2toV3(json: unknown): unknown {
 }
 
 /**
+ * V3 → V4: every production modifier gained a required `scope` (`base` /
+ * `generator` / `global`). Infer the behavior-preserving scope from the existing
+ * `field`/`stage` (the pre-scope pipeline lumped a resource's base + generator
+ * production together, so an additive resource bonus was a floor bump → `base`,
+ * a multiplicative one scaled the whole rate → `global`; a generator-id target
+ * was already generator-only → `generator`; `globalMultiplier` → `global`). This
+ * touches every modifier carrier: top-level `nativeModifiers`, and the
+ * `baseModifier` / `relativeModifier` / `enemyProductionModifier` effect refs on
+ * mode-level `effects`, every upgrade node (recursing into layout `children`),
+ * and `attacks`.
+ */
+function migrateV3toV4(json: unknown): unknown {
+  const file = json as Record<string, unknown>
+  const generatorIds = new Set(
+    (Array.isArray(file.generators) ? file.generators : []).map(
+      (g) => (g as Record<string, unknown>).id as string,
+    ),
+  )
+
+  // The pre-scope field/stage → scope mapping. `clickIncome`'s scope is inert
+  // (the pipeline routes it to its own track), so any valid value works.
+  const inferScope = (field: unknown, stage: unknown): 'base' | 'generator' | 'global' => {
+    if (field === 'globalMultiplier') return 'global'
+    if (typeof field === 'string' && generatorIds.has(field)) return 'generator'
+    return stage === 'multiplicative' ? 'global' : 'base'
+  }
+
+  const withScope = <T extends Record<string, unknown>>(m: T): T =>
+    'scope' in m ? m : { ...m, scope: inferScope(m.field, m.stage) }
+
+  const SCOPED_EFFECTS = new Set(['baseModifier', 'relativeModifier', 'enemyProductionModifier'])
+  const migrateEffects = (effects: unknown): unknown =>
+    Array.isArray(effects)
+      ? effects.map((e) => {
+          const ref = e as Record<string, unknown>
+          return SCOPED_EFFECTS.has(ref.type as string) ? withScope(ref) : ref
+        })
+      : effects
+
+  const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
+    const { children, effects, ...rest } = node
+    const out: Record<string, unknown> = { ...rest }
+    if (effects !== undefined) out.effects = migrateEffects(effects)
+    if (Array.isArray(children)) {
+      out.children = children.map((c) => migrateNode(c as Record<string, unknown>))
+    }
+    return out
+  }
+
+  const migrateWithEffects = (items: unknown): unknown =>
+    Array.isArray(items)
+      ? items.map((it) => {
+          const obj = it as Record<string, unknown>
+          return obj.effects !== undefined ? { ...obj, effects: migrateEffects(obj.effects) } : obj
+        })
+      : items
+
+  const out: Record<string, unknown> = { ...file, version: 4 }
+  if (Array.isArray(file.nativeModifiers)) {
+    out.nativeModifiers = file.nativeModifiers.map((m) => withScope(m as Record<string, unknown>))
+  }
+  if (Array.isArray(file.upgrades)) {
+    out.upgrades = file.upgrades.map((u) => migrateNode(u as Record<string, unknown>))
+  }
+  if (file.effects !== undefined) out.effects = migrateEffects(file.effects)
+  if (file.attacks !== undefined) out.attacks = migrateWithEffects(file.attacks)
+  return out
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -120,6 +190,7 @@ function migrateTreeFile(json: unknown): unknown {
   let raw = json
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
   if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
+  if ((raw as { version?: unknown } | null)?.version === 3) raw = migrateV3toV4(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(

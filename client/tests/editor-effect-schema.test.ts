@@ -91,13 +91,20 @@ describe('describeEffectSchema', () => {
     const spec = describeEffectSchema(def.schema)
     expect(spec.variants).toHaveLength(1)
     const fields = spec.variants[0].fields
-    expect(fields.map((f) => f.key)).toEqual(['stage', 'field', 'value'])
+    expect(fields.map((f) => f.key)).toEqual(['stage', 'scope', 'field', 'value'])
     expect(fields[0]).toEqual({
       key: 'stage',
       kind: 'string',
       optional: false,
       defaultValue: 'additive',
       options: ['additive', 'multiplicative'],
+    })
+    expect(fields[1]).toEqual({
+      key: 'scope',
+      kind: 'string',
+      optional: false,
+      defaultValue: 'base',
+      options: ['base', 'generator', 'global'],
     })
   })
 })

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "id": "idler",
   "resources": [
     "r0",
@@ -19,11 +19,13 @@
     {
       "stage": "additive",
       "field": "r0",
+      "scope": "base",
       "value": 1
     },
     {
       "stage": "additive",
       "field": "r1",
+      "scope": "base",
       "value": 1
     }
   ],
@@ -102,6 +104,7 @@
           "type": "enemyProductionModifier",
           "stage": "multiplicative",
           "field": "r0",
+          "scope": "global",
           "value": 0.9
         }
       ]
@@ -694,6 +697,7 @@
           "type": "baseModifier",
           "stage": "additive",
           "field": "r0",
+          "scope": "base",
           "value": 1
         }
       ],
@@ -722,6 +726,7 @@
               "type": "baseModifier",
               "stage": "multiplicative",
               "field": "r0",
+              "scope": "global",
               "value": 1.1
             }
           ],
@@ -748,6 +753,7 @@
                   "type": "relativeModifier",
                   "source": "resource:r0",
                   "field": "r0",
+                  "scope": "global",
                   "stage": "multiplicative",
                   "factor": 0.00001
                 }
@@ -781,6 +787,7 @@
               "type": "baseModifier",
               "stage": "additive",
               "field": "r1",
+              "scope": "base",
               "value": 1
             }
           ],
@@ -814,6 +821,7 @@
                   "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "r1",
+                  "scope": "global",
                   "value": 1.1
                 }
               ],
@@ -843,6 +851,7 @@
                       "type": "relativeModifier",
                       "source": "resource:r1",
                       "field": "r1",
+                      "scope": "global",
                       "stage": "multiplicative",
                       "factor": 0.00001
                     }
@@ -878,12 +887,14 @@
           "type": "baseModifier",
           "stage": "multiplicative",
           "field": "r0",
+          "scope": "global",
           "value": 1.1
         },
         {
           "type": "baseModifier",
           "stage": "multiplicative",
           "field": "r1",
+          "scope": "global",
           "value": 1.1
         }
       ],
@@ -997,6 +1008,7 @@
               "type": "baseModifier",
               "stage": "additive",
               "field": "g0",
+              "scope": "generator",
               "value": 1
             }
           ],
@@ -1083,6 +1095,7 @@
                   "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "g0",
+                  "scope": "generator",
                   "value": 1.1
                 }
               ],
@@ -1112,6 +1125,7 @@
               "type": "baseModifier",
               "stage": "additive",
               "field": "g1",
+              "scope": "generator",
               "value": 1
             }
           ],
@@ -1139,6 +1153,7 @@
                   "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "g1",
+                  "scope": "generator",
                   "value": 1.1
                 }
               ],
@@ -1257,6 +1272,7 @@
                   "type": "baseModifier",
                   "stage": "additive",
                   "field": "g2",
+                  "scope": "generator",
                   "value": 1
                 }
               ],
@@ -1284,6 +1300,7 @@
                       "type": "baseModifier",
                       "stage": "multiplicative",
                       "field": "g2",
+                      "scope": "generator",
                       "value": 1.1
                     }
                   ],
@@ -1367,6 +1384,7 @@
                   "type": "baseModifier",
                   "stage": "additive",
                   "field": "g3",
+                  "scope": "generator",
                   "value": 1
                 }
               ],
@@ -1394,6 +1412,7 @@
                       "type": "baseModifier",
                       "stage": "multiplicative",
                       "field": "g3",
+                      "scope": "generator",
                       "value": 1.1
                     }
                   ],
@@ -1554,6 +1573,7 @@
           "type": "baseModifier",
           "stage": "additive",
           "field": "clickIncome",
+          "scope": "base",
           "value": 1
         }
       ],
@@ -1581,6 +1601,7 @@
               "type": "baseModifier",
               "stage": "additive",
               "field": "clickIncome",
+              "scope": "base",
               "value": 1
             }
           ],
@@ -1608,6 +1629,7 @@
                   "type": "baseModifier",
                   "stage": "multiplicative",
                   "field": "clickIncome",
+                  "scope": "global",
                   "value": 1.1
                 }
               ],
@@ -1823,6 +1845,7 @@
               "type": "relativeModifier",
               "source": "meta:peakCps",
               "field": "clickIncome",
+              "scope": "base",
               "stage": "additive",
               "factor": 1
             }

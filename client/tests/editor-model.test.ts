@@ -725,7 +725,13 @@ describe('attacks', () => {
     const tree = idler()
     // Point a2's offensive effect at the spare resource r1, then it must block r1's removal.
     setAttackEffects(tree, OFFENSIVE_ATTACK, [
-      { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r1', value: 0.9 },
+      {
+        type: 'enemyProductionModifier',
+        stage: 'multiplicative',
+        scope: 'global',
+        field: 'r1',
+        value: 0.9,
+      },
     ])
     expect(resourceReferences(tree, 'r1')).toContain('an enemyProductionModifier field')
     expect(removeResource(tree, 'r1').ok).toBe(false)

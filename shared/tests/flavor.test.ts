@@ -367,7 +367,13 @@ describe('validateModeDefinition — negative tests', () => {
           id: 'a0',
           kind: 'passive',
           effects: [
-            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              scope: 'global',
+              field: 'r0',
+              value: 0.9,
+            },
           ],
         },
       ],
@@ -390,6 +396,7 @@ describe('validateModeDefinition — negative tests', () => {
             {
               type: 'enemyProductionModifier',
               stage: 'multiplicative',
+              scope: 'global',
               field: 'globalMultiplier',
               value: 0.8,
             },
@@ -415,6 +422,7 @@ describe('validateModeDefinition — negative tests', () => {
             {
               type: 'enemyProductionModifier',
               stage: 'multiplicative',
+              scope: 'global',
               field: 'clickIncome',
               value: 0.5,
             },
@@ -437,7 +445,13 @@ describe('validateModeDefinition — negative tests', () => {
           id: 'a0',
           kind: 'active',
           effects: [
-            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              scope: 'global',
+              field: 'r0',
+              value: 0.9,
+            },
           ],
         },
       ],
@@ -448,6 +462,41 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).toThrow(/carries an enemyProductionModifier but is not passive/)
+  })
+
+  it('throws when a modifier uses a scope incoherent with its field', () => {
+    // `globalMultiplier` is never generator-scoped — a silent no-op at runtime.
+    const badSpecial = makeValidDef({
+      nativeModifiers: [
+        { stage: 'multiplicative', scope: 'generator', field: 'globalMultiplier', value: 2 },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', badSpecial)
+    }).toThrow(/'generator' scope/)
+
+    // A generator id may only be targeted under `generator` scope.
+    const badGen = makeValidDef({
+      generators: [
+        { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: { baseCost: 10 } },
+          purchaseLimit: 1,
+          effects: [
+            { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'g0', value: 1 },
+          ],
+        },
+      ],
+    })
+    const badGenFlavored = withFlavor(badGen, {
+      generators: [{ id: 'g0', name: 'G0', icon: '⚙️' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', badGenFlavored)
+    }).toThrow(/only 'generator' scope may target a generator id/)
   })
 
   it('throws when an unlockPact effect references an unknown pact', () => {
