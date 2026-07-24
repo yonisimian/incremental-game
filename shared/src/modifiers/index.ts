@@ -7,9 +7,4 @@ export type {
   ResourceLayers,
 } from './types.js'
 export { MODIFIER_STAGES, MODIFIER_SCOPES } from './types.js'
-export {
-  computeIncome,
-  computeClickIncome,
-  computePassiveRates,
-  applyPassiveTick,
-} from './pipeline.js'
+export { computeIncome, computePassiveRates, applyPassiveTick } from './pipeline.js'

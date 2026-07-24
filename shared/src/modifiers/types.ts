@@ -78,10 +78,11 @@ export interface ResourceLayers {
 
 /** Result of running the modifier pipeline. */
 export interface ModifierContext {
-  /** Income per manual click (0 if clicks disabled), before `globalMultiplier`. */
-  clickIncome: number
   /** Per-resource scoped layers, keyed by resource name. */
   resources: Record<string, ResourceLayers>
-  /** Overall multiplier (the `globalMultiplier` field) — scales every rate and click income. */
+  /**
+   * Overall multiplier (the `globalMultiplier` field) — scales every resource
+   * rate, and click income (applied by `computeClickIncome`).
+   */
   globalMultiplier: number
 }

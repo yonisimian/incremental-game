@@ -92,6 +92,21 @@ export interface BaseModifierOutput {
 }
 
 /**
+ * A bonus to manual-click income, emitted by the `clickPower` effect. Click
+ * income is its own production axis — not a resource rate — so it does not carry
+ * a resource `field` or a `scope`; it is consumed by `collectClickIncome` (not
+ * the modifier pipeline). Additive outputs sum, multiplicative outputs multiply,
+ * and `collectClickIncome` applies the owning upgrade's owned-count compounding
+ * (× owned / ^ owned), mirroring {@link BaseModifierOutput}. The `globalMultiplier`
+ * from the modifier pipeline is applied on top by `computeClickIncome`.
+ */
+export interface ClickIncomeOutput {
+  readonly kind: 'clickIncome'
+  readonly stage: Modifier['stage']
+  readonly value: number
+}
+
+/**
  * Marks an attack as unlocked while the owning upgrade is held. Consumed by
  * `isAttackUnlocked` (an attack that no owned upgrade names is locked — unlike
  * panels, attacks are hidden by default); carries no production weight, so the
@@ -134,7 +149,8 @@ export interface EnemyModifierOutput {
 
 /**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
- * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
+ * {@link BaseModifierOutput}, a {@link ClickIncomeOutput}, a
+ * {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, or an {@link EnemyModifierOutput}. Each is
@@ -145,6 +161,7 @@ export interface EnemyModifierOutput {
 export type EffectOutput =
   | Modifier
   | BaseModifierOutput
+  | ClickIncomeOutput
   | GeneratorCostOutput
   | PanelUnlockOutput
   | GeneratorUnlockOutput

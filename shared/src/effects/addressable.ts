@@ -61,15 +61,15 @@ export function addressableSources(mode: ModeDefinition): AddressableField[] {
 /**
  * Target keys a `relativeModifier` may feed, built from raw resource keys
  * (per-second rates) and generator ids (output, folded by `collectModifiers`),
- * plus the two special `ModifierContext` fields. The `*For` form takes
- * primitives for the editor (see {@link addressableSourcesFor}).
+ * plus the special `globalMultiplier` field. Click income is deliberately absent
+ * — it is its own axis set only by the `clickPower` effect. The `*For` form
+ * takes primitives for the editor (see {@link addressableSourcesFor}).
  */
 export function addressableTargetsFor(
   resourceKeys: readonly string[],
   generatorIds: readonly string[],
 ): AddressableField[] {
   return [
-    { key: 'clickIncome', label: 'Click income' },
     { key: 'globalMultiplier', label: 'Global multiplier' },
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
     ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
@@ -77,8 +77,8 @@ export function addressableTargetsFor(
 }
 
 /**
- * Target keys a `relativeModifier` may feed in this mode: the two special
- * `ModifierContext` fields, each resource (a per-second rate), and each
+ * Target keys a `relativeModifier` may feed in this mode: the special
+ * `globalMultiplier` field, each resource (a per-second rate), and each
  * generator (its output is folded by `collectModifiers`).
  */
 export function addressableTargets(mode: ModeDefinition): AddressableField[] {

@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  computeIncome,
-  computeClickIncome,
-  computePassiveRates,
-  applyPassiveTick,
-} from '../src/modifiers/pipeline.js'
+import { computeIncome, computePassiveRates, applyPassiveTick } from '../src/modifiers/pipeline.js'
 import type { Modifier } from '../src/modifiers/types.js'
 import type { PlayerState } from '../src/types.js'
 
@@ -13,7 +8,6 @@ import type { PlayerState } from '../src/types.js'
 describe('computeIncome', () => {
   it('returns zeroed context with no modifiers', () => {
     const ctx = computeIncome([])
-    expect(ctx.clickIncome).toBe(0)
     expect(ctx.resources).toEqual({})
     expect(ctx.globalMultiplier).toBe(1)
   })
@@ -39,16 +33,6 @@ describe('computeIncome', () => {
     expect(ctx.resources.r0.global).toEqual({ add: 0, mult: 2 })
   })
 
-  it('handles clickIncome through additive + multiplicative (scope-independent)', () => {
-    const mods: Modifier[] = [
-      { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 },
-      { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 },
-      { stage: 'multiplicative', scope: 'base', field: 'clickIncome', value: 2 },
-    ]
-    const ctx = computeIncome(mods)
-    expect(ctx.clickIncome).toBe(4) // (1+1) * 2
-  })
-
   it('handles globalMultiplier through additive and multiplicative stages', () => {
     const mods: Modifier[] = [
       { stage: 'additive', scope: 'global', field: 'globalMultiplier', value: 0.5 },
@@ -57,31 +41,6 @@ describe('computeIncome', () => {
     const ctx = computeIncome(mods)
     // additive: 1 + 0.5 = 1.5; multiplicative: 1.5 * 3 = 4.5
     expect(ctx.globalMultiplier).toBe(4.5)
-  })
-})
-
-// ─── computeClickIncome ──────────────────────────────────────────────
-
-describe('computeClickIncome', () => {
-  it('returns 0 with no modifiers', () => {
-    expect(computeClickIncome([])).toBe(0)
-  })
-
-  it('applies globalMultiplier to clickIncome', () => {
-    const mods: Modifier[] = [
-      { stage: 'additive', scope: 'base', field: 'clickIncome', value: 2 },
-      { stage: 'multiplicative', scope: 'global', field: 'globalMultiplier', value: 3 },
-    ]
-    expect(computeClickIncome(mods)).toBe(6) // 2 * 3
-  })
-
-  it('chains additive → multiplicative for click income', () => {
-    const mods: Modifier[] = [
-      { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 },
-      { stage: 'multiplicative', scope: 'base', field: 'clickIncome', value: 2 },
-      { stage: 'multiplicative', scope: 'global', field: 'globalMultiplier', value: 1.5 },
-    ]
-    expect(computeClickIncome(mods)).toBe(3) // (1 * 2) * 1.5
   })
 })
 

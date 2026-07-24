@@ -500,8 +500,7 @@ export class Match {
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
     player.state.meta.peakCps = player.stats.peakCps
 
-    const modifiers = collectModifiers(player.state, this.modeDef)
-    const income = computeClickIncome(modifiers)
+    const income = computeClickIncome(player.state, this.modeDef)
 
     // Credit the requested resource (defaults to score); only the score resource
     // contributes to score, matching passive income.

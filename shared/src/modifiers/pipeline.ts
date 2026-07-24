@@ -14,15 +14,15 @@ function freshLayers(): ResourceLayers {
 
 /**
  * Run the modifier pipeline, accumulating each resource's `base` / `generator` /
- * `global` layers plus the standalone `clickIncome` and `globalMultiplier`
- * tracks. Returns the raw {@link ModifierContext} — the layers are NOT yet
- * combined into a rate (see {@link finalizeRate}). Per-generator output is
- * assumed already folded into `generator`-scope resource modifiers by
- * `collectModifiers`, so this never sees a generator-id `field`.
+ * `global` layers plus the standalone `globalMultiplier` track. Returns the raw
+ * {@link ModifierContext} — the layers are NOT yet combined into a rate (see
+ * {@link finalizeRate}). Per-generator output is assumed already folded into
+ * `generator`-scope resource modifiers by `collectModifiers`, so this never sees
+ * a generator-id `field`. (Click income is its own axis — see `clickPower` /
+ * `computeClickIncome` — and does not flow through here.)
  */
 export function computeIncome(modifiers: readonly Modifier[]): ModifierContext {
   const ctx: ModifierContext = {
-    clickIncome: 0,
     resources: {},
     globalMultiplier: 1.0,
   }
@@ -30,12 +30,7 @@ export function computeIncome(modifiers: readonly Modifier[]): ModifierContext {
   const layersFor = (field: string): ResourceLayers => (ctx.resources[field] ??= freshLayers())
 
   for (const m of modifiers) {
-    // Special fields have their own tracks; `scope` does not apply to them.
-    if (m.field === 'clickIncome') {
-      if (m.stage === 'additive') ctx.clickIncome += m.value
-      else ctx.clickIncome *= m.value
-      continue
-    }
+    // The `globalMultiplier` field has its own track; `scope` does not apply.
     if (m.field === 'globalMultiplier') {
       if (m.stage === 'additive') ctx.globalMultiplier += m.value
       else ctx.globalMultiplier *= m.value
@@ -65,12 +60,6 @@ function finalizeRate(layers: ResourceLayers | undefined, globalMultiplier: numb
 }
 
 // ─── Convenience Functions ───────────────────────────────────────────
-
-/** Compute the income from a single click (globalMultiplier applied). */
-export function computeClickIncome(modifiers: readonly Modifier[]): number {
-  const ctx = computeIncome(modifiers)
-  return ctx.clickIncome * ctx.globalMultiplier
-}
 
 /**
  * Compute passive income rates per second as a resource map.

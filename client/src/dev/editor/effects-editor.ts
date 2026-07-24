@@ -311,7 +311,10 @@ export interface EffectGroup {
  * so a newly-registered effect is never silently hidden.
  */
 export const EFFECT_GROUPS: readonly EffectGroup[] = [
-  { label: 'Production', types: ['baseModifier', 'relativeModifier', 'enemyProductionModifier'] },
+  {
+    label: 'Production',
+    types: ['baseModifier', 'relativeModifier', 'clickPower', 'enemyProductionModifier'],
+  },
   { label: 'Highlight', types: ['highlightMultiplier'] },
   {
     label: 'Generators',

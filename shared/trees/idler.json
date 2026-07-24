@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "id": "idler",
   "resources": [
     "r0",
@@ -1570,10 +1570,8 @@
           "system": "click"
         },
         {
-          "type": "baseModifier",
+          "type": "clickPower",
           "stage": "additive",
-          "field": "clickIncome",
-          "scope": "base",
           "value": 1
         }
       ],
@@ -1598,10 +1596,8 @@
           },
           "effects": [
             {
-              "type": "baseModifier",
+              "type": "clickPower",
               "stage": "additive",
-              "field": "clickIncome",
-              "scope": "base",
               "value": 1
             }
           ],
@@ -1626,10 +1622,8 @@
               },
               "effects": [
                 {
-                  "type": "baseModifier",
+                  "type": "clickPower",
                   "stage": "multiplicative",
-                  "field": "clickIncome",
-                  "scope": "global",
                   "value": 1.1
                 }
               ],
@@ -1842,11 +1836,9 @@
           },
           "effects": [
             {
-              "type": "relativeModifier",
-              "source": "meta:peakCps",
-              "field": "clickIncome",
-              "scope": "base",
+              "type": "clickPower",
               "stage": "additive",
+              "source": "meta:peakCps",
               "factor": 1
             }
           ],

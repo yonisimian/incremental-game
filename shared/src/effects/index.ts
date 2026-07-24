@@ -2,6 +2,7 @@ import { registerEffect } from './registry.js'
 import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { baseModifier } from './seed/base-modifier.js'
+import { clickPower } from './seed/click-power.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
 import { enemyProductionModifier } from './seed/enemy-production-modifier.js'
 import { generatorCost } from './seed/generator-cost.js'
@@ -16,6 +17,7 @@ import { unlockPact } from './seed/unlock-pact.js'
 
 // Register seed effects exactly once, at module load.
 registerEffect('baseModifier', baseModifier)
+registerEffect('clickPower', clickPower)
 registerEffect('highlightMultiplier', highlightMultiplier)
 registerEffect('lowerTierBoost', lowerTierBoost)
 registerEffect('dominantGenerator', dominantGenerator)
@@ -34,6 +36,7 @@ export type { EffectDef } from './types.js'
 export type {
   EffectOutput,
   BaseModifierOutput,
+  ClickIncomeOutput,
   GeneratorCostOutput,
   PanelUnlockOutput,
   GeneratorUnlockOutput,
@@ -52,6 +55,7 @@ export {
   normalizeEffectOutputs,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
+export type { ClickPowerParams } from './seed/click-power.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'
 export type { LowerTierBoostParams } from './seed/lower-tier-boost.js'
 export type { DominantGeneratorParams } from './seed/dominant-generator.js'

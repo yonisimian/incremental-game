@@ -7,7 +7,6 @@ import {
   type ModeDefinition,
   type ModeFlavor,
   type ResourceRateBreakdown,
-  collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
   getHighlightMultiplier,
@@ -242,7 +241,7 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Clicking (per-click income excludes debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
-    const clickIncome = computeClickIncome(collectModifiers(state.player, modeDef))
+    const clickIncome = computeClickIncome(state.player, modeDef)
     setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
     setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
     setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
