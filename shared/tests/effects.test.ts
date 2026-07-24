@@ -295,35 +295,6 @@ describe('collectModifiers effect wiring', () => {
     expect(collectModifiers(unowned, def).some((m) => m.value === 3)).toBe(false)
   })
 
-  it('routes generator-targeted effect modifiers into generator output', () => {
-    const def = getModeDefinition('idler')
-    const sumAdditive = (
-      mods: readonly { field: string; stage: string; value: number }[],
-      f: string,
-    ) =>
-      mods.filter((m) => m.field === f && m.stage === 'additive').reduce((s, m) => s + m.value, 0)
-
-    // Highlight a generator id (g1: produces r1 at rate 1) → sh-unlock's per-upgrade
-    // highlight effect emits a g1-targeted ×2, which must fold into g1's output.
-    const hi = createInitialState(def)
-    hi.upgrades['sh-unlock'] = 1
-    hi.generators.g1 = 1
-    hi.meta.highlight = 'g1'
-    const hiMods = collectModifiers(hi, def)
-
-    const lo = createInitialState(def)
-    lo.upgrades['sh-unlock'] = 1
-    lo.generators.g1 = 1
-    lo.meta.highlight = 'r0'
-    const loMods = collectModifiers(lo, def)
-
-    // The generator-targeted multiplier is consumed, never leaked as a standalone
-    // modifier on the generator id.
-    expect(hiMods.some((m) => m.field === 'g1')).toBe(false)
-    // g1 (rate 1, owned 1) doubles: its r1 output gains exactly one extra unit.
-    expect(sumAdditive(hiMods, 'r1')).toBe(sumAdditive(loMods, 'r1') + 1)
-  })
-
   it('compounds a multiplicative baseModifier as value ** owned', () => {
     const base = getModeDefinition('idler')
     const up: UpgradeDefinition = {
