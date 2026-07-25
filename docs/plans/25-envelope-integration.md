@@ -226,18 +226,27 @@ time) we need. It'll move so both the Queue tab and the CI script share it.
 Per [05](05-balance-design.md) Phase C, envelope logic is mode-agnostic and
 already lives in `shared/`; only the projection glue + UI is new.
 
-| Concern                                               | Location                                                | New?                  |
-| ----------------------------------------------------- | ------------------------------------------------------- | --------------------- |
-| `SimResult[] → SimScore[]` projection (`toSimScores`) | `shared/src/balance/project.ts`                         | **new** (moved down)  |
-| `goalTypeOf(SimGoal)` → `TargetEnvelope['goalType']`  | `shared/src/balance/project.ts`                         | **new**               |
-| Envelope registry `mode:goalType → (Target\|Pacing)`  | `shared/src/balance/registry.ts`                        | **new**               |
-| Calibrated `IDLER_TIMED_ENVELOPE`                     | `shared/src/modes/idler-envelope.ts`                    | edit (values)         |
-| `PacingEnvelope` + `validatePacing` (score/race — D3) | `shared/src/balance/pacing.ts`                          | **new** (Phase 6)     |
-| Chart band overlay (D2)                               | `client/src/dev/chart.ts`                               | edit (drawClear hook) |
-| Envelope report render (Queue tab)                    | `client/src/dev/queue-sim.ts` (or `queue-envelope.ts`)  | **new**               |
-| Seed-from-enumeration button                          | `client/src/dev/queue-sim.ts`                           | edit                  |
-| CI balance check                                      | `scripts/check-balance.ts`                              | **new**               |
-| CI wiring                                             | `.github/workflows/ci.yml` + root `package.json` script | edit                  |
+> ⚠️ **Architecture note:** the table below reflects Phases 1–6 as originally
+> built. **Phase 7-revised relocates the envelope _data_** from
+> `shared/src/modes/idler-envelope.ts` → (Phase 7 committed) `shared/trees/idler.json`
+> → (Phase 7-revised) a **sidecar** `shared/balance/idler.json` loaded by a new
+> `shared/src/balance/{schema,loader}.ts`. The `idler-envelope.ts` row is
+> **superseded** — see [Phase 7](#phase-7--sidecar-authored-editor-editable-envelopes)
+> for the current home.
+
+| Concern                                               | Location                                                              | New?                  |
+| ----------------------------------------------------- | --------------------------------------------------------------------- | --------------------- |
+| `SimResult[] → SimScore[]` projection (`toSimScores`) | `shared/src/balance/project.ts`                                       | **new** (moved down)  |
+| `goalTypeOf(SimGoal)` → `TargetEnvelope['goalType']`  | `shared/src/balance/project.ts`                                       | **new**               |
+| Envelope registry `mode:goalType → (Target\|Pacing)`  | `shared/src/balance/registry.ts`                                      | **new**               |
+| ~~Calibrated `IDLER_TIMED_ENVELOPE`~~ (superseded)    | ~~`shared/src/modes/idler-envelope.ts`~~ → sidecar                    | **superseded (P7)**   |
+| Envelope sidecar data + schema + loader (P7-revised)  | `shared/balance/idler.json` + `shared/src/balance/{schema,loader}.ts` | **new (Phase 7)**     |
+| `PacingEnvelope` + `validatePacing` (score/race — D3) | `shared/src/balance/pacing.ts`                                        | **new** (Phase 6)     |
+| Chart band overlay (D2)                               | `client/src/dev/chart.ts`                                             | edit (drawClear hook) |
+| Envelope report render (Queue tab)                    | `client/src/dev/queue-sim.ts` (or `queue-envelope.ts`)                | **new**               |
+| Seed-from-enumeration button                          | `client/src/dev/queue-sim.ts`                                         | edit                  |
+| CI balance check                                      | `scripts/check-balance.ts`                                            | **new**               |
+| CI wiring                                             | `.github/workflows/ci.yml` + root `package.json` script               | edit                  |
 
 **Why move `toSimScores` to shared?** The CI script (Node, no DOM) and the Queue
 tab (browser) both need the identical `SimResult → SimScore` projection. Putting
@@ -260,6 +269,8 @@ Ordered so each phase is independently shippable and the risky calibration lands
 before the enforcing gate (D4).
 
 ### Phase 1 — Shared projection + registry (foundation, no behavior change)
+
+> ✅ **Done** — commit `8307ec5`. (Registry later reworked by Phase 7.)
 
 1. **`shared/src/balance/project.ts`** — export
    `simResultsToScores(results: SimResult[], envelope: TargetEnvelope): SimScore[]`,
@@ -284,6 +295,12 @@ before the enforcing gate (D4).
 _No UI or CI touched yet. `pnpm --filter @game/shared build && test` green._
 
 ### Phase 2 — Calibrate `IDLER_TIMED_ENVELOPE` (the honest-numbers phase)
+
+> ✅ **Done** — commit `bcdf913`. ⚠️ **Stale file reference below:** the
+> calibrated bands were authored in `shared/src/modes/idler-envelope.ts`, which
+> Phase 7 **deleted** — the values now live in the mode data (and move again to a
+> sidecar in Phase 7-revised). Read this phase for the _calibration method_, not
+> the file path.
 
 **This is the phase that makes the verdict mean something (gap 3, D4).** Read the
 [Balance Philosophy](#balance-philosophy-why-this-is-more-than-a-regression-lock)
@@ -313,6 +330,9 @@ _Deliverable: `pnpm check:balance` returns `pass: true` for idler timed._
 
 ### Phase 2b — Curate a diverse strategy corpus (the signal, not an afterthought)
 
+> ✅ **Done** — commit `bcdf913`. (Corpus remains flagged non-diverse; Phase 8's
+> forced-use probe is the mitigation for that gap.)
+
 The envelope is only as honest as the strategies fed to it (see
 [Balance Philosophy → corpus](#balance-philosophy-why-this-is-more-than-a-regression-lock)).
 Today's files are human recordings, not orthogonal archetypes.
@@ -333,6 +353,8 @@ Today's files are human recordings, not orthogonal archetypes.
 > ([05](05-balance-design.md) Phase A.5), trackable as a follow-up.
 
 ### Phase 3 — Queue-tab envelope report (gap 1, D1/D3)
+
+> ✅ **Done** — commit `d3269ea`.
 
 1. In `runStrategies` ([queue-sim.ts](../../client/src/dev/queue-sim.ts)), after
    `renderReport`, resolve the envelope for the **active goal's** type —
@@ -366,6 +388,8 @@ Today's files are human recordings, not orthogonal archetypes.
 
 ### Phase 3b — Shaded envelope band on the score chart (D2)
 
+> ✅ **Done** — commit `d3269ea`.
+
 1. **Extend `renderChart`** ([chart.ts](../../client/src/dev/chart.ts)) with an
    optional `band?: { xs: number[]; mins: number[]; maxs: number[]; label?: string }`
    input. Draw it in a **new `drawClear` hook** (fires right after uPlot clears
@@ -394,6 +418,8 @@ Today's files are human recordings, not orthogonal archetypes.
 
 ### Phase 4 — CI balance gate (gap 2, D4)
 
+> ✅ **Done** — commit `cf38d6a`.
+
 1. **`scripts/check-balance.ts`** (run via `tsx`, matching `lint:css`): for each
    `(mode, goalType, envelope)` in the registry, load that mode's authored
    strategies via a **Node-only loader under `scripts/`** (`fs` read of
@@ -418,6 +444,8 @@ Today's files are human recordings, not orthogonal archetypes.
    tab bundles, so the CI verdict and the dev-panel verdict can never diverge.
 
 ### Phase 5 — Seed-from-enumeration button (plan 23 Phase 5 optional; gap 4)
+
+> ✅ **Done** — commit `2c0bd95`.
 
 1. In the Queue tab's strategy controls, add a **"＋ Seed from enumeration"**
    button. On click: call `generateStrategies(modeDef)`
@@ -445,6 +473,8 @@ Today's files are human recordings, not orthogonal archetypes.
 > or split to its own PR without affecting 1–4.
 
 ### Phase 6 — Goal-pacing envelopes (score / race) (D3)
+
+> ✅ **Done** — commit `9e9af4b`.
 
 Generalizes the balance verdict to the two non-timed goals. **Largest new shared
 surface in this plan; lands last and is independently droppable** — Phases 1–5
@@ -507,111 +537,241 @@ are complete without it (score/race just show the empty state).
 > completeness and future modes, but if calibration reveals no stable design
 > target, registering nothing is the correct outcome — not a forced band.
 
-### Phase 7 — Editor-authored envelopes (move out of hardcode)
+### Phase 7 — Sidecar-authored, editor-editable envelopes
 
-Phases 1–6 leave the three envelopes **hardcoded** in
-[shared/src/modes/idler-envelope.ts](../../shared/src/modes/idler-envelope.ts)
-and wired via a static `mode:goalType` map in
-[shared/src/balance/registry.ts](../../shared/src/balance/registry.ts). This
-phase makes them **authored data** in the mode's tree JSON
-([shared/trees/idler.json](../../shared/trees/idler.json)), editable in the
-`/dev.html` editor next to resources / generators / attacks. The same JSON that
-defines a mode's mechanics now also defines the balance bands the CI gate checks
-it against. This is data-plumbing + a UI surface — the envelope _values_ don't
-change, and **`check:balance` must produce the identical three PASS verdicts**
-before and after (the proof it's behavior-preserving).
+> ✅ **Done** — restructured in place into commit `ee5a395` (the unpushed in-tree
+> `3678aad` was interactive-rebase folded to the sidecar form below, so `main`
+> never carries in-tree envelopes and there is no throwaway migration).
+> `pnpm check:balance` passes at HEAD with the identical three PASS verdicts
+> (timed 8/9 spread 22.240; target-score 8/9 spread 4.397; buy-upgrade 5/9 spread
+> 2.102), and the full gate (typecheck, tests 394/126/337, lint, lint:css,
+> format:check) is green.
+>
+> **Revision note (supersedes the original in-tree scoping).** This phase first
+> shipped locally with envelopes stored _inside_ the mode tree
+> ([shared/trees/idler.json](../../shared/trees/idler.json)) via a new
+> `ModeDefinition.envelopes` field. On review that was reversed: **envelopes are
+> development / CI metadata, not runtime game data** — they encode how we _judge_
+> a mode, and the server + gameplay client never need them. Baking them into the
+> shipped tree bloats the definition and conflates two concerns. Storage moves to
+> a **sidecar file per mode**, still fully editor-editable; gameplay loads only
+> the tree. The unpushed Phase 7 commit is **restructured** (not layered) into
+> this shape, so `main` never carries in-tree envelopes and there is no throwaway
+> migration.
 
-**Design decision: envelopes travel with the mode.** A top-level `envelopes`
-array in the tree file is decoded into a new `ModeDefinition.envelopes` field
-(mirroring `goals`/`generators`/`flavors`). The registry stops importing
-constants and **derives** `envelopeFor` / `allEnvelopes` from loaded modes. This
-adds no new lifecycle (`loadTree()` already registers the mode before any
-lookup; the dev app, server, and `check-balance` all load first) and no runtime
-import cycle — `modes/types.ts` gains a **type-only** import of `BalanceEnvelope`
-from `balance/types.ts`, and `balance/types.ts` imports nothing from `modes/`,
-so the edge stays one-directional. The `mode` field is redundant with the tree
-id, so the **JSON omits it** and the codec injects `tree.id`; the interfaces keep
-the field (populated by the codec) to avoid churn in `validatePacing`,
-`check-balance.ts`, and the UI.
+Envelopes become **authored data** in a sidecar per mode —
+`shared/balance/idler.json` (sibling to [shared/trees/](../../shared/trees) and
+[shared/strategies/](../../shared/strategies)) — editable in the `/dev.html`
+editor's Envelopes tab. Only the dev app, the tree editor, and `check-balance`
+(CI) load it; the **game server and gameplay client never do**. The envelope
+_values_ are the calibrated Phase 6 bands verbatim, and **`check:balance` must
+produce the identical three PASS verdicts** before and after (the proof this is
+behavior-preserving).
 
-**No version bump.** `envelopes` is added as **optional with `.default([])`**, a
-purely additive schema change — a file without it still parses (yields `[]`) and
-the checked-in `idler.json` stays `version: 3`, just gaining the array. (The
-v1→v2/v2→v3 migrations exist only for _breaking_ structural rewrites; an additive
-optional field needs none.)
+**Design decision: envelopes are a separate document with their own lifecycle.**
+A sidecar `{ version, mode, envelopes[] }` file is parsed by a dev/CI-only
+`loadBalance(json)` boundary that registers the envelopes into a **balance
+registry** keyed by mode. `ModeDefinition` does **not** carry envelopes —
+gameplay stays free of balance metadata. `loadBalance` runs _after_ `loadTree`
+(so it can cross-check each envelope against the loaded mode's goals) and only in
+the two contexts that need it: `scripts/check-balance.ts` and the dev-app
+bootstrap. In production the balance registry is empty and `envelopeFor` returns
+`undefined` (unused). No import cycle: `balance/*` may import mode _types_;
+`modes/*` never imports `balance/*`.
 
-1. **Schema (`shared/src/tree/schema.ts`).** Add checkpoint leaf schemas
-   (`ScoreCheckpointSchema` = `{ timeSec, minScore, maxScore, phase }`;
-   `TimeCheckpointSchema` = `{ atScore?, minTimeSec, maxTimeSec, phase }`) and an
-   `EnvelopeSchema` discriminated on `goalType` (`timed` → score-band +
-   `maxStrategySpread`; `target-score`/`buy-upgrade` → time-band +
-   `maxTimeSpread`), with **no** `mode` field. Add
-   `envelopes: z.array(EnvelopeSchema).default([])` to `TreeFileSchema`. Keep zod
-   to structural checks; ordering / cross-field semantics live in
-   `validateModeDefinition` (step 3) to match the existing mode-validation voice.
+1. **Balance schema (`shared/src/balance/schema.ts`, new).** Move the checkpoint
+   leaf schemas (`ScoreCheckpointSchema` = `{ timeSec, minScore, maxScore, phase }`;
+   `TimeCheckpointSchema` = `{ atScore?, minTimeSec, maxTimeSec, phase }`) and the
+   `EnvelopeSchema` (discriminated on `goalType`) **out of** `tree/schema.ts` into
+   a balance-owned module, plus `BalanceFileSchema` =
+   `{ version: 1, mode, envelopes: EnvelopeSchema[] }`. `tree/schema.ts` loses its
+   `envelopes` field — the tree is pure game data again.
 
-2. **Codec (`shared/src/tree/codec.ts`).** In `toModeDefinition`, map each
-   authored envelope to a `BalanceEnvelope` by injecting `mode: tree.id`, and
-   assign to `def.envelopes`. No migration step.
+2. **Balance loader (`shared/src/balance/loader.ts`, new).**
+   `parseBalanceFile(json)` validates against `BalanceFileSchema` (the zod trust
+   boundary). `loadBalance(json)` parses, resolves the mode via
+   `getModeDefinition(mode)`, runs `validateEnvelopes` (the goal/target
+   cross-checks, **moved here** from `validateModeDefinition`: at most one
+   envelope per `goalType`; the `goalType` must exist in the mode's goals; bands
+   non-empty and ordered; `target-score` `atScore` ≤ the goal target; spread ≥ 1),
+   injects `mode` onto each envelope, and stores the result in the balance
+   registry. Throws on a malformed sidecar, a `mode` with no loaded definition, or
+   an envelope for an absent goal.
 
-3. **`ModeDefinition` + validation.** Add
-   `readonly envelopes: readonly BalanceEnvelope[]` to
-   [shared/src/modes/types.ts](../../shared/src/modes/types.ts) (type-only import
-   of `BalanceEnvelope`). In `validateModeDefinition`
-   ([shared/src/modes/index.ts](../../shared/src/modes/index.ts)) add
-   `validateEnvelopes(id, def)`: at most one envelope per `goalType`; the
-   `goalType` must exist in `def.goals`; `checkpoints` non-empty and ordered
-   (`min ≤ max` per band; score checkpoints ascending by `timeSec`; time
-   checkpoints with `atScore` ascending); `target-score` `atScore` ≤ the mode's
-   `target-score` goal `target` when such a goal exists; `minViableStrategies ≥ 0`,
-   spread ≥ 1. Throw with an `idler: envelope[timed]: …`-style message. Also add
-   `getLoadedModeDefinitions(): ModeDefinition[]` (`[...MODE_REGISTRY.values()]`).
+3. **Balance registry (`shared/src/balance/registry.ts`).** Replace the
+   derive-from-`ModeDefinition` lookups with a module `Map<GameMode,
+BalanceEnvelope[]>` populated by `loadBalance`. `envelopeFor(mode, goalType)`
+   and `allEnvelopes()` read it and **fail soft** (empty registry → no envelope),
+   so gameplay and any not-yet-loaded context degrade exactly as an unregistered
+   key does today. `BalanceEnvelope` / `isPacingEnvelope` unchanged.
 
-4. **Registry derives from modes (`shared/src/balance/registry.ts`).** Drop the
-   `idler-envelope.js` import and the static map. `envelopeFor(mode, goalType)` →
-   safely look up the loaded mode (return `undefined` if unloaded / no match) and
-   `.envelopes.find(e => e.goalType === goalType)`. `allEnvelopes()` →
-   `getLoadedModeDefinitions().flatMap(d => d.envelopes)`. Keep `BalanceEnvelope`
-   - `isPacingEnvelope` unchanged. **Fail soft** (never throw on an unloaded mode
-     — degrade to "no envelope" exactly as an unregistered key does today).
+4. **Revert the gameplay coupling.** Remove `ModeDefinition.envelopes`
+   ([shared/src/modes/types.ts](../../shared/src/modes/types.ts)), the codec's
+   `toEnvelope` + `envelopes` mapping
+   ([shared/src/tree/codec.ts](../../shared/src/tree/codec.ts)), and the
+   `validateEnvelopes` call inside `validateModeDefinition` (it now lives in
+   `loadBalance`). Keep `getLoadedModeDefinitions()`.
 
-5. **Delete** [shared/src/modes/idler-envelope.ts](../../shared/src/modes/idler-envelope.ts)
-   and its `export { IDLER_TIMED_ENVELOPE }` re-export in `modes/index.ts`.
+5. **Author the sidecar.** Create `shared/balance/idler.json` with the three
+   calibrated envelopes verbatim (the `timed` `TargetEnvelope`, the `target-score`
+   and `buy-upgrade` `PacingEnvelope`s). Expose it through the shared package's
+   `exports` map (as `trees/` already is) so the dev app and `check-balance`
+   resolve it by specifier.
 
-6. **Author the bands into JSON.** Add the `"envelopes"` array to
-   `shared/trees/idler.json` with the current calibrated bands verbatim (minus
-   `mode`): the `timed` `TargetEnvelope`, the `target-score` and `buy-upgrade`
-   `PacingEnvelope`s.
+6. **Wire the two loaders.** `scripts/check-balance.ts` and the dev-app bootstrap
+   call `loadBalance(idlerBalanceJson)` immediately after
+   `loadTree(idlerTreeJson)`. Confirm `server/src/main.ts` loads **only** the tree.
 
-7. **Editor UI (client).** Add pure model helpers to
-   `client/src/dev/editor/model.ts` (`listEnvelopes`, `addEnvelope(goalType)`
-   seeded with one checkpoint, `removeEnvelope`, `updateEnvelopeScalars`,
-   `addCheckpoint`/`removeCheckpoint`/`updateCheckpoint`). Add a new
-   `client/src/dev/editor/views/envelopes.ts` `EditorView` (mirrors
-   `views/resources.ts`): one block per envelope with a kind-appropriate
-   checkpoint table (score-band vs time-band columns) plus the scalar fields;
-   "Add envelope" gated to `goalType`s the mode has a goal for and lacks an
-   envelope for. Register `{ id: 'envelopes', label: '🎯 Envelopes' }` in
-   `client/src/dev/editor/index.ts`. Reuse existing `ed-form-*` classes (no new
-   CSS → keeps `lint:css` green). Also clean up the **legacy** dev panel
-   `client/src/dev/ui.ts` — drop the `IDLER_TIMED_ENVELOPE` import + local
-   `ENVELOPES` map, resolve via `envelopeFor(mode, 'timed')`.
-   _(A live envelope-vs-corpus preview inside the editor is a **follow-up** — the
-   Queue tab already renders verdicts.)_
+7. **Editor UI (client).** The Envelopes tab operates on a **separate in-memory
+   `BalanceFile` working copy** seeded from the bundled sidecar, with its own
+   import / export / copy toolbar independent of the tree toolbar. The pure model
+   helpers (`listEnvelopes`, `addEnvelope`, `removeEnvelope`, checkpoint CRUD,
+   scalar setters) move to a balance-model module; `views/envelopes.ts` stays but
+   reads/writes the balance doc. "Add envelope" stays gated to `goalType`s the
+   current mode has a goal for. Reuse existing `ed-*` classes (no new CSS). The
+   legacy dev panel ([client/src/dev/ui.ts](../../client/src/dev/ui.ts)) resolves
+   via `envelopeFor`.
 
-8. **Tests + gate.** shared: v3 `idler.json` round-trips envelopes;
-   `toModeDefinition` injects `mode`; a file without `envelopes` yields `[]`;
-   `validateEnvelopes` rejects out-of-order checkpoints, inverted bands,
-   duplicate goalType, an envelope for an absent goal, and `atScore` past the
-   score target. Switch `project.test.ts` (and any other importer of the deleted
-   constants) to `loadTree` + `envelopeFor`. client: editor model/view unit tests
-   for the envelope helpers + add-gating. server: `tree-file.test.ts` still loads
-   `idler.json` and `allEnvelopes()` returns 3 post-load. Then the full gate,
-   with `check:balance` producing the **same three PASS verdicts**.
+8. **Tests + gate.** shared: `parseBalanceFile` round-trip; `loadBalance`
+   registers 3 envelopes + injects `mode`; `validateEnvelopes` rejects the same
+   structural errors (now through `loadBalance`); a mode with no sidecar → empty
+   registry and `envelopeFor` → `undefined`; `tree/schema.ts` no longer accepts an
+   `envelopes` key. client: balance-model helpers + view gating. server:
+   `tree-file.test.ts` loads the tree (no envelopes) and a new balance-file test
+   loads the sidecar and asserts `allEnvelopes()` returns 3. Full gate with the
+   **identical three PASS verdicts**.
 
-> **Scope:** envelope _evaluation_ (`validateEnvelope`/`validatePacing`) and the
-> Queue-tab verdict UI are untouched — only the _source_ of the envelope data and
-> its editability change. Independently shippable after Phase 6.
+> **Scope:** envelope _evaluation_ (`validateEnvelope` / `validatePacing`) and the
+> Queue-tab verdict UI are untouched — only the _storage_, _lifecycle_, and
+> _editability_ of the envelope data change vs the original in-tree scoping.
+> Independently shippable.
+
+---
+
+### Phase 8 — Mechanic balance detector (crisp, corpus-honest)
+
+> **Revision note (supersedes an earlier "seven graded dimensions" draft).** The
+> earlier draft folded seven constraint blocks into a weighted **0–100 balance
+> score** with soft/hard bounds, plus `competitiveness` and `robustness` proxies.
+> On review that was cut: a weighted composite of incommensurable dimensions is
+> **not actionable** (what do you _do_ about 73/100? and it can score 85 while a
+> mode is totally click-dominated — the exact rubber-stamp the [re-baselining
+> ritual](#the-re-baselining-ritual-so-the-gate-doesnt-rot) warns against), and
+> the two proxies measure features that **don't exist yet** (no attacks in the
+> single-player sim; no `highlightDelaySec` in the engine). What survives is the
+> subset that produces **facts you can act on**. See
+> [Deferred to future levers](#deferred-to-future-levers-explicitly-not-phase-8)
+> for what was cut and why.
+
+Phase 8 answers two questions the score band can't: **which mechanic is
+overpowered** and **which is underpowered / dead** — as _reproducible facts_, not
+tunable scores. The design principle is: **prefer binary set-membership and
+best-effort probes over hand-tuned thresholds**, because a threshold nobody can
+defend produces a conclusion nobody can act on.
+
+**The corpus-gap trap (why naïve ablation is circular).** The obvious test —
+"no corpus strategy buys X, or removing X barely changes the score → X is weak" —
+is **circular** with the current 9-strategy corpus already flagged as
+[non-diverse](#the-strategy-corpus-is-the-actual-signal). Zero coverage then
+means _"nobody wrote a build for X,"_ not _"X is weak"_ — a **corpus** gap
+masquerading as a **content** gap, which is precisely the "too vague to act on"
+outcome. Two mechanisms below break the circularity.
+
+**Ablation semantics — pinned down (this was undefined before).** Raw
+`finalScore(S) − finalScore(S without the buy)` is an **artifact** on this
+engine: dropping a prereq-hub upgrade blocks every downstream `buy` in the
+ordered FIFO queue ([strategy.ts](../../shared/src/simulation/strategy.ts)), and
+the multiplicative pipeline ([pipeline.ts](../../shared/src/modifiers/pipeline.ts))
+means per-mechanic deltas **don't sum to `finalScore`** (so "% of final score" has
+no denominator). Ablation is therefore defined as **effect-neutralization, not
+action-removal**: keep the `buy` action and all prerequisites satisfied, but zero
+the mechanic's _contribution in the pipeline_ (a marginal-income measure). The
+reported denominator is the **sum of positive ablation deltas**, never
+`finalScore`. This is a `metrics.ts` concern — **no engine change**.
+
+**Model — the crisp detector (`shared/src/balance/metrics.ts`, new pure module).**
+Given the corpus `SimResult[]` + an injected `(strategy, opts) => SimResult`
+re-sim callback (keeps the module engine-agnostic), it computes:
+
+- **Coverage / mandatory (binary, no threshold).** For each mechanic: the set of
+  viable strategies that buy it. **In zero** viable builds → _candidate_ dead
+  content. **In 100%** of viable builds → mandatory (boring-required or
+  auto-include-OP). These two are pure set-membership — the least vague, most
+  reproducible signals in the whole system.
+- **Forced-use probe (breaks the corpus-gap circularity — the key addition).**
+  For each mechanic X flagged zero-coverage, _generate_ a minimal probe strategy
+  that buys X as early as prerequisites allow, then plays greedily to round end.
+  If even this **best-effort X-build** lands **below the corpus P10 final score**
+  (the same P10 band the timed envelope is calibrated against — a concrete,
+  reproducible line, not "far below"), X is **genuinely underpowered** — not
+  merely unwritten. This is one short sim per flagged mechanic, it's the honest
+  falsifiable test, and it's the natural first increment of the frontier search
+  (see _Where This System Goes Next_). Without it, "underpowered" is guesswork.
+- **Cost-normalized dominance (separates "load-bearing" from "overpowered").**
+  Raw ablation flags every _important_ upgrade, including well-tuned ones — a key
+  upgrade being load-bearing is correct design, not a bug. So dominance is
+  measured as **ROI**: the effect-neutralized contribution **normalized by the
+  mechanic's total resource cost paid in strategy `S`, converted to a common unit
+  via the score-per-resource earn rate** (so a mechanic bought with r1 and one
+  bought with r0 are comparable). Concretely: `roi(U, S) = contribution(U, S) /
+scoreEquivalent(costPaid(U, S))`, where `scoreEquivalent` divides each
+  resource's spent amount by that resource's marginal score-earn rate in `S` and
+  sums — both already available from the sim (`resources` deltas + `incomePerSec`
+  in `TickSnapshot`). Generators use **cumulative** cost across the units bought,
+  not the base cost. A mechanic whose ROI dwarfs its peers (e.g. `> 3×` the
+  corpus-median ROI — threshold defended by the acceptance test, not guessed) is
+  overpowered; a load-bearing-but-fairly-priced one is not.
+- **Pacing (engagement from data we already emit).** Per viable strategy:
+  decisions count, idle fraction (no action firing / income flat), and
+  time-to-first-action, from `events[]` + snapshot gaps. A build that scores fine
+  but has a dead first 10 s is still unfun.
+
+**Report + surfaces (facts, not a score).** The output is a **per-mechanic
+findings list** (dead / mandatory / overpowered-by-ROI / fine) + the pacing
+stats — no 0–100 composite. `check-balance.ts` prints it as a **non-gating**
+`--analyze` pass (informs without reddening `main`); the Queue tab renders a
+"Balance analysis" card with mechanic ids linkable to the editor. A single
+finding class (e.g. proven-underpowered-by-probe) can later be _opt-in_ promoted
+to a hard gate once the corpus is proven diverse — but it ships informational
+first.
+
+**Acceptance test (the go/no-go — this is what makes it an instrument, not a
+dashboard).** We already know idler's debt by hand
+([Phase 2 calibration](#phase-2--calibrate-idler_timed_envelope-the-honest-numbers-phase)):
+**click-domination** (Click Rush 6–12× the normal cluster), **generators can't
+ramp in the round**, **pure-economy openings too slow**. Phase 8 is **accepted
+only if, run against the current corpus + probes, it independently reproduces
+those three findings** — flags click as overpowered-by-ROI and generator/economy
+mechanics as underpowered-by-probe. If it can't rediscover the debt we already
+documented by hand, it tells us nothing new and doesn't merge. This test also
+validates the ablation semantics for free.
+
+**Internal ordering (each increment ships on its own):** (8a) coverage /
+mandatory set-membership + the `--analyze` surface — smallest, highest-certainty
+signal; (8b) effect-neutralized ablation + cost-normalized dominance; (8c)
+forced-use probe; (8d) pacing stats. Gate each against the acceptance test as it
+lands.
+
+#### Deferred to future levers (explicitly _not_ Phase 8)
+
+Cut to avoid machinery that outweighs signal (this codebase's stated recurring
+pitfall) and proxies for absent features:
+
+- **0–100 composite balance score** — a weighted aggregate of incommensurable
+  dimensions is not actionable and can mask a dominated mode behind a high
+  number. Per-mechanic facts are strictly more useful. Revisit only if a real
+  aggregate consumer (e.g. a multi-mode dashboard) appears.
+- **`competitiveness` / lead-change** — needs attack-aware **1v1
+  co-simulation**; the sim is single-player today, so any metric is a proxy for a
+  game that doesn't exist. Lands _with_ co-simulation.
+- **`robustness` / perturbation** — a stand-in for engine-level
+  `highlightDelaySec` (D1 follow-up); build it when the real delayed variant
+  exists, not as an approximation of an approximation.
+- **Behavioral diversity index** — the _honest_ diversity metric is
+  purchase-set overlap between viable strategies (≤ 50% shared → orthogonal),
+  **not** an author-declared `family` tag (which measures our labeling, not the
+  game). Deferred to the diversity-index lever below rather than shipped as a weak
+  proxy.
 
 ---
 
@@ -660,18 +820,85 @@ not retrofitted:
 - **Decision-diversity index** ([05](05-balance-design.md) Layer 4). Beyond "N
   viable," measure how _orthogonal_ the viable strategies are (share ≤ 50% of
   purchases → orthogonal; target ≥ 40% of pairs). This is the metric that most
-  directly correlates with "meaningful choices." The corpus from Phase 2b is its
-  input.
-- **Build-variety / mandatory-upgrade detection.** If one upgrade appears in
-  100% of viable strategies, it's either mandatory (boring) or overpowered
-  (auto-include). Flag it. Cheap to compute from the same runs.
-- **Engagement metrics.** Time-to-first-purchase, longest idle gap, actions/min —
-  a mode that scores fine but has a dead first 10s is still unfun.
+  directly correlates with "meaningful choices," and it is the **honest**
+  diversity signal Phase 8 defers to here rather than shipping the weaker
+  author-declared `family` tag. The corpus from Phase 2b is its input.
+- **Build-variety / mandatory-upgrade detection.** _Partly delivered by Phase 8_
+  (100%-coverage → mandatory). The remaining lever is treating a mandatory upgrade
+  as auto-include-OP and proposing a fix. Cheap to compute from the same runs.
+- **Engagement metrics.** _Partly delivered by Phase 8's pacing stats_
+  (time-to-first-action, idle fraction, decision count). The remaining lever is
+  turning those stats into a gated envelope constraint once targets are defended.
 - **Real skill-variance** (`highlightDelaySec` — D1 follow-up) so the delayed
   variant is a genuine second data point, restoring the both-variants viability
   test [05](05-balance-design.md) Layer 5 intends.
-- **Adversarial search** ([05](05-balance-design.md) Phase B parameter sweep) to
-  find exploits no one authored — the envelope's biggest blind spot.
+- **Automated frontier search (the big lever).** Replace hand-authored corpora
+  with a _generated_ frontier that finds exploits and dead mechanics no one
+  authored.
+
+  **Framing — search the envelope boundary, not "every strategy."** The goal is
+  _not_ exhaustive enumeration of all possible play; that is both unreachable
+  (`set_click_rate` is continuous `0..MAX_CPS`, and ordering × buy-count is
+  combinatorial) and unnecessary. The useful output is the **frontier**: the
+  strongest and weakest _viable_ lines and which mechanics drive them. So the
+  honest target is "search the reachable lattice to the envelope boundary in a few
+  minutes," delivering a representative frontier — "almost every meaningful
+  strategy" — never a completeness proof.
+
+  **Why it can be fast (the one property that works).** `score` is **monotonic**
+  (total earned, never spent), so a partial that crosses a checkpoint's `maxScore`
+  can never return under it → **prune the too-strong branch the instant it escapes
+  the ceiling**, no need to finish the run. This is the valuable prune for
+  exploit-hunting and it self-triggers as early as possible.
+
+  **Two make-or-break prerequisites (currently absent — build these _first_):**
+  1. **An admissible score _upper-bound_ heuristic.** The floor prune is _not_
+     symmetric with the ceiling: "below `minScore` now" does not imply "below at
+     the end," because income accelerates (generators + the multiplicative
+     pipeline). To prune a weak branch early you need a sound optimistic bound —
+     "even playing perfectly from here, this partial cannot reach the floor." A
+     loose bound prunes almost nothing (and weak branches are the bulk of the
+     space); no bound forces every weak line to run to completion. This heuristic
+     is the make-or-break for tractability and must be **admissible** (never
+     underestimates achievable future score) or it silently discards viable lines.
+  2. **A defined, soundness-checked state signature for dominance memoization.**
+     Collapsing orderings that reconverge to "the same state" is what turns
+     exponential into tractable. The signature must key on: purchased-set
+     (a `2^N` bitmask — the pipeline is multiplicative, so _which_ upgrades, not
+     how many), generator counts, click policy, resource balances, and time. An
+     _exact_ signature is astronomically large; a _bucketed_ one is **unsound**
+     unless the bucketing is proven safe (two "equal" states must not later
+     diverge). Define the exact keys and exactly which axes may be bucketed with a
+     dominance argument — get this wrong and the search wrongly prunes viable
+     strategies.
+
+  **Tractability techniques (on top of the two prerequisites).** The queue engine
+  is already **timing-free** (it derives _when_ from affordability), so the search
+  branches only over **ordering + choice**, never continuous time: (1)
+  **event-boundary decisions** — branch only when a new action becomes affordable;
+  (2) **heuristic discretization** of the continuous axes — clicks as a small
+  policy set (`{ idle, half, max }` on the highlighted resource), buy-counts as "as
+  many as affordable" or breakpoints (the lattice must be fine enough not to skip a
+  viable pocket); (3) **dominance memoization** (prerequisite 2); (4) a **beam**
+  (top-K by envelope fit) + **branch-and-bound against the envelope** using the
+  admissible bound (prerequisite 1) to kill branches that can't re-enter the band.
+  Prereq-gating helps: the reachable purchased-set count is far below `2^N`.
+
+  **Honest feasibility (measure, don't assume).** Whether dominance collapses the
+  ~`10^20`+ naïve space to ~`10^6` (minutes) or ~`10^12` (hopeless) depends
+  entirely on how much idler's _specific_ pipeline lets orderings reconverge —
+  which is **empirical**. Feasibility must be validated by instrumenting the real
+  frontier size before committing to "exhaustive-on-lattice"; the safe default is
+  **beam + dominance + monotonic ceiling-prune**, which yields a representative
+  frontier in minutes without a completeness claim. Exhaustive-on-lattice in
+  minutes is plausible only for _small, well-gated_ modes (≤ ~10 upgrades).
+
+  This collapses the exponential enumeration
+  ([strategies.ts](../../client/src/dev/strategies.ts)'s `2^n`, capped at
+  `n ≤ 8`) into exploration of the small reachable frontier, from which
+  overpowered strategies and dead mechanics fall out automatically. Phase 8's
+  ablation + metrics are its scoring core.
+
 - **Multi-goal + multi-mode coverage.** The registry + CI already iterate
   generically; adding a mode/goal is "author an envelope + a corpus," zero script
   changes.
