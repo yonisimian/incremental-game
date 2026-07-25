@@ -135,6 +135,14 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // (Upgrades may be multi-currency; generators are not, since their purchase,
   // affordability, and UI all assume one paying resource.)
   for (const g of def.generators) {
+    // A generator id shaped like a base-producer field (`bK`) would collide in
+    // the addressable-target catalog and be shadowed by the base-layer route in
+    // the pipeline (`resolveField`). Reject it so a modifier can never ambiguously
+    // target "generator b0" vs "base producer of resource 0".
+    if (/^b\d+$/u.test(g.id))
+      throw new Error(
+        `[${id}] generator id '${g.id}' collides with the base-producer field namespace (bK); rename it`,
+      )
     const currencies = Object.keys(g.cost)
     if (currencies.length !== 1)
       throw new Error(

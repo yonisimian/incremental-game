@@ -1,7 +1,35 @@
 # 24 — Base production as a first-class producer (`b*` field namespace)
 
-Status: **Plan — awaiting approval.** Supersedes PR #107 (`feat/modifier-scope`),
-which is to be closed. No production code until this is approved.
+Status: **Implemented (PR #110).** Supersedes PR #107 (`feat/modifier-scope`),
+now closed.
+
+> **How the implementation diverged from this plan.** Two decisions were taken
+> during implementation and approved after the fact. This plan below is the
+> _original_ design; read these deltas first — the sections further down still
+> describe the superseded three-layer / migration approach and are kept only as
+> a design-history record.
+>
+> 1. **Two layers, not three.** The pipeline ships with `base` / `global` per
+>    resource, **not** `base` / `generator` / `global`. The generator _aggregate_
+>    layer had no emitter — per-generator bonuses fold inside `collectModifiers`
+>    before the pipeline, and no effect targets the generator aggregate — so its
+>    multiplier was a permanently-`1` dead cell. Folded generator output is
+>    additive into `global`; the leak fix is identical with less machinery and
+>    **zero** `collectModifiers` change. There is therefore no `gN` pipeline
+>    field and no `generator` `LayerAccumulator`; the "Pipeline math" and
+>    "Changes" sections below overstate the layer count.
+> 2. **No version bump / migration.** The tree shape is unchanged
+>    (`{ stage, field, value }`, `field` still a string) and legacy `r0` already
+>    resolves to the `global` layer, so old trees load and behave identically
+>    with no migration code. The `V3 → V4` codec migration and the `tree.test.ts`
+>    migration test described below were **not** built; `CURRENT_TREE_VERSION`
+>    stays `3`.
+>
+> Everything else landed as written: the `bK`/`rK` field namespace, the
+> field-shape boot validation (extended to also cover the previously-unchecked
+> `nativeModifiers`), the shared addressable catalog surfacing `bK`, the idler
+> re-authoring (🌱 base-economy branch → `b*`, 🌳 global upgrade → `r*`), and the
+> editor field-picker + rename-cascade updates.
 
 ## Problem
 
@@ -136,18 +164,15 @@ Client UI — `client/src/ui/`
   the panel reads the (renamed-meaning) base bucket. No new buy button (see
   "Not doing").
 
-## Authoring decision (needs your call)
+## Authoring decision (resolved)
 
-Which idler upgrades are **base** (`b*`) vs **global** (`r*`)? From the current
-tree:
+Which idler upgrades are **base** (`b*`) vs **global** (`r*`)? Resolved as
+proposed, confirmed against the shipped flavor text:
 
-- `upgrades[1]` subtree (`r0 +1`, then `r0 ×1.1` children; mirror for `r1`) —
-  reads as the **base-economy branch → `b*`**.
-- `upgrades[2]` (`r0 ×1.1` **and** `r1 ×1.1` together) — reads as a **global**
-  economy upgrade → stays `r*`.
-
-Proposed default: `upgrades[1]` subtree → `b0`/`b1`; `upgrades[2]` → `r0`/`r1`.
-Confirm or correct before I touch data.
+- Base-economy branch (`+base`, `×base`, "bank" — 🌱) → `b0`/`b1`.
+- 🌳 "Work optimization" (`r0 ×1.1` **and** `r1 ×1.1` together) → stays
+  `r0`/`r1` (global).
+- The `a2` enemy debuff stays on `r0` (debuffs hit the global layer only).
 
 ## Not doing (scope guard)
 
@@ -170,11 +195,12 @@ Confirm or correct before I touch data.
 - Update `_stub-mode.ts` and any test asserting the old flat `rates` map.
 - Full gate: `pnpm typecheck && pnpm test && pnpm format:check && pnpm lint`.
 
-## Open questions
+## Open questions (resolved)
 
-1. Base-producer addressing: index-parallel `bK ↔ resources[K]` (proposed) vs an
-   explicit `base:<resourceId>` namespace. Index is terser and matches your
-   `b0/b1` sketch; the namespace is self-documenting. Pick one.
-2. Migration: keep the dumb V3→V4 for editor back-compat, or hard-fail on V3
-   since idler is the only tree?
-3. Authoring split above — confirm the `b*` vs `r*` assignment.
+1. Base-producer addressing: **index-parallel `bK ↔ resources[K]`** was chosen
+   (terser, matches the `b0/b1` sketch) over an explicit `base:<resourceId>`
+   namespace.
+2. Migration: **dropped** — the tree shape is unchanged and legacy `r0` already
+   resolves to `global`, so no `V3 → V4` migration is needed (`CURRENT_TREE_VERSION`
+   stays `3`).
+3. Authoring split: confirmed as in "Authoring decision (resolved)" above.

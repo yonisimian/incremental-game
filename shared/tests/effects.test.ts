@@ -1029,6 +1029,83 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
+// ─── production-field validation (nativeModifiers + baseModifier) ─────
+
+describe('production field mode validation', () => {
+  function withUpgrade(effect: EffectRef): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uProd',
+      cost: { r0: { baseCost: 1 } },
+      purchaseLimit: 1,
+      effects: [effect],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uProd', name: 'Prod', icon: '?', description: '' }],
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts a base-producer field (bK)', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'b0', stage: 'additive', value: 1 }),
+      )
+    }).not.toThrow()
+  })
+
+  it('throws on an out-of-range base-producer field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'b9', stage: 'additive', value: 1 }),
+      )
+    }).toThrow(/baseModifier targets unknown production field 'b9'/u)
+  })
+
+  it('throws on a baseModifier targeting an unknown field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'nope', stage: 'additive', value: 1 }),
+      )
+    }).toThrow(/baseModifier targets unknown production field 'nope'/u)
+  })
+
+  it('throws on a native modifier targeting an unknown field', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      nativeModifiers: [...base.nativeModifiers, { stage: 'additive', field: 'b9', value: 1 }],
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/native modifier targets unknown production field 'b9'/u)
+  })
+
+  it('throws when a generator id collides with the base-producer namespace', () => {
+    const base = getModeDefinition('idler')
+    // Append a fresh generator whose id shadows the `bK` field namespace. Kept
+    // in sync across every flavor so flavor validation doesn't trip first.
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        { id: 'b0', cost: { r0: { baseCost: 1 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'b0', name: 'Shadow', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/collides with the base-producer field namespace/u)
+  })
+})
+
 describe('accessEnemyData mode validation', () => {
   // Build an idler variant whose extra upgrade reveals `data`, with a matching
   // flavor upgrade entry so flavor validation doesn't trip before the intel
