@@ -1158,6 +1158,64 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
+describe('clickIncome field rejection', () => {
+  const clickBase: EffectRef = {
+    type: 'baseModifier',
+    stage: 'additive',
+    scope: 'base',
+    field: 'clickIncome',
+    value: 1,
+  }
+
+  it('rejects a native modifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      nativeModifiers: [
+        ...base.nativeModifiers,
+        { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 },
+      ],
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+
+  it('rejects an upgrade baseModifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uBad',
+      cost: { r0: { baseCost: 1 } },
+      purchaseLimit: 1,
+      effects: [clickBase],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, u], flavors }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+
+  it('rejects an attack baseModifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      attacks: [...f.attacks, { id: 'aBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    const def: ModeDefinition = {
+      ...base,
+      attacks: [...base.attacks, { id: 'aBad', kind: 'passive' as const, effects: [clickBase] }],
+      flavors,
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+})
+
 describe('accessEnemyData mode validation', () => {
   // Build an idler variant whose extra upgrade reveals `data`, with a matching
   // flavor upgrade entry so flavor validation doesn't trip before the intel

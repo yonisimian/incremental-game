@@ -12,8 +12,9 @@ import type { EffectDef } from '../types.js'
  * `value` to `field` at the given pipeline `stage`, on the production layer named
  * by `scope` (`base` / `generator` / `global` — see `MODIFIER_SCOPES`). `field`
  * may name a resource (e.g. `r0`), a generator (e.g. `g0`, only under `generator`
- * scope), or `clickIncome` / `globalMultiplier`. The owned-count compounding
- * happens in `collectModifiers`, which owns the {@link BaseModifierOutput} kind.
+ * scope), or `globalMultiplier` (click income is a separate axis — use the
+ * `clickPower` effect). The owned-count compounding happens in
+ * `collectModifiers`, which owns the {@link BaseModifierOutput} kind.
  */
 const schema = z
   .strictObject({

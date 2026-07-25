@@ -270,6 +270,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) checkRefClick(`upgrade '${u.id}'`, ref)
   }
+  for (const a of def.attacks) {
+    for (const ref of a.effects ?? []) checkRefClick(`attack '${a.id}'`, ref)
+  }
 
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
   // opponent-pipeline target. It's a mode-specific string the generic schema

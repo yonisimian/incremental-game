@@ -10,13 +10,14 @@ import { readSourceValue } from '../addressable.js'
  *
  * A state-relative production bonus: read a scalar from `source` (a state field
  * — see the addressable-field catalog), scale it by `factor`, and contribute it
- * to `field` at the given pipeline `stage`. (E.g. "add peak CPS to click income"
- * or "+1% rate per 1000 of a resource held".)
+ * to `field` at the given pipeline `stage`. (E.g. "+1% rate per 1000 of a
+ * resource held".)
  *
  * `source` is a namespaced key (`resource:r0` = a stockpile, `meta:peakCps` =
- * live peak CPS). `field` is a `Modifier` target (`clickIncome`,
- * `globalMultiplier`, a resource rate, or a generator). `factor` defaults to
- * `1`. `validateModeDefinition` rejects an unknown `source`/`field` at boot.
+ * live peak CPS). `field` is a `Modifier` target (`globalMultiplier`, a resource
+ * rate, or a generator — click income is a separate axis, set only by the
+ * `clickPower` effect). `factor` defaults to `1`. `validateModeDefinition`
+ * rejects an unknown `source`/`field` at boot.
  *
  * Because it returns a raw {@link Modifier} (not a `baseModifier` output), the
  * value is applied verbatim — it does *not* compound with the owning upgrade's
