@@ -1092,6 +1092,7 @@ describe('addressable-field catalog', () => {
       { key: 'clickIncome', label: 'Click income' },
       { key: 'globalMultiplier', label: 'Global multiplier' },
       { key: 'r0', label: 'r0 (rate)' },
+      { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },
       { key: 'g1', label: 'g1 (output)' },
     ])
@@ -1114,24 +1115,24 @@ describe('addressable-field catalog', () => {
 describe('idler relativeModifier upgrades', () => {
   const mode = getModeDefinition('idler')
 
-  it('be-mr-bank gives +1% r0 rate per 1000 r0 held (multiplicative)', () => {
+  it('be-mr-bank gives +1% r0 base production per 1000 r0 held (multiplicative)', () => {
     const s = createInitialState(mode)
     s.upgrades['be-mr-bank'] = 1
     s.resources.r0 = 50_000 // 1 + 50000 * 0.00001 = 1.5
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
-      field: 'r0',
+      field: 'b0',
       value: 1.5,
     })
   })
 
-  it('be-sr-bank gives +1% r1 rate per 1000 r1 held (multiplicative)', () => {
+  it('be-sr-bank gives +1% r1 base production per 1000 r1 held (multiplicative)', () => {
     const s = createInitialState(mode)
     s.upgrades['be-sr-bank'] = 1
     s.resources.r1 = 100_000 // 1 + 100000 * 0.00001 = 2
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
-      field: 'r1',
+      field: 'b1',
       value: 2,
     })
   })

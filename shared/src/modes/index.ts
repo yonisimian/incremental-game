@@ -218,6 +218,30 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkRelativeModifier(`upgrade '${u.id}'`, ref)
   }
 
+  // `nativeModifiers` and `baseModifier` effects name a production `field` the
+  // generic schema only checks is a string. Validate it against the same target
+  // catalog as `relativeModifier` (which now includes each resource's base
+  // producer `bK` alongside its global `rK`, generator ids, and the two
+  // specials) so an authored typo — or a base/global mix-up like `b9` — refuses
+  // to boot instead of landing on a dead field the pipeline silently ignores.
+  const checkProductionField = (where: string, field: unknown): void => {
+    if (typeof field === 'string' && !targetKeys.has(field))
+      throw new Error(
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'clickIncome', or 'globalMultiplier')`,
+      )
+  }
+  for (const m of def.nativeModifiers) checkProductionField('native modifier', m.field)
+  const checkBaseModifier = (where: string, ref: EffectRef): void => {
+    if (ref.type === 'baseModifier') checkProductionField(`${where} baseModifier`, ref.field)
+  }
+  for (const ref of def.effects ?? []) checkBaseModifier('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkBaseModifier(`upgrade '${u.id}'`, ref)
+  }
+  for (const a of def.attacks) {
+    for (const ref of a.effects ?? []) checkBaseModifier(`attack '${a.id}'`, ref)
+  }
+
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
   // opponent-pipeline target. It's a mode-specific string the generic schema
   // only checks is present, so validate it against the *enemy-debuff* target

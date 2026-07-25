@@ -18,12 +18,12 @@
   "nativeModifiers": [
     {
       "stage": "additive",
-      "field": "r0",
+      "field": "b0",
       "value": 1
     },
     {
       "stage": "additive",
-      "field": "r1",
+      "field": "b1",
       "value": 1
     }
   ],
@@ -693,7 +693,7 @@
         {
           "type": "baseModifier",
           "stage": "additive",
-          "field": "r0",
+          "field": "b0",
           "value": 1
         }
       ],
@@ -721,7 +721,7 @@
             {
               "type": "baseModifier",
               "stage": "multiplicative",
-              "field": "r0",
+              "field": "b0",
               "value": 1.1
             }
           ],
@@ -747,7 +747,7 @@
                 {
                   "type": "relativeModifier",
                   "source": "resource:r0",
-                  "field": "r0",
+                  "field": "b0",
                   "stage": "multiplicative",
                   "factor": 0.00001
                 }
@@ -780,7 +780,7 @@
             {
               "type": "baseModifier",
               "stage": "additive",
-              "field": "r1",
+              "field": "b1",
               "value": 1
             }
           ],
@@ -813,7 +813,7 @@
                 {
                   "type": "baseModifier",
                   "stage": "multiplicative",
-                  "field": "r1",
+                  "field": "b1",
                   "value": 1.1
                 }
               ],
@@ -842,7 +842,7 @@
                     {
                       "type": "relativeModifier",
                       "source": "resource:r1",
-                      "field": "r1",
+                      "field": "b1",
                       "stage": "multiplicative",
                       "factor": 0.00001
                     }

@@ -63,6 +63,11 @@ export function addressableSources(mode: ModeDefinition): AddressableField[] {
  * (per-second rates) and generator ids (output, folded by `collectModifiers`),
  * plus the two special `ModifierContext` fields. The `*For` form takes
  * primitives for the editor (see {@link addressableSourcesFor}).
+ *
+ * Each resource contributes two targets: `rK` (its global layer — all
+ * production) and `bK` (its isolated base producer — see {@link
+ * ResourceLayers}). `bK` uses the resource's *index*, so `b0` is the base
+ * producer of `resourceKeys[0]`.
  */
 export function addressableTargetsFor(
   resourceKeys: readonly string[],
@@ -72,6 +77,7 @@ export function addressableTargetsFor(
     { key: 'clickIncome', label: 'Click income' },
     { key: 'globalMultiplier', label: 'Global multiplier' },
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
+    ...resourceKeys.map((key, i) => ({ key: `b${i}`, label: `${key} (base producer)` })),
     ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
   ]
 }

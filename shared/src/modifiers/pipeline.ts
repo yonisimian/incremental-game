@@ -1,45 +1,93 @@
-import type { Modifier, ModifierContext } from './types.js'
+import type { LayerAccumulator, Modifier, ModifierContext, ResourceLayers } from './types.js'
 import type { PlayerState } from '../types.js'
 
 // ─── Pipeline Core ───────────────────────────────────────────────────
 
+/** A fresh set of production layers for one resource (neutral: add 0, mult 1). */
+function freshLayers(): ResourceLayers {
+  return {
+    base: { add: 0, mult: 1 },
+    global: { add: 0, mult: 1 },
+  }
+}
+
+/** Matches a base-producer field `bK` (K = resource index), capturing K. */
+const BASE_FIELD_RE = /^b(\d+)$/
+
 /**
- * Run the modifier pipeline: seed → additive → multiplicative.
- * Returns the raw ModifierContext (globalMultiplier NOT yet applied to fields).
+ * Resolve a modifier `field` to the resource layer it targets, or `null` if it
+ * isn't a resource field the pipeline owns (`clickIncome`/`globalMultiplier` are
+ * handled separately; generator ids are folded away before this runs). A `bK`
+ * field maps to the base layer of the K-th declared resource; a raw resource id
+ * maps to its global layer. An out-of-range `bK` or unknown id is inert here —
+ * `validateModeDefinition` already rejects those at boot.
  */
-export function computeIncome(modifiers: readonly Modifier[]): ModifierContext {
-  // 1. SEED
+function resolveField(
+  field: string,
+  resources: readonly string[],
+): { key: string; layer: keyof ResourceLayers } | null {
+  const baseMatch = BASE_FIELD_RE.exec(field)
+  if (baseMatch) {
+    const index = Number(baseMatch[1])
+    return index < resources.length ? { key: resources[index], layer: 'base' } : null
+  }
+  return resources.includes(field) ? { key: field, layer: 'global' } : null
+}
+
+/**
+ * Run the modifier pipeline: accumulate each resource's `base` / `global` layers
+ * plus the standalone `clickIncome` and `globalMultiplier` tracks. Returns the
+ * raw {@link ModifierContext} — layers are NOT yet combined into a rate (see
+ * {@link finalizeRate}). Per-generator output is assumed already folded into
+ * resource-id (`global`-layer) modifiers by `collectModifiers`, so this never
+ * sees a generator-id `field`.
+ */
+export function computeIncome(
+  modifiers: readonly Modifier[],
+  resources: readonly string[] = [],
+): ModifierContext {
   const ctx: ModifierContext = {
     clickIncome: 0,
-    rates: {},
+    resources: {},
     globalMultiplier: 1.0,
   }
+  // Seed every declared resource so each key is always present downstream.
+  for (const key of resources) ctx.resources[key] = freshLayers()
 
-  // 2. ADDITIVE
   for (const m of modifiers) {
-    if (m.stage !== 'additive') continue
+    // Standalone tracks: not per-resource, not layered.
     if (m.field === 'clickIncome') {
-      ctx.clickIncome += m.value
-    } else if (m.field === 'globalMultiplier') {
-      ctx.globalMultiplier += m.value
-    } else {
-      ctx.rates[m.field] = (ctx.rates[m.field] ?? 0) + m.value
+      if (m.stage === 'additive') ctx.clickIncome += m.value
+      else ctx.clickIncome *= m.value
+      continue
     }
-  }
-
-  // 3. MULTIPLICATIVE
-  for (const m of modifiers) {
-    if (m.stage !== 'multiplicative') continue
-    if (m.field === 'clickIncome') {
-      ctx.clickIncome *= m.value
-    } else if (m.field === 'globalMultiplier') {
-      ctx.globalMultiplier *= m.value
-    } else {
-      ctx.rates[m.field] = (ctx.rates[m.field] ?? 0) * m.value
+    if (m.field === 'globalMultiplier') {
+      if (m.stage === 'additive') ctx.globalMultiplier += m.value
+      else ctx.globalMultiplier *= m.value
+      continue
     }
+    // Resource field: route into the base or global layer.
+    const target = resolveField(m.field, resources)
+    if (!target) continue
+    const layer: LayerAccumulator = (ctx.resources[target.key] ??= freshLayers())[target.layer]
+    if (m.stage === 'additive') layer.add += m.value
+    else layer.mult *= m.value
   }
 
   return ctx
+}
+
+/**
+ * Combine one resource's layers into its per-second rate:
+ * `(base.add·base.mult + global.add) · global.mult · globalMultiplier`. The
+ * `global` layer (per-resource multiplier + folded generator output) wraps the
+ * base subtotal; `globalMultiplier` scales everything on top.
+ */
+function finalizeRate(layers: ResourceLayers | undefined, globalMultiplier: number): number {
+  if (!layers) return 0
+  const base = layers.base.add * layers.base.mult
+  const combined = (base + layers.global.add) * layers.global.mult
+  return combined * globalMultiplier
 }
 
 // ─── Convenience Functions ───────────────────────────────────────────
@@ -59,10 +107,10 @@ export function computePassiveRates(
   modifiers: readonly Modifier[],
   resources: readonly string[],
 ): Record<string, number> {
-  const ctx = computeIncome(modifiers)
+  const ctx = computeIncome(modifiers, resources)
   const result: Record<string, number> = {}
   for (const key of resources) {
-    result[key] = (ctx.rates[key] ?? 0) * ctx.globalMultiplier
+    result[key] = finalizeRate(ctx.resources[key], ctx.globalMultiplier)
   }
   return result
 }
