@@ -14,26 +14,25 @@ describe('computeIncome', () => {
   it('returns zeroed context with no modifiers', () => {
     const ctx = computeIncome([])
     expect(ctx.clickIncome).toBe(0)
-    expect(ctx.rates).toEqual({})
+    expect(ctx.resources).toEqual({})
     expect(ctx.globalMultiplier).toBe(1)
   })
 
-  it('sums additive modifiers', () => {
+  it('sums additive modifiers into a resource global layer', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'currency', value: 3 },
       { stage: 'additive', field: 'currency', value: 2 },
     ]
-    const ctx = computeIncome(mods)
-    expect(ctx.rates.currency).toBe(5)
+    const ctx = computeIncome(mods, ['currency'])
+    expect(ctx.resources.currency.global.add).toBe(5)
   })
 
-  it('applies additive then multiplicative', () => {
+  it('applies additive then multiplicative on the global layer', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'currency', value: 5 },
       { stage: 'multiplicative', field: 'currency', value: 3 },
     ]
-    const ctx = computeIncome(mods)
-    expect(ctx.rates.currency).toBe(15) // 5 * 3
+    expect(computePassiveRates(mods, ['currency']).currency).toBe(15) // 5 * 3
   })
 
   it('handles clickIncome through additive + multiplicative', () => {
@@ -58,8 +57,7 @@ describe('computeIncome', () => {
 
   it('multiplicative on empty rate creates the rate (0 * N = 0)', () => {
     const mods: Modifier[] = [{ stage: 'multiplicative', field: 'wood', value: 2 }]
-    const ctx = computeIncome(mods)
-    expect(ctx.rates.wood).toBe(0)
+    expect(computePassiveRates(mods, ['wood']).wood).toBe(0)
   })
 
   it('handles multiple independent resources', () => {
@@ -68,9 +66,62 @@ describe('computeIncome', () => {
       { stage: 'additive', field: 'ale', value: 2 },
       { stage: 'multiplicative', field: 'wood', value: 3 },
     ]
-    const ctx = computeIncome(mods)
-    expect(ctx.rates.wood).toBe(3) // 1 * 3
-    expect(ctx.rates.ale).toBe(2) // 2, no multiplier
+    const rates = computePassiveRates(mods, ['wood', 'ale'])
+    expect(rates.wood).toBe(3) // 1 * 3
+    expect(rates.ale).toBe(2) // 2, no multiplier
+  })
+
+  it('ignores an unknown or out-of-range field', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'r5', value: 9 }, // undeclared resource
+      { stage: 'additive', field: 'b9', value: 9 }, // out-of-range base producer
+    ]
+    const ctx = computeIncome(mods, ['r0'])
+    expect(ctx.resources.r0).toEqual({ base: { add: 0, mult: 1 }, global: { add: 0, mult: 1 } })
+  })
+})
+
+// ─── base vs global layering (the generator-leak fix) ────────────────
+
+describe('base / global production layers', () => {
+  // A generator's folded output arrives as an additive resource-id (global)
+  // modifier — the same shape `collectModifiers` emits.
+  const generatorOutput = (resource: string, value: number): Modifier => ({
+    stage: 'additive',
+    field: resource,
+    value,
+  })
+
+  it('a base (`bK`) multiplier scales only base production, not generators', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'b0', value: 10 }, // base floor
+      generatorOutput('r0', 100), // generator output (global layer)
+      { stage: 'multiplicative', field: 'b0', value: 2 }, // "Sharpen Axe" — base only
+    ]
+    // (10 * 2) + 100 = 120 — the ×2 must NOT touch the 100 of generator output.
+    expect(computePassiveRates(mods, ['r0']).r0).toBe(120)
+  })
+
+  it('a global (`rK`) multiplier scales base AND generators', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'b0', value: 10 },
+      generatorOutput('r0', 100),
+      { stage: 'multiplicative', field: 'r0', value: 2 }, // global — everything
+    ]
+    // (10 + 100) * 2 = 220.
+    expect(computePassiveRates(mods, ['r0']).r0).toBe(220)
+  })
+
+  it('globalMultiplier scales base, generators, and global together', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'b0', value: 10 },
+      generatorOutput('r0', 100),
+      { stage: 'multiplicative', field: 'b0', value: 2 }, // base ×2 → 20
+      { stage: 'multiplicative', field: 'r0', value: 3 }, // global ×3
+      { stage: 'multiplicative', field: 'globalMultiplier', value: 5 },
+    ]
+    // ((10*2) + 100) * 3 * 5 = 1800.
+    expect(computePassiveRates(mods, ['r0']).r0).toBe(1800)
   })
 })
 

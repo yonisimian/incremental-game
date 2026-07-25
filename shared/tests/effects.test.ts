@@ -1029,6 +1029,83 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
+// ─── production-field validation (nativeModifiers + baseModifier) ─────
+
+describe('production field mode validation', () => {
+  function withUpgrade(effect: EffectRef): ModeDefinition {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uProd',
+      cost: { r0: { baseCost: 1 } },
+      purchaseLimit: 1,
+      effects: [effect],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uProd', name: 'Prod', icon: '?', description: '' }],
+    }))
+    return { ...base, upgrades: [...base.upgrades, u], flavors }
+  }
+
+  it('accepts a base-producer field (bK)', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'b0', stage: 'additive', value: 1 }),
+      )
+    }).not.toThrow()
+  })
+
+  it('throws on an out-of-range base-producer field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'b9', stage: 'additive', value: 1 }),
+      )
+    }).toThrow(/baseModifier targets unknown production field 'b9'/u)
+  })
+
+  it('throws on a baseModifier targeting an unknown field', () => {
+    expect(() => {
+      validateModeDefinition(
+        'idler',
+        withUpgrade({ type: 'baseModifier', field: 'nope', stage: 'additive', value: 1 }),
+      )
+    }).toThrow(/baseModifier targets unknown production field 'nope'/u)
+  })
+
+  it('throws on a native modifier targeting an unknown field', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      nativeModifiers: [...base.nativeModifiers, { stage: 'additive', field: 'b9', value: 1 }],
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/native modifier targets unknown production field 'b9'/u)
+  })
+
+  it('throws when a generator id collides with the base-producer namespace', () => {
+    const base = getModeDefinition('idler')
+    // Append a fresh generator whose id shadows the `bK` field namespace. Kept
+    // in sync across every flavor so flavor validation doesn't trip first.
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        { id: 'b0', cost: { r0: { baseCost: 1 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'b0', name: 'Shadow', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/collides with the base-producer field namespace/u)
+  })
+})
+
 describe('accessEnemyData mode validation', () => {
   // Build an idler variant whose extra upgrade reveals `data`, with a matching
   // flavor upgrade entry so flavor validation doesn't trip before the intel
@@ -1092,6 +1169,7 @@ describe('addressable-field catalog', () => {
       { key: 'clickIncome', label: 'Click income' },
       { key: 'globalMultiplier', label: 'Global multiplier' },
       { key: 'r0', label: 'r0 (rate)' },
+      { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },
       { key: 'g1', label: 'g1 (output)' },
     ])
@@ -1114,24 +1192,24 @@ describe('addressable-field catalog', () => {
 describe('idler relativeModifier upgrades', () => {
   const mode = getModeDefinition('idler')
 
-  it('be-mr-bank gives +1% r0 rate per 1000 r0 held (multiplicative)', () => {
+  it('be-mr-bank gives +1% r0 base production per 1000 r0 held (multiplicative)', () => {
     const s = createInitialState(mode)
     s.upgrades['be-mr-bank'] = 1
     s.resources.r0 = 50_000 // 1 + 50000 * 0.00001 = 1.5
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
-      field: 'r0',
+      field: 'b0',
       value: 1.5,
     })
   })
 
-  it('be-sr-bank gives +1% r1 rate per 1000 r1 held (multiplicative)', () => {
+  it('be-sr-bank gives +1% r1 base production per 1000 r1 held (multiplicative)', () => {
     const s = createInitialState(mode)
     s.upgrades['be-sr-bank'] = 1
     s.resources.r1 = 100_000 // 1 + 100000 * 0.00001 = 2
     expect(collectModifiers(s, mode)).toContainEqual({
       stage: 'multiplicative',
-      field: 'r1',
+      field: 'b1',
       value: 2,
     })
   })

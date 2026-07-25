@@ -513,6 +513,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
       if (ref.field === key) refs.push('a relativeModifier field')
+    } else if (ref.type === 'baseModifier' && ref.field === key) {
+      refs.push('a baseModifier field')
     } else if (ref.type === 'enemyProductionModifier' && ref.field === key) {
       refs.push('an enemyProductionModifier field')
     } else if (
@@ -532,10 +534,12 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
  * meta, native-modifier fields (resource keys only — never the `clickIncome`/
  * `globalMultiplier` specials), generator cost + production, upgrade cost record
  * keys, effect refs (the `resource:`-prefixed `relativeModifier` source, the bare
- * `field` target of `relativeModifier`/`enemyProductionModifier`, and
- * `accessEnemyData` data across every effect location), and every
- * flavor's resource entry. Fails (no mutation) when the new key is blank, already
- * in use, or the old key is absent. An unchanged key is a successful no-op.
+ * `field` target of `relativeModifier`/`baseModifier`/`enemyProductionModifier`,
+ * and `accessEnemyData` data across every effect location), and every
+ * flavor's resource entry. The index-based base-producer target (`bK`) needs no
+ * rewrite — a rename never reorders resources. Fails (no mutation) when the new
+ * key is blank, already in use, or the old key is absent. An unchanged key is a
+ * successful no-op.
  */
 export function renameResource(tree: TreeFile, oldKey: string, newKey: string): boolean {
   if (oldKey === newKey) return true
@@ -571,6 +575,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
         ref.source = `${RESOURCE_SOURCE_PREFIX}${newKey}`
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'baseModifier' && ref.field === oldKey) {
+      ref.field = newKey
     } else if (ref.type === 'enemyProductionModifier' && ref.field === oldKey) {
       ref.field = newKey
     } else if (
@@ -691,6 +697,8 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
       refs.push(`a ${ref.type} effect`)
     } else if (ref.type === 'relativeModifier' && ref.field === id) {
       refs.push('a relativeModifier field')
+    } else if (ref.type === 'baseModifier' && ref.field === id) {
+      refs.push('a baseModifier field')
     }
   }
   return refs
@@ -698,9 +706,10 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
- * param of `generatorCost`/`generatorUnlock`, `relativeModifier` field targets,
- * across every effect location, and every flavor's generator entry). Fails (no
- * mutation) when the new id is blank, in use, or the old id is absent.
+ * param of `generatorCost`/`generatorUnlock`, `relativeModifier`/`baseModifier`
+ * field targets, across every effect location, and every flavor's generator
+ * entry). Fails (no mutation) when the new id is blank, in use, or the old id is
+ * absent.
  */
 export function renameGenerator(tree: TreeFile, oldId: string, newId: string): boolean {
   if (oldId === newId) return true
@@ -719,6 +728,8 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
     ) {
       ref.generator = newId
     } else if (ref.type === 'relativeModifier' && ref.field === oldId) {
+      ref.field = newId
+    } else if (ref.type === 'baseModifier' && ref.field === oldId) {
       ref.field = newId
     }
   }

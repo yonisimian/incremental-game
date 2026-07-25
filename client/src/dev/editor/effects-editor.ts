@@ -120,17 +120,14 @@ function effectFieldOptions(
   if (effectType === 'unlockPact' && fieldKey === 'pact') {
     return tree.pacts.map((p) => p.id)
   }
-  // `baseModifier` targets a resource, a generator, or a special pipeline field
-  // (`clickIncome` / `globalMultiplier`) — the union the legacy modifier picker
-  // offered. The pipeline routes the special fields to the `ModifierContext`
-  // directly instead of `rates[field]` (see modifiers/pipeline).
+  // `baseModifier` targets the same production catalog the boot-time validator
+  // enforces: each resource's global rate (`rK`) and isolated base producer
+  // (`bK`), each generator, plus the `clickIncome` / `globalMultiplier` specials.
   if (effectType === 'baseModifier' && fieldKey === 'field') {
-    return [
-      ...tree.resources,
-      ...tree.generators.map((g) => g.id),
-      'clickIncome',
-      'globalMultiplier',
-    ]
+    return addressableTargetsFor(
+      tree.resources,
+      tree.generators.map((g) => g.id),
+    ).map((f) => ({ value: f.key, label: f.label }))
   }
   return undefined
 }
