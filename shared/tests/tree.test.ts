@@ -235,6 +235,61 @@ describe('tree codec — versioning', () => {
     expect(effects[2]).toMatchObject({ type: 'relativeModifier', field: 'r0', scope: 'global' })
   })
 
+  it('migrates v4 clickIncome base/relative modifiers into clickPower effects', () => {
+    const v4: unknown = {
+      ...minimalTree(),
+      version: 4,
+      upgrades: [
+        {
+          id: 'a',
+          cost: { r0: { baseCost: 5 } },
+          purchaseLimit: null,
+          offset: { x: 0, y: 0 },
+          effects: [
+            {
+              type: 'baseModifier',
+              stage: 'additive',
+              scope: 'base',
+              field: 'clickIncome',
+              value: 2,
+            },
+            {
+              type: 'relativeModifier',
+              source: 'meta:peakCps',
+              field: 'clickIncome',
+              scope: 'base',
+              stage: 'additive',
+              factor: 1,
+            },
+            { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 1 },
+          ],
+        },
+      ],
+      flavors: [
+        {
+          id: 'test',
+          displayName: 'Test',
+          themeClass: 'theme-test',
+          scoreLabel: 'Score',
+          resources: [{ key: 'r0', displayName: 'R0', icon: 'x' }],
+          showClickStats: false,
+          upgrades: [{ id: 'a', name: 'A', icon: 'x', description: 'd' }],
+          generators: [],
+          attacks: [],
+          pacts: [],
+        },
+      ],
+    }
+    const parsed = parseTreeFile(v4)
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    expect(parsed.upgrades[0].effects).toEqual([
+      { type: 'clickPower', stage: 'additive', value: 2 },
+      { type: 'clickPower', stage: 'additive', source: 'meta:peakCps', factor: 1 },
+      // A non-click modifier is untouched.
+      { type: 'baseModifier', stage: 'additive', scope: 'base', field: 'r0', value: 1 },
+    ])
+  })
+
   it('drops inert cost scaling from a one-shot upgrade when migrating v2→v3', () => {
     const v2: unknown = {
       ...minimalTree(),

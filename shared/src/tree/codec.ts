@@ -178,6 +178,47 @@ function migrateV3toV4(json: unknown): unknown {
 }
 
 /**
+ * V4 → V5: click income became its own axis. A `baseModifier` or
+ * `relativeModifier` effect targeting `field: 'clickIncome'` is rewritten as a
+ * `clickPower` effect (dropping the now-irrelevant `scope`/`field`): a flat
+ * `baseModifier` becomes `{ stage, value }`; a state-relative `relativeModifier`
+ * becomes `{ stage, source, factor? }`. Other refs are untouched (attacks carry
+ * `enemyProductionModifier`, which never targets click income).
+ */
+function migrateV4toV5(json: unknown): unknown {
+  const convertRef = (ref: unknown): unknown => {
+    const r = ref as Record<string, unknown>
+    if (r.type === 'baseModifier' && r.field === 'clickIncome')
+      return { type: 'clickPower', stage: r.stage, value: r.value }
+    if (r.type === 'relativeModifier' && r.field === 'clickIncome') {
+      const out: Record<string, unknown> = { type: 'clickPower', stage: r.stage, source: r.source }
+      if (r.factor !== undefined) out.factor = r.factor
+      return out
+    }
+    return ref
+  }
+  const migrateEffects = (effects: unknown): unknown =>
+    Array.isArray(effects) ? effects.map(convertRef) : effects
+  const migrateNode = (node: Record<string, unknown>): Record<string, unknown> => {
+    const { children, effects, ...rest } = node
+    const out: Record<string, unknown> = { ...rest }
+    if (effects !== undefined) out.effects = migrateEffects(effects)
+    if (Array.isArray(children)) {
+      out.children = children.map((c) => migrateNode(c as Record<string, unknown>))
+    }
+    return out
+  }
+
+  const file = json as Record<string, unknown>
+  const out: Record<string, unknown> = { ...file, version: 5 }
+  if (Array.isArray(file.upgrades)) {
+    out.upgrades = file.upgrades.map((u) => migrateNode(u as Record<string, unknown>))
+  }
+  if (file.effects !== undefined) out.effects = migrateEffects(file.effects)
+  return out
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -191,6 +232,7 @@ function migrateTreeFile(json: unknown): unknown {
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
   if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
   if ((raw as { version?: unknown } | null)?.version === 3) raw = migrateV3toV4(raw)
+  if ((raw as { version?: unknown } | null)?.version === 4) raw = migrateV4toV5(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(

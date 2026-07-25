@@ -30,8 +30,9 @@ function makeMode(): ModeDefinition {
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     nativeModifiers: [
       { stage: 'additive', scope: 'base', field: 'r0', value: 2 }, // 2 r0/sec passive
-      { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 }, // 1 r0/click
     ],
+    // 1 r0/click, via a mode-level clickPower effect (always active).
+    effects: [{ type: 'clickPower', stage: 'additive', value: 1 }],
     clicksEnabled: true,
     highlightEnabled: true,
     initialResources: { r0: 0 },

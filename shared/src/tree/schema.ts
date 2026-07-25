@@ -8,7 +8,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 4
+export const CURRENT_TREE_VERSION = 5
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 

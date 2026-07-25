@@ -1,5 +1,5 @@
 import type { Modifier } from '../modifiers/types.js'
-import { computePassiveRates } from '../modifiers/pipeline.js'
+import { computeIncome, computePassiveRates } from '../modifiers/pipeline.js'
 import type { EffectRef, GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
@@ -249,6 +249,29 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   }
   for (const a of def.attacks) {
     for (const ref of a.effects ?? []) checkRefScope(`attack '${a.id}'`, ref)
+  }
+
+  // Click income is its own axis, set only by the `clickPower` effect. A
+  // production modifier (`nativeModifiers` / `baseModifier` / `relativeModifier`)
+  // targeting `clickIncome` would land on a dead field the pipeline never reads,
+  // so reject it at boot with a pointer to the right effect.
+  const rejectClickField = (where: string, field: unknown): void => {
+    if (field === 'clickIncome')
+      throw new Error(
+        `[${id}] ${where} targets 'clickIncome'; use the clickPower effect to boost click income`,
+      )
+  }
+  for (const m of def.nativeModifiers) rejectClickField('native modifier', m.field)
+  const checkRefClick = (where: string, ref: EffectRef): void => {
+    if (ref.type === 'baseModifier' || ref.type === 'relativeModifier')
+      rejectClickField(`${where} ${ref.type}`, ref.field)
+  }
+  for (const ref of def.effects ?? []) checkRefClick('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkRefClick(`upgrade '${u.id}'`, ref)
+  }
+  for (const a of def.attacks) {
+    for (const ref of a.effects ?? []) checkRefClick(`attack '${a.id}'`, ref)
   }
 
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
@@ -629,19 +652,20 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
-  // Route an effect's outputs. Production `Modifier`s feed the pipeline verbatim;
-  // `baseModifier`s feed it with owned-count compounding — per-upgrade effects
-  // pass the owning upgrade's owned count, while mode-level effects (no count)
-  // apply once (`owned ?? 1`). Cost-track outputs (`GeneratorCostOutput`) and
-  // the unlock outputs belong to other subsystems and are ignored here.
+  // Route an effect's outputs. Raw production `Modifier`s (no `kind`) feed the
+  // pipeline verbatim; `baseModifier`s feed it with owned-count compounding —
+  // per-upgrade effects pass the owning upgrade's owned count, while mode-level
+  // effects (no count) apply once (`owned ?? 1`). Every other kind — click income
+  // (`ClickIncomeOutput`, consumed by `collectClickIncome`), cost-track, and the
+  // unlock outputs — belongs to another subsystem and is ignored here.
   const routeEffect = (
     out: EffectOutput | readonly EffectOutput[] | null,
     owned?: number,
   ): void => {
     for (const o of normalizeEffectOutputs(out)) {
-      if ('kind' in o && o.kind === 'baseModifier') {
-        routeBaseModifier(o, owned ?? 1)
-      } else if ('stage' in o) {
+      if ('kind' in o) {
+        if (o.kind === 'baseModifier') routeBaseModifier(o, owned ?? 1)
+      } else {
         routeModifier(o)
       }
     }
@@ -686,6 +710,44 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
   }
 
   return modifiers
+}
+
+/**
+ * Sum the manual-click income a player's `clickPower` effects produce, before
+ * the global multiplier. Additive outputs sum, multiplicative outputs multiply,
+ * and each is compounded with the owning upgrade's owned count (× owned /
+ * ^ owned) — mode-level effects apply once (`owned = 1`). Mirrors how
+ * `collectModifiers` compounds `baseModifier`s, but on the separate click axis.
+ */
+export function collectClickIncome(state: Readonly<PlayerState>, mode: ModeDefinition): number {
+  let add = 0
+  let mult = 1
+  const route = (out: EffectOutput | readonly EffectOutput[] | null, owned: number): void => {
+    for (const o of normalizeEffectOutputs(out)) {
+      if (!('kind' in o) || o.kind !== 'clickIncome') continue
+      if (o.stage === 'additive') add += o.value * owned
+      else mult *= o.value ** owned
+    }
+  }
+
+  for (const ref of mode.effects ?? []) route(applyEffect(ref, state, mode), 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned <= 0) continue
+    for (const ref of upgrade.effects ?? []) route(applyEffect(ref, state, mode), owned)
+  }
+  return add * mult
+}
+
+/**
+ * Income from a single manual click: the player's `clickPower` total scaled by
+ * the pipeline's `globalMultiplier` (so a global production bonus lifts clicks
+ * too, matching passive income). Click income has no per-resource scope and is
+ * never debuffed, so this reads the player's own modifiers only.
+ */
+export function computeClickIncome(state: Readonly<PlayerState>, mode: ModeDefinition): number {
+  const { globalMultiplier } = computeIncome(collectModifiers(state, mode))
+  return collectClickIncome(state, mode) * globalMultiplier
 }
 
 /**

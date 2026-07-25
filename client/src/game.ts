@@ -19,7 +19,6 @@ import {
   getDefaultGoal,
   getModeDefinition,
   getAvailableUpgrades,
-  collectModifiers,
   computeClickIncome as pipelineClickIncome,
   canAffordGenerator,
   getMaxAffordableGeneratorCount,
@@ -774,8 +773,7 @@ function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
   const modeDef = getModeDefinition(mode)
-  const modifiers = collectModifiers(player, modeDef)
-  return pipelineClickIncome(modifiers)
+  return pipelineClickIncome(player, modeDef)
 }
 
 function clonePlayerState(s: Readonly<PlayerState>): PlayerState {

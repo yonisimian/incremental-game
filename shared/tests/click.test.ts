@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  collectModifiers,
   computeClickIncome,
   createInitialState,
   getModeDefinition,
@@ -17,7 +16,7 @@ function idlerState(): { def: ModeDefinition; state: PlayerState } {
 }
 
 function clickIncome(state: PlayerState, def: ModeDefinition): number {
-  return computeClickIncome(collectModifiers(state, def))
+  return computeClickIncome(state, def)
 }
 
 describe('isClickUnlocked', () => {

@@ -6,6 +6,7 @@ import {
   addressableTargetsFor,
   applyEffect,
   collectModifiers,
+  computeClickIncome,
   createInitialState,
   getModeDefinition,
   isAttackUnlocked,
@@ -56,6 +57,7 @@ describe('effect registry', () => {
       'accessEnemyData',
       'balancedGenerators',
       'baseModifier',
+      'clickPower',
       'dominantGenerator',
       'enemyProductionModifier',
       'generatorCost',
@@ -578,6 +580,96 @@ describe('balancedGenerators effect', () => {
   })
 })
 
+describe('clickPower effect', () => {
+  const mode = getModeDefinition('idler')
+  const apply = (ref: EffectRef, mutate?: (s: PlayerState) => void): unknown => {
+    const state = createInitialState(mode)
+    mutate?.(state)
+    return applyEffect(ref, state, mode)
+  }
+
+  it('emits a flat additive click bonus', () => {
+    expect(apply({ type: 'clickPower', stage: 'additive', value: 2 })).toEqual({
+      kind: 'clickIncome',
+      stage: 'additive',
+      value: 2,
+    })
+  })
+
+  it('emits a flat multiplicative click bonus', () => {
+    expect(apply({ type: 'clickPower', stage: 'multiplicative', value: 1.5 })).toEqual({
+      kind: 'clickIncome',
+      stage: 'multiplicative',
+      value: 1.5,
+    })
+  })
+
+  it('reads a state source, scaled by factor (additive)', () => {
+    const out = apply(
+      { type: 'clickPower', stage: 'additive', source: 'resource:r0', factor: 2 },
+      (s) => {
+        s.resources.r0 = 10
+      },
+    )
+    expect(out).toEqual({ kind: 'clickIncome', stage: 'additive', value: 20 })
+  })
+
+  it('is inactive (null) when the source is non-positive', () => {
+    expect(apply({ type: 'clickPower', stage: 'additive', source: 'meta:peakCps' })).toBeNull()
+  })
+
+  it('rejects params with both value and source, or neither', () => {
+    expect(() =>
+      apply({ type: 'clickPower', stage: 'additive', value: 1, source: 'resource:r0' }),
+    ).toThrow(/exactly one/u)
+    expect(() => apply({ type: 'clickPower', stage: 'additive' })).toThrow(/exactly one/u)
+  })
+
+  it('rejects a factor without a source, and a no-op flat value', () => {
+    expect(() => apply({ type: 'clickPower', stage: 'additive', value: 1, factor: 2 })).toThrow(
+      /factor/u,
+    )
+    expect(() => apply({ type: 'clickPower', stage: 'multiplicative', value: 1 })).toThrow(/value/u)
+  })
+
+  it('compounds a flat bonus with owned count and applies globalMultiplier', () => {
+    // A mode with a flat +1 base click, a ×2 owned-compounding click bonus, and a
+    // global ×3 multiplier — all via effects on always-owned upgrades.
+    const clickMode: ModeDefinition = {
+      ...mode,
+      effects: [{ type: 'clickPower', stage: 'additive', value: 1 }],
+      upgrades: [
+        ...mode.upgrades,
+        {
+          id: 'uClickMul',
+          cost: { r0: { baseCost: 1 } },
+          purchaseLimit: Infinity,
+          effects: [{ type: 'clickPower', stage: 'multiplicative', value: 2 }],
+        },
+        {
+          id: 'uGlobal',
+          cost: { r0: { baseCost: 1 } },
+          purchaseLimit: Infinity,
+          effects: [
+            {
+              type: 'baseModifier',
+              stage: 'multiplicative',
+              scope: 'global',
+              field: 'globalMultiplier',
+              value: 3,
+            },
+          ],
+        },
+      ],
+    }
+    const state = createInitialState(clickMode)
+    state.upgrades.uClickMul = 2 // ×2 ^ 2 = ×4
+    state.upgrades.uGlobal = 1 // globalMultiplier ×3
+    // base click 1 × 4 = 4, then × globalMultiplier 3 = 12
+    expect(computeClickIncome(state, clickMode)).toBeCloseTo(12)
+  })
+})
+
 describe('generatorCost effect', () => {
   it('rejects a generatorCost with a non-positive factor', () => {
     const mode = getModeDefinition('idler')
@@ -1066,6 +1158,64 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
+describe('clickIncome field rejection', () => {
+  const clickBase: EffectRef = {
+    type: 'baseModifier',
+    stage: 'additive',
+    scope: 'base',
+    field: 'clickIncome',
+    value: 1,
+  }
+
+  it('rejects a native modifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      nativeModifiers: [
+        ...base.nativeModifiers,
+        { stage: 'additive', scope: 'base', field: 'clickIncome', value: 1 },
+      ],
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+
+  it('rejects an upgrade baseModifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const u: UpgradeDefinition = {
+      id: 'uBad',
+      cost: { r0: { baseCost: 1 } },
+      purchaseLimit: 1,
+      effects: [clickBase],
+    }
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      upgrades: [...f.upgrades, { id: 'uBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, u], flavors }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+
+  it('rejects an attack baseModifier targeting clickIncome', () => {
+    const base = getModeDefinition('idler')
+    const flavors = base.flavors.map((f) => ({
+      ...f,
+      attacks: [...f.attacks, { id: 'aBad', name: 'Bad', icon: '?', description: '' }],
+    }))
+    const def: ModeDefinition = {
+      ...base,
+      attacks: [...base.attacks, { id: 'aBad', kind: 'passive' as const, effects: [clickBase] }],
+      flavors,
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/use the clickPower effect/u)
+  })
+})
+
 describe('accessEnemyData mode validation', () => {
   // Build an idler variant whose extra upgrade reveals `data`, with a matching
   // flavor upgrade entry so flavor validation doesn't trip before the intel
@@ -1126,7 +1276,6 @@ describe('addressable-field catalog', () => {
 
   it('builds target keys from special fields, resource rates, and generators', () => {
     expect(addressableTargetsFor(['r0'], ['g0', 'g1'])).toEqual([
-      { key: 'clickIncome', label: 'Click income' },
       { key: 'globalMultiplier', label: 'Global multiplier' },
       { key: 'r0', label: 'r0 (rate)' },
       { key: 'g0', label: 'g0 (output)' },
@@ -1179,12 +1328,9 @@ describe('idler relativeModifier upgrades', () => {
     const s = createInitialState(mode)
     s.upgrades['sc-pcps'] = 1
     s.meta.peakCps = 9
-    expect(collectModifiers(s, mode)).toContainEqual({
-      stage: 'additive',
-      scope: 'base',
-      field: 'clickIncome',
-      value: 9,
-    })
+    // sc-pcps is a state-relative clickPower reading meta:peakCps; with only it
+    // owned, click income is exactly the peak CPS (additive, no other bonus).
+    expect(computeClickIncome(s, mode)).toBeCloseTo(9)
   })
 
   it('a bank bonus is inert with an empty stockpile', () => {

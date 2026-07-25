@@ -12,12 +12,13 @@
 import { MAX_CPS, TICK_INTERVAL_MS } from '../game-config.js'
 import {
   collectModifiers,
+  computeClickIncome,
   createInitialState,
   getModeDefinition,
   isClickUnlocked,
 } from '../modes/index.js'
 import type { ModeDefinition } from '../modes/types.js'
-import { applyPassiveTick, computeClickIncome, computePassiveRates } from '../modifiers/pipeline.js'
+import { applyPassiveTick, computePassiveRates } from '../modifiers/pipeline.js'
 import type { GameMode, UpgradeDefinition } from '../types.js'
 import { applySimAction } from './apply.js'
 import type { QueueStrategy, SimAction, WaitCondition } from './strategy.js'
@@ -243,7 +244,7 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
       // `relativeModifier` sourced from `meta:peakCps` sees it (matches server).
       const prevPeak = (state.meta.peakCps as number | undefined) ?? 0
       state.meta.peakCps = Math.max(prevPeak, cps)
-      const clickIncome = computeClickIncome(collectModifiers(state, modeDef))
+      const clickIncome = computeClickIncome(state, modeDef)
       const gain = clickIncome * cps * tickSec
       const res =
         clickResource && modeDef.resources.includes(clickResource)
