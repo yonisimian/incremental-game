@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Balance check
+        run: pnpm check:balance
+
       - name: Build client (includes bundle size check)
         run: pnpm --filter client build
 

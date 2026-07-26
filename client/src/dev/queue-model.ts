@@ -7,6 +7,8 @@
 import { getModeDefinition, getModeFlavor } from '@game/shared'
 import type { GameMode, ModeDefinition, QueueStrategy, SimAction } from '@game/shared'
 
+import type { Strategy } from './strategies.js'
+
 export interface Option {
   value: string
   label: string
@@ -77,6 +79,24 @@ export function makeEmptyStrategy(name: string, mode: GameMode): QueueStrategy {
 /** Deep copy of a strategy (for Duplicate; structuredClone keeps it lossless). */
 export function cloneStrategy(strategy: QueueStrategy, name: string): QueueStrategy {
   return { ...structuredClone(strategy), name }
+}
+
+/**
+ * Convert a legacy enumeration `Strategy` (from `generateStrategies`) into a
+ * `QueueStrategy`. The legacy action shape (`buy` / `set_highlight`) is a strict
+ * subset of `SimAction`, so this is a 1:1 mapping — nothing is dropped, and any
+ * malformed action (missing `upgradeId`/`highlight`) is skipped defensively.
+ */
+export function enumerationToQueue(strategy: Strategy, mode: GameMode): QueueStrategy {
+  const actions: SimAction[] = []
+  for (const a of strategy.actions) {
+    if (a.type === 'buy' && a.upgradeId !== undefined) {
+      actions.push({ kind: 'buy', upgradeId: a.upgradeId })
+    } else if (a.type === 'set_highlight' && a.highlight !== undefined) {
+      actions.push({ kind: 'set_highlight', highlight: a.highlight })
+    }
+  }
+  return { version: 1, name: strategy.name, mode, actions }
 }
 
 /** Swap two actions in place; no-op if either index is out of range. */

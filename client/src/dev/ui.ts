@@ -7,7 +7,8 @@ import {
   getModeDefinition,
   getModeFlavor,
   AVAILABLE_MODES,
-  IDLER_TIMED_ENVELOPE,
+  envelopeFor,
+  isPacingEnvelope,
   validateEnvelope,
 } from '@game/shared'
 import type { TargetEnvelope, SimScore } from '@game/shared'
@@ -34,10 +35,10 @@ const STRATEGIES: Record<string, readonly Strategy[]> = {
   idler: IDLER_STRATEGIES,
 }
 
-// ─── Envelope registry per mode + goal type ──────────────────────────
-
-const ENVELOPES: Record<string, TargetEnvelope | undefined> = {
-  'idler:timed': IDLER_TIMED_ENVELOPE,
+/** The timed (score-band) envelope for a mode, or undefined if none is authored. */
+function timedEnvelope(mode: GameMode): TargetEnvelope | undefined {
+  const envelope = envelopeFor(mode, 'timed')
+  return envelope && !isPacingEnvelope(envelope) ? envelope : undefined
 }
 
 // ─── Init ────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ export function initDevPanel(root: HTMLElement): void {
     requestAnimationFrame(() => {
       lastResults = checked.map((s) => simulate(s, mode))
       const delayedResults = checked.map((s) => simulate(s, mode, { highlightDelaySec: 2 }))
-      const envelope = ENVELOPES[`${mode}:timed`]
+      const envelope = timedEnvelope(mode)
       renderResults(lastResults, mode, scoreChart, incomeChart, resourceCharts, summaryBody)
       renderEnvelopeReport(envelope, lastResults, delayedResults, envelopeReport)
       runBtn.disabled = false

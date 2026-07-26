@@ -2,8 +2,7 @@
 //
 // A strategy is an *ordered queue* of actions with NO timestamps: the author
 // controls order, the engine (see `simulate.ts`) derives timing by advancing
-// simulated time until each action can fire, then moving to the next. See
-// docs/plans/23-timeline-strategy-simulation.md for the full design.
+// simulated time until each action can fire, then moving to the next.
 //
 // The zod schema is the trust boundary for save/load. It validates the shape
 // (kinds, positive counts, cps within [0, MAX_CPS]); validating that referenced

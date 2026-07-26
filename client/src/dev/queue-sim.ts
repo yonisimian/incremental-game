@@ -1,12 +1,11 @@
 /**
  * Queue Simulation tab — author a strategy as an ordered action queue (no
  * timestamps), run it through the shared `simulate()` engine, and chart the
- * result with action markers + a run report. See
- * docs/plans/23-timeline-strategy-simulation.md (phases 3–4).
+ * result with action markers + a run report.
  *
- * Strategies save/load to JSON files (phase 4); reference strategies under
+ * Strategies save/load to JSON files; reference strategies under
  * `shared/strategies/<mode>/` are bundled and listed alongside session ones. The
- * envelope overlay (phase 5) is not wired here yet.
+ * envelope overlay is not wired here yet.
  */
 
 import {
@@ -26,11 +25,13 @@ import type {
 } from '@game/shared'
 
 import { renderChart } from './chart.js'
-import type { ChartMarker, ChartPoint, ChartSeries } from './chart.js'
+import type { ChartBand, ChartMarker, ChartPoint, ChartSeries } from './chart.js'
+import { renderEnvelopeSection, envelopeBand } from './queue-envelope.js'
 import { loadBundledStrategies, loadStrategyFromFile, saveStrategyToFile } from './strategy-io.js'
 import {
   actionSummary,
   cloneStrategy,
+  enumerationToQueue,
   generatorOptions,
   makeEmptyStrategy,
   modeDefOf,
@@ -39,6 +40,7 @@ import {
   upgradeOptions,
 } from './queue-model.js'
 import type { Option } from './queue-model.js'
+import { generateStrategies } from './strategies.js'
 
 const MODE: GameMode = 'idler'
 
@@ -93,6 +95,7 @@ export function initQueueSim(pane: HTMLElement): void {
   const formError = pane.querySelector<HTMLDivElement>('#q-form-error')!
   const chartsEl = pane.querySelector<HTMLDivElement>('#q-charts')!
   const reportEl = pane.querySelector<HTMLDivElement>('#q-report')!
+  const envelopeEl = pane.querySelector<HTMLDivElement>('#q-envelope')!
   const ioStatus = pane.querySelector<HTMLSpanElement>('#q-io-status')!
   const goalSelect = pane.querySelector<HTMLSelectElement>('#q-goal')!
   const goalTimeInput = pane.querySelector<HTMLInputElement>('#q-goal-time')!
@@ -480,10 +483,27 @@ export function initQueueSim(pane: HTMLElement): void {
     )
   })
 
+  pane.querySelector<HTMLButtonElement>('#q-seed')!.addEventListener('click', () => {
+    setStatus('')
+    const generated = generateStrategies(mode)
+    if (generated.length === 0) {
+      setStatus('Enumeration produced no strategies for this mode.', true)
+      return
+    }
+    for (const g of generated) {
+      strategies.push(enumerationToQueue(g, MODE))
+      runChecked.add(strategies.length - 1)
+    }
+    selected = strategies.length - 1
+    editingRow = null
+    renderAll()
+    setStatus(`Seeded ${generated.length} strategy(ies) from enumeration.`)
+  })
+
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
-    runStrategies(toRun, mode, buildGoal(), chartsEl, reportEl, collapsedCharts)
+    runStrategies(toRun, mode, buildGoal(), chartsEl, reportEl, envelopeEl, collapsedCharts)
   })
 
   // Accept strategies handed over from other tabs (e.g. Live export): append,
@@ -509,6 +529,7 @@ function runStrategies(
   goal: SimGoal,
   chartsEl: HTMLDivElement,
   reportEl: HTMLDivElement,
+  envelopeEl: HTMLDivElement,
   collapsed: Set<string>,
 ): void {
   const results: SimResult[] = []
@@ -522,8 +543,9 @@ function runStrategies(
     results.push(simulate(s, { modeDef: mode, goal }))
   }
 
-  renderCharts(results, mode, chartsEl, collapsed)
+  renderCharts(results, mode, chartsEl, collapsed, envelopeBand(MODE, goal))
   renderReport(results, goal, problems, reportEl)
+  renderEnvelopeSection(MODE, results, goal, envelopeEl)
 }
 
 function markersFor(result: SimResult): ChartMarker[] {
@@ -569,6 +591,7 @@ function renderCharts(
   mode: ModeDefinition,
   container: HTMLDivElement,
   collapsed: Set<string>,
+  scoreBand?: ChartBand,
 ): void {
   container.innerHTML = ''
   if (results.length === 0) return
@@ -593,7 +616,7 @@ function renderCharts(
 
   // Build one collapsible chart card. The chart is rendered while visible so
   // uPlot measures the right width; collapse is applied afterward.
-  const addCard = (title: string, series: ChartSeries[]): void => {
+  const addCard = (title: string, series: ChartSeries[], band?: ChartBand): void => {
     const card = document.createElement('section')
     card.className = 'q-chart-card'
     card.dataset.title = title
@@ -610,7 +633,7 @@ function renderCharts(
     container.appendChild(card)
     cards.push(card)
 
-    renderChart(body, title, xData, series)
+    renderChart(body, title, xData, series, band)
 
     const setCollapsed = (v: boolean): void => {
       card.classList.toggle('collapsed', v)
@@ -647,6 +670,7 @@ function renderCharts(
       data: r.snapshots.map((s) => s.score),
       markers: markersFor(r),
     })),
+    scoreBand,
   )
 
   // Cumulative upgrade/generator purchases over time. The step line shows the
@@ -793,6 +817,7 @@ function layout(): string {
       <button id="q-del">🗑 Delete</button>
       <button id="q-save">💾 Save</button>
       <button id="q-load">📂 Load</button>
+      <button id="q-seed" title="Append every enumerated strategy for this mode as a starting point">＋ Seed from enumeration</button>
       <label class="q-goal-label">Goal
         <select id="q-goal">
           <option value="race_to_buy" selected>Race to buy</option>
@@ -834,6 +859,7 @@ function layout(): string {
     </div>
     <section class="dev-charts" id="q-charts"></section>
     <section class="dev-report"><h2>Run Report</h2><div id="q-report"></div></section>
+    <section class="dev-envelope"><h2>Balance Envelope</h2><div id="q-envelope"></div></section>
   `
 }
 

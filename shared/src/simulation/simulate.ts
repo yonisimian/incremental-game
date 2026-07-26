@@ -7,7 +7,7 @@
 //   - buy / buy_generator block until affordable (count = N back-to-back units)
 //   - wait blocks on an explicit predicate
 // The round timer is the hard stop; whatever's left in the queue is reported as
-// not-reached. See docs/plans/23-timeline-strategy-simulation.md.
+// not-reached.
 
 import { MAX_CPS, TICK_INTERVAL_MS } from '../game-config.js'
 import {

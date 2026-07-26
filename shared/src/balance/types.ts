@@ -68,3 +68,78 @@ export interface SimScore {
   /** Score at each checkpoint timeSec (same order as envelope.checkpoints). */
   readonly scoresAtCheckpoints: readonly number[]
 }
+
+// ─── Pacing envelopes (goal-terminated goals: target-score / buy-upgrade) ───
+//
+// The time-axis mirror of `TargetEnvelope`. Where a `TargetEnvelope` asks "at
+// time T, is score within [minScore, maxScore]?", a `PacingEnvelope` asks "to
+// reach milestone M, is the elapsed time within [minTimeSec, maxTimeSec]?".
+// Used for goals that stop at a variable time (score target hit / goal upgrade
+// bought), where a score-at-time band is meaningless at the end. The validator
+// (`validatePacing`) and authored data live alongside it; these declarations
+// exist so the registry can be union-typed from the start.
+
+/** A single time milestone within a pacing envelope. */
+export interface PacingCheckpoint {
+  /**
+   * Score milestone this band applies to (target-score goals). Omitted for a
+   * race (`buy-upgrade`) goal, which has a single time-to-buy band.
+   */
+  readonly atScore?: number
+  /** Minimum acceptable elapsed time to reach the milestone (faster = suspicious). */
+  readonly minTimeSec: number
+  /** Maximum acceptable elapsed time (slower = too grindy). */
+  readonly maxTimeSec: number
+  /** Human-readable label for the milestone. */
+  readonly phase: string
+}
+
+/** Target pacing envelope: acceptable *time-to-milestone* bands for a goal-terminated goal. */
+export interface PacingEnvelope {
+  /** Game mode this envelope applies to. */
+  readonly mode: GameMode
+  /** Goal type — always one of the goal-terminated kinds. */
+  readonly goalType: 'target-score' | 'buy-upgrade'
+  /** Ordered milestones (by atScore ascending; a single entry for race). */
+  readonly checkpoints: readonly PacingCheckpoint[]
+  /** Minimum number of strategies that must be viable at the final milestone. */
+  readonly minViableStrategies: number
+  /** Maximum allowed ratio between fastest and slowest *viable* strategy times. */
+  readonly maxTimeSpread: number
+}
+
+/** Per-strategy result within a pacing report (time-axis mirror of `StrategyReport`). */
+export interface PacingStrategyReport {
+  /** Strategy name. */
+  readonly name: string
+  /** Elapsed seconds to reach the final milestone, or `null` if it was never reached. */
+  readonly timeSec: number | null
+  /** Whether the strategy is viable (goal reached AND final time within band). */
+  readonly viable: boolean
+  /**
+   * Per-milestone status: `below` = suspiciously fast (exploit), `above` = too
+   * slow or never reached, `within` = on pace.
+   */
+  readonly milestoneStatuses: readonly CheckpointStatus[]
+}
+
+/** Full pacing validation report (time-axis mirror of `EnvelopeReport`). */
+export interface PacingReport {
+  /** Whether the pacing constraints are satisfied. */
+  readonly pass: boolean
+  /** Number of viable strategies at the final milestone. */
+  readonly viableCount: number
+  /** Ratio between slowest and fastest viable *times* (or null if < 2 viable). */
+  readonly spreadRatio: number | null
+  /** Per-strategy breakdown. */
+  readonly strategies: readonly PacingStrategyReport[]
+  /** Strategies suspiciously fast (below minTimeSec at any milestone) — exploit warnings. */
+  readonly exploitWarnings: readonly string[]
+}
+
+/**
+ * Either kind of balance envelope, keyed in the registry by `mode:goalType`.
+ * Timed goals use a score-band `TargetEnvelope`; goal-terminated goals use a
+ * time-band `PacingEnvelope`.
+ */
+export type BalanceEnvelope = TargetEnvelope | PacingEnvelope

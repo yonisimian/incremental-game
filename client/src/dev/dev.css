@@ -1425,3 +1425,71 @@ body {
 .q-hint {
   color: var(--dev-muted);
 }
+
+/* ─── Envelopes: one balance-pacing card per goal type ─────────────── */
+
+.ed-env-card {
+  border: 1px solid var(--dev-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--dev-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ed-env-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ed-env-title {
+  font-weight: 600;
+  color: var(--dev-accent);
+}
+
+.ed-env-cp-head,
+.ed-env-cp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.ed-env-cp-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dev-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ed-env-na {
+  color: var(--dev-muted);
+}
+
+.ed-env-scalars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.ed-env-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ed-env-field-label {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+}
+
+.ed-env-empty {
+  color: var(--dev-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+}

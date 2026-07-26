@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "Click Rush",
+  "mode": "idler",
+  "actions": [
+    { "kind": "buy", "upgradeId": "sc-unlock" },
+    { "kind": "set_click_rate", "resource": "r0", "cps": 20 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 5 },
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 8 },
+    { "kind": "buy", "upgradeId": "sc-mf-cp", "count": 3 },
+    { "kind": "buy", "upgradeId": "sc-pcps" },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 10 },
+    { "kind": "buy", "upgradeId": "sc-mf-cp", "count": 3 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 12 }
+  ]
+}

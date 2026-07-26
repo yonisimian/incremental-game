@@ -4,12 +4,14 @@ import type { ModeDefinition } from '@game/shared'
 import {
   actionSummary,
   cloneStrategy,
+  enumerationToQueue,
   generatorOptions,
   makeEmptyStrategy,
   moveAction,
   resourceOptions,
   upgradeOptions,
 } from '../src/dev/queue-model.js'
+import type { Strategy } from '../src/dev/strategies.js'
 
 function makeMode(): ModeDefinition {
   return {
@@ -135,5 +137,42 @@ describe('strategy helpers', () => {
     expect(s.actions.map((a) => (a.kind === 'buy' ? a.upgradeId : ''))).toEqual(['u1', 'u0'])
     moveAction(s, 0, 5) // out of range
     expect(s.actions.map((a) => (a.kind === 'buy' ? a.upgradeId : ''))).toEqual(['u1', 'u0'])
+  })
+})
+
+describe('enumerationToQueue', () => {
+  it('maps legacy buy / set_highlight actions 1:1 into a QueueStrategy', () => {
+    const legacy: Strategy = {
+      name: 'HL→u0',
+      actions: [
+        { type: 'set_highlight', highlight: 'r0' },
+        { type: 'buy', upgradeId: 'u0' },
+        { type: 'set_highlight', highlight: 'r1' },
+        { type: 'buy', upgradeId: 'u1' },
+      ],
+    }
+    expect(enumerationToQueue(legacy, 'idler')).toEqual({
+      version: 1,
+      name: 'HL→u0',
+      mode: 'idler',
+      actions: [
+        { kind: 'set_highlight', highlight: 'r0' },
+        { kind: 'buy', upgradeId: 'u0' },
+        { kind: 'set_highlight', highlight: 'r1' },
+        { kind: 'buy', upgradeId: 'u1' },
+      ],
+    })
+  })
+
+  it('skips malformed actions missing their required field', () => {
+    const legacy: Strategy = {
+      name: 'broken',
+      actions: [
+        { type: 'buy' }, // no upgradeId
+        { type: 'set_highlight' }, // no highlight
+        { type: 'buy', upgradeId: 'u0' },
+      ],
+    }
+    expect(enumerationToQueue(legacy, 'idler').actions).toEqual([{ kind: 'buy', upgradeId: 'u0' }])
   })
 })

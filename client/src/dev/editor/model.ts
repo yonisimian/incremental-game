@@ -7,7 +7,7 @@
  * mutable); `io.ts` is the only boundary that validates it against the schema.
  */
 
-import type { TreeFile, TreeUpgradeNode } from '@game/shared'
+import type { AuthoredEnvelope, BalanceFile, TreeFile, TreeUpgradeNode } from '@game/shared'
 import { ENEMY_DATA_RATE_SUFFIX, enemyDataResourceKey } from '@game/shared'
 
 /** A node's display-flavor entry, as stored in the mode flavor table. */
@@ -41,6 +41,11 @@ export interface PositionedNode {
 /** Deep-clone a tree file so the editor can mutate without touching the source. */
 export function cloneTree(tree: TreeFile): TreeFile {
   return structuredClone(tree)
+}
+
+/** Deep-clone a balance file so the editor can mutate without touching the source. */
+export function cloneBalance(balance: BalanceFile): BalanceFile {
+  return structuredClone(balance)
 }
 
 /**
@@ -390,7 +395,7 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
 // ─── Resources + generators ──────────────────────────────────────────
 //
 // Resources, generators, upgrades, effects, and flavor all cross-reference each
-// other (see plan 19). These helpers keep the working tree referentially valid
+// other. These helpers keep the working tree referentially valid
 // continuously: rename rewrites every reference, and delete is *blocked* (with a
 // human reason) while anything still points at the id, so the tree never needs a
 // repair pass. `io.ts`'s `assertLoadable` remains the final guard at export.
@@ -926,4 +931,149 @@ export function setAttackFlavor(
   entry.name = values.name
   entry.icon = values.icon
   entry.description = values.description
+}
+
+// ─── Envelopes ───────────────────────────────────────────────────────
+
+/** The goal type an envelope paces (its stable per-mode key). */
+export type EnvelopeGoalType = AuthoredEnvelope['goalType']
+
+/** The fields a checkpoint edit may touch (either kind's superset). */
+export type CheckpointPatch = Partial<{
+  timeSec: number
+  minScore: number
+  maxScore: number
+  atScore: number
+  minTimeSec: number
+  maxTimeSec: number
+  phase: string
+}>
+
+const ENVELOPE_GOAL_ORDER: readonly EnvelopeGoalType[] = ['timed', 'target-score', 'buy-upgrade']
+
+/** Authored envelopes, in declaration order. */
+export function listEnvelopes(balance: BalanceFile): AuthoredEnvelope[] {
+  return balance.envelopes
+}
+
+/**
+ * Goal types the mode offers a goal for but has no envelope for yet — the only
+ * legal `addEnvelope` targets (the runtime rejects an envelope whose goal type
+ * the mode never presents, and duplicates). The mode's goals come from `tree`;
+ * the existing envelopes from `balance`.
+ */
+export function addableEnvelopeGoalTypes(balance: BalanceFile, tree: TreeFile): EnvelopeGoalType[] {
+  const have = new Set(balance.envelopes.map((e) => e.goalType))
+  const goalTypes = new Set(tree.goals.map((g) => g.type))
+  return ENVELOPE_GOAL_ORDER.filter((t) => goalTypes.has(t) && !have.has(t))
+}
+
+/** Append a seeded envelope for `goalType`. Returns its goal-type key. */
+export function addEnvelope(balance: BalanceFile, goalType: EnvelopeGoalType): string {
+  if (goalType === 'timed') {
+    balance.envelopes.push({
+      goalType,
+      checkpoints: [{ timeSec: 10, minScore: 0, maxScore: 1000, phase: 'New phase' }],
+      minViableStrategies: 1,
+      maxStrategySpread: 10,
+    })
+  } else {
+    balance.envelopes.push({
+      goalType,
+      checkpoints: [
+        {
+          ...(goalType === 'target-score' ? { atScore: 100 } : {}),
+          minTimeSec: 0,
+          maxTimeSec: 60,
+          phase: 'New phase',
+        },
+      ],
+      minViableStrategies: 1,
+      maxTimeSpread: 10,
+    })
+  }
+  return goalType
+}
+
+/** Remove the envelope for `goalType` (no-op if absent). */
+export function removeEnvelope(balance: BalanceFile, goalType: EnvelopeGoalType): void {
+  balance.envelopes = balance.envelopes.filter((e) => e.goalType !== goalType)
+}
+
+function findEnvelope(
+  balance: BalanceFile,
+  goalType: EnvelopeGoalType,
+): AuthoredEnvelope | undefined {
+  return balance.envelopes.find((e) => e.goalType === goalType)
+}
+
+/** Set an envelope's `minViableStrategies`. No-op for an unknown goal type. */
+export function setEnvelopeMinViable(
+  balance: BalanceFile,
+  goalType: EnvelopeGoalType,
+  value: number,
+): void {
+  const env = findEnvelope(balance, goalType)
+  if (env) env.minViableStrategies = value
+}
+
+/**
+ * Set an envelope's spread tolerance — `maxStrategySpread` for the score-paced
+ * (`timed`) kind, `maxTimeSpread` for the time-paced kinds.
+ */
+export function setEnvelopeSpread(
+  balance: BalanceFile,
+  goalType: EnvelopeGoalType,
+  value: number,
+): void {
+  const env = findEnvelope(balance, goalType)
+  if (!env) return
+  if (env.goalType === 'timed') env.maxStrategySpread = value
+  else env.maxTimeSpread = value
+}
+
+/** Append a seeded checkpoint to `goalType`'s envelope. No-op if absent. */
+export function addCheckpoint(balance: BalanceFile, goalType: EnvelopeGoalType): void {
+  const env = findEnvelope(balance, goalType)
+  if (!env) return
+  if (env.goalType === 'timed') {
+    const last = env.checkpoints.at(-1)
+    env.checkpoints.push({
+      timeSec: last ? last.timeSec + 5 : 10,
+      minScore: 0,
+      maxScore: 1000,
+      phase: 'New phase',
+    })
+  } else {
+    const last = env.checkpoints.at(-1)
+    env.checkpoints.push({
+      ...(goalType === 'target-score'
+        ? { atScore: last?.atScore !== undefined ? last.atScore + 100 : 100 }
+        : {}),
+      minTimeSec: 0,
+      maxTimeSec: 60,
+      phase: 'New phase',
+    })
+  }
+}
+
+/** Remove checkpoint `index` from `goalType`'s envelope, keeping at least one. */
+export function removeCheckpoint(
+  balance: BalanceFile,
+  goalType: EnvelopeGoalType,
+  index: number,
+): void {
+  const env = findEnvelope(balance, goalType)
+  if (env && env.checkpoints.length > 1) env.checkpoints.splice(index, 1)
+}
+
+/** Patch fields on checkpoint `index` of `goalType`'s envelope. No-op if absent. */
+export function setCheckpointField(
+  balance: BalanceFile,
+  goalType: EnvelopeGoalType,
+  index: number,
+  patch: CheckpointPatch,
+): void {
+  const cp = findEnvelope(balance, goalType)?.checkpoints[index]
+  if (cp) Object.assign(cp, patch)
 }

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "Generator Turtle",
+  "mode": "idler",
+  "actions": [
+    { "kind": "buy", "upgradeId": "g1-g2" },
+    { "kind": "buy_generator", "generatorId": "g0", "count": 4 },
+    { "kind": "buy_generator", "generatorId": "g1", "count": 2 },
+    { "kind": "buy_generator", "generatorId": "g0", "count": 4 },
+    { "kind": "buy", "upgradeId": "g1-af", "count": 2 },
+    { "kind": "buy_generator", "generatorId": "g0", "count": 5 },
+    { "kind": "buy", "upgradeId": "g1-mf", "count": 2 },
+    { "kind": "buy_generator", "generatorId": "g1", "count": 3 },
+    { "kind": "buy_generator", "generatorId": "g0", "count": 6 }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "Highlight Clicker",
+  "mode": "idler",
+  "actions": [
+    { "kind": "buy", "upgradeId": "sh-unlock" },
+    { "kind": "set_highlight", "highlight": "r0" },
+    { "kind": "buy", "upgradeId": "sc-unlock" },
+    { "kind": "set_click_rate", "resource": "r0", "cps": 20 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 4 },
+    { "kind": "buy", "upgradeId": "sh-mf-hp", "count": 5 },
+    { "kind": "buy", "upgradeId": "be-af-mr", "count": 4 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 8 },
+    { "kind": "buy", "upgradeId": "sh-mf-hp", "count": 6 },
+    { "kind": "buy", "upgradeId": "sc-mf-cp", "count": 2 },
+    { "kind": "buy", "upgradeId": "sh-mf-hp", "count": 8 },
+    { "kind": "buy", "upgradeId": "sc-af-cp", "count": 10 }
+  ]
+}
