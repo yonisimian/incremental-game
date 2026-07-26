@@ -752,6 +752,13 @@ signal; (8b) effect-neutralized ablation + cost-normalized dominance; (8c)
 forced-use probe; (8d) pacing stats. Gate each against the acceptance test as it
 lands.
 
+> ✅ **8a done.** `shared/src/balance/metrics.ts` (`analyzeCoverage`, pure) +
+> `check-balance.ts --analyze` (non-gating). Unit-tested and gated against the
+> acceptance slice: on the idler corpus it independently flags the late
+> generators (`g2`, `g3`) as dead content and clicking as a mandatory mechanic —
+> reproducing the "generators can't ramp / click-dominated" debt documented by
+> hand in Phase 2, with no re-simulation and no engine change. 8b–8d pending.
+
 #### Deferred to future levers (explicitly _not_ Phase 8)
 
 Cut to avoid machinery that outweighs signal (this codebase's stated recurring

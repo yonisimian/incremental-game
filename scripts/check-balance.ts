@@ -17,6 +17,7 @@
  * Usage:
  *   tsx scripts/check-balance.ts            # validate; exit non-zero on failure
  *   tsx scripts/check-balance.ts --suggest  # also print suggested bands, never fail
+ *   tsx scripts/check-balance.ts --analyze  # also print coverage findings (non-gating)
  */
 
 import { readFileSync, readdirSync } from 'node:fs'
@@ -26,8 +27,10 @@ import { createRequire } from 'node:module'
 
 import {
   allEnvelopes,
+  analyzeCoverage,
   AVAILABLE_MODES,
   firstTimeAtScore,
+  getModeDefinition,
   isPacingEnvelope,
   loadBalance,
   loadTree,
@@ -37,6 +40,7 @@ import {
   validateEnvelope,
   validatePacing,
   type BalanceEnvelope,
+  type GameMode,
   type PacingCheckpoint,
   type PacingEnvelope,
   type QueueStrategy,
@@ -49,6 +53,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url))
 const STRATEGY_ROOT = join(ROOT, '..', 'shared', 'strategies')
 
 const SUGGEST = process.argv.includes('--suggest')
+const ANALYZE = process.argv.includes('--analyze')
 
 // Register every mode's tree, then its balance sidecar, before simulating. The
 // tree loads the mode (gameplay data); the sidecar registers its envelopes
@@ -105,6 +110,29 @@ function percentile(values: number[], p: number): number {
 
 function fmt(n: number): string {
   return n >= 100 ? Math.round(n).toString() : n.toFixed(1)
+}
+
+/**
+ * Print the non-gating coverage findings (Phase 8a): which mechanics no viable
+ * build uses (dead candidates) and which every viable build uses (mandatory).
+ */
+function printCoverage(mode: GameMode, results: SimResult[], viableNames: Set<string>): void {
+  const report = analyzeCoverage(getModeDefinition(mode), results, viableNames)
+  const dead = report.mechanics.filter((m) => m.finding === 'dead')
+  const mandatory = report.mechanics.filter((m) => m.finding === 'mandatory')
+  console.info(`  ── coverage (${report.viableCount} viable build(s), non-gating) ──`)
+  if (dead.length === 0 && mandatory.length === 0) {
+    console.info('     every mechanic is used by some-but-not-all viable builds')
+    return
+  }
+  for (const m of dead) {
+    console.info(`     dead       ${m.kind.padEnd(9)} ${m.id}  (0 viable builds use it)`)
+  }
+  for (const m of mandatory) {
+    console.info(
+      `     mandatory  ${m.kind.padEnd(9)} ${m.id}  (all ${report.viableCount} viable builds use it)`,
+    )
+  }
 }
 
 /** Print the observed P10/P90 spread per checkpoint as a suggested-bands block. */
@@ -170,6 +198,11 @@ function checkTimed(envelope: TargetEnvelope): boolean {
     console.info(`  ⚠ exploit candidates (exceed maxScore): ${report.exploitWarnings.join(', ')}`)
   }
 
+  if (ANALYZE) {
+    const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
+    printCoverage(envelope.mode, results, viableNames)
+  }
+
   if (SUGGEST) printSuggestion(envelope, results)
 
   return report.pass
@@ -201,6 +234,11 @@ function checkPacing(envelope: PacingEnvelope): boolean {
   }
   if (report.exploitWarnings.length > 0) {
     console.info(`  ⚠ exploit candidates (suspiciously fast): ${report.exploitWarnings.join(', ')}`)
+  }
+
+  if (ANALYZE) {
+    const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
+    printCoverage(envelope.mode, results, viableNames)
   }
 
   if (SUGGEST) printPacingSuggestion(envelope, results)
