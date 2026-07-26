@@ -775,6 +775,26 @@ lands.
 > high-ROI, which is correct per the ROI definition (they are intentionally cheap
 > must-buy gateways). 8c (forced-use probe) + 8d (pacing stats) pending.
 
+> ✅ **8d done.** `analyzePacing` in `metrics.ts` (pure, reads only
+> `events[]`/`snapshots[]` — no re-sim, no thresholds) + `check-balance.ts
+--analyze` pacing block. Per viable build it reports **decisions** (distinct
+> authored actions that fired), **time-to-first-action**, and **idle fraction**
+> (ticks with no action _and_ flat income). On the idler corpus it independently
+> surfaces that builds sit **77–98% idle** and the most passive builds make only
+> 2–3 decisions across a 35 s round — a concrete engagement signal for a
+> real-time competitive mode. `EngagementReport`/`EngagementRow` (named to avoid
+> the envelope `PacingReport`). 6 new tests.
+>
+> ⏸️ **8c (forced-use probe) deferred — see verdict below.** On the current
+> click-dominated corpus the probe's verdict collapses onto the click imbalance
+> that 8a/8b already flag: include clicking in the greedy tail and every dead
+> mechanic clears P10 ("fine, just unwritten"); exclude it and every economy
+> mechanic falls short ("underpowered") — either way the output is decided by
+> click, not by the mechanic under test. The promised orthogonal signal
+> (dead-because-weak vs dead-because-unwritten) only materializes once the click
+> imbalance is addressed, so building it now is machinery whose signal is swamped
+> by a known factor. Revisit after the click rebalance lands.
+
 #### Deferred to future levers (explicitly _not_ Phase 8)
 
 Cut to avoid machinery that outweighs signal (this codebase's stated recurring

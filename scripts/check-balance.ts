@@ -29,6 +29,7 @@ import {
   allEnvelopes,
   analyzeCoverage,
   analyzeDominance,
+  analyzePacing,
   AVAILABLE_MODES,
   firstTimeAtScore,
   getModeDefinition,
@@ -163,6 +164,20 @@ function printDominance(
   }
 }
 
+/** Print per-build engagement stats (decisions / first action / idle; non-gating). */
+function printPacing(results: SimResult[], viableNames: Set<string>): void {
+  const report = analyzePacing(results, viableNames)
+  if (report.rows.length === 0) return
+  console.info('  ── pacing (per viable build, non-gating) ──')
+  for (const r of report.rows) {
+    const ttfa = r.timeToFirstActionSec === null ? 'never' : `${fmt(r.timeToFirstActionSec)}s`
+    const idle = `${(r.idleFraction * 100).toFixed(0)}% idle`
+    console.info(
+      `     ${r.name.padEnd(34)} ${String(r.decisions).padStart(3)} decisions   1st @ ${ttfa.padStart(6)}   ${idle}`,
+    )
+  }
+}
+
 /** Print the observed P10/P90 spread per checkpoint as a suggested-bands block. */
 function printSuggestion(envelope: TargetEnvelope, results: SimResult[]): void {
   const scores = simResultsToScores(results, envelope)
@@ -230,6 +245,7 @@ function checkTimed(envelope: TargetEnvelope): boolean {
     const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
     printCoverage(envelope.mode, results, viableNames)
     printDominance(envelope.mode, strategies, results, viableNames, goal)
+    printPacing(results, viableNames)
   }
 
   if (SUGGEST) printSuggestion(envelope, results)
@@ -269,6 +285,7 @@ function checkPacing(envelope: PacingEnvelope): boolean {
     const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
     printCoverage(envelope.mode, results, viableNames)
     printDominance(envelope.mode, strategies, results, viableNames, goal)
+    printPacing(results, viableNames)
   }
 
   if (SUGGEST) printPacingSuggestion(envelope, results)

@@ -374,3 +374,71 @@ function firedClick(result: SimResult): boolean {
   }
   return false
 }
+
+// ─── Phase 8d: pacing / engagement stats ─────────────────────────────
+//
+// A build can sit inside the score envelope yet still be no fun — three cheap
+// reads over data the sim already emits catch the common failure modes:
+//
+//   - **decisions**: how many distinct authored actions actually fired. A build
+//     that makes three choices in a 35 s round is passive, not interactive.
+//   - **time-to-first-action**: a dead opening (nothing happening for the first
+//     several seconds) is unfun regardless of the final score.
+//   - **idle fraction**: the share of the run spent with no action firing *and*
+//     flat income — the player watching a number tick up with nothing to do.
+//
+// This is pure over `events[]` + `snapshots[]`; no re-simulation, no thresholds
+// to defend — it reports the numbers and lets the reader judge.
+
+/** Per-strategy engagement stats. */
+export interface EngagementRow {
+  readonly name: string
+  /** Distinct authored actions that fired (count-buys collapse to one decision). */
+  readonly decisions: number
+  /** Fire time of the first action, or `null` if the build never acted. */
+  readonly timeToFirstActionSec: number | null
+  /** Fraction of ticks with no action firing and flat total income (0..1). */
+  readonly idleFraction: number
+}
+
+/** The per-mode pacing report (viable builds only). */
+export interface EngagementReport {
+  readonly rows: readonly EngagementRow[]
+}
+
+/** Sum of a snapshot's per-resource income rates. */
+function totalIncome(snapshot: SimResult['snapshots'][number]): number {
+  let sum = 0
+  for (const rate of Object.values(snapshot.incomePerSec)) sum += rate
+  return sum
+}
+
+/**
+ * Engagement stats for every viable build. Pure: reads only the `events[]` and
+ * `snapshots[]` a `SimResult` already carries.
+ */
+export function analyzePacing(
+  results: readonly SimResult[],
+  viable: ReadonlySet<string>,
+): EngagementReport {
+  const rows = results
+    .filter((r) => viable.has(r.name))
+    .map((r): EngagementRow => {
+      const decisions = new Set(r.events.map((e) => e.index)).size
+      const timeToFirstActionSec =
+        r.events.length > 0 ? Math.min(...r.events.map((e) => e.timeSec)) : null
+
+      let idle = 0
+      let denom = 0
+      for (let i = 1; i < r.snapshots.length; i++) {
+        denom++
+        const s = r.snapshots[i]
+        const prev = r.snapshots[i - 1]
+        if (s.event === '' && totalIncome(s) === totalIncome(prev)) idle++
+      }
+      const idleFraction = denom > 0 ? idle / denom : 0
+
+      return { name: r.name, decisions, timeToFirstActionSec, idleFraction }
+    })
+  return { rows }
+}

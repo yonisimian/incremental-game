@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeCoverage,
   analyzeDominance,
+  analyzePacing,
   envelopeFor,
   getModeDefinition,
   neutralizeClick,
@@ -24,6 +25,7 @@ import type {
   SimGoal,
   SimResult,
   TargetEnvelope,
+  TickSnapshot,
 } from '../src/index.js'
 
 // The shared test setup (`setup.ts`) loads the idler tree + balance sidecar
@@ -386,5 +388,68 @@ describe('analyzeDominance — idler acceptance', () => {
     // score-equivalent conversion broke, the median would collapse to 0.
     expect(report.medianRoi).toBeGreaterThan(0)
     expect(Number.isFinite(report.medianRoi)).toBe(true)
+  })
+})
+
+// ─── Phase 8d: pacing / engagement stats ─────────────────────────────
+
+function snap(timeSec: number, income: number, event = ''): TickSnapshot {
+  return { tick: timeSec, timeSec, score: 0, resources: {}, incomePerSec: { r0: income }, event }
+}
+
+function pacingEvent(index: number, timeSec: number): SimEvent {
+  return { timeSec, index, kind: 'buy', label: 'buy:u0' }
+}
+
+function pacingResult(name: string, events: SimEvent[], snapshots: TickSnapshot[]): SimResult {
+  return {
+    name,
+    mode: 'idler',
+    snapshots,
+    finalScore: 0,
+    events,
+    notReached: [],
+    goalReached: true,
+  }
+}
+
+describe('analyzePacing', () => {
+  it('counts distinct authored actions as decisions (count-buys collapse to one)', () => {
+    // Three events, but only two distinct action indices → two decisions.
+    const events = [pacingEvent(0, 1), pacingEvent(1, 2), pacingEvent(1, 3)]
+    const report = analyzePacing([pacingResult('A', events, [])], new Set(['A']))
+    expect(report.rows[0].decisions).toBe(2)
+  })
+
+  it('reports the first action time, or null when the build never acts', () => {
+    const acted = analyzePacing(
+      [pacingResult('A', [pacingEvent(0, 5), pacingEvent(1, 2)], [])],
+      new Set(['A']),
+    )
+    expect(acted.rows[0].timeToFirstActionSec).toBe(2)
+
+    const idle = analyzePacing([pacingResult('B', [], [])], new Set(['B']))
+    expect(idle.rows[0].timeToFirstActionSec).toBeNull()
+  })
+
+  it('measures idle fraction as ticks with no action and flat income', () => {
+    // Ticks: [1@flat-idle], [buy → not idle], [2@flat-idle]. denom 3, idle 2.
+    const snapshots = [snap(0, 1), snap(1, 1), snap(2, 2, 'buy:u0'), snap(3, 2)]
+    const report = analyzePacing([pacingResult('A', [], snapshots)], new Set(['A']))
+    expect(report.rows[0].idleFraction).toBeCloseTo(2 / 3, 5)
+  })
+
+  it('does not count a growing-income tick as idle even without an action', () => {
+    const snapshots = [snap(0, 1), snap(1, 5)]
+    const report = analyzePacing([pacingResult('A', [], snapshots)], new Set(['A']))
+    expect(report.rows[0].idleFraction).toBe(0)
+  })
+
+  it('includes only viable builds', () => {
+    const report = analyzePacing(
+      [pacingResult('A', [], []), pacingResult('B', [], [])],
+      new Set(['A']),
+    )
+    expect(report.rows.map((r) => r.name)).toEqual(['A'])
   })
 })
