@@ -78,6 +78,15 @@ function downloadBlob(text: string, filename: string): void {
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  // The anchor must be in the DOM for a programmatic click to trigger the
+  // download in Firefox; Chrome tolerates a detached node but this is safe.
+  a.style.display = 'none'
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Defer revocation: the browser reads the blob asynchronously after click(),
+  // so revoking synchronously here can truncate or empty the downloaded file.
+  setTimeout(() => {
+    URL.revokeObjectURL(url)
+  }, 10_000)
 }

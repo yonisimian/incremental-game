@@ -31,6 +31,9 @@ export { saveStrategyToFile }
 export async function loadStrategyFromFile(): Promise<QueueStrategy | null> {
   const text = await pickFileText()
   if (text === null) return null
+  if (text.trim() === '') {
+    throw new Error('File is empty — the export may have been interrupted; try exporting again.')
+  }
   return parseStrategy(JSON.parse(text))
 }
 
