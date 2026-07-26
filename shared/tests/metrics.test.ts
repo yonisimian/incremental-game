@@ -6,14 +6,25 @@ import { describe, expect, it } from 'vitest'
 
 import {
   analyzeCoverage,
+  analyzeDominance,
   envelopeFor,
   getModeDefinition,
+  neutralizeClick,
+  neutralizeMechanic,
   parseStrategy,
   simResultsToScores,
   simulate,
   validateEnvelope,
 } from '../src/index.js'
-import type { ModeDefinition, SimEvent, SimResult, TargetEnvelope } from '../src/index.js'
+import type {
+  ModeDefinition,
+  QueueStrategy,
+  SimAction,
+  SimEvent,
+  SimGoal,
+  SimResult,
+  TargetEnvelope,
+} from '../src/index.js'
 
 // The shared test setup (`setup.ts`) loads the idler tree + balance sidecar
 // before any test runs, so `getModeDefinition` / `envelopeFor` resolve here.
@@ -112,12 +123,15 @@ describe('analyzeCoverage — set membership', () => {
 // This test proves 8a's slice of that: dead generators + mandatory clicking.
 
 function idlerTimedCorpus(): {
+  strategies: QueueStrategy[]
   results: SimResult[]
   viable: Set<string>
   envelope: TargetEnvelope
+  goal: SimGoal
 } {
   const envelope = envelopeFor('idler', 'timed') as TargetEnvelope
   const durationSec = envelope.checkpoints[envelope.checkpoints.length - 1].timeSec
+  const goal: SimGoal = { kind: 'timed', durationSec }
 
   const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'strategies', 'idler')
   const strategies = readdirSync(dir)
@@ -125,11 +139,11 @@ function idlerTimedCorpus(): {
     .sort()
     .map((f) => parseStrategy(JSON.parse(readFileSync(join(dir, f), 'utf8'))))
 
-  const results = strategies.map((s) => simulate(s, { goal: { kind: 'timed', durationSec } }))
+  const results = strategies.map((s) => simulate(s, { goal }))
   const scores = simResultsToScores(results, envelope)
   const report = validateEnvelope(envelope, scores, scores)
   const viable = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
-  return { results, viable, envelope }
+  return { strategies, results, viable, envelope, goal }
 }
 
 describe('analyzeCoverage — idler acceptance', () => {
@@ -164,5 +178,213 @@ describe('analyzeCoverage — idler acceptance', () => {
       (m) => m.kind === 'generator' && m.finding === 'dead',
     )
     expect(deadGenerators.length).toBeGreaterThan(0)
+  })
+})
+
+// ─── Phase 8b: neutralization transforms (pure) ──────────────────────
+
+describe('neutralizeMechanic / neutralizeClick', () => {
+  const domMode = {
+    scoreResource: 'r0',
+    clicksEnabled: true,
+    upgrades: [{ id: 'u0', cost: { r0: { baseCost: 1 } }, effects: [{ type: 'boost' }] }],
+    generators: [
+      { id: 'g0', cost: { r1: { baseCost: 5 } }, production: { resource: 'r0', rate: 7 } },
+    ],
+  } as unknown as ModeDefinition
+
+  it('strips an upgrade\u2019s effects while leaving cost and prereqs intact', () => {
+    const out = neutralizeMechanic(domMode, { kind: 'upgrade', id: 'u0' })
+    expect(out.upgrades[0].effects).toEqual([])
+    expect(out.upgrades[0].cost).toEqual(domMode.upgrades[0].cost)
+    // original is untouched (pure clone)
+    expect(domMode.upgrades[0].effects).toHaveLength(1)
+  })
+
+  it('zeroes a generator\u2019s production rate while leaving cost intact', () => {
+    const out = neutralizeMechanic(domMode, { kind: 'generator', id: 'g0' })
+    expect(out.generators[0].production.rate).toBe(0)
+    expect(out.generators[0].cost).toEqual(domMode.generators[0].cost)
+    expect(domMode.generators[0].production.rate).toBe(7)
+  })
+
+  it('returns the mode unchanged for a click ref (not a mode-level mechanic)', () => {
+    expect(neutralizeMechanic(domMode, { kind: 'click', id: 'click' })).toBe(domMode)
+  })
+
+  it('drops every set_click_rate action from a strategy', () => {
+    const strat = {
+      version: 1,
+      name: 'S',
+      mode: 'idler',
+      actions: [
+        { kind: 'buy', upgradeId: 'u0' },
+        { kind: 'set_click_rate', cps: 8 },
+      ],
+    } as unknown as QueueStrategy
+    const out = neutralizeClick(strat)
+    expect(out.actions.some((a) => a.kind === 'set_click_rate')).toBe(false)
+    expect(out.actions).toHaveLength(1)
+    // original untouched
+    expect(strat.actions).toHaveLength(2)
+  })
+})
+
+// ─── Phase 8b: dominance unit tests ──────────────────────────────────
+//
+// A controlled fixture: a single build buys a set of upgrades (and optionally
+// clicks). `resim` fakes the engine — it detects which mechanic the analyzer
+// neutralized (the upgrade whose `effects` were emptied, or the missing
+// `set_click_rate`) and subtracts that mechanic's configured contribution from
+// the base score. All costs are in the score resource with a flat curve and a
+// score income rate of 1, so `costScoreEquiv` is exactly `cost * levels`.
+
+interface UpgradeSpec {
+  cost: number
+  contribution: number
+  levels?: number
+}
+
+function dominanceFixture(spec: {
+  base: number
+  clickContribution?: number
+  upgrades: Record<string, UpgradeSpec>
+}): {
+  mode: ModeDefinition
+  strategies: QueueStrategy[]
+  baseline: SimResult[]
+  viable: Set<string>
+  resim: (s: QueueStrategy, m: ModeDefinition) => SimResult
+} {
+  const mode = {
+    scoreResource: 'r0',
+    clicksEnabled: spec.clickContribution !== undefined,
+    upgrades: Object.entries(spec.upgrades).map(([id, u]) => ({
+      id,
+      cost: { r0: { baseCost: u.cost } },
+      effects: [{ type: 'boost' }],
+    })),
+    generators: [],
+  } as unknown as ModeDefinition
+
+  const events: SimEvent[] = []
+  for (const [id, u] of Object.entries(spec.upgrades)) {
+    for (let i = 0; i < (u.levels ?? 1); i++) events.push(ev('buy', `buy:${id}`))
+  }
+  const actions: SimAction[] = Object.keys(spec.upgrades).map((id) => ({
+    kind: 'buy',
+    upgradeId: id,
+  }))
+  if (spec.clickContribution !== undefined) {
+    events.push(ev('set_click_rate', 'click:8'))
+    actions.push({ kind: 'set_click_rate', cps: 8 })
+  }
+
+  const strategy = { version: 1, name: 'S', mode: 'idler', actions } as unknown as QueueStrategy
+  const baseline: SimResult = {
+    name: 'S',
+    mode: 'idler',
+    snapshots: [
+      { tick: 0, timeSec: 1, score: 0, resources: {}, incomePerSec: { r0: 1 }, event: '' },
+    ],
+    finalScore: spec.base,
+    events,
+    notReached: [],
+    goalReached: true,
+  }
+
+  const resim = (s: QueueStrategy, m: ModeDefinition): SimResult => {
+    let score = spec.base
+    const clickGone =
+      spec.clickContribution !== undefined && !s.actions.some((a) => a.kind === 'set_click_rate')
+    if (clickGone) score -= spec.clickContribution ?? 0
+    const neutralized = m.upgrades.find((u) => (u.effects?.length ?? 0) === 0)
+    if (neutralized) score -= spec.upgrades[neutralized.id].contribution
+    return { ...baseline, finalScore: score }
+  }
+
+  return { mode, strategies: [strategy], baseline: [baseline], viable: new Set(['S']), resim }
+}
+
+describe('analyzeDominance — cost-normalized ROI', () => {
+  it('flags a free mechanic with positive contribution as overpowered (infinite ROI)', () => {
+    const f = dominanceFixture({
+      base: 1000,
+      clickContribution: 300,
+      upgrades: { u0: { cost: 100, contribution: 100 } },
+    })
+    const report = analyzeDominance(f.mode, f.strategies, f.baseline, f.viable, f.resim)
+    const click = report.rows.find((r) => r.id === 'click')
+    expect(click?.finding).toBe('overpowered')
+    expect(click?.roi).toBe(Infinity)
+    expect(click?.costScoreEquiv).toBe(0)
+  })
+
+  it('flags a costed mechanic whose ROI dwarfs the corpus median', () => {
+    // u0: cost 1, contributes 100 → ROI 100; u1/u2: cost 100, contributes 100 → ROI 1.
+    // median ROI = 1, threshold 3× = 3, so only u0 is overpowered.
+    const f = dominanceFixture({
+      base: 1000,
+      upgrades: {
+        u0: { cost: 1, contribution: 100 },
+        u1: { cost: 100, contribution: 100 },
+        u2: { cost: 100, contribution: 100 },
+      },
+    })
+    const report = analyzeDominance(f.mode, f.strategies, f.baseline, f.viable, f.resim)
+    expect(report.rows.find((r) => r.id === 'u0')?.finding).toBe('overpowered')
+    expect(report.rows.find((r) => r.id === 'u1')?.finding).toBe('fine')
+    expect(report.medianRoi).toBe(1)
+  })
+
+  it('does not flag a load-bearing but fairly priced mechanic', () => {
+    // Highest raw contribution, but its ROI sits at the median → correct design.
+    const f = dominanceFixture({
+      base: 1000,
+      upgrades: {
+        u0: { cost: 500, contribution: 500 },
+        u1: { cost: 100, contribution: 100 },
+        u2: { cost: 100, contribution: 100 },
+      },
+    })
+    const report = analyzeDominance(f.mode, f.strategies, f.baseline, f.viable, f.resim)
+    const u0 = report.rows.find((r) => r.id === 'u0')
+    expect(u0?.finding).toBe('fine')
+    // ...but it does carry the largest share of contribution.
+    expect(u0?.share).toBeGreaterThan(0.5)
+  })
+
+  it('floors contribution at zero when neutralization raises the score', () => {
+    const f = dominanceFixture({
+      base: 1000,
+      upgrades: { u0: { cost: 10, contribution: -50 } },
+    })
+    const report = analyzeDominance(f.mode, f.strategies, f.baseline, f.viable, f.resim)
+    const u0 = report.rows.find((r) => r.id === 'u0')
+    expect(u0?.contribution).toBe(0)
+    expect(u0?.finding).toBe('fine')
+  })
+})
+
+// ─── Phase 8b acceptance: rediscover click-domination on the idler corpus ──
+
+describe('analyzeDominance — idler acceptance', () => {
+  const { strategies, results, viable, goal } = idlerTimedCorpus()
+  const report = analyzeDominance(getModeDefinition('idler'), strategies, results, viable, (s, m) =>
+    simulate(s, { modeDef: m, goal }),
+  )
+
+  it('flags clicking as overpowered — it is free, so any contribution is infinite ROI', () => {
+    const click = report.rows.find((r) => r.id === 'click')
+    expect(click?.finding).toBe('overpowered')
+    expect(click?.roi).toBe(Infinity)
+    expect(click?.contribution).toBeGreaterThan(0)
+  })
+
+  it('measures a real, cost-normalized ROI for the costed corpus (median is finite)', () => {
+    // Guards the ROI machinery end-to-end: if cost reconstruction or the
+    // score-equivalent conversion broke, the median would collapse to 0.
+    expect(report.medianRoi).toBeGreaterThan(0)
+    expect(Number.isFinite(report.medianRoi)).toBe(true)
   })
 })

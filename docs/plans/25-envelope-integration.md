@@ -759,6 +759,22 @@ lands.
 > reproducing the "generators can't ramp / click-dominated" debt documented by
 > hand in Phase 2, with no re-simulation and no engine change. 8b–8d pending.
 
+> ✅ **8b done.** `analyzeDominance` in `metrics.ts` (pure, engine-agnostic via
+> an injected re-sim callback) + `neutralizeMechanic` / `neutralizeClick`
+> transforms + `check-balance.ts --analyze` dominance block. Ablation is
+> **effect-neutralization** (strip an upgrade's `effects`, zero a generator's
+> production rate, drop a strategy's `set_click_rate`), never action-removal, so
+> prerequisites stay satisfied. Contribution = sum of positive per-build score
+> deltas; ROI = contribution ÷ score-equivalent cost (non-score currencies valued
+> by opportunity cost from each resource's mean positive earn rate). A free
+> mechanic with positive contribution has infinite ROI; a costed mechanic ≥3× the
+> corpus-median ROI is flagged. Gated against the acceptance slice: on the idler
+> corpus it independently flags **clicking as overpowered** (free, ~28% of total
+> contribution) across all three envelopes — reproducing the click-domination
+> debt. Note: cheap gating upgrades (`sc-unlock`, `sh-unlock`) also surface as
+> high-ROI, which is correct per the ROI definition (they are intentionally cheap
+> must-buy gateways). 8c (forced-use probe) + 8d (pacing stats) pending.
+
 #### Deferred to future levers (explicitly _not_ Phase 8)
 
 Cut to avoid machinery that outweighs signal (this codebase's stated recurring

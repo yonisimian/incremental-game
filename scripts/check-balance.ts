@@ -28,6 +28,7 @@ import { createRequire } from 'node:module'
 import {
   allEnvelopes,
   analyzeCoverage,
+  analyzeDominance,
   AVAILABLE_MODES,
   firstTimeAtScore,
   getModeDefinition,
@@ -135,6 +136,33 @@ function printCoverage(mode: GameMode, results: SimResult[], viableNames: Set<st
   }
 }
 
+/** Print cost-normalized dominance findings (overpowered mechanics; non-gating). */
+function printDominance(
+  mode: GameMode,
+  strategies: QueueStrategy[],
+  results: SimResult[],
+  viableNames: Set<string>,
+  goal: SimGoal,
+): void {
+  const modeDef = getModeDefinition(mode)
+  const report = analyzeDominance(modeDef, strategies, results, viableNames, (s, m) =>
+    simulate(s, { modeDef: m, goal }),
+  )
+  const overpowered = report.rows.filter((r) => r.finding === 'overpowered')
+  console.info(
+    `  ── dominance (median ROI ${fmt(report.medianRoi)}, flag ≥${report.roiMultiple}×, non-gating) ──`,
+  )
+  if (overpowered.length === 0) {
+    console.info('     no mechanic dominates its price')
+    return
+  }
+  for (const r of overpowered) {
+    const roi = r.roi === Infinity ? 'free' : `ROI ${fmt(r.roi)}`
+    const share = `${(r.share * 100).toFixed(0)}% of contribution`
+    console.info(`     overpowered ${r.kind.padEnd(9)} ${r.id}  (${roi}, ${share})`)
+  }
+}
+
 /** Print the observed P10/P90 spread per checkpoint as a suggested-bands block. */
 function printSuggestion(envelope: TargetEnvelope, results: SimResult[]): void {
   const scores = simResultsToScores(results, envelope)
@@ -201,6 +229,7 @@ function checkTimed(envelope: TargetEnvelope): boolean {
   if (ANALYZE) {
     const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
     printCoverage(envelope.mode, results, viableNames)
+    printDominance(envelope.mode, strategies, results, viableNames, goal)
   }
 
   if (SUGGEST) printSuggestion(envelope, results)
@@ -239,6 +268,7 @@ function checkPacing(envelope: PacingEnvelope): boolean {
   if (ANALYZE) {
     const viableNames = new Set(report.strategies.filter((s) => s.viable).map((s) => s.name))
     printCoverage(envelope.mode, results, viableNames)
+    printDominance(envelope.mode, strategies, results, viableNames, goal)
   }
 
   if (SUGGEST) printPacingSuggestion(envelope, results)
