@@ -159,7 +159,7 @@ export type EffectOutput =
  *
  * The schema is the single source of truth for an effect's param shape: the
  * registry validates raw refs against it (so malformed data is rejected at the
- * trust boundary), and the Phase 6 editor can introspect it to generate a form.
+ * trust boundary), and the dev editor can introspect it to generate a form.
  */
 export interface EffectDef<P> {
   /**

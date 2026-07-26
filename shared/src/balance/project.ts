@@ -1,8 +1,7 @@
 /**
  * Projections from raw simulation output to the minimal shapes the envelope
  * validators consume. Pure and DOM-free so both the dev panel (browser) and the
- * CI balance script (Node) share one implementation — see
- * docs/plans/24-envelope-integration.md (phase 1).
+ * CI balance script (Node) share one implementation.
  */
 
 import type { SimGoal, SimResult } from '../simulation/simulate.js'

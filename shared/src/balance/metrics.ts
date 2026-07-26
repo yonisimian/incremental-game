@@ -1,11 +1,14 @@
 /**
- * Mechanic balance detector — Phase 8a: coverage / mandatory set-membership.
+ * Mechanic balance detector — coverage, dominance, and pacing signals.
  *
- * See docs/plans/25-envelope-integration.md (Phase 8). This is the smallest,
- * highest-certainty signal in the detector: a pure, binary set-membership read
- * over a mode's authored strategy corpus. For each mechanic (upgrade, generator,
- * or the click action) it reports the set of **viable** strategies that actually
- * fired it during their run, and flags the two extremes:
+ * Three layered reads: coverage (this section) is the smallest, highest-certainty
+ * read — a pure, binary set-membership over a mode's authored strategy corpus;
+ * dominance (cost-normalized ablation ROI) answers "too good for its price?";
+ * pacing answers "is the build ever idle-starved?".
+ *
+ * Coverage: for each mechanic (upgrade, generator, or the click action) it
+ * reports the set of **viable** strategies that actually fired it during their
+ * run, and flags the two extremes:
  *
  *   - used by **zero** viable builds  → `dead` (candidate dead content)
  *   - used by **every** viable build  → `mandatory` (boring-required or auto-OP)
@@ -14,8 +17,8 @@
  * upstream by the same envelope validators the balance gate already runs; this
  * module just takes the viable name set. It is engine-agnostic: it reads only the
  * `events[]` a `SimResult` already carries, so it needs no re-simulation and no
- * registry access. The forced-use probe that distinguishes a *corpus* gap from a
- * genuine *content* gap is Phase 8c, layered on top of this.
+ * registry access. A forced-use probe that distinguishes a *corpus* gap from a
+ * genuine *content* gap could layer on top of this, but is not yet built.
  */
 
 import { scaledCost } from '../cost.js'
@@ -111,7 +114,7 @@ export function analyzeCoverage(
   return { viableCount, mechanics }
 }
 
-// ─── Phase 8b: effect-neutralized ablation + cost-normalized dominance ──────
+// ─── Effect-neutralized ablation + cost-normalized dominance ────────────────
 //
 // Coverage (8a) answers "does anyone use this?"; dominance answers "is it too
 // good for its price?". We measure a mechanic's *contribution* by ablation —
@@ -136,8 +139,16 @@ export interface MechanicRef {
   readonly id: string
 }
 
-/** The dominance finding for a single mechanic. */
-export type DominanceFinding = 'overpowered' | 'fine'
+/**
+ * The dominance finding for a single mechanic.
+ *
+ * `gateway` marks an upgrade whose effects include a **sim-reachability gate**
+ * (`systemUnlock` / `generatorUnlock`): neutralizing it doesn't just zero its
+ * own production, it disables the entire subsystem it unlocks, so the measured
+ * ablation contribution absorbs that subsystem's whole value. Such nodes are
+ * excluded from the ROI ranking (their ROI is not a meaningful price signal).
+ */
+export type DominanceFinding = 'overpowered' | 'gateway' | 'fine'
 
 /** Dominance of one mechanic across the viable corpus. */
 export interface DominanceRow {
@@ -167,6 +178,24 @@ export interface DominanceReport {
 
 /** Injected re-simulation hook: run `strategy` against `mode`, return the result. */
 export type ResimFn = (strategy: QueueStrategy, mode: ModeDefinition) => SimResult
+
+/**
+ * Effect types that gate **sim reachability** rather than production: an upgrade
+ * carrying one of these unlocks a whole subsystem the simulation reads
+ * (`systemUnlock` → the click/highlight input systems, consulted by
+ * `isSystemUnlocked`; `generatorUnlock` → a generator's purchasability,
+ * consulted by `isGeneratorUnlocked`). Ablating such a node by stripping its
+ * effects also strips the gate, so its measured contribution is contaminated by
+ * everything it unlocks. `panelUnlock` is intentionally absent: it gates only UI
+ * panels, never a sim buy, so neutralizing it doesn't change simulated income.
+ */
+const SIM_GATE_EFFECT_TYPES: ReadonlySet<string> = new Set(['systemUnlock', 'generatorUnlock'])
+
+/** Whether `upgradeId` carries a sim-reachability gate (see {@link SIM_GATE_EFFECT_TYPES}). */
+function isGatewayUpgrade(mode: ModeDefinition, upgradeId: string): boolean {
+  const upgrade = mode.upgrades.find((u) => u.id === upgradeId)
+  return (upgrade?.effects ?? []).some((e) => SIM_GATE_EFFECT_TYPES.has(e.type))
+}
 
 /**
  * Clone `mode` with the mechanic's production contribution neutralized: an
@@ -278,6 +307,12 @@ function median(values: readonly number[]): number {
  * positive contribution has infinite ROI; a costed mechanic whose ROI is at
  * least `roiMultiple`× the corpus median is flagged overpowered.
  *
+ * Upgrades that carry a sim-reachability gate (see {@link isGatewayUpgrade}) are
+ * classified `gateway` and skipped for ablation: neutralizing them would strip
+ * the gate and mis-attribute a whole subsystem's value to one cheap node. They
+ * are kept as informational rows (users/cost only) but never ranked, so they
+ * distort neither the median nor the overpowered flag.
+ *
  * @param strategies The corpus strategies (needed to re-simulate); matched to
  *   `baseline` by name.
  * @param baseline The un-ablated results (source of the reference score + events).
@@ -313,8 +348,10 @@ export function analyzeDominance(
     users: number
     contribution: number
     cost: number
+    gateway: boolean
   }
   const raws: Raw[] = refs.map((ref) => {
+    const gateway = ref.kind === 'upgrade' && isGatewayUpgrade(mode, ref.id)
     let contribution = 0
     let cost = 0
     let users = 0
@@ -324,11 +361,15 @@ export function analyzeDominance(
       const used = ref.kind === 'click' ? firedClick(base) : countUses(base, ref.id) > 0
       if (!used) continue
       users++
-      const ablated =
-        ref.kind === 'click'
-          ? resim(neutralizeClick(strat), mode)
-          : resim(strat, neutralizeMechanic(mode, ref))
-      contribution += Math.max(0, base.finalScore - ablated.finalScore)
+      // Gateways carry a sim-reachability gate: ablating them strips the gate and
+      // mis-attributes a whole subsystem's value, so leave contribution at 0.
+      if (!gateway) {
+        const ablated =
+          ref.kind === 'click'
+            ? resim(neutralizeClick(strat), mode)
+            : resim(strat, neutralizeMechanic(mode, ref))
+        contribution += Math.max(0, base.finalScore - ablated.finalScore)
+      }
       if (ref.kind !== 'click') {
         const entry = costOf.get(ref.id)
         if (entry)
@@ -339,7 +380,7 @@ export function analyzeDominance(
           )
       }
     }
-    return { ref, users, contribution, cost }
+    return { ref, users, contribution, cost, gateway }
   })
 
   const totalPositive = raws.reduce((s, r) => s + Math.max(0, r.contribution), 0)
@@ -351,7 +392,9 @@ export function analyzeDominance(
   const rows: DominanceRow[] = raws.map((r) => {
     const roi = r.cost > 0 ? r.contribution / r.cost : r.contribution > 0 ? Infinity : 0
     const overpowered =
-      r.contribution > 0 && (roi === Infinity || (med > 0 && roi >= roiMultiple * med))
+      !r.gateway &&
+      r.contribution > 0 &&
+      (roi === Infinity || (med > 0 && roi >= roiMultiple * med))
     return {
       id: r.ref.id,
       kind: r.ref.kind,
@@ -360,7 +403,7 @@ export function analyzeDominance(
       share: totalPositive > 0 ? Math.max(0, r.contribution) / totalPositive : 0,
       costScoreEquiv: r.cost,
       roi,
-      finding: overpowered ? 'overpowered' : 'fine',
+      finding: r.gateway ? 'gateway' : overpowered ? 'overpowered' : 'fine',
     }
   })
 
@@ -375,7 +418,7 @@ function firedClick(result: SimResult): boolean {
   return false
 }
 
-// ─── Phase 8d: pacing / engagement stats ─────────────────────────────
+// ─── Pacing / engagement stats ───────────────────────────────────────
 //
 // A build can sit inside the score envelope yet still be no fun — three cheap
 // reads over data the sim already emits catch the common failure modes:

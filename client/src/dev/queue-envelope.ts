@@ -1,13 +1,12 @@
 /**
  * Envelope verdict for the Queue tab — resolves the target envelope for the
  * active mode + goal, projects the run's scores onto its checkpoints, and renders
- * a PASS/FAIL verdict with a per-strategy breakdown. See
- * docs/plans/24-envelope-integration.md (phase 3).
+ * a PASS/FAIL verdict with a per-strategy breakdown.
  *
- * Perfect-timing only (D1): the shared `simulate()` has no highlight-delay
- * variant, so both arms of `validateEnvelope` receive the same projection — the
- * verdict reflects ideal play. Score / race goals resolve to a `PacingEnvelope`,
- * evaluated in phase 6; until then they fall through to the empty state.
+ * Perfect-timing only: the shared `simulate()` has no highlight-delay variant, so
+ * both arms of `validateEnvelope` receive the same projection — the verdict
+ * reflects ideal play. Score / race goals resolve to a `PacingEnvelope`; until
+ * that is evaluated they fall through to the empty state.
  */
 
 import {

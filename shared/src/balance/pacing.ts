@@ -2,8 +2,7 @@
  * Pacing-envelope validation — the time-axis mirror of `validateEnvelope`. For
  * goal-terminated goals (target-score / buy-upgrade) a run stops at a variable
  * time, so the meaningful question is "how long did reaching the milestone
- * take?" rather than "what score at time T?". See
- * docs/plans/24-envelope-integration.md (phase 6).
+ * take?" rather than "what score at time T?".
  */
 
 import { firstTimeAtScore } from './project.js'

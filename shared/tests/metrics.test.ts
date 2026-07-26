@@ -119,10 +119,10 @@ describe('analyzeCoverage — set membership', () => {
 
 // ─── Acceptance: reproduce idler's documented debt ───────────────────
 //
-// Phase 8's go/no-go is that, run against the authored corpus, the detector
-// independently rediscovers what we already know by hand (plan 25, Phase 2):
-// generators can't ramp in the round (dead content) and clicking dominates.
-// This test proves 8a's slice of that: dead generators + mandatory clicking.
+// The go/no-go is that, run against the authored corpus, the detector
+// independently rediscovers what we already know by hand: generators can't ramp
+// in the round (dead content) and clicking dominates. This test proves the
+// coverage slice of that: dead generators + mandatory clicking.
 
 function idlerTimedCorpus(): {
   strategies: QueueStrategy[]
@@ -183,7 +183,7 @@ describe('analyzeCoverage — idler acceptance', () => {
   })
 })
 
-// ─── Phase 8b: neutralization transforms (pure) ──────────────────────
+// ─── Neutralization transforms (pure) ────────────────────────────────
 
 describe('neutralizeMechanic / neutralizeClick', () => {
   const domMode = {
@@ -232,7 +232,7 @@ describe('neutralizeMechanic / neutralizeClick', () => {
   })
 })
 
-// ─── Phase 8b: dominance unit tests ──────────────────────────────────
+// ─── Dominance unit tests ─────────────────────────────────────────────
 //
 // A controlled fixture: a single build buys a set of upgrades (and optionally
 // clicks). `resim` fakes the engine — it detects which mechanic the analyzer
@@ -245,6 +245,8 @@ interface UpgradeSpec {
   cost: number
   contribution: number
   levels?: number
+  /** Carry a sim-reachability gate (`systemUnlock`) so the upgrade is a gateway. */
+  gate?: boolean
 }
 
 function dominanceFixture(spec: {
@@ -264,7 +266,7 @@ function dominanceFixture(spec: {
     upgrades: Object.entries(spec.upgrades).map(([id, u]) => ({
       id,
       cost: { r0: { baseCost: u.cost } },
-      effects: [{ type: 'boost' }],
+      effects: u.gate ? [{ type: 'systemUnlock', system: 'click' }] : [{ type: 'boost' }],
     })),
     generators: [],
   } as unknown as ModeDefinition
@@ -366,9 +368,30 @@ describe('analyzeDominance — cost-normalized ROI', () => {
     expect(u0?.contribution).toBe(0)
     expect(u0?.finding).toBe('fine')
   })
+
+  it('classifies a sim-reachability gate as `gateway` and excludes it from the ranking', () => {
+    // The gate would look infinitely overpowered under naive ablation (huge
+    // contribution, near-free), but neutralizing it strips a whole subsystem's
+    // gate rather than its own production — so it must not pollute the ranking.
+    const f = dominanceFixture({
+      base: 1000,
+      upgrades: {
+        u0: { cost: 1, contribution: 100 },
+        gate: { cost: 1, contribution: 900, gate: true },
+      },
+    })
+    const report = analyzeDominance(f.mode, f.strategies, f.baseline, f.viable, f.resim)
+    const gate = report.rows.find((r) => r.id === 'gate')
+    expect(gate?.finding).toBe('gateway')
+    expect(gate?.contribution).toBe(0) // ablation is skipped for gateways
+    expect(gate?.users).toBe(1) // ...but it is still counted as used
+    // The gateway neither distorts the median nor gets flagged overpowered.
+    expect(report.rows.find((r) => r.id === 'u0')?.finding).not.toBe('gateway')
+    expect(report.medianRoi).toBe(100)
+  })
 })
 
-// ─── Phase 8b acceptance: rediscover click-domination on the idler corpus ──
+// ─── Acceptance: rediscover click-domination on the idler corpus ──────────
 
 describe('analyzeDominance — idler acceptance', () => {
   const { strategies, results, viable, goal } = idlerTimedCorpus()
@@ -389,9 +412,19 @@ describe('analyzeDominance — idler acceptance', () => {
     expect(report.medianRoi).toBeGreaterThan(0)
     expect(Number.isFinite(report.medianRoi)).toBe(true)
   })
+
+  it('classifies the subsystem-unlock nodes as `gateway`, not overpowered', () => {
+    // `sc-unlock`/`sh-unlock` gate the click/highlight systems; ablating them
+    // strips the gate, so their contribution would spuriously absorb the whole
+    // subsystem. They must be labelled `gateway` and excluded from the ranking.
+    for (const id of ['sc-unlock', 'sh-unlock']) {
+      const row = report.rows.find((r) => r.id === id)
+      expect(row?.finding).toBe('gateway')
+    }
+  })
 })
 
-// ─── Phase 8d: pacing / engagement stats ─────────────────────────────
+// ─── Pacing / engagement stats ───────────────────────────────────────
 
 function snap(timeSec: number, income: number, event = ''): TickSnapshot {
   return { tick: timeSec, timeSec, score: 0, resources: {}, incomePerSec: { r0: income }, event }

@@ -10,9 +10,9 @@
  * envelope fails `minViableStrategies` or the spread limit.
  *
  * The Node-only strategy loader lives here (not in `shared/src`, which ships to
- * the browser) per docs/plans/24-envelope-integration.md (D5). The script reuses
- * the exact `simulate()` + projection + validators the dev panel uses, so the CI
- * verdict and the dev-panel verdict can never diverge.
+ * the browser). The script reuses the exact `simulate()` + projection +
+ * validators the dev panel uses, so the CI verdict and the dev-panel verdict can
+ * never diverge.
  *
  * Usage:
  *   tsx scripts/check-balance.ts            # validate; exit non-zero on failure
@@ -115,8 +115,8 @@ function fmt(n: number): string {
 }
 
 /**
- * Print the non-gating coverage findings (Phase 8a): which mechanics no viable
- * build uses (dead candidates) and which every viable build uses (mandatory).
+ * Print the non-gating coverage findings: which mechanics no viable build uses
+ * (dead candidates) and which every viable build uses (mandatory).
  */
 function printCoverage(mode: GameMode, results: SimResult[], viableNames: Set<string>): void {
   const report = analyzeCoverage(getModeDefinition(mode), results, viableNames)
@@ -150,17 +150,21 @@ function printDominance(
     simulate(s, { modeDef: m, goal }),
   )
   const overpowered = report.rows.filter((r) => r.finding === 'overpowered')
+  const gateways = report.rows.filter((r) => r.finding === 'gateway' && r.users > 0)
   console.info(
     `  ── dominance (median ROI ${fmt(report.medianRoi)}, flag ≥${report.roiMultiple}×, non-gating) ──`,
   )
   if (overpowered.length === 0) {
     console.info('     no mechanic dominates its price')
-    return
   }
   for (const r of overpowered) {
     const roi = r.roi === Infinity ? 'free' : `ROI ${fmt(r.roi)}`
     const share = `${(r.share * 100).toFixed(0)}% of contribution`
     console.info(`     overpowered ${r.kind.padEnd(9)} ${r.id}  (${roi}, ${share})`)
+  }
+  if (gateways.length > 0) {
+    const ids = gateways.map((r) => r.id).join(', ')
+    console.info(`     ${gateways.length} gateway node(s) excluded from ROI (unlock nodes): ${ids}`)
   }
 }
 

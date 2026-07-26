@@ -771,9 +771,15 @@ lands.
 > corpus-median ROI is flagged. Gated against the acceptance slice: on the idler
 > corpus it independently flags **clicking as overpowered** (free, ~28% of total
 > contribution) across all three envelopes — reproducing the click-domination
-> debt. Note: cheap gating upgrades (`sc-unlock`, `sh-unlock`) also surface as
-> high-ROI, which is correct per the ROI definition (they are intentionally cheap
-> must-buy gateways). 8c (forced-use probe) + 8d (pacing stats) pending.
+> debt. Correction (was a measurement artifact): upgrades that carry a
+> sim-reachability gate (`systemUnlock`/`generatorUnlock` — e.g. `sc-unlock`,
+> `sh-unlock`, `g1-g2`, `g3-g4`) cannot be ablated by stripping `effects`, because
+> that also removes the only gate, disabling the whole subsystem they unlock — so
+> their measured contribution absorbs that subsystem's entire value (~96% for
+> `sc-unlock`), double-reporting the click imbalance. Such nodes are now
+> classified `gateway` and excluded from the ROI ranking and median; the honest
+> free/∞-ROI signal remains the `click` mechanic row (ablated via action-removal,
+> which touches no gate). 8c (forced-use probe) + 8d (pacing stats) pending.
 
 > ✅ **8d done.** `analyzePacing` in `metrics.ts` (pure, reads only
 > `events[]`/`snapshots[]` — no re-sim, no thresholds) + `check-balance.ts

@@ -3,7 +3,7 @@
  * score-band `TargetEnvelope`; goal-terminated goals (target-score / buy-upgrade)
  * use a time-band `PacingEnvelope`. Envelopes are **development / CI metadata**
  * authored in a sidecar (`shared/balance/<mode>.json`) and registered by
- * `loadBalance` — see docs/plans/25-envelope-integration.md (phase 7).
+ * `loadBalance`.
  *
  * The registry is empty in production (gameplay never calls `loadBalance`), so
  * `envelopeFor` / `allEnvelopes` **fail soft**: an unregistered mode yields no

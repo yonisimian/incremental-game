@@ -395,7 +395,7 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
 // ─── Resources + generators ──────────────────────────────────────────
 //
 // Resources, generators, upgrades, effects, and flavor all cross-reference each
-// other (see plan 19). These helpers keep the working tree referentially valid
+// other. These helpers keep the working tree referentially valid
 // continuously: rename rewrites every reference, and delete is *blocked* (with a
 // human reason) while anything still points at the id, so the tree never needs a
 // repair pass. `io.ts`'s `assertLoadable` remains the final guard at export.

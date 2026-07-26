@@ -1,5 +1,5 @@
 /**
- * File I/O for the Queue Simulation tab (plan 23, phase 4).
+ * File I/O for the Queue Simulation tab.
  *
  * Strategies are first-class JSON documents. Saving/loading uses the File System
  * Access API (`showSaveFilePicker` / `showOpenFilePicker`) where available, with

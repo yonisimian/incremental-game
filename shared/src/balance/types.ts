@@ -76,8 +76,8 @@ export interface SimScore {
 // reach milestone M, is the elapsed time within [minTimeSec, maxTimeSec]?".
 // Used for goals that stop at a variable time (score target hit / goal upgrade
 // bought), where a score-at-time band is meaningless at the end. The validator
-// (`validatePacing`) and authored data land in phase 6; these declarations exist
-// now so the registry can be union-typed from the start.
+// (`validatePacing`) and authored data live alongside it; these declarations
+// exist so the registry can be union-typed from the start.
 
 /** A single time milestone within a pacing envelope. */
 export interface PacingCheckpoint {

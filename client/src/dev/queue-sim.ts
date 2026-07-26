@@ -1,12 +1,11 @@
 /**
  * Queue Simulation tab — author a strategy as an ordered action queue (no
  * timestamps), run it through the shared `simulate()` engine, and chart the
- * result with action markers + a run report. See
- * docs/plans/23-timeline-strategy-simulation.md (phases 3–4).
+ * result with action markers + a run report.
  *
- * Strategies save/load to JSON files (phase 4); reference strategies under
+ * Strategies save/load to JSON files; reference strategies under
  * `shared/strategies/<mode>/` are bundled and listed alongside session ones. The
- * envelope overlay (phase 5) is not wired here yet.
+ * envelope overlay is not wired here yet.
  */
 
 import {

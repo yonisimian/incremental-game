@@ -66,8 +66,8 @@ export function getUpgradeCostTotal(def: UpgradeDefinition, currentLevel: number
  * The currency an upgrade is paid in — used to drive the single-currency
  * highlight mechanic (bot plans, dev-sim). Upgrade costs are single-currency
  * today, so this returns that currency; `fallback` is used only when the cost
- * map is empty. When multi-currency costs are introduced (Phase 2), this needs
- * a deliberate selection rule (e.g. weighted by production rate or scarcity)
+ * map is empty. When multi-currency costs are introduced, this needs a
+ * deliberate selection rule (e.g. weighted by production rate or scarcity)
  * rather than picking an arbitrary key.
  */
 export function getCostCurrency(def: UpgradeDefinition, fallback: string): string {
