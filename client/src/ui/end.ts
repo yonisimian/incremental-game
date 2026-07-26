@@ -1,8 +1,10 @@
 import type { GameState } from '../game.js'
 import { rematch, resetForMatch } from '../game.js'
-import { getModeDefinition, getModeFlavor } from '@game/shared'
+import { getModeDefinition, getModeFlavor, liveActionsToStrategy } from '@game/shared'
 import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
+import { getRecordedRound } from '../dev-recorder.js'
+import { saveStrategyToFile } from '../strategy-file.js'
 
 export function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!
@@ -56,6 +58,10 @@ export function renderEndScreen(state: Readonly<GameState>): void {
         <button id="rematch-btn">Rematch</button>
         <button id="lobby-btn">Back to Lobby</button>
       </div>
+      <div class="end-export">
+        <button id="export-recording-btn">⤓ Export recording</button>
+        <span id="export-recording-status" class="end-export-status"></span>
+      </div>
     </div>
   `
 
@@ -64,5 +70,31 @@ export function renderEndScreen(state: Readonly<GameState>): void {
   })
   document.getElementById('lobby-btn')!.addEventListener('click', () => {
     resetForMatch()
+  })
+
+  const exportBtn = document.getElementById('export-recording-btn') as HTMLButtonElement
+  const exportStatus = document.getElementById('export-recording-status')!
+  const recorded = getRecordedRound()
+  if (!recorded) {
+    exportBtn.disabled = true
+    exportBtn.title = 'Nothing was recorded this round.'
+  }
+  exportBtn.addEventListener('click', () => {
+    const round = getRecordedRound()
+    if (!round) {
+      exportStatus.textContent = 'Nothing recorded.'
+      return
+    }
+    const name = `${round.mode} ${new Date().toLocaleString()}`
+    const strategy = liveActionsToStrategy(round.actions, round.mode, name)
+    exportStatus.textContent = ''
+    saveStrategyToFile(strategy).then(
+      () => {
+        exportStatus.textContent = `Exported "${name}" (${strategy.actions.length} actions).`
+      },
+      (err: unknown) => {
+        exportStatus.textContent = `Export failed: ${err instanceof Error ? err.message : String(err)}`
+      },
+    )
   })
 }

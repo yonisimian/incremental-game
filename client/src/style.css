@@ -1627,6 +1627,44 @@ body {
   color: var(--bg);
 }
 
+.end-export {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.end-export button {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--text-dim);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.end-export button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.end-export button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.end-export-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  min-height: 1em;
+}
+
 /* ─── Disconnected ─────────────────────────────────────────────────── */
 
 .disconnected-screen h1 {

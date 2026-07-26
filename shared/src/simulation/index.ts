@@ -16,6 +16,7 @@ export type {
   SetClickRateAction,
   WaitAction,
 } from './strategy.js'
+export { liveActionsToStrategy } from './live-export.js'
 export { applySimAction } from './apply.js'
 export type { GameAction, SimApplyResult } from './apply.js'
 export { simulate, DEFAULT_SIM_CAP_SEC } from './simulate.js'
