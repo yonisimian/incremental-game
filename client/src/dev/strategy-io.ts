@@ -1,12 +1,12 @@
 /**
  * File I/O for the Queue Simulation tab.
  *
- * Strategies are first-class JSON documents. Saving/loading uses the File System
- * Access API (`showSaveFilePicker` / `showOpenFilePicker`) where available, with
- * a download-blob + `<input type=file>` fallback for browsers without it. The
- * canonical serializer lives in `@game/shared` (`serializeStrategy`) so on-disk
- * round-trips are byte-stable; parsing goes through the shared zod boundary
- * (`parseStrategy`), which throws on malformed input.
+ * Strategies are first-class JSON documents. Saving uses `saveStrategyToFile`
+ * (native "Save As" picker, download fallback); loading prefers the File System
+ * Access open picker and falls back to `<input type=file>`. The canonical
+ * serializer lives in `@game/shared` (`serializeStrategy`) so on-disk round-trips
+ * are byte-stable; parsing goes through the shared zod boundary (`parseStrategy`),
+ * which throws on malformed input.
  *
  * Reference strategies under `shared/strategies/<mode>/*.json` are bundled at
  * build time via `import.meta.glob` and listed alongside session strategies.
@@ -15,7 +15,7 @@
 import { parseStrategy } from '@game/shared'
 import type { GameMode, QueueStrategy } from '@game/shared'
 
-import { isAbort, JSON_TYPES, saveStrategyToFile } from '../strategy-file.js'
+import { isAbort, isEmbeddedWebview, JSON_TYPES, saveStrategyToFile } from '../strategy-file.js'
 import type { OpenPicker } from '../strategy-file.js'
 
 // Re-exported so the Queue tab keeps importing save from one place.
@@ -38,14 +38,16 @@ export async function loadStrategyFromFile(): Promise<QueueStrategy | null> {
 }
 
 async function pickFileText(): Promise<string | null> {
-  const picker = (window as { showOpenFilePicker?: OpenPicker }).showOpenFilePicker
+  const picker = isEmbeddedWebview()
+    ? undefined
+    : (window as { showOpenFilePicker?: OpenPicker }).showOpenFilePicker
   if (picker) {
     try {
       const [handle] = await picker({ multiple: false, types: JSON_TYPES })
       return await (await handle.getFile()).text()
     } catch (err) {
-      if (isAbort(err)) return null
-      // Fall through to the input fallback on any other failure.
+      if (isAbort(err)) return null // user cancelled — do not fall through
+      // Picker present but blocked (e.g. embedded webview): use the input.
     }
   }
   return pickFileTextViaInput()
