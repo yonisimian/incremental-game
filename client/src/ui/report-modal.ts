@@ -8,7 +8,7 @@ import { getRecordedRound } from '../dev-recorder.js'
 import { saveStrategyToFile } from '../strategy-file.js'
 
 // Replace with the real invite before publishing.
-const DISCORD_URL = 'https://discord.gg/your-invite'
+const DISCORD_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 
 let overlayEl: HTMLElement | null = null
 
