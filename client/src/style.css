@@ -1627,16 +1627,123 @@ body {
   color: var(--bg);
 }
 
-.end-export {
+.report-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2rem;
+  height: 2rem;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+  justify-content: center;
+  border: 1px solid var(--text-dim);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
-.end-export button {
-  padding: 0.4rem 1rem;
+.report-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ─── Report a Bug Modal ───────────────────────────────────────────── */
+
+.report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.report-overlay.visible {
+  opacity: 1;
+}
+
+.report-modal {
+  width: 90%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  transform: translateY(12px) scale(0.96);
+  transition: transform 0.2s ease;
+}
+
+.report-overlay.visible .report-modal {
+  transform: translateY(0) scale(1);
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.report-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.report-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.report-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+  text-align: left;
+}
+
+.report-body p {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.report-body a {
+  color: var(--accent);
+}
+
+.report-export-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
   border: 1px solid var(--text-dim);
   border-radius: 6px;
   background: transparent;
@@ -1649,20 +1756,14 @@ body {
     border-color 0.15s;
 }
 
-.end-export button:hover:not(:disabled) {
+.report-export-btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.end-export button:disabled {
+.report-export-btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.end-export-status {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  min-height: 1em;
 }
 
 /* ─── Disconnected ─────────────────────────────────────────────────── */
