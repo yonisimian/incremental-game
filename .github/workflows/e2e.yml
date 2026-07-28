@@ -118,7 +118,7 @@ jobs:
   extended:
     name: Chromium extended
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -129,7 +129,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir e2e exec playwright install --with-deps chromium
       - run: pnpm build:e2e
-      - run: pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=chromium-extended
+      - run: pnpm --dir e2e run test:extended
       - name: Upload Playwright artifacts
         if: failure()
         uses: actions/upload-artifact@v7

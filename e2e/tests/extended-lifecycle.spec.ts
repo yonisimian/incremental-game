@@ -6,34 +6,38 @@ import {
   waitForEnded,
   waitForPlaying,
 } from './fixtures/journeys.js'
+import { extendedTimeout } from './fixtures/time.js'
 
 test('LIFE-07 @extended real bot completes the buy-upgrade goal with the trophy', async ({
   players,
 }) => {
-  test.setTimeout(630_000)
+  test.setTimeout(extendedTimeout(600_000))
   const player = await players.create('TrophyBot')
   await player.open()
   await startBotMatch(player, { type: 'buy-upgrade' })
 
-  await waitForEnded(player, 610_000)
+  await waitForEnded(player, extendedTimeout(600_000, 10_000))
   await expect(player.page.locator('.result')).toContainText('Defeat')
   await expect(player.page.locator('.result')).not.toContainText('Time Limit')
   await expect(player.page.locator('.final-scores')).toHaveCount(0)
 })
 
-test('EXT-01 @extended target score reaches its real safety cap', async ({ players }) => {
-  test.setTimeout(330_000)
+test('EXT-01 @extended target score reaches its game-time safety cap', async ({ players }) => {
+  test.setTimeout(extendedTimeout(300_000))
   const first = await players.create('Safety-A')
   const second = await players.create('Safety-B')
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'target-score', target: 100_000 })
 
-  await Promise.all([waitForEnded(first, 310_000), waitForEnded(second, 310_000)])
+  await Promise.all([
+    waitForEnded(first, extendedTimeout(300_000, 10_000)),
+    waitForEnded(second, extendedTimeout(300_000, 10_000)),
+  ])
   await expect(first.page.locator('.result')).toContainText('Time Limit')
   await expect(second.page.locator('.result')).toContainText('Time Limit')
 })
 
-test('EXT-02 @extended repeated rematches do not duplicate lifecycle work', async ({ players }) => {
+test('EXT-02 repeated rematches do not duplicate lifecycle work', async ({ players }) => {
   test.setTimeout(120_000)
   const first = await players.create('Soak-A')
   const second = await players.create('Soak-B')

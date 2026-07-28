@@ -45,7 +45,7 @@ docs/     Design documents and references
 | `pnpm test:e2e`          | Run all Playwright projects                    |
 | `pnpm test:e2e:desktop`  | Run ordinary desktop browser projects          |
 | `pnpm test:e2e:mobile`   | Run mobile Chromium tests                      |
-| `pnpm test:e2e:extended` | Run real-duration/capacity tests               |
+| `pnpm test:e2e:extended` | Run accelerated long-clock/capacity tests      |
 | `pnpm typecheck`         | Type checking across all packages              |
 | **Code Quality**         |                                                |
 | `pnpm lint`              | ESLint                                         |

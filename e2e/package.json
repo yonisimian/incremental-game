@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "playwright": "playwright test"
+    "playwright": "playwright test",
+    "test:extended": "cross-env GAME_TIME_SCALE=20 playwright test --config=playwright.config.ts --project=chromium-extended"
   },
   "devDependencies": {
     "@axe-core/playwright": "~4.12.1",
     "@playwright/test": "~1.62.0",
     "@types/node": "^26.1.0",
+    "cross-env": "^10.1.0",
     "typescript": "~6.0.3"
   }
 }

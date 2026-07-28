@@ -15,7 +15,7 @@ pnpm --dir e2e exec playwright install --with-deps chromium firefox webkit
 | `pnpm test:e2e`          | Every browser project, including extended tests |
 | `pnpm test:e2e:desktop`  | Ordinary Chromium, Firefox, and WebKit          |
 | `pnpm test:e2e:mobile`   | Mobile Chromium touch/responsive tests          |
-| `pnpm test:e2e:extended` | Real-duration Chromium tests                    |
+| `pnpm test:e2e:extended` | Accelerated long-clock Chromium tests           |
 | `pnpm test:e2e:debug`    | Chromium Playwright UI mode                     |
 
 The harness builds `@game/shared`, the client in Vite's `e2e` mode, and the server. It starts the server on `127.0.0.1:10001` and Vite preview on `127.0.0.1:4173`; existing processes on either port cause a deliberate failure.
@@ -27,7 +27,10 @@ The harness builds `@game/shared`, the client in Vite's `e2e` mode, and the serv
 - Prove authoritative actions through another browser or a server-owned transition.
 - Keep one worker because matchmaking and rooms are process-global.
 - Unexpected page errors, console errors, and failed requests fail teardown.
-- Extended tests use real product durations and remain required in CI.
+- Ordinary suites use production timing. Extended tests set server-only
+  `GAME_TIME_SCALE=20`, preserving game-time durations while shortening wall-clock waits.
+- `GAME_TIME_SCALE` accepts only integers from 1 through 20; production defaults to 1.
+- Extended tests remain required in CI.
 
 ## Failure artifacts
 

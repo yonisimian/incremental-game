@@ -16,7 +16,7 @@ pnpm test                # all packages
 pnpm test:e2e            # all Playwright projects (includes long extended tests)
 pnpm test:e2e:desktop    # Chromium + Firefox + WebKit ordinary suites
 pnpm test:e2e:mobile     # mobile Chromium
-pnpm test:e2e:extended   # real-duration/capacity Chromium suite
+pnpm test:e2e:extended   # accelerated long-clock/capacity Chromium suite
 pnpm --filter @game/shared test          # one package
 pnpm --filter @game/shared exec vitest run tests/pipeline.test.ts   # single test file
 pnpm --filter @game/shared exec vitest -t "name"                    # single test by name

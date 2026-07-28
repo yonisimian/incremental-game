@@ -27,6 +27,7 @@ import {
 import type { Room } from './matchmaking.js'
 import { Match } from './match.js'
 import { createBot } from './bot.js'
+import { GAME_TIME_SCALE, realTimeDelay } from './runtime-config.js'
 
 const PORT = Number(process.env.PORT) || 10000
 const HOST = process.env.HOST
@@ -486,7 +487,7 @@ const heartbeat = setInterval(() => {
     pdata.isAlive = false
     ws.ping()
   }
-}, HEARTBEAT_INTERVAL_MS)
+}, realTimeDelay(HEARTBEAT_INTERVAL_MS))
 
 // ─── Server Status Broadcast ─────────────────────────────────────────
 
@@ -501,7 +502,7 @@ const statusBroadcast = setInterval(() => {
       client.send(payload)
     }
   }
-}, SERVER_STATUS_INTERVAL_MS)
+}, realTimeDelay(SERVER_STATUS_INTERVAL_MS))
 
 wss.on('close', () => {
   clearInterval(heartbeat)
@@ -511,5 +512,9 @@ wss.on('close', () => {
 // ─── Start ───────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, HOST, () => {
-  console.info(`incremenTal server listening on ${HOST ?? 'all interfaces'}:${PORT}`)
+  console.info(
+    `incremenTal server listening on ${HOST ?? 'all interfaces'}:${PORT}${
+      GAME_TIME_SCALE === 1 ? '' : ` (game time ×${GAME_TIME_SCALE})`
+    }`,
+  )
 })

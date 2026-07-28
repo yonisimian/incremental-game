@@ -166,9 +166,10 @@ for long goal/expiry scenarios:
   victory and is bounded by the product's 600-second safety cap plus margin. Failure means
   the shipped bot cannot complete a supported goal and must be fixed, not that the test
   should be weakened.
-- Target-score safety-cap and room-expiry paths require five and ten real minutes
-  respectively. They remain in the Chromium extended suite because they prove unique
-  server-to-browser outcomes and naturally cross heartbeat intervals.
+- Target-score safety-cap and room-expiry paths represent five and ten game minutes.
+  Extended Chromium runs the server at `GAME_TIME_SCALE=20`, reducing those to 15 and 30
+  wall-clock seconds while preserving the same tick, income, deadline, TTL, heartbeat, and
+  broadcast progression in game time. Ordinary suites retain production speed.
 
 Tests use these public paths. Quick match remains random, so that test asserts only invariant
 behavior (two queued clients are paired with a valid game), never a particular random goal.
@@ -297,7 +298,8 @@ The suite has two required classes, both run for every pull request and `main` p
 
 - **Ordinary:** all deterministic browser journeys, run in Chromium, Firefox, and WebKit;
   mobile-tagged journeys additionally run in mobile Chromium.
-- **Extended:** real-duration/capacity journeys (`@extended`) run in Chromium: heartbeat
+- **Extended:** long-clock/capacity journeys (`@extended`) run in Chromium with the
+  server-only clock at ×20: heartbeat
   longevity, target safety cap, room TTL expiry, room-capacity error/status, and repeated
   rematches.
 
@@ -538,11 +540,12 @@ download fallback; that changes a browser capability, not application state.
 
 ### Axis K — Extended capacity, expiry, status, and heartbeat
 
-File: `extended-capacity-and-expiry.spec.ts`, Chromium `@extended` only.
+File: `extended-capacity-and-expiry.spec.ts`, Chromium `@extended` only. The server clock is
+scaled by 20, so the authored durations remain unchanged while wall-clock waits shrink.
 
 | ID     | Scenario                                                                                              | Boundary proved                                                                 |
 | ------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| EXT-03 | Keep a room open for its real ten-minute TTL; receive closure and return to lobby                     | Long timer, heartbeat survival, `ROOM_CLOSED`, room cleanup                     |
+| EXT-03 | Keep a room open for its ten-game-minute TTL; receive closure and return to lobby                     | Scaled long timer, heartbeat survival, `ROOM_CLOSED`, room cleanup              |
 | EXT-04 | Create 20 rooms, inspect F6 active-room status, reject room 21 with busy UI, then close all contexts  | Max capacity, `SERVER_STATUS`, room-limit router/UI, bulk deterministic cleanup |
 | EXT-05 | Keep an active browser connection beyond multiple 30-second heartbeat cycles while actions still work | Native ping/pong longevity independent of a terminal goal                       |
 
@@ -692,8 +695,8 @@ there is no reduced pull-request tier.
 
 - Install Chromium and build identically.
 - Run every `@extended` test serially against a fresh server process.
-- Use a job timeout that accommodates the real 10-minute TTL, 5-minute safety cap,
-  heartbeat, capacity setup, and cleanup (initial ceiling: 35 minutes; revise from measured
+- Use a job timeout that accommodates the scaled TTL, safety cap, heartbeat, capacity setup,
+  and cleanup (initial ceiling: 15 minutes; revise from measured
   evidence, never by dropping assertions).
 
 #### Mobile Chromium
@@ -835,7 +838,7 @@ Exit criterion: all projects pass with documented scope and no unexplained brows
 
 ### Phase 6 — Extended contracts, CI, documentation, and stabilization
 
-1. Add real-duration trophy, safety-cap, TTL, heartbeat, room-capacity/status, and repeated
+1. Add accelerated long-clock trophy, safety-cap, TTL, heartbeat, and room-capacity/status
    lifecycle tests.
 2. Add dedicated workflow jobs, artifact upload, concurrency, and evidence-based timeouts;
    deliberately omit browser caching initially.
