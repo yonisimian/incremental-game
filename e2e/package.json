@@ -1,0 +1,16 @@
+{
+  "name": "@game/e2e",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "playwright": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "~4.12.1",
+    "@playwright/test": "~1.62.0",
+    "@types/node": "^26.1.0",
+    "typescript": "~6.0.3"
+  }
+}

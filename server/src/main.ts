@@ -29,6 +29,7 @@ import { Match } from './match.js'
 import { createBot } from './bot.js'
 
 const PORT = Number(process.env.PORT) || 10000
+const HOST = process.env.HOST
 
 // ─── Mode trees (server-authoritative) ───────────────────────────────
 //
@@ -509,6 +510,6 @@ wss.on('close', () => {
 
 // ─── Start ───────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, () => {
-  console.info(`incremenTal server listening on port ${PORT}`)
+httpServer.listen(PORT, HOST, () => {
+  console.info(`incremenTal server listening on ${HOST ?? 'all interfaces'}:${PORT}`)
 })
