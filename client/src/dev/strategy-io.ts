@@ -1,91 +1,25 @@
 /**
  * File I/O for the Queue Simulation tab.
  *
- * Strategies are first-class JSON documents. Saving/loading uses the File System
- * Access API (`showSaveFilePicker` / `showOpenFilePicker`) where available, with
- * a download-blob + `<input type=file>` fallback for browsers without it. The
- * canonical serializer lives in `@game/shared` (`serializeStrategy`) so on-disk
- * round-trips are byte-stable; parsing goes through the shared zod boundary
- * (`parseStrategy`), which throws on malformed input.
+ * Strategies are first-class JSON documents. Saving uses `saveStrategyToFile`
+ * (native "Save As" picker, download fallback); loading prefers the File System
+ * Access open picker and falls back to `<input type=file>`. The canonical
+ * serializer lives in `@game/shared` (`serializeStrategy`) so on-disk round-trips
+ * are byte-stable; parsing goes through the shared zod boundary (`parseStrategy`),
+ * which throws on malformed input.
  *
  * Reference strategies under `shared/strategies/<mode>/*.json` are bundled at
  * build time via `import.meta.glob` and listed alongside session strategies.
  */
 
-import { parseStrategy, serializeStrategy } from '@game/shared'
+import { parseStrategy } from '@game/shared'
 import type { GameMode, QueueStrategy } from '@game/shared'
 
-// ─── Minimal File System Access API typings (not in the default DOM lib) ──
+import { isAbort, isEmbeddedWebview, JSON_TYPES, saveStrategyToFile } from '../strategy-file.js'
+import type { OpenPicker } from '../strategy-file.js'
 
-interface FsWritable {
-  write(data: string): Promise<void>
-  close(): Promise<void>
-}
-interface FsFileHandle {
-  createWritable(): Promise<FsWritable>
-  getFile(): Promise<File>
-}
-type SavePicker = (opts: {
-  suggestedName?: string
-  types?: { description: string; accept: Record<string, string[]> }[]
-}) => Promise<FsFileHandle>
-type OpenPicker = (opts?: {
-  multiple?: boolean
-  types?: { description: string; accept: Record<string, string[]> }[]
-}) => Promise<FsFileHandle[]>
-
-const JSON_TYPES = [{ description: 'Strategy JSON', accept: { 'application/json': ['.json'] } }]
-
-function isAbort(err: unknown): boolean {
-  return err instanceof DOMException && err.name === 'AbortError'
-}
-
-/** Filesystem-friendly file stem from a strategy name. */
-function slugify(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'strategy'
-  )
-}
-
-// ─── Save ──────────────────────────────────────────────────────────────
-
-/**
- * Write a strategy to disk as canonical JSON. Uses the File System Access
- * picker when available, else triggers a download. Resolves silently if the
- * user cancels the picker.
- */
-export async function saveStrategyToFile(strategy: QueueStrategy): Promise<void> {
-  const json = serializeStrategy(strategy)
-  const suggestedName = `${slugify(strategy.name)}.json`
-  const picker = (window as { showSaveFilePicker?: SavePicker }).showSaveFilePicker
-
-  if (picker) {
-    try {
-      const handle = await picker({ suggestedName, types: JSON_TYPES })
-      const writable = await handle.createWritable()
-      await writable.write(json)
-      await writable.close()
-      return
-    } catch (err) {
-      if (isAbort(err)) return // user cancelled — nothing to do
-      // Any other failure: fall through to the download fallback.
-    }
-  }
-  downloadBlob(json, suggestedName)
-}
-
-function downloadBlob(text: string, filename: string): void {
-  const blob = new Blob([text], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+// Re-exported so the Queue tab keeps importing save from one place.
+export { saveStrategyToFile }
 
 // ─── Load ──────────────────────────────────────────────────────────────
 
@@ -97,18 +31,23 @@ function downloadBlob(text: string, filename: string): void {
 export async function loadStrategyFromFile(): Promise<QueueStrategy | null> {
   const text = await pickFileText()
   if (text === null) return null
+  if (text.trim() === '') {
+    throw new Error('File is empty — the export may have been interrupted; try exporting again.')
+  }
   return parseStrategy(JSON.parse(text))
 }
 
 async function pickFileText(): Promise<string | null> {
-  const picker = (window as { showOpenFilePicker?: OpenPicker }).showOpenFilePicker
+  const picker = isEmbeddedWebview()
+    ? undefined
+    : (window as { showOpenFilePicker?: OpenPicker }).showOpenFilePicker
   if (picker) {
     try {
       const [handle] = await picker({ multiple: false, types: JSON_TYPES })
       return await (await handle.getFile()).text()
     } catch (err) {
-      if (isAbort(err)) return null
-      // Fall through to the input fallback on any other failure.
+      if (isAbort(err)) return null // user cancelled — do not fall through
+      // Picker present but blocked (e.g. embedded webview): use the input.
     }
   }
   return pickFileTextViaInput()

@@ -3,6 +3,7 @@ import { rematch, resetForMatch } from '../game.js'
 import { getModeDefinition, getModeFlavor } from '@game/shared'
 import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
+import { openReportModal } from './report-modal.js'
 
 export function renderEndScreen(state: Readonly<GameState>): void {
   const end = state.endData!
@@ -45,6 +46,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   app.innerHTML = `
     <div class="screen end-screen">
+      <button id="report-btn" class="report-btn" aria-label="Report a bug" title="Report a bug">!</button>
       <h1 class="result ${resultClass}">${winnerText}</h1>
       ${scoresBlock}
       <div class="stats">
@@ -64,5 +66,8 @@ export function renderEndScreen(state: Readonly<GameState>): void {
   })
   document.getElementById('lobby-btn')!.addEventListener('click', () => {
     resetForMatch()
+  })
+  document.getElementById('report-btn')!.addEventListener('click', () => {
+    openReportModal()
   })
 }

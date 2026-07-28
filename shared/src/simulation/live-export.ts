@@ -1,6 +1,6 @@
 /**
  * Convert a recorded live playthrough (an ordered list of `PlayerAction`s) into
- * an authorable `QueueStrategy` for the Queue tab.
+ * an authorable `QueueStrategy`.
  *
  * Buys, generator purchases, and highlight switches map 1:1 (and consecutive
  * identical buys collapse into a single `count`). Clicking is the lossy case:
@@ -13,8 +13,9 @@
  * and tweaked in the editable Queue tab.
  */
 
-import { MAX_CPS } from '@game/shared'
-import type { GameMode, PlayerAction, QueueStrategy, SimAction } from '@game/shared'
+import { MAX_CPS } from '../game-config.js'
+import type { GameMode, PlayerAction } from '../types.js'
+import type { QueueStrategy, SimAction } from './strategy.js'
 
 /**
  * Two consecutive clicks more than this far apart (ms) belong to different

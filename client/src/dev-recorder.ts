@@ -1,15 +1,18 @@
 /**
- * DevRecorder — thin bridge between the game and the dev panel.
+ * DevRecorder — records each round's actions and (optionally) streams live data.
  *
- * When enabled, posts a snapshot to a BroadcastChannel on every
- * state update, allowing the dev panel (in a separate tab) to
- * render live charts of real gameplay data.
+ * Every game buffers its own round (actions + mode) so the end screen can export
+ * it as a strategy file, regardless of any dev flag. Additionally, when the dev
+ * broadcast is enabled, it posts a snapshot to a BroadcastChannel on every state
+ * update so the dev panel (in a separate tab) can render live charts of real
+ * gameplay data.
  *
- * Activation: the game page loads with `?dev` in the URL, or
+ * Broadcast activation: the game page loads with `?dev` in the URL, or
  * `localStorage.setItem('dev-recorder', '1')`.
  *
- * Cost when inactive: one boolean check per state-update. No
- * additional dependencies — BroadcastChannel is a native browser API.
+ * Cost when broadcast is inactive: one array push per action and one boolean
+ * check per state-update. No additional dependencies — BroadcastChannel is a
+ * native browser API.
  */
 
 import type { GameMode, PlayerAction, PlayerState } from '@game/shared'
@@ -73,6 +76,33 @@ let enabled = false
 let currentMode: GameMode | null = null
 let currentRoundDurationSec = 0
 
+// ─── Always-on recording buffer ──────────────────────────────────────
+//
+// Independent of the broadcast `enabled` gate: every game records its own round
+// so the end screen can export it as a strategy, whether or not `?dev` is set.
+// Only actions + mode are needed (not per-tick snapshots), so this stays cheap.
+let recordedActions: PlayerAction[] = []
+let recordedMode: GameMode | null = null
+let recordedRoundDurationSec = 0
+let recording = false
+
+/** The most recent (or in-progress) round's recording, for export. */
+export interface RecordedRound {
+  actions: readonly PlayerAction[]
+  mode: GameMode
+  roundDurationSec: number
+}
+
+/** The recorded round, or `null` if nothing playable was captured. */
+export function getRecordedRound(): RecordedRound | null {
+  if (!recordedMode || recordedActions.length === 0) return null
+  return {
+    actions: recordedActions,
+    mode: recordedMode,
+    roundDurationSec: recordedRoundDurationSec,
+  }
+}
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 /** Check activation flags and open channel if needed. */
@@ -94,6 +124,12 @@ export function initDevRecorder(): void {
 
 /** Call when a new round starts. */
 export function recorderRoundStart(mode: GameMode, roundDurationSec: number): void {
+  // Always start a fresh recording so the end screen can export this round.
+  recordedActions = []
+  recordedMode = mode
+  recordedRoundDurationSec = roundDurationSec
+  recording = true
+
   if (!enabled) return
   currentMode = mode
   currentRoundDurationSec = roundDurationSec
@@ -129,6 +165,8 @@ export function recorderTick(player: Readonly<PlayerState>, timeLeft: number): v
 
 /** Call when the round ends. */
 export function recorderRoundEnd(finalScore: number): void {
+  // Stop buffering but keep the recording intact for the end-screen export.
+  recording = false
   if (!enabled) return
   channel!.postMessage({ kind: 'round-end', finalScore } satisfies LiveRoundEnd)
   currentMode = null
@@ -136,10 +174,11 @@ export function recorderRoundEnd(finalScore: number): void {
 
 /**
  * Call for every player action issued locally (buy / generator / highlight /
- * click). Broadcast in order so the dev panel can rebuild the round as a
- * strategy. No-op unless recording an active round.
+ * click). Buffered for the end-screen export and, when recording to the dev
+ * panel, broadcast in order so it can rebuild the round as a strategy.
  */
 export function recorderAction(action: PlayerAction): void {
+  if (recording) recordedActions.push(action)
   if (!enabled || !currentMode) return
   channel!.postMessage({ kind: 'action', action } satisfies LiveAction)
 }

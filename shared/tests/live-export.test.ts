@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PlayerAction } from '@game/shared'
-import { liveActionsToStrategy } from '../src/dev/live-export.js'
+import type { PlayerAction } from '../src/types.js'
+import { liveActionsToStrategy } from '../src/simulation/live-export.js'
 
 // Helpers to build recorded actions with explicit timestamps (ms).
 const buy = (upgradeId: string, ms: number): PlayerAction => ({

@@ -10,6 +10,7 @@ import {
   envelopeFor,
   isPacingEnvelope,
   validateEnvelope,
+  liveActionsToStrategy,
 } from '@game/shared'
 import type { TargetEnvelope, SimScore } from '@game/shared'
 import { IDLER_STRATEGIES, UPGRADE_ABBR } from './strategies.js'
@@ -22,7 +23,6 @@ import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult
 import type { LiveState } from './live.js'
 import { initEditor } from './editor/index.js'
 import { initQueueSim, importStrategyToQueue } from './queue-sim.js'
-import { liveActionsToStrategy } from './live-export.js'
 import { saveStrategyToFile } from './strategy-io.js'
 
 // ─── State ───────────────────────────────────────────────────────────
