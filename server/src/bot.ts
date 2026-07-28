@@ -72,6 +72,13 @@ function unlocksGenerator(upgrade: UpgradeDefinition): boolean {
   return (upgrade.effects ?? []).some((e) => e.type === 'generatorUnlock')
 }
 
+/** Does owning this upgrade unlock the named player-action system? */
+function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'): boolean {
+  return (upgrade.effects ?? []).some(
+    (effect) => effect.type === 'systemUnlock' && effect.system === system,
+  )
+}
+
 // ─── Idler Bot ───────────────────────────────────────────────────────
 
 /**
@@ -124,8 +131,21 @@ export class IdlerBot implements BotStrategy {
 
     this.upgradeMap = new Map(availableUpgrades.map((u) => [u.id, u]))
 
-    // Base plan — core economy seed.
-    const basePlan: { id: string; currency: string }[] = [{ id: 'be-af-mr', currency: 'r0' }]
+    // Unlock the systems the bot already knows how to use before relying on
+    // their actions. Without these purchases, the authoritative match rejects
+    // every emitted click/highlight and the buy-upgrade trophy is unreachable.
+    const basePlan: { id: string; currency: string }[] = []
+    const systemUnlocks = availableUpgrades.filter(
+      (upgrade) => unlocksSystem(upgrade, 'click') || unlocksSystem(upgrade, 'highlight'),
+    )
+    for (const upgrade of systemUnlocks) {
+      basePlan.push(...this.resolvePath(upgrade, new Set(basePlan.map((step) => step.id))))
+    }
+
+    // Core economy seed.
+    if (this.upgradeMap.has('be-af-mr')) {
+      basePlan.push({ id: 'be-af-mr', currency: 'r0' })
+    }
     const includedIds = new Set(basePlan.map((s) => s.id))
 
     // Generator-unlock upgrades next: they're free, so buying them early opens
