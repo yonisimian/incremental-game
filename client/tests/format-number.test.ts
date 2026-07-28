@@ -21,6 +21,11 @@ describe('formatNumber — scientific notation', () => {
     expect(formatNumber(500)).toBe('500')
   })
 
+  it('respects requested decimals below 1000', () => {
+    expect(formatNumber(0.9, 1)).toBe('0.9')
+    expect(formatNumber(12.34, 2)).toBe('12.34')
+  })
+
   it('formats large numbers in scientific notation', () => {
     expect(formatNumber(100000)).toBe('1e5')
     expect(formatNumber(123456)).toBe('1.23e5')
@@ -109,6 +114,11 @@ describe('formatNumber — engineering notation', () => {
   it('leaves numbers below 1000 as-is', () => {
     expect(formatNumber(500)).toBe('500')
     expect(formatNumber(0)).toBe('0')
+  })
+
+  it('respects requested decimals below 1000', () => {
+    expect(formatNumber(0.9, 1)).toBe('0.9')
+    expect(formatNumber(12.34, 2)).toBe('12.34')
   })
 
   it('uses exponents that are multiples of 3', () => {

@@ -211,9 +211,9 @@ function formatWithNotation(value: number, notation: NotationMode, decimals: num
     case 'name':
       return formatName(value, decimals)
     case 'scientific':
-      return formatScientific(value)
+      return formatScientific(value, decimals)
     case 'engineering':
-      return formatEngineering(value)
+      return formatEngineering(value, decimals)
     default:
       return assertNever(notation)
   }
@@ -250,13 +250,13 @@ function formatName(value: number, decimals: number): string {
   return sign + numStr + suffix
 }
 
-function formatScientific(value: number): string {
+function formatScientific(value: number, decimals = 0): string {
   if (value === 0) return '0'
 
   const abs = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
-  if (abs < 1000) return sign + String(Math.floor(abs))
+  if (abs < 1000) return sign + formatBelowThousand(abs, decimals)
 
   const exp = Math.floor(Math.log10(abs))
   const mantissa = abs / Math.pow(10, exp)
@@ -265,13 +265,13 @@ function formatScientific(value: number): string {
   return `${sign}${mantissaStr}e${exp}`
 }
 
-function formatEngineering(value: number): string {
+function formatEngineering(value: number, decimals = 0): string {
   if (value === 0) return '0'
 
   const abs = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
-  if (abs < 1000) return sign + String(Math.floor(abs))
+  if (abs < 1000) return sign + formatBelowThousand(abs, decimals)
 
   const exp = Math.floor(Math.log10(abs))
   const engExp = exp - (exp % 3) // Round down to multiple of 3
@@ -279,6 +279,10 @@ function formatEngineering(value: number): string {
   const mantissaStr = mantissa.toFixed(2).replace(/\.?0+$/, '')
 
   return `${sign}${mantissaStr}e${engExp}`
+}
+
+function formatBelowThousand(value: number, decimals: number): string {
+  return decimals > 0 ? value.toFixed(decimals) : String(Math.floor(value))
 }
 
 /** Compile-time exhaustiveness guard: unreachable unless a notation is unhandled. */
