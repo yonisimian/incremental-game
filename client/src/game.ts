@@ -210,7 +210,7 @@ const state: GameState = {
 
 const pendingBatches: PendingBatch[] = []
 let onChange: StateChangeHandler = () => {}
-let onRoomJoined: (() => void) | null = null
+let onRoomJoinResolved: (() => void) | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 /** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
@@ -234,8 +234,8 @@ export function setStateChangeHandler(handler: StateChangeHandler): void {
  * Register a callback fired when a room join resolves (success or error).
  * Used by main.ts to clear the ?room= URL param after the server responds.
  */
-export function setRoomJoinedCallback(cb: () => void): void {
-  onRoomJoined = cb
+export function setRoomJoinResolvedCallback(cb: () => void): void {
+  onRoomJoinResolved = cb
 }
 
 /** Get the current game state (read-only snapshot). */
@@ -266,6 +266,7 @@ try {
 export function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case 'ROUND_START':
+      onRoomJoinResolved?.()
       handleRoundStart(msg)
       break
     case 'STATE_UPDATE':
@@ -290,7 +291,7 @@ export function handleServerMessage(msg: ServerMessage): void {
       state.roomPlayers = msg.players
       state.isRoomCreator = false
       state.roomError = null
-      onRoomJoined?.()
+      onRoomJoinResolved?.()
       notify()
       break
     case 'ROOM_UPDATED':
@@ -322,7 +323,7 @@ export function handleServerMessage(msg: ServerMessage): void {
       if (state.screen !== 'room') {
         state.screen = 'lobby'
       }
-      onRoomJoined?.()
+      onRoomJoinResolved?.()
       notify()
       break
     case 'SERVER_STATUS':

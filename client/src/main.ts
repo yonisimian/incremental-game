@@ -4,7 +4,7 @@ import {
   handleServerMessage,
   setStateChangeHandler,
   getState,
-  setRoomJoinedCallback,
+  setRoomJoinResolvedCallback,
 } from './game.js'
 import { render, handleConnectionChange } from './ui/index.js'
 import { initDevRecorder } from './dev-recorder.js'
@@ -25,7 +25,7 @@ function clearRoomParam(): void {
 // Wire modules together
 setMessageHandler(handleServerMessage)
 setStateChangeHandler(render)
-setRoomJoinedCallback(clearRoomParam)
+setRoomJoinResolvedCallback(clearRoomParam)
 setConnectionStateHandler((connState) => {
   handleConnectionChange(connState)
 
