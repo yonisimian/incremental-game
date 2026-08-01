@@ -6,6 +6,7 @@ import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
 import { isFlatCost, scaledCost } from './cost.js'
 import { anyOwned, generatorGateUpgrades } from './unlock-gates.js'
+import { GENERATOR_SELL_REFUND_RATE } from './game-config.js'
 
 /** The single currency a generator is paid in (generators are single-currency). */
 export function generatorCostCurrency(def: GeneratorDefinition): string {
@@ -125,6 +126,42 @@ export function getGeneratorBulkCost(
     total += getGeneratorCost(def, owned + i)
   }
   return total
+}
+
+/**
+ * Refund for selling one copy, given the *cost-adjusted* definition. Prices the
+ * copy being removed (index `owned - 1`) — the same price a re-buy will charge.
+ * 0 when nothing is owned.
+ */
+export function getGeneratorSellRefund(def: GeneratorDefinition, owned: number): number {
+  if (owned <= 0) return 0
+  return Math.floor(getGeneratorCost(def, owned - 1) * GENERATOR_SELL_REFUND_RATE)
+}
+
+/** Can the player sell a copy of this generator right now? */
+export function canSellGenerator(state: Readonly<PlayerState>, def: GeneratorDefinition): boolean {
+  return (state.generators[def.id] ?? 0) > 0
+}
+
+/**
+ * Decrement the owned count and credit the refund. Mirrors
+ * `applyGeneratorPurchase`: resolves cost factors itself, mutates
+ * `state.resources` only — never `state.score`.
+ */
+export function applyGeneratorSell(
+  state: PlayerState,
+  generatorId: string,
+  mode: ModeDefinition,
+): void {
+  const def = mode.generators.find((g) => g.id === generatorId)
+  if (!def) return
+  const effectiveDef = resolveGeneratorDef(def, state, mode)
+  const owned = state.generators[def.id] ?? 0
+  if (owned <= 0) return
+  const refund = getGeneratorSellRefund(effectiveDef, owned)
+  const currency = generatorCostCurrency(def)
+  state.resources[currency] = (state.resources[currency] ?? 0) + refund
+  state.generators[def.id] = owned - 1
 }
 
 /** How many copies can the player afford right now? */

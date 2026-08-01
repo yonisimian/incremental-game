@@ -281,6 +281,92 @@ describe('game.ts', () => {
     })
   })
 
+  describe('doSellGenerator', () => {
+    it('sells a generator optimistically and queues a sell action', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 55,
+        }),
+      )
+
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doSellGenerator('g0')
+
+      const s = game.getState()
+      expect(s.player.generators.g0).toBe(0)
+      expect(s.player.resources.r1).toBeGreaterThan(0)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'sell_generator', generatorId: 'g0' }),
+      )
+    })
+
+    it('replays an unacked sell action on top of server state', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 55,
+        }),
+      )
+
+      game.doSellGenerator('g0')
+      expect(game.getState().player.generators.g0).toBe(0)
+      expect(game.getState().player.resources.r1).toBeGreaterThan(0)
+
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 54,
+        }),
+      )
+
+      const s = game.getState()
+      expect(s.player.generators.g0).toBe(0)
+      expect(s.player.resources.r1).toBeGreaterThan(0)
+    })
+  })
+
   // ── STATE_UPDATE reconciliation ──────────────────────────────────
 
   describe('STATE_UPDATE', () => {

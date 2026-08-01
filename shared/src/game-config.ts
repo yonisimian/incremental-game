@@ -30,7 +30,8 @@ export const MAX_ROUND_DURATION_SEC = 600
  * before publishing the game.
  */
 export const COUNTDOWN_SEC = 0
-
+/** Fraction of a generator copy's cost refunded when it is sold. */
+export const GENERATOR_SELL_REFUND_RATE = 0.5
 /**
  * Below this many seconds remaining, the round timer switches from `M:SS` to a
  * tense `seconds:centiseconds` readout (e.g. `9:99` … `0:00`). The client also

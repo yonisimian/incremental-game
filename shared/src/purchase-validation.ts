@@ -93,3 +93,27 @@ export function isValidGeneratorPurchase(
 ): boolean {
   return generatorBlockReason(state, generatorId, mode) === null
 }
+
+/** Why a generator sale is disallowed. Both reasons are permanent. */
+export type GeneratorSellBlockReason =
+  | 'unknown' // no such generator
+  | 'not-owned' // owns zero copies
+
+export function generatorSellBlockReason(
+  state: PlayerState,
+  generatorId: string,
+  mode: ModeDefinition,
+): GeneratorSellBlockReason | null {
+  const def = mode.generators.find((g) => g.id === generatorId)
+  if (!def) return 'unknown'
+  if ((state.generators[generatorId] ?? 0) <= 0) return 'not-owned'
+  return null
+}
+
+export function isValidGeneratorSell(
+  state: PlayerState,
+  generatorId: string,
+  mode: ModeDefinition,
+): boolean {
+  return generatorSellBlockReason(state, generatorId, mode) === null
+}

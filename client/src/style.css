@@ -1562,7 +1562,8 @@ body {
   opacity: 0.4;
 }
 
-.generator-buy-btn.buy-max {
+.generator-buy-btn.buy-max,
+.generator-buy-btn.generator-sell-btn {
   background: var(--accent-dim, var(--surface));
 }
 

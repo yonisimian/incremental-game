@@ -154,7 +154,7 @@ export interface PlayerState {
 }
 
 /** Possible action types a client can send. */
-export type ActionType = 'click' | 'buy' | 'buy_generator' | 'set_highlight'
+export type ActionType = 'click' | 'buy' | 'buy_generator' | 'sell_generator' | 'set_highlight'
 
 /** A single player action with a timestamp. */
 export interface PlayerAction {
