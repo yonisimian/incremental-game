@@ -13,7 +13,7 @@ export interface Modifier {
   readonly stage: ModifierStage
   /**
    * The production field to target, interpreted by the pipeline:
-   *  - `clickIncome` / `globalMultiplier` — the two standalone tracks.
+   *  - `clickIncome` — the standalone click income track.
    *  - `bK` (e.g. `b0`) — the **base producer** of the K-th declared resource
    *    (native floor + `b`-targeted upgrades); isolated so a base boost never
    *    leaks into generator output.
@@ -43,7 +43,7 @@ export interface LayerAccumulator {
 
 /**
  * The two production layers of a single resource. The final rate combines them:
- * `(base.add·base.mult + global.add) · global.mult · globalMultiplier`.
+ * `(base.add·base.mult + global.add) · global.mult`.
  *
  * - `base`: the isolated **base producer** — native floor plus `bK`-targeted
  *   modifiers. `base.mult` scales *only* this layer, so a base boost cannot
@@ -65,10 +65,8 @@ export interface ResourceLayers {
 
 /** Result of running the modifier pipeline. */
 export interface ModifierContext {
-  /** Income per manual click (0 if clicks disabled), before `globalMultiplier`. */
+  /** Income per manual click (0 if clicks disabled). */
   clickIncome: number
   /** Per-resource production layers, keyed by resource id. */
   resources: Record<string, ResourceLayers>
-  /** Global multiplier (prestige, perks — 1.0 for now); scales every rate and click. */
-  globalMultiplier: number
 }

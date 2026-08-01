@@ -233,7 +233,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
-        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'clickIncome', or 'globalMultiplier')`,
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
       )
   }
   for (const m of def.nativeModifiers) checkProductionField('native modifier', m.field)
@@ -251,8 +251,8 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
   // opponent-pipeline target. It's a mode-specific string the generic schema
   // only checks is present, so validate it against the *enemy-debuff* target
-  // catalog — a subset of `relativeModifier`'s (resource rates + globalMultiplier
-  // only). Generator-id and `clickIncome` targets are rejected here because the
+  // catalog — a subset of `relativeModifier`'s (resource rates only). Generator-id
+  // and `clickIncome` targets are rejected here because the
   // debuff merges into the opponent's pipeline after generator output is folded
   // and only on the passive path, so they'd silently do nothing (see
   // `enemyDebuffTargetsFor`). Also flags an offensive effect on an active attack,
@@ -267,7 +267,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         )
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates and globalMultiplier can be debuffed)`,
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates can be debuffed)`,
         )
     }
   }
