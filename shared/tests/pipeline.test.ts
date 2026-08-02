@@ -148,6 +148,14 @@ describe('computeClickIncome', () => {
     ]
     expect(computeClickIncome(mods)).toBe(3) // (1 * 2) * 1.5
   })
+
+  it('saturates click income at MAX_RESOURCE instead of Infinity', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'clickIncome', value: Number.MAX_VALUE },
+      { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+    ]
+    expect(computeClickIncome(mods)).toBe(Number.MAX_VALUE)
+  })
 })
 
 // ─── computePassiveRates ─────────────────────────────────────────────
@@ -220,6 +228,23 @@ describe('applyPassiveTick', () => {
     applyPassiveTick(state, ['currency'], 'currency', mods, 0.25)
     expect(state.resources.currency).toBeCloseTo(0.5)
     expect(state.score).toBeCloseTo(0.5)
+  })
+
+  it('saturates the resource at MAX_RESOURCE when passive income overflows', () => {
+    const state = makeState({ currency: Number.MAX_VALUE - 1 })
+    const mods: Modifier[] = [{ stage: 'additive', field: 'currency', value: 2 }]
+    applyPassiveTick(state, ['currency'], 'currency', mods, 1)
+    expect(state.resources.currency).toBe(Number.MAX_VALUE)
+    expect(state.score).toBe(2)
+  })
+
+  it('saturates score at MAX_RESOURCE when score itself overflows', () => {
+    const state = makeState({ currency: 0 })
+    state.score = Number.MAX_VALUE - 1
+    const mods: Modifier[] = [{ stage: 'additive', field: 'currency', value: 2 }]
+    applyPassiveTick(state, ['currency'], 'currency', mods, 1)
+    expect(state.resources.currency).toBe(2)
+    expect(state.score).toBe(Number.MAX_VALUE)
   })
 
   it('handles zero tick duration', () => {

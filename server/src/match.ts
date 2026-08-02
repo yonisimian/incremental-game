@@ -15,6 +15,7 @@ import {
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  creditResource,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -180,7 +181,7 @@ export class Match {
     const player = this.players.find((p) => p.id === playerId)
     if (!player) return
     for (const [res, amount] of Object.entries(resources)) {
-      player.state.resources[res] = (player.state.resources[res] ?? 0) + amount
+      creditResource(player.state, res, amount, this.modeDef.scoreResource)
     }
   }
 
@@ -507,8 +508,7 @@ export class Match {
     // contributes to score, matching passive income.
     const res =
       resource && this.modeDef.resources.includes(resource) ? resource : this.modeDef.scoreResource
-    player.state.resources[res] = (player.state.resources[res] ?? 0) + income
-    if (res === this.modeDef.scoreResource) player.state.score += income
+    creditResource(player.state, res, income, this.modeDef.scoreResource)
     player.stats.totalClicks++
   }
 

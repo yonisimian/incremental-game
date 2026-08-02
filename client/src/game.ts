@@ -21,6 +21,7 @@ import {
   getAvailableUpgrades,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
+  creditResource,
   canAffordGenerator,
   getMaxAffordableGeneratorCount,
   applyGeneratorPurchase,
@@ -383,8 +384,7 @@ export function doClick(target?: string): void {
 
   // Optimistic local update
   const income = computeClickIncome(state.player)
-  state.player.resources[resource] = (state.player.resources[resource] ?? 0) + income
-  if (resource === modeDef.scoreResource) state.player.score += income
+  creditResource(state.player, resource, income, modeDef.scoreResource)
 
   // Local click telemetry (data panel) — counted once per real click, never in
   // reconciliation, so optimistic re-application can't double-count.
@@ -652,8 +652,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
       const income = computeClickIncome(reconciled)
       const target = modeDef?.resources.includes(resource) ? resource : undefined
       if (modeDef && target) {
-        reconciled.resources[target] = (reconciled.resources[target] ?? 0) + income
-        if (target === modeDef.scoreResource) reconciled.score += income
+        creditResource(reconciled, target, income, modeDef.scoreResource)
       }
     }
     for (const uid of batch.purchases) {
