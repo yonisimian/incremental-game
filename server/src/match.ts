@@ -4,6 +4,7 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   TICK_INTERVAL_MS,
+  MAX_RESOURCE,
   getAvailableUpgrades,
   getDefaultGoal,
   getModeDefinition,
@@ -15,6 +16,7 @@ import {
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  creditResource,
   applyGeneratorSell,
   hasEnemyDataAccess,
   enemyDataKeysFor,
@@ -186,7 +188,12 @@ export class Match {
     const player = this.players.find((p) => p.id === playerId)
     if (!player) return
     for (const [res, amount] of Object.entries(resources)) {
-      player.state.resources[res] = (player.state.resources[res] ?? 0) + amount
+      // Resource-only: unlike production credits this must not touch score, or a
+      // test grant of the score resource would silently inflate score.
+      player.state.resources[res] = Math.min(
+        MAX_RESOURCE,
+        (player.state.resources[res] ?? 0) + amount,
+      )
     }
   }
 
@@ -516,8 +523,7 @@ export class Match {
     // contributes to score, matching passive income.
     const res =
       resource && this.modeDef.resources.includes(resource) ? resource : this.modeDef.scoreResource
-    player.state.resources[res] = (player.state.resources[res] ?? 0) + income
-    if (res === this.modeDef.scoreResource) player.state.score += income
+    creditResource(player.state, res, income, this.modeDef.scoreResource)
     player.stats.totalClicks++
   }
 

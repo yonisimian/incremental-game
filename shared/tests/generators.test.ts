@@ -15,6 +15,7 @@ import {
   resolveGeneratorDef,
 } from '../src/generators.js'
 import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
+import { MAX_RESOURCE } from '../src/game-config.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -205,6 +206,19 @@ describe('canAffordGenerator', () => {
     const def = makeDef({ baseCost: 10 })
     const state = makeState({ resources: { r0: 10 }, generators: {} })
     expect(canAffordGenerator(state, def)).toBe(true) // cost = baseCost when 0 owned
+  })
+
+  it('rejects a cost-curve overflow at the resource cap (NaN-cliff guard)', () => {
+    // A geometric curve overflows a double at a high enough owned count, and
+    // `Math.floor(Infinity)` is `Infinity`.
+    const def = makeDef({ baseCost: 10, costScaling: 1.15 })
+    expect(getGeneratorCost(def, 6000)).toBe(Infinity)
+    // A stockpile capped at MAX_RESOURCE still cannot clear an Infinity price —
+    // `MAX_RESOURCE >= Infinity` is false — so the buy is unaffordable rather
+    // than debiting Infinity and poisoning the stockpile to NaN. This guard is
+    // only sound *because* stockpiles are capped below Infinity.
+    const state = makeState({ resources: { r0: MAX_RESOURCE }, generators: { g0: 6000 } })
+    expect(canAffordGenerator(state, def)).toBe(false)
   })
 })
 

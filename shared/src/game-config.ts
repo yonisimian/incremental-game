@@ -24,6 +24,14 @@ export const MIN_ROUND_DURATION_SEC = 10
 export const MAX_ROUND_DURATION_SEC = 600
 
 /**
+ * Hard ceiling for any resource stockpile and for score. Past this, a double
+ * becomes `Infinity`, which `JSON.stringify` wires as `null` and every client
+ * read (`?? 0`) then turns into 0 — so an overflow reads as "you lost
+ * everything". Values saturate here.
+ */
+export const MAX_RESOURCE = Number.MAX_VALUE
+
+/**
  * Countdown before round starts (seconds).
  *
  * TODO: Temporarily 0 to skip the countdown during development. Restore to 3

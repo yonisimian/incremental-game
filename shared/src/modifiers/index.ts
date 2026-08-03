@@ -11,4 +11,5 @@ export {
   computeClickIncome,
   computePassiveRates,
   applyPassiveTick,
+  creditResource,
 } from './pipeline.js'

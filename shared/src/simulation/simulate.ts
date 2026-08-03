@@ -9,7 +9,7 @@
 // The round timer is the hard stop; whatever's left in the queue is reported as
 // not-reached.
 
-import { MAX_CPS, TICK_INTERVAL_MS } from '../game-config.js'
+import { MAX_CPS, TICK_INTERVAL_MS, MAX_RESOURCE } from '../game-config.js'
 import {
   collectModifiers,
   createInitialState,
@@ -17,7 +17,12 @@ import {
   isClickUnlocked,
 } from '../modes/index.js'
 import type { ModeDefinition } from '../modes/types.js'
-import { applyPassiveTick, computeClickIncome, computePassiveRates } from '../modifiers/pipeline.js'
+import {
+  applyPassiveTick,
+  computeClickIncome,
+  computePassiveRates,
+  creditResource,
+} from '../modifiers/pipeline.js'
 import type { GameMode, UpgradeDefinition } from '../types.js'
 import { applySimAction } from './apply.js'
 import type { QueueStrategy, SimAction, WaitCondition } from './strategy.js'
@@ -264,8 +269,7 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
         clickResource && modeDef.resources.includes(clickResource)
           ? clickResource
           : modeDef.scoreResource
-      state.resources[res] = (state.resources[res] ?? 0) + gain
-      if (res === modeDef.scoreResource) state.score += gain
+      creditResource(state, res, gain, modeDef.scoreResource)
     }
 
     // 3) advance the queue
@@ -337,7 +341,8 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
     name: strategy.name,
     mode: strategy.mode,
     snapshots,
-    finalScore: Math.round(state.score * 100) / 100,
+    finalScore:
+      state.score >= MAX_RESOURCE / 100 ? state.score : Math.round(state.score * 100) / 100,
     events,
     notReached,
     goalReached,

@@ -1,5 +1,6 @@
 import type { LayerAccumulator, Modifier, ModifierContext, ResourceLayers } from './types.js'
 import type { PlayerState } from '../types.js'
+import { MAX_RESOURCE } from '../game-config.js'
 
 // ─── Pipeline Core ───────────────────────────────────────────────────
 
@@ -76,17 +77,43 @@ export function computeIncome(
  * The `global` layer (per-resource multiplier + folded generator output) wraps
  * the base subtotal.
  */
+function saturateRate(value: number): number {
+  if (value === Infinity) return MAX_RESOURCE
+  if (value === -Infinity) return -MAX_RESOURCE
+  if (Number.isNaN(value)) return 0
+  return Math.min(MAX_RESOURCE, value)
+}
+
 function finalizeRate(layers: ResourceLayers | undefined): number {
   if (!layers) return 0
   const base = layers.base.add * layers.base.mult
-  return (base + layers.global.add) * layers.global.mult
+  return saturateRate((base + layers.global.add) * layers.global.mult)
+}
+
+/**
+ * Credit `amount` of `resource` to `state`, saturating at {@link MAX_RESOURCE},
+ * and mirror it into `score` when it's the score resource. A non-finite amount
+ * credits nothing except `Infinity`, which saturates to the cap.
+ */
+export function creditResource(
+  state: PlayerState,
+  resource: string,
+  amount: number,
+  scoreResource: string,
+): void {
+  if (Number.isNaN(amount) || amount <= 0) return
+  const gain = amount === Infinity ? MAX_RESOURCE : amount
+  state.resources[resource] = Math.min(MAX_RESOURCE, (state.resources[resource] ?? 0) + gain)
+  if (resource === scoreResource) {
+    state.score = Math.min(MAX_RESOURCE, state.score + gain)
+  }
 }
 
 // ─── Convenience Functions ───────────────────────────────────────────
 
 /** Compute the income from a single click. */
 export function computeClickIncome(modifiers: readonly Modifier[]): number {
-  return computeIncome(modifiers).clickIncome
+  return saturateRate(computeIncome(modifiers).clickIncome)
 }
 
 /**
@@ -132,7 +159,6 @@ export function applyPassiveTick(
 
   for (const resource of resources) {
     const gain = rates[resource] * tickSec
-    state.resources[resource] = (state.resources[resource] ?? 0) + gain
-    if (resource === scoreResource) state.score += gain
+    creditResource(state, resource, gain, scoreResource)
   }
 }
