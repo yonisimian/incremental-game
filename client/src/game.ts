@@ -516,6 +516,8 @@ export function doBuyGeneratorMax(generatorId: string): void {
     queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
     trackPredicted({ kind: 'buy_generator', generatorId })
   }
+
+  notify()
 }
 
 /** Attempt to sell one copy of a generator (optimistic). */

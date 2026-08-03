@@ -1562,9 +1562,25 @@ body {
   opacity: 0.4;
 }
 
-.generator-buy-btn.buy-max,
-.generator-buy-btn.generator-sell-btn {
+.generator-buy-btn.buy-max {
   background: var(--accent-dim, var(--surface));
+}
+
+/* Selling is a secondary/undo action — muted by default, danger tint on hover
+   so it never reads as the primary buy action. */
+.generator-buy-btn.generator-sell-btn {
+  background: transparent;
+  color: var(--text-dim, var(--text));
+}
+
+.generator-buy-btn.generator-sell-btn:not(:disabled):hover {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.generator-card .generator-actions + .generator-actions {
+  margin-top: 0.35rem;
 }
 
 /* ─── End Screen ───────────────────────────────────────────────────── */

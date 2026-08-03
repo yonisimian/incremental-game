@@ -899,6 +899,11 @@ body {
   background: var(--accent-dim, var(--surface));
 }
 
+.ed-gen-preview-body .generator-buy-btn.generator-sell-btn {
+  background: transparent;
+  color: var(--text-dim, var(--text));
+}
+
 /* Canvas */
 
 .ed-canvas-viewport {
