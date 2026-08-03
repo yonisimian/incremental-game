@@ -10,8 +10,8 @@ import type { EffectDef } from '../types.js'
  *
  * The flat per-upgrade production bonus: while the owning upgrade is held, apply
  * `value` to `field` at the given pipeline `stage`. `field` may name a resource
- * (e.g. `r0`), a generator (e.g. `g0`), or `clickIncome` / `globalMultiplier` —
- * matching what the legacy `modifiers` array accepted. The owned-count
+ * (e.g. `r0`), a generator (e.g. `g0`), or `clickIncome` — matching what the
+ * legacy `modifiers` array accepted. The owned-count
  * compounding happens in `collectModifiers`, which owns the
  * {@link BaseModifierOutput} kind.
  */

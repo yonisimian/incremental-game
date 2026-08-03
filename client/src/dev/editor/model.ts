@@ -536,8 +536,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
 /**
  * Rename resource `oldKey → newKey`, rewriting every reference so the tree stays
  * loadable: the resource list, score resource, initial amounts, the `highlight`
- * meta, native-modifier fields (resource keys only — never the `clickIncome`/
- * `globalMultiplier` specials), generator cost + production, upgrade cost record
+ * meta, native-modifier fields (resource keys only — never the `clickIncome`
+ * special), generator cost + production, upgrade cost record
  * keys, effect refs (the `resource:`-prefixed `relativeModifier` source, the bare
  * `field` target of `relativeModifier`/`baseModifier`/`enemyProductionModifier`,
  * and `accessEnemyData` data across every effect location), and every

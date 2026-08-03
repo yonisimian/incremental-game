@@ -15,7 +15,6 @@ describe('computeIncome', () => {
     const ctx = computeIncome([])
     expect(ctx.clickIncome).toBe(0)
     expect(ctx.resources).toEqual({})
-    expect(ctx.globalMultiplier).toBe(1)
   })
 
   it('sums additive modifiers into a resource global layer', () => {
@@ -45,14 +44,14 @@ describe('computeIncome', () => {
     expect(ctx.clickIncome).toBe(4) // (1+1) * 2
   })
 
-  it('handles globalMultiplier through additive and multiplicative stages', () => {
+  it('ignores globalMultiplier modifiers in the pipeline', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'globalMultiplier', value: 0.5 },
       { stage: 'multiplicative', field: 'globalMultiplier', value: 3 },
     ]
     const ctx = computeIncome(mods)
-    // additive: 1 + 0.5 = 1.5; multiplicative: 1.5 * 3 = 4.5
-    expect(ctx.globalMultiplier).toBe(4.5)
+    expect(ctx.resources).toEqual({})
+    expect(ctx.clickIncome).toBe(0)
   })
 
   it('multiplicative on empty rate creates the rate (0 * N = 0)', () => {
@@ -112,7 +111,7 @@ describe('base / global production layers', () => {
     expect(computePassiveRates(mods, ['r0']).r0).toBe(220)
   })
 
-  it('globalMultiplier scales base, generators, and global together', () => {
+  it('ignores globalMultiplier modifiers when computing passive rates', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'b0', value: 10 },
       generatorOutput('r0', 100),
@@ -120,8 +119,8 @@ describe('base / global production layers', () => {
       { stage: 'multiplicative', field: 'r0', value: 3 }, // global ×3
       { stage: 'multiplicative', field: 'globalMultiplier', value: 5 },
     ]
-    // ((10*2) + 100) * 3 * 5 = 1800.
-    expect(computePassiveRates(mods, ['r0']).r0).toBe(1800)
+    // ((10*2) + 100) * 3 = 360.
+    expect(computePassiveRates(mods, ['r0']).r0).toBe(360)
   })
 })
 
@@ -132,12 +131,12 @@ describe('computeClickIncome', () => {
     expect(computeClickIncome([])).toBe(0)
   })
 
-  it('applies globalMultiplier to clickIncome', () => {
+  it('ignores globalMultiplier modifiers when computing click income', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'clickIncome', value: 2 },
       { stage: 'multiplicative', field: 'globalMultiplier', value: 3 },
     ]
-    expect(computeClickIncome(mods)).toBe(6) // 2 * 3
+    expect(computeClickIncome(mods)).toBe(2)
   })
 
   it('chains additive → multiplicative for click income', () => {
@@ -146,7 +145,7 @@ describe('computeClickIncome', () => {
       { stage: 'multiplicative', field: 'clickIncome', value: 2 },
       { stage: 'multiplicative', field: 'globalMultiplier', value: 1.5 },
     ]
-    expect(computeClickIncome(mods)).toBe(3) // (1 * 2) * 1.5
+    expect(computeClickIncome(mods)).toBe(2) // 1 * 2
   })
 })
 
@@ -158,15 +157,15 @@ describe('computePassiveRates', () => {
     expect(rates).toEqual({ wood: 0, ale: 0 })
   })
 
-  it('applies modifiers and globalMultiplier', () => {
+  it('ignores globalMultiplier modifiers when computing passive rates', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'wood', value: 2 },
       { stage: 'additive', field: 'ale', value: 1 },
       { stage: 'multiplicative', field: 'globalMultiplier', value: 2 },
     ]
     const rates = computePassiveRates(mods, ['wood', 'ale'])
-    expect(rates.wood).toBe(4) // 2 * 2
-    expect(rates.ale).toBe(2) // 1 * 2
+    expect(rates.wood).toBe(2)
+    expect(rates.ale).toBe(1)
   })
 
   it('only includes declared resources in the result', () => {

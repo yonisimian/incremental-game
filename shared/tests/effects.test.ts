@@ -511,15 +511,17 @@ describe('balancedGenerators effect', () => {
     ).toThrow(/multiplier/u)
   })
 
-  it('emits a single global multiplier when all generators are owned equally', () => {
+  it('emits a per-resource multiplicative bonus when all generators are owned equally', () => {
     const mode = getModeDefinition('idler')
     const state = createInitialState(mode)
     for (const gen of mode.generators) state.generators[gen.id] = 4
-    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
-      stage: 'multiplicative',
-      field: 'globalMultiplier',
-      value: 2,
-    })
+    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual(
+      mode.resources.map((resource) => ({
+        stage: 'multiplicative',
+        field: resource,
+        value: 2,
+      })),
+    )
   })
 
   it('scales the bonus when generator ownership is partially balanced', () => {
@@ -537,11 +539,13 @@ describe('balancedGenerators effect', () => {
     const balanceRatio = 1 - deviation / avg
     const expected = 1 + balanceRatio * (2 - 1)
 
-    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual({
-      stage: 'multiplicative',
-      field: 'globalMultiplier',
-      value: expected,
-    })
+    expect(applyEffect({ type: 'balancedGenerators', multiplier: 2 }, state, mode)).toEqual(
+      mode.resources.map((resource) => ({
+        stage: 'multiplicative',
+        field: resource,
+        value: expected,
+      })),
+    )
   })
 
   it('returns null when ownership is too skewed for any bonus', () => {
@@ -1167,7 +1171,6 @@ describe('addressable-field catalog', () => {
   it('builds target keys from special fields, resource rates, and generators', () => {
     expect(addressableTargetsFor(['r0'], ['g0', 'g1'])).toEqual([
       { key: 'clickIncome', label: 'Click income' },
-      { key: 'globalMultiplier', label: 'Global multiplier' },
       { key: 'r0', label: 'r0 (rate)' },
       { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },

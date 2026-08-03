@@ -9,9 +9,9 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *
  * An *offensive* production modifier carried by an attack: while the attack is
  * unlocked, apply `value` to the **opponent's** `field` at the given pipeline
- * `stage`. `field` is a debuffable pipeline target — a resource rate or the
- * `globalMultiplier`; like `baseModifier`'s `field`, it's a plain `z.string()`
- * so the schema-driven editor form can introspect it. The valid set is the
+ * `stage`. `field` is a debuffable pipeline target — a resource rate; like
+ * `baseModifier`'s `field`, it's a plain `z.string()` so the schema-driven editor
+ * form can introspect it. The valid set is the
  * narrower *enemy-debuff* catalog (not the full addressable targets): the debuff
  * merges into the opponent's pipeline after generator output is folded and only
  * on the passive path, so generator-id and `clickIncome` targets would silently

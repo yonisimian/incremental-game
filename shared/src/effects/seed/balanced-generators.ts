@@ -28,7 +28,7 @@ function apply(
   p: BalancedGeneratorsParams,
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
-): Modifier | null {
+): readonly Modifier[] | null {
   const gens = mode.generators
   if (gens.length === 0) return null
 
@@ -46,7 +46,11 @@ function apply(
   // Interpolate between no bonus (1) and the full `multiplier`. `multiplier < 1`
   // is clamped to a no-op — this effect only ever grants a bonus, never a penalty.
   const value = 1 + balanceRatio * Math.max(0, p.multiplier - 1)
-  return { stage: 'multiplicative', field: 'globalMultiplier', value }
+  return mode.resources.map((resource) => ({
+    stage: 'multiplicative',
+    field: resource,
+    value,
+  }))
 }
 
 export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = { schema, apply }

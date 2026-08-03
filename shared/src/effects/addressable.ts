@@ -75,7 +75,6 @@ export function addressableTargetsFor(
 ): AddressableField[] {
   return [
     { key: 'clickIncome', label: 'Click income' },
-    { key: 'globalMultiplier', label: 'Global multiplier' },
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
     ...resourceKeys.map((key, i) => ({ key: `b${i}`, label: `${key} (base producer)` })),
     ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
@@ -100,18 +99,14 @@ export function addressableTargets(mode: ModeDefinition): AddressableField[] {
  * addressableTargetsFor}: the debuffs are merged into the opponent's pipeline
  * *after* `collectModifiers` has already folded generator output into resource
  * rates and only on the passive-income path — so generator-id and `clickIncome`
- * targets would silently do nothing. Only per-second resource rates and the
- * `globalMultiplier` (which scales every rate in `computePassiveRates`) actually
- * apply, so those are the only targets offered and validated.
+ * would silently do nothing. Only per-second resource rates actually apply,
+ * so those are the only targets offered and validated.
  */
 export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): AddressableField[] {
-  return [
-    { key: 'globalMultiplier', label: 'Global multiplier' },
-    ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
-  ]
+  return resourceKeys.map((key) => ({ key, label: `${key} (rate)` }))
 }
 
-/** Offensive-debuff target keys for this mode (resource rates + globalMultiplier). */
+/** Offensive-debuff target keys for this mode (resource rates). */
 export function enemyDebuffTargets(mode: ModeDefinition): AddressableField[] {
   return enemyDebuffTargetsFor(mode.resources)
 }
