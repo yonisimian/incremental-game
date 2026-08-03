@@ -54,8 +54,9 @@ export function renderGeneratorCardView(
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
   const costIcon = getResourceIcon(flavor, generatorCostCurrency(def))
+  const inert = !affordable && !canSell // Dim when we can't buy and can't sell the card.
   return `
-    <article class="generator-card${!affordable ? ' too-expensive' : ''}" data-generator="${def.id}">
+    <article class="generator-card${inert ? ' too-expensive' : ''}" data-generator="${def.id}">
       <div class="generator-summary">
         <span class="generator-icon">${getGeneratorIcon(flavor, def.id)}</span>
         <span class="generator-info">
