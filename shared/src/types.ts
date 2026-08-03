@@ -163,7 +163,7 @@ export interface PlayerAction {
   timestamp: number
   /** For 'buy' actions: the upgrade to purchase. */
   upgradeId?: string
-  /** For 'buy_generator' actions: the generator to purchase. */
+  /** For 'buy_generator' / 'sell_generator' actions: the generator to buy or sell. */
   generatorId?: string
   /** For 'set_highlight' actions: which resource to highlight. */
   highlight?: string
