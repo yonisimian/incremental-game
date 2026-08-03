@@ -19,6 +19,23 @@ const BUY_UPGRADE_GOAL: Goal = {
   safetyCapSec: 600,
 }
 
+/**
+ * Collect every wire hazard in a JSON-parsed message: a `null` (what
+ * `JSON.stringify` emits for `Infinity`/`NaN`) or a non-finite number. A clean
+ * broadcast has neither — optional fields are omitted, never null.
+ */
+function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
+  if (node === null) out.push(`${path} = null`)
+  else if (typeof node === 'number') {
+    if (!Number.isFinite(node)) out.push(`${path} = ${node}`)
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => wireHazards(v, `${path}[${i}]`, out))
+  } else if (typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) wireHazards(v, `${path}.${k}`, out)
+  }
+  return out
+}
+
 describe('Match', () => {
   let ws1: WebSocket
   let ws2: WebSocket
@@ -233,6 +250,28 @@ describe('Match', () => {
       // No espionage unlocked → no resource/rate intel.
       expect(opp.resources).toEqual({})
       expect(opp.rates).toEqual({})
+    })
+
+    it('never wires null or non-finite numbers when a stockpile saturates at the cap', () => {
+      const m = enterPlaying()
+      // Fill the score resource to the ceiling, then unlock Wood Bank, whose
+      // output scales with that near-max stockpile — production now dwarfs a
+      // double's remaining headroom, so each tick tips r0 past the ceiling.
+      // Before the cap this wired Infinity → null → 0 ("you lost everything");
+      // it must now hold at MAX_RESOURCE.
+      m.grantResourcesForTest('p1', { r0: Number.MAX_VALUE })
+      let seq = 1
+      for (let i = 0; i < 4; i++) m.handleMessage('p1', buyMsg('be-af-mr', seq++))
+      for (let i = 0; i < 5; i++) m.handleMessage('p1', buyMsg('be-mf-mr', seq++))
+      m.handleMessage('p1', buyMsg('be-mr-bank', seq))
+
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // `latestUpdate` parses the JSON the server actually sent, so this is the
+      // exact wire form the client would read.
+      const update = latestUpdate(ws1)
+      expect(update.player.resources.r0).toBe(Number.MAX_VALUE) // saturated, not null/Infinity
+      expect(wireHazards(update)).toEqual([])
     })
 
     it('reveals an opponent resource only to a viewer who unlocked it', () => {

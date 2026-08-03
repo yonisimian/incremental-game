@@ -79,8 +79,8 @@ type EffectFieldOption = string | { readonly value: string; readonly label: stri
  * intel keys (peak CPS, purchases). `relativeModifier`'s `field`/`source` come
  * from the shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
- * narrower enemy-debuff catalog (resource rates + globalMultiplier only —
- * generator/click targets don't apply to a debuff).
+ * narrower enemy-debuff catalog (resource rates only — generator/click targets
+ * don't apply to a debuff).
  */
 function effectFieldOptions(
   tree: TreeFile,
@@ -122,7 +122,7 @@ function effectFieldOptions(
   }
   // `baseModifier` targets the same production catalog the boot-time validator
   // enforces: each resource's global rate (`rK`) and isolated base producer
-  // (`bK`), each generator, plus the `clickIncome` / `globalMultiplier` specials.
+  // (`bK`), each generator, plus the `clickIncome` special.
   if (effectType === 'baseModifier' && fieldKey === 'field') {
     return addressableTargetsFor(
       tree.resources,

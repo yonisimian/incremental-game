@@ -153,6 +153,8 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
         return `buy:${action.upgradeId}`
       case 'buy_generator':
         return `gen:${action.generatorId}`
+      case 'sell_generator':
+        return `sell:${action.generatorId}`
       case 'set_highlight':
         return `highlight:${action.highlight}`
       case 'set_click_rate':
@@ -198,6 +200,19 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
           record(timeSec, action)
           cursor++
           continue
+        case 'sell_generator': {
+          // Instant and non-blocking (a sell can never be transient). Surface a
+          // permanent failure instead of swallowing it — selling what you don't
+          // own is an authoring bug worth reporting.
+          const result = applySimAction(state, action, modeDef, upgradeMap)
+          if (result.status === 'applied') {
+            record(timeSec, action)
+          } else if (result.status === 'permanent') {
+            notReached.push({ index: cursor, action, reason: result.reason })
+          }
+          cursor++
+          continue
+        }
         case 'wait':
           if (isWaitSatisfied(action.until, timeSec)) {
             cursor++

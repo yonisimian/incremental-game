@@ -380,7 +380,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('accepts an enemyProductionModifier debuffing the globalMultiplier', () => {
+  it('rejects an enemyProductionModifier debuffing the globalMultiplier', () => {
     const base = makeValidDef({
       attacks: [
         {
@@ -402,7 +402,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).not.toThrow()
+    }).toThrow(/unsupported field 'globalMultiplier'/)
   })
 
   it('throws when an enemyProductionModifier targets an unsupported field (clickIncome)', () => {

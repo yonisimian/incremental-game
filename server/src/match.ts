@@ -4,6 +4,7 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   TICK_INTERVAL_MS,
+  MAX_RESOURCE,
   getAvailableUpgrades,
   getDefaultGoal,
   getModeDefinition,
@@ -16,6 +17,7 @@ import {
   applyPurchase,
   applyGeneratorPurchase,
   creditResource,
+  applyGeneratorSell,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -41,7 +43,12 @@ import type {
   ServerMessage,
   UpgradeDefinition,
 } from '@game/shared'
-import { isValidClick, isValidPurchase, isValidGeneratorPurchase } from './validation.js'
+import {
+  isValidClick,
+  isValidPurchase,
+  isValidGeneratorPurchase,
+  isValidGeneratorSell,
+} from './validation.js'
 import type { BotStrategy } from './bot.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -181,7 +188,12 @@ export class Match {
     const player = this.players.find((p) => p.id === playerId)
     if (!player) return
     for (const [res, amount] of Object.entries(resources)) {
-      creditResource(player.state, res, amount, this.modeDef.scoreResource)
+      // Resource-only: unlike production credits this must not touch score, or a
+      // test grant of the score resource would silently inflate score.
+      player.state.resources[res] = Math.min(
+        MAX_RESOURCE,
+        (player.state.resources[res] ?? 0) + amount,
+      )
     }
   }
 
@@ -400,6 +412,9 @@ export class Match {
         if (!isValidGeneratorPurchase(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
         this.recordPurchase(player, 'generator', action.generatorId)
+      } else if (action.type === 'sell_generator' && action.generatorId) {
+        if (!isValidGeneratorSell(player.state, action.generatorId, this.modeDef)) continue
+        applyGeneratorSell(player.state, action.generatorId, this.modeDef)
       }
     }
     player.ackSeq = seq

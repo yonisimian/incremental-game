@@ -125,6 +125,8 @@ function previewCard(
     affordable: true,
     maxAffordable: 0,
     bulkCost: 0,
+    sellRefund: 0,
+    canSell: false,
   })
 }
 
