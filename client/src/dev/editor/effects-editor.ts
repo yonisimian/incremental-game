@@ -324,6 +324,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     label: 'Unlocks',
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
+  { label: 'Offense', types: ['stealResource'] },
 ]
 
 /**

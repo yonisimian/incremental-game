@@ -196,6 +196,7 @@ describe('applyPassiveTick', () => {
       resources: { ...resources },
       upgrades: {},
       generators: {},
+      pendingAttacks: [],
       meta: {},
     }
   }

@@ -88,7 +88,20 @@
   "attacks": [
     {
       "id": "a0",
-      "kind": "active"
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 1000
+        }
+      },
+      "prepareTimeSec": 3,
+      "effects": [
+        {
+          "type": "stealResource",
+          "resource": "r0",
+          "fraction": 0.1
+        }
+      ]
     },
     {
       "id": "a1",
@@ -613,9 +626,9 @@
       "attacks": [
         {
           "id": "a0",
-          "name": "First Attack",
-          "icon": "💥",
-          "description": ""
+          "name": "Steal Wood",
+          "icon": "🪓",
+          "description": "Spend 1000 Wood to prepare a raid. After 3 seconds it strikes, taking 10% of the enemy's stockpiled Wood and adding it to yours. Stolen Wood does not count toward your score."
         },
         {
           "id": "a1",

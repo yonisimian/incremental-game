@@ -132,14 +132,30 @@ export interface EnemyModifierOutput {
 }
 
 /**
+ * An instantaneous transfer of a share of the *victim's* stockpile to the
+ * attacker, emitted by the `stealResource` effect on an active attack. Unlike
+ * {@link EnemyModifierOutput} (continuous, merged into the opponent's pipeline),
+ * this is resolved once, at the moment the attack strikes, by
+ * `resolveAttackStrike`; every other output consumer ignores it.
+ */
+export interface ResourceStealOutput {
+  readonly kind: 'resourceSteal'
+  /** Which resource is taken from the victim (a key in `mode.resources`). */
+  readonly resource: string
+  /** Share of the victim's stockpile taken, e.g. `0.1` = 10%. */
+  readonly fraction: number
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
- * {@link EnemyDataAccessOutput}, or an {@link EnemyModifierOutput}. Each is
- * routed to a different subsystem (`collectModifiers` /
- * `collectGeneratorCostFactors` / the unlock gates / `hasEnemyDataAccess` /
- * `collectEnemyDebuffs`); every consumer ignores the outputs it doesn't own.
+ * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, or a
+ * {@link ResourceStealOutput}. Each is routed to a different subsystem
+ * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
+ * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike`); every
+ * consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -152,6 +168,7 @@ export type EffectOutput =
   | PactUnlockOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput
+  | ResourceStealOutput
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn

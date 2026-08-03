@@ -106,6 +106,28 @@ export interface PurchaseEvent {
 }
 
 /**
+ * A single attack strike that landed, surfaced to *both* players since a
+ * resource theft is directly observable (the victim sees their stockpile drop).
+ * `direction` is relative to the receiving player: `outgoing` = one of your
+ * attacks struck the opponent, `incoming` = the opponent's attack struck you.
+ * The client resolves `attack` → name / icon from the mode flavor (the server
+ * never sends display strings) and shows a toast; `resource`/`amount` describe
+ * what moved so the toast can read "Stole 50 🪵".
+ */
+export interface AttackEvent {
+  /** Abstract attack id (matches `AttackDefinition.id`) — resolved to flavor client-side. */
+  attack: string
+  /** Whose strike this was, relative to the receiving player. */
+  direction: 'outgoing' | 'incoming'
+  /** Abstract resource id that was moved. */
+  resource: string
+  /** How much of `resource` the strike moved. */
+  amount: number
+  /** Round-elapsed game seconds when the strike landed (mirrors `meta.gameSec`). */
+  t: number
+}
+
+/**
  * A redacted projection of the opponent's state — only the intel the receiving
  * player has unlocked. Unlike `PlayerState`, the opponent's upgrades, generators,
  * and meta are never sent (so they can't be read in devtools); each broadcast
@@ -153,6 +175,13 @@ export interface StateUpdateMessage {
    * server-side income the player actually accrues.
    */
   debuffs?: Modifier[]
+  /**
+   * Attack strikes that landed since the *previous* update — a delta, not the
+   * full log (oldest first). Absent when none landed. Includes both the viewer's
+   * own strikes (`outgoing`) and strikes against them (`incoming`); each event
+   * is sent exactly once and the client turns it into a transient toast.
+   */
+  attackEvents?: AttackEvent[]
   /** Seconds remaining in the round. */
   timeLeft: number
   /** Whether the server has paused the current match. */

@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
 import type { Goal } from '@game/shared'
-import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
+import {
+  BROADCAST_INTERVAL_MS,
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getModeDefinition,
+} from '@game/shared'
 import { Match } from '../src/match.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
 
@@ -1059,6 +1064,74 @@ describe('Match', () => {
 
       // Only one ROUND_END — the action after the trophy buy is not processed
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
+    })
+  })
+
+  // ── Active attacks ─────────────────────────────────────────────────
+
+  describe('active attacks', () => {
+    const mode = getModeDefinition('idler')
+    // Resolve the (flattened) upgrade ids that gate the attack panel and a0,
+    // rather than hard-coding authoring ids, so the test tracks the tree.
+    const panelUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'panelUnlock' && (e as { panel?: string }).panel === 'attack',
+      ),
+    )!
+    const a0Upgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0',
+      ),
+    )!
+
+    function activateMsg(attackId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'activate_attack', timestamp: Date.now(), attackId }],
+      })
+    }
+
+    /** Unlock the attack panel + a0 for p1 (both free) and grant Wood to raid. */
+    function armAttacker(m: Match) {
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      m.grantResourcesForTest('p1', { r0: 2000 })
+    }
+
+    it('lands a strike after the preparation time, moving Wood between players', () => {
+      const m = enterPlaying()
+      armAttacker(m)
+      m.grantResourcesForTest('p2', { r0: 1000 })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+
+      // Right after activation the strike is pending, not yet resolved.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+
+      // Advance past the 3s preparation; the strike lands and drains the pending queue.
+      vi.advanceTimersByTime(3000)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+
+      const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(outgoing).toContainEqual(
+        expect.objectContaining({ attack: 'a0', direction: 'outgoing', resource: 'r0' }),
+      )
+      const incoming = sentOfType(ws2, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(incoming).toContainEqual(
+        expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
+      )
+    })
+
+    it('rejects an activation the player cannot afford', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      // No Wood grant — the 1000 prepare cost is unaffordable.
+      m.handleMessage('p1', activateMsg('a0', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
     })
   })
 })

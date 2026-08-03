@@ -46,6 +46,7 @@ import {
   attackReferences,
   setAttackKind,
   setAttackEffects,
+  setAttackPrepare,
   listEnvelopes,
   addableEnvelopeGoalTypes,
   addEnvelope,
@@ -746,6 +747,56 @@ describe('attacks', () => {
     ])
     expect(resourceReferences(tree, 'r1')).toContain('an enemyProductionModifier field')
     expect(removeResource(tree, 'r1').ok).toBe(false)
+  })
+
+  // The id of the seed active attack (prepare cost/time + `stealResource`).
+  const ACTIVE_ATTACK = 'a0'
+
+  it('surfaces an active attack prepare cost and time', () => {
+    const active = listAttacks(idler()).find((a) => a.id === ACTIVE_ATTACK)!
+    expect(active.kind).toBe('active')
+    expect(active.prepareBaseCost).toBeGreaterThan(0)
+    expect(active.prepareTimeSec).toBeGreaterThan(0)
+    expect(active.prepareCurrency).toBeTruthy()
+  })
+
+  it('setAttackPrepare updates cost, currency, and time and stays loadable', () => {
+    const tree = idler()
+    setAttackPrepare(tree, ACTIVE_ATTACK, { baseCost: 500, currency: 'r0', timeSec: 5 })
+    const active = listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!
+    expect(active.prepareBaseCost).toBe(500)
+    expect(active.prepareCurrency).toBe('r0')
+    expect(active.prepareTimeSec).toBe(5)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('setAttackKind to passive strips prepare data so the tree stays loadable', () => {
+    const tree = idler()
+    // The seed `stealResource` is only valid on an active attack, so clear the
+    // effects before demoting; the prepare cost/time must fall away on its own.
+    setAttackEffects(tree, ACTIVE_ATTACK, [])
+    setAttackKind(tree, ACTIVE_ATTACK, 'passive')
+    const attack = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(attack.prepareCost).toBeUndefined()
+    expect(attack.prepareTimeSec).toBeUndefined()
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameResource rewrites an attack prepare-cost currency and stealResource resource', () => {
+    const tree = idler()
+    expect(renameResource(tree, 'r0', 'gold')).toBe(true)
+    const attack = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(attack.prepareCost && 'gold' in attack.prepareCost).toBe(true)
+    expect(attack.prepareCost && 'r0' in attack.prepareCost).toBe(false)
+    const steal = (attack.effects ?? []).find((e) => e.type === 'stealResource')!
+    expect(steal.resource).toBe('gold')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('resourceReferences reports attack prepare cost and stealResource', () => {
+    const refs = resourceReferences(idler(), 'r0')
+    expect(refs).toContain(`attack '${ACTIVE_ATTACK}' prepare cost`)
+    expect(refs).toContain('a stealResource effect')
   })
 })
 

@@ -51,7 +51,15 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
 }
 
 function makeState(overrides?: Partial<PlayerState>): PlayerState {
-  return { score: 0, resources: {}, upgrades: {}, generators: {}, meta: {}, ...overrides }
+  return {
+    score: 0,
+    resources: {},
+    upgrades: {},
+    generators: {},
+    pendingAttacks: [],
+    meta: {},
+    ...overrides,
+  }
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────

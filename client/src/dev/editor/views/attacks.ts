@@ -6,8 +6,9 @@
  * `enemyProductionModifier` (e.g. "reduce the enemy's Wood production 10%") is
  * authored here exactly as upgrade effects are elsewhere.
  *
- * Only `passive` attacks have continuous behavior today; an offensive effect on
- * an active attack is flagged at export by `validateModeDefinition`.
+ * `active` attacks additionally expose a preparation cost + lead time: the
+ * player pays the cost to arm the attack, and the strike lands after the delay.
+ * `passive` attacks apply their effects continuously and carry no prepare data.
  */
 
 import {
@@ -15,15 +16,17 @@ import {
   attackEffects,
   attackReferences,
   listAttacks,
+  listResources,
   removeAttack,
   renameAttack,
   setAttackEffects,
   setAttackFlavor,
   setAttackKind,
+  setAttackPrepare,
   type AttackRow,
 } from '../model.js'
 import { buildEffectsSection } from '../effects-editor.js'
-import { addButton, removeButton, renameInput } from './controls.js'
+import { addButton, numberInput, removeButton, renameInput } from './controls.js'
 import { el, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
 
@@ -107,6 +110,7 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   kindSelect.addEventListener('change', () => {
     setAttackKind(tree, row.id, kindSelect.value === 'active' ? 'active' : 'passive')
     ctx.markDirty()
+    render()
   })
 
   // ── Flavor: icon + name + description ──
@@ -132,6 +136,31 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
     labeled('Name', nameInput),
     labeled('Description', descInput),
   )
+
+  // ── Preparation (active attacks only): cost + lead time before the strike ──
+  if (row.kind === 'active') {
+    const prepareCost = numberInput(ctx, row.prepareBaseCost, (n) => {
+      setAttackPrepare(tree, row.id, { baseCost: n })
+    })
+    const prepareCurrency = resourceSelect(tree, row.prepareCurrency, (value) => {
+      setAttackPrepare(tree, row.id, { currency: value })
+      ctx.markDirty()
+    })
+    const prepareTime = numberInput(
+      ctx,
+      row.prepareTimeSec,
+      (n) => {
+        setAttackPrepare(tree, row.id, { timeSec: n })
+      },
+      { step: '0.5' },
+    )
+    fields.append(
+      labeled('Prepare cost', prepareCost),
+      labeled('Cost currency', prepareCurrency),
+      labeled('Prepare time /s', prepareTime),
+    )
+  }
+
   card.append(fields)
 
   // ── Effects (offensive — applied to the opponent) ──
@@ -154,4 +183,23 @@ function labeled(label: string, control: HTMLElement): HTMLElement {
   const wrap = el('label', 'ed-gen-field')
   wrap.append(el('span', 'ed-gen-field-label', label), control)
   return wrap
+}
+
+/** A `<select>` over the tree's resources, labelled with icon + name + key. */
+function resourceSelect(
+  tree: EditorContext['tree'],
+  selected: string,
+  onChange: (value: string) => void,
+): HTMLSelectElement {
+  const sel = el('select', 'ed-input')
+  for (const r of listResources(tree)) {
+    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
+    opt.value = r.key
+    if (r.key === selected) opt.selected = true
+    sel.append(opt)
+  }
+  sel.addEventListener('change', () => {
+    onChange(sel.value)
+  })
+  return sel
 }

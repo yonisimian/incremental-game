@@ -18,6 +18,9 @@ import {
   applyGeneratorPurchase,
   creditResource,
   applyGeneratorSell,
+  applyAttackActivation,
+  dueAttacks,
+  resolveAttackStrike,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -38,6 +41,7 @@ import type {
   OpponentView,
   PlayerAction,
   PurchaseEvent,
+  AttackEvent,
   PlayerState,
   RoundEndReason,
   ServerMessage,
@@ -48,6 +52,7 @@ import {
   isValidPurchase,
   isValidGeneratorPurchase,
   isValidGeneratorSell,
+  isValidAttackActivation,
 } from './validation.js'
 import type { BotStrategy } from './bot.js'
 
@@ -82,6 +87,14 @@ interface MatchPlayer {
    * events are sent (each exactly once); the client accumulates them.
    */
   purchaseFeedSeq: number | null
+  /**
+   * Attack strikes to surface to this player on the next broadcast (oldest
+   * first) — a delta, cleared once sent. Holds both this player's own landed
+   * strikes (`outgoing`) and strikes against them (`incoming`); unlike the
+   * purchase feed there's no intel gating (a theft is directly observable), so a
+   * plain drain-on-broadcast buffer suffices.
+   */
+  attackEvents: AttackEvent[]
 }
 
 /** A purchase log entry: the wire {@link PurchaseEvent} plus its server-internal seq. */
@@ -317,6 +330,7 @@ export class Match {
       purchases: [],
       purchaseSeq: 0,
       purchaseFeedSeq: null,
+      attackEvents: [],
     }
   }
 
@@ -346,6 +360,11 @@ export class Match {
       for (let i = 0; i < this.players.length; i++) {
         this.applyPassiveIncome(this.players[i], this.players[1 - i])
       }
+
+      // Land any active attacks whose preparation has elapsed. Runs after passive
+      // income advances `meta.gameSec` (so a strike due this tick fires) and before
+      // the win check (so a stolen resource is reflected in the same tick).
+      this.resolveDueAttacks()
 
       // Bot decision (always player index 1)
       if (this.bot) {
@@ -415,6 +434,9 @@ export class Match {
       } else if (action.type === 'sell_generator' && action.generatorId) {
         if (!isValidGeneratorSell(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorSell(player.state, action.generatorId, this.modeDef)
+      } else if (action.type === 'activate_attack' && action.attackId) {
+        if (!isValidAttackActivation(player.state, action.attackId, this.modeDef)) continue
+        applyAttackActivation(player.state, action.attackId, this.modeDef)
       }
     }
     player.ackSeq = seq
@@ -485,6 +507,47 @@ export class Match {
       modifiers,
       tickSec,
     )
+  }
+
+  /**
+   * Land every active attack whose preparation has elapsed this tick. For each
+   * player, drain the pending strikes due at their current `meta.gameSec`,
+   * resolve them against the opponent (moving the stolen resource), and buffer an
+   * `outgoing`/`incoming` event pair per moved resource for the next broadcast.
+   */
+  private resolveDueAttacks(): void {
+    for (let i = 0; i < this.players.length; i++) {
+      const attacker = this.players[i]
+      const victim = this.players[1 - i]
+      const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
+      const due = dueAttacks(attacker.state, gameSec)
+      if (due.length === 0) continue
+
+      for (const pending of due) {
+        const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
+        if (!def) continue
+        const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        for (const { resource, amount } of moved) {
+          attacker.attackEvents.push({
+            attack: pending.attack,
+            direction: 'outgoing',
+            resource,
+            amount,
+            t: gameSec,
+          })
+          victim.attackEvents.push({
+            attack: pending.attack,
+            direction: 'incoming',
+            resource,
+            amount,
+            t: gameSec,
+          })
+        }
+      }
+
+      // Drop the resolved entries (identity-matched against the drained subset).
+      attacker.state.pendingAttacks = attacker.state.pendingAttacks.filter((p) => !due.includes(p))
+    }
   }
 
   private pause(): void {
@@ -588,6 +651,11 @@ export class Match {
     const p1Debuffs = collectEnemyDebuffs(p1.state, this.modeDef)
     const p2Debuffs = collectEnemyDebuffs(p2.state, this.modeDef)
 
+    // Drain each player's pending attack events into this broadcast (delta, sent
+    // once). Absent when empty so a quiet round carries no extra payload.
+    const p1Attacks = p1.attackEvents.length ? p1.attackEvents : undefined
+    const p2Attacks = p2.attackEvents.length ? p2.attackEvents : undefined
+
     this.send(p1, {
       type: 'STATE_UPDATE',
       tick: this.tick,
@@ -595,6 +663,7 @@ export class Match {
       player: p1.state,
       opponent: this.opponentViewFor(p1, p2, p1Debuffs),
       debuffs: p2Debuffs,
+      attackEvents: p1Attacks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -606,9 +675,13 @@ export class Match {
       player: p2.state,
       opponent: this.opponentViewFor(p2, p1, p2Debuffs),
       debuffs: p1Debuffs,
+      attackEvents: p2Attacks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
+
+    p1.attackEvents = []
+    p2.attackEvents = []
   }
 
   /**
@@ -727,6 +800,9 @@ export class Match {
     this.clearTimers()
 
     const [p1, p2] = this.players
+    // Discard any attacks still preparing — the round is over, so they never land.
+    p1.state.pendingAttacks = []
+    p2.state.pendingAttacks = []
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

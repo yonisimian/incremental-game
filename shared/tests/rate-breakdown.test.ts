@@ -56,7 +56,15 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
 }
 
 function makeState(overrides?: Partial<PlayerState>): PlayerState {
-  return { score: 0, resources: {}, upgrades: {}, generators: {}, meta: {}, ...overrides }
+  return {
+    score: 0,
+    resources: {},
+    upgrades: {},
+    generators: {},
+    pendingAttacks: [],
+    meta: {},
+    ...overrides,
+  }
 }
 
 /** The rate the game actually applies — the number `computeRateBreakdown.total` must match. */

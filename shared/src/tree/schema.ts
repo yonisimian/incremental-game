@@ -88,12 +88,17 @@ const GeneratorSchema = z.strictObject({
 
 /**
  * An attack — a stable id, its kind, and the offensive effects it carries.
- * Effects are validated per-effect by the registry once assembled into a
- * `ModeDefinition` (see `validateModeDefinition`). Display data is its flavor.
+ * Active attacks also carry a `prepareCost` (paid on activation) and a
+ * `prepareTimeSec` (delay before the strike lands). Effects are validated
+ * per-effect by the registry once assembled into a `ModeDefinition` (see
+ * `validateModeDefinition`), which also enforces the cost/timing rules. Display
+ * data is its flavor.
  */
 const AttackSchema = z.strictObject({
   id: z.string(),
   kind: z.enum(['active', 'passive']),
+  prepareCost: CostSchema.optional(),
+  prepareTimeSec: z.number().min(0).optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 

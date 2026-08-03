@@ -272,6 +272,58 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // Active-attack cost/timing + `stealResource` integrity. An active attack that
+  // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
+  // strike), so both fields must be present and well-formed; a passive attack is
+  // always-on and never activated, so declaring either is an authoring mistake.
+  // Effect-less active attacks stay legal — they're placeholders.
+  for (const attack of def.attacks) {
+    const hasEffects = (attack.effects?.length ?? 0) > 0
+    const hasCost = attack.prepareCost !== undefined && Object.keys(attack.prepareCost).length > 0
+
+    if (attack.kind === 'passive') {
+      if (attack.prepareCost !== undefined || attack.prepareTimeSec !== undefined)
+        throw new Error(
+          `[${id}] passive attack '${attack.id}' declares prepareCost/prepareTimeSec, but passive attacks are always-on and never activated`,
+        )
+    } else {
+      // active
+      if (hasEffects) {
+        if (!hasCost)
+          throw new Error(
+            `[${id}] active attack '${attack.id}' carries effects but has no prepareCost`,
+          )
+        if (attack.prepareTimeSec === undefined)
+          throw new Error(
+            `[${id}] active attack '${attack.id}' carries effects but has no prepareTimeSec`,
+          )
+      }
+      if (attack.prepareTimeSec !== undefined && attack.prepareTimeSec < 0)
+        throw new Error(`[${id}] active attack '${attack.id}' has a negative prepareTimeSec`)
+      for (const currency of Object.keys(attack.prepareCost ?? {})) {
+        if (!resourceKeys.has(currency))
+          throw new Error(
+            `[${id}] active attack '${attack.id}' prepareCost references unknown resource '${currency}'`,
+          )
+      }
+    }
+
+    // `stealResource` may only ride an active attack, and must name a real
+    // resource. Checked for every attack so a misplaced steal on a passive attack
+    // fails loudly rather than silently never resolving.
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'stealResource') continue
+      if (attack.kind !== 'active')
+        throw new Error(
+          `[${id}] attack '${attack.id}' carries a stealResource effect but is not active (steals resolve on a strike, which only active attacks have)`,
+        )
+      if (typeof ref.resource === 'string' && !resourceKeys.has(ref.resource))
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect references unknown resource '${ref.resource}'`,
+        )
+    }
+  }
+
   // Effect refs: resolve + parse once up front, so unknown types or malformed
   // params fail at startup rather than mid-tick. Also warms the per-ref cache.
   for (const ref of def.effects ?? []) prepareEffect(ref)
@@ -382,6 +434,7 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
     resources: { ...mode.initialResources },
     upgrades: Object.fromEntries(mode.upgrades.map((u) => [u.id, 0])),
     generators: Object.fromEntries(mode.generators.map((g) => [g.id, 0])),
+    pendingAttacks: [],
     meta: structuredClone(mode.initialMeta),
   }
 }
@@ -703,6 +756,7 @@ function playerWithout(
     resources: { ...state.resources },
     upgrades: opts.upgrades ? {} : { ...state.upgrades },
     generators: opts.generators ? {} : { ...state.generators },
+    pendingAttacks: [...state.pendingAttacks],
     meta: structuredClone(state.meta),
   }
 }
