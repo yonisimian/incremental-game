@@ -1,7 +1,8 @@
 // @game/shared — pure single-step action applier for the strategy simulator.
 //
 // `applySimAction` applies ONE game action (a single upgrade level, a single
-// generator unit, or a highlight switch) to a player state, reusing the same
+// generator unit, a single generator sale, or a highlight switch) to a player
+// state, reusing the same
 // validators and mutators the server uses so the two can't drift. It does NOT
 // expand `count` (the engine does that, one blocking unit at a time) and does
 // NOT handle `set_click_rate` / `wait` (those are engine orchestration, not
@@ -15,15 +16,24 @@
 //                prerequisite unmet / locked / unknown) — give up and report;
 //                more time won't help.
 
-import { applyGeneratorPurchase } from '../generators.js'
+import { applyGeneratorPurchase, applyGeneratorSell } from '../generators.js'
 import { applyPurchase } from '../modes/index.js'
 import type { ModeDefinition } from '../modes/types.js'
-import { generatorBlockReason, purchaseBlockReason } from '../purchase-validation.js'
+import {
+  generatorBlockReason,
+  generatorSellBlockReason,
+  purchaseBlockReason,
+} from '../purchase-validation.js'
 import type { PlayerState, UpgradeDefinition } from '../types.js'
-import type { BuyAction, BuyGeneratorAction, SetHighlightAction } from './strategy.js'
+import type {
+  BuyAction,
+  BuyGeneratorAction,
+  SellGeneratorAction,
+  SetHighlightAction,
+} from './strategy.js'
 
 /** A game action that mutates player state (excludes the engine-only kinds). */
-export type GameAction = BuyAction | BuyGeneratorAction | SetHighlightAction
+export type GameAction = BuyAction | BuyGeneratorAction | SellGeneratorAction | SetHighlightAction
 
 export type SimApplyResult =
   | { status: 'applied' }
@@ -70,6 +80,14 @@ export function applySimAction(
         return { status: 'applied' }
       }
       return classify(reason)
+    }
+    case 'sell_generator': {
+      const reason = generatorSellBlockReason(state, action.generatorId, mode)
+      if (reason === null) {
+        applyGeneratorSell(state, action.generatorId, mode)
+        return { status: 'applied' }
+      }
+      return classify(reason) // both sell reasons are permanent — never 'transient'
     }
   }
 }

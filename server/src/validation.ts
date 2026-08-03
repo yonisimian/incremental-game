@@ -3,7 +3,7 @@ import { MAX_CPS } from '@game/shared'
 // The purchase validators are pure game rules built from shared primitives, so
 // they live in `@game/shared` (shared with the headless strategy simulator) and
 // are re-exported here for existing server/test call sites.
-export { isValidPurchase, isValidGeneratorPurchase } from '@game/shared'
+export { isValidPurchase, isValidGeneratorPurchase, isValidGeneratorSell } from '@game/shared'
 
 /**
  * Validate a click action against the rate limit.

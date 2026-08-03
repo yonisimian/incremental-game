@@ -14,6 +14,11 @@ const gen = (generatorId: string, ms: number): PlayerAction => ({
   generatorId,
   timestamp: ms,
 })
+const sell = (generatorId: string, ms: number): PlayerAction => ({
+  type: 'sell_generator',
+  generatorId,
+  timestamp: ms,
+})
 const hl = (highlight: string, ms: number): PlayerAction => ({
   type: 'set_highlight',
   highlight,
@@ -37,6 +42,15 @@ describe('liveActionsToStrategy', () => {
       { kind: 'set_highlight', highlight: 'r0' },
       { kind: 'buy', upgradeId: 'u1' },
       { kind: 'buy_generator', generatorId: 'g0' },
+    ])
+  })
+
+  it('maps sell_generator 1:1 without a count and without collapsing', () => {
+    const s = liveActionsToStrategy([gen('g0', 0), sell('g0', 5), sell('g0', 9)], 'idler', 'x')
+    expect(s.actions).toEqual([
+      { kind: 'buy_generator', generatorId: 'g0' },
+      { kind: 'sell_generator', generatorId: 'g0' },
+      { kind: 'sell_generator', generatorId: 'g0' },
     ])
   })
 

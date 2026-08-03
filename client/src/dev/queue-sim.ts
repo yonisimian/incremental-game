@@ -62,6 +62,7 @@ export function importStrategyToQueue(strategy: QueueStrategy): void {
 const ACTION_KINDS: { value: SimAction['kind']; label: string }[] = [
   { value: 'buy', label: 'Buy upgrade' },
   { value: 'buy_generator', label: 'Buy generator' },
+  { value: 'sell_generator', label: 'Sell generator' },
   { value: 'set_highlight', label: 'Set highlight' },
   { value: 'set_click_rate', label: 'Set click rate' },
   { value: 'wait', label: 'Wait' },
@@ -316,6 +317,9 @@ export function initQueueSim(pane: HTMLElement): void {
         set('#q-generator', action.generatorId)
         set('#q-count', String(action.count ?? 1))
         break
+      case 'sell_generator':
+        set('#q-generator', action.generatorId)
+        break
       case 'set_highlight':
         set('#q-resource', action.highlight)
         break
@@ -356,6 +360,11 @@ export function initQueueSim(pane: HTMLElement): void {
         const id = kind === 'buy' ? val('#q-upgrade') : val('#q-generator')
         if (!id) return fail('Select a target.')
         return kind === 'buy' ? { kind, upgradeId: id, count } : { kind, generatorId: id, count }
+      }
+      case 'sell_generator': {
+        const id = val('#q-generator')
+        if (!id) return fail('Select a target.')
+        return { kind, generatorId: id }
       }
       case 'set_highlight': {
         const res = val('#q-resource')
@@ -550,7 +559,13 @@ function runStrategies(
 
 function markersFor(result: SimResult): ChartMarker[] {
   return result.events
-    .filter((e) => e.kind === 'buy' || e.kind === 'buy_generator' || e.kind === 'set_highlight')
+    .filter(
+      (e) =>
+        e.kind === 'buy' ||
+        e.kind === 'buy_generator' ||
+        e.kind === 'sell_generator' ||
+        e.kind === 'set_highlight',
+    )
     .map((e) => ({ x: e.timeSec, label: e.label }))
 }
 
@@ -787,6 +802,8 @@ function paramsHtml(kind: SimAction['kind'], mode: ModeDefinition): string {
       return `
         <label>Generator <select id="q-generator">${optionsHtml(generatorOptions(mode))}</select></label>
         <label>Count <input id="q-count" type="number" min="1" step="1" value="1" /></label>`
+    case 'sell_generator':
+      return `<label>Generator <select id="q-generator">${optionsHtml(generatorOptions(mode))}</select></label>`
     case 'set_highlight':
       return `<label>Resource <select id="q-resource">${optionsHtml(resourceOptions(mode))}</select></label>`
     case 'set_click_rate':

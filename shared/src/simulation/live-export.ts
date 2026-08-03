@@ -89,6 +89,11 @@ export function liveActionsToStrategy(
         ms: a.timestamp,
         action: { kind: 'buy_generator', generatorId: a.generatorId },
       })
+    } else if (a.type === 'sell_generator' && a.generatorId !== undefined) {
+      timed.push({
+        ms: a.timestamp,
+        action: { kind: 'sell_generator', generatorId: a.generatorId },
+      })
     } else if (a.type === 'set_highlight' && a.highlight !== undefined) {
       timed.push({ ms: a.timestamp, action: { kind: 'set_highlight', highlight: a.highlight } })
     }

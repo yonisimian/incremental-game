@@ -15,6 +15,7 @@ import {
   applyPassiveTick,
   applyPurchase,
   applyGeneratorPurchase,
+  applyGeneratorSell,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -40,7 +41,12 @@ import type {
   ServerMessage,
   UpgradeDefinition,
 } from '@game/shared'
-import { isValidClick, isValidPurchase, isValidGeneratorPurchase } from './validation.js'
+import {
+  isValidClick,
+  isValidPurchase,
+  isValidGeneratorPurchase,
+  isValidGeneratorSell,
+} from './validation.js'
 import type { BotStrategy } from './bot.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -399,6 +405,9 @@ export class Match {
         if (!isValidGeneratorPurchase(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
         this.recordPurchase(player, 'generator', action.generatorId)
+      } else if (action.type === 'sell_generator' && action.generatorId) {
+        if (!isValidGeneratorSell(player.state, action.generatorId, this.modeDef)) continue
+        applyGeneratorSell(player.state, action.generatorId, this.modeDef)
       }
     }
     player.ackSeq = seq

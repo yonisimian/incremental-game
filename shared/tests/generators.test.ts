@@ -5,7 +5,10 @@ import {
   getGeneratorBulkCost,
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
+  getGeneratorSellRefund,
+  canSellGenerator,
   applyGeneratorPurchase,
+  applyGeneratorSell,
   isGeneratorUnlocked,
   collectGeneratorCostFactors,
   applyGeneratorCostFactors,
@@ -251,6 +254,50 @@ describe('applyGeneratorPurchase', () => {
 
     expect(state.resources.r0).toBe(15) // 20 - 5
     expect(state.generators.g0).toBe(1)
+  })
+})
+
+// ─── sell generator support ───────────────────────────────────────────
+
+describe('getGeneratorSellRefund', () => {
+  it('returns 0 when no generator is owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    expect(getGeneratorSellRefund(def, 0)).toBe(0)
+  })
+
+  it('returns 50% of the copy being sold, floored', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    expect(getGeneratorSellRefund(def, 1)).toBe(5) // sell first copy at cost 10
+    expect(getGeneratorSellRefund(def, 2)).toBe(10) // sell second copy at cost 20
+  })
+})
+
+describe('canSellGenerator', () => {
+  it('returns false when no copies are owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1 })
+    const state = makeState({ generators: {} })
+    expect(canSellGenerator(state, def)).toBe(false)
+  })
+
+  it('returns true when at least one copy is owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1 })
+    const state = makeState({ generators: { g0: 1 } })
+    expect(canSellGenerator(state, def)).toBe(true)
+  })
+})
+
+describe('applyGeneratorSell', () => {
+  it('refunds resources and decrements owned count without changing score', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    const mode = makeMode([def])
+    const state = makeState({ score: 100, resources: { r0: 0 }, generators: { g0: 2 } })
+
+    applyGeneratorSell(state, 'g0', mode)
+
+    // Selling the second copy refunds floor(20 * 0.5) = 10
+    expect(state.resources.r0).toBe(10)
+    expect(state.generators.g0).toBe(1)
+    expect(state.score).toBe(100)
   })
 })
 
