@@ -3,6 +3,7 @@ import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } fro
 import {
   COUNTDOWN_SEC,
   getAvailableUpgrades,
+  getAttackPrepareCost,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -388,11 +389,16 @@ describe('game.ts', () => {
       ),
     )!
 
+    /** a0's authored Wood prepare cost, read from the tree rather than pinned here. */
+    const woodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+    /** Wood held by an armed player: the cost over again, so a strike leaves a remainder. */
+    const armedWood = woodCost * 2
+
     /** A player snapshot that has the panel + a0 unlocked and enough Wood to arm. */
     function armedPlayer(): StateUpdateMessage['player'] {
       return {
         score: 0,
-        resources: { r0: 2000 },
+        resources: { r0: armedWood },
         upgrades: { ...defaultUpgrades, [panelUpgrade.id]: 1, [a0Upgrade.id]: 1 },
         generators: {},
         pendingAttacks: [],
@@ -412,7 +418,7 @@ describe('game.ts', () => {
       const s = game.getState()
       expect(s.player.pendingAttacks).toHaveLength(1)
       expect(s.player.pendingAttacks[0]?.attack).toBe('a0')
-      expect(s.player.resources.r0).toBe(1000)
+      expect(s.player.resources.r0).toBe(armedWood - woodCost)
       expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(1)
       expect(vi.mocked(queueAction)).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'activate_attack', attackId: 'a0' }),
@@ -422,7 +428,10 @@ describe('game.ts', () => {
     it('is a no-op when the prepare cost is unaffordable', async () => {
       enterIdlerPlaying(game)
       game.handleServerMessage(
-        makeStateUpdate({ ackSeq: 0, player: { ...armedPlayer(), resources: { r0: 100 } } }),
+        makeStateUpdate({
+          ackSeq: 0,
+          player: { ...armedPlayer(), resources: { r0: Math.max(0, woodCost - 1) } },
+        }),
       )
 
       const { queueAction } = await import('../src/network.js')
@@ -446,7 +455,7 @@ describe('game.ts', () => {
       game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
       const s = game.getState()
       expect(s.player.pendingAttacks).toHaveLength(1)
-      expect(s.player.resources.r0).toBe(1000)
+      expect(s.player.resources.r0).toBe(armedWood - woodCost)
     })
   })
 

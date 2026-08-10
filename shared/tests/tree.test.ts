@@ -355,6 +355,59 @@ describe('tree codec — validation failures', () => {
   })
 })
 
+// ─── stealResource: share vs flat quantity ───────────────────────────
+
+/** A tree whose lone active attack carries a `stealResource` with `params`. */
+function treeWithSteal(params: Record<string, unknown>): TreeFile {
+  const tree = minimalTree()
+  tree.attacks = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareCost: { r0: { baseCost: 10 } },
+      prepareTimeSec: 1,
+      effects: [{ type: 'stealResource', resource: 'r0', ...params }],
+    },
+  ]
+  tree.flavors[0].attacks = [{ id: 'a0', name: 'Steal', icon: 'x', description: '' }]
+  return tree
+}
+
+describe('tree codec — stealResource take', () => {
+  it('accepts a share of the victim stockpile', () => {
+    expect(() => toModeDefinition(treeWithSteal({ fraction: 0.1 }))).not.toThrow()
+  })
+
+  it('accepts a flat quantity', () => {
+    const def = toModeDefinition(treeWithSteal({ amount: 500 }))
+    expect(def.attacks[0].effects?.[0]).toMatchObject({ amount: 500 })
+  })
+
+  // Both keys parse as neither shape (each is strict), so the union reports only
+  // "Invalid input" — the validator names the mistake first.
+  it('rejects authoring both a fraction and an amount', () => {
+    expect(() => toModeDefinition(treeWithSteal({ fraction: 0.1, amount: 500 }))).toThrow(
+      /sets both 'fraction' and 'amount'/u,
+    )
+  })
+
+  it('rejects authoring neither', () => {
+    expect(() => toModeDefinition(treeWithSteal({}))).toThrow(
+      /sets neither 'fraction' nor 'amount'/u,
+    )
+  })
+
+  it('rejects a share outside (0, 1]', () => {
+    expect(() => toModeDefinition(treeWithSteal({ fraction: 1.5 }))).toThrow()
+    expect(() => toModeDefinition(treeWithSteal({ fraction: 0 }))).toThrow()
+  })
+
+  it('rejects a non-positive flat quantity', () => {
+    expect(() => toModeDefinition(treeWithSteal({ amount: 0 }))).toThrow()
+    expect(() => toModeDefinition(treeWithSteal({ amount: -5 }))).toThrow()
+  })
+})
+
 // ─── Envelopes moved to the balance sidecar ──────────────────────────
 
 describe('tree codec — envelopes are no longer tree data', () => {

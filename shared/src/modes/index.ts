@@ -321,6 +321,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] attack '${attack.id}' stealResource effect references unknown resource '${ref.resource}'`,
         )
+      // The take is authored as *either* a share (`fraction`) or a flat quantity
+      // (`amount`). The effect's schema already rejects both-or-neither, but as a
+      // union it can only report "Invalid input" — so name the mistake here,
+      // ahead of the `prepareEffect` pass below that raises the zod error.
+      const hasFraction = ref.fraction !== undefined
+      const hasAmount = ref.amount !== undefined
+      if (hasFraction && hasAmount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect sets both 'fraction' and 'amount' — use exactly one (a share of the victim's stockpile, or a flat quantity)`,
+        )
+      if (!hasFraction && !hasAmount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect sets neither 'fraction' nor 'amount' — use exactly one (a share of the victim's stockpile, or a flat quantity)`,
+        )
     }
   }
 

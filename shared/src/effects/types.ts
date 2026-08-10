@@ -132,18 +132,34 @@ export interface EnemyModifierOutput {
 }
 
 /**
- * An instantaneous transfer of a share of the *victim's* stockpile to the
- * attacker, emitted by the `stealResource` effect on an active attack. Unlike
+ * An instantaneous transfer from the *victim's* stockpile to the attacker,
+ * emitted by the `stealResource` effect on an active attack. Unlike
  * {@link EnemyModifierOutput} (continuous, merged into the opponent's pipeline),
  * this is resolved once, at the moment the attack strikes, by
  * `resolveAttackStrike`; every other output consumer ignores it.
+ *
+ * The take is either a share of what the victim holds or a flat quantity — a
+ * union rather than one optional-of-each field, so a consumer must branch on
+ * which was authored instead of silently reading an absent one as `undefined`.
+ * Either way `resolveAttackStrike` caps the transfer at the victim's balance.
  */
-export interface ResourceStealOutput {
+export type ResourceStealOutput = ResourceStealShare | ResourceStealFlat
+
+/** Common shape of a steal, whatever the take is expressed as. */
+interface ResourceStealBase {
   readonly kind: 'resourceSteal'
   /** Which resource is taken from the victim (a key in `mode.resources`). */
   readonly resource: string
-  /** Share of the victim's stockpile taken, e.g. `0.1` = 10%. */
+}
+
+/** Take a share of the victim's stockpile, e.g. `0.1` = 10%. */
+interface ResourceStealShare extends ResourceStealBase {
   readonly fraction: number
+}
+
+/** Take a flat quantity, capped at what the victim holds. */
+interface ResourceStealFlat extends ResourceStealBase {
+  readonly amount: number
 }
 
 /**

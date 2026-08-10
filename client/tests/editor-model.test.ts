@@ -763,6 +763,9 @@ describe('attacks', () => {
     ...listAttacks(tree).find((a) => a.id === id)!.prepareCost,
   ]
 
+  /** The seed attack's authored r0 cost — read, not hard-coded, so tuning the tree can't break these. */
+  const seedCost = prepareCostOf(idler())[0].baseCost
+
   it('surfaces an active attack prepare cost and time', () => {
     const active = listAttacks(idler()).find((a) => a.id === ACTIVE_ATTACK)!
     expect(active.kind).toBe('active')
@@ -787,12 +790,12 @@ describe('attacks', () => {
     expect(addAttackPrepareCurrency(tree, ACTIVE_ATTACK)).toBe('r1')
     setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r1', 250)
     expect(prepareCostOf(tree)).toEqual([
-      { currency: 'r0', baseCost: 1000 },
+      { currency: 'r0', baseCost: seedCost },
       { currency: 'r1', baseCost: 250 },
     ])
     // Both currencies survive the codec round-trip into a runnable mode.
     const attack = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
-    expect(getAttackPrepareCost(attack)).toEqual({ r0: 1000, r1: 250 })
+    expect(getAttackPrepareCost(attack)).toEqual({ r0: seedCost, r1: 250 })
   })
 
   it('editing one currency leaves the attack’s other currencies untouched', () => {
@@ -823,13 +826,13 @@ describe('attacks', () => {
     // r0 → an already-charged currency would silently drop one of the amounts.
     expect(setAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0', 'r1')).toBe(false)
     expect(prepareCostOf(tree)).toEqual([
-      { currency: 'r0', baseCost: 1000 },
+      { currency: 'r0', baseCost: seedCost },
       { currency: 'r1', baseCost: 250 },
     ])
     // Moving the first entry keeps it first, so the editor's rows don't jump.
     expect(setAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0', spare)).toBe(true)
     expect(prepareCostOf(tree)).toEqual([
-      { currency: spare, baseCost: 1000 },
+      { currency: spare, baseCost: seedCost },
       { currency: 'r1', baseCost: 250 },
     ])
   })
@@ -838,7 +841,7 @@ describe('attacks', () => {
     const tree = idler()
     addAttackPrepareCurrency(tree, ACTIVE_ATTACK)
     expect(removeAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r1').ok).toBe(true)
-    expect(prepareCostOf(tree)).toEqual([{ currency: 'r0', baseCost: 1000 }])
+    expect(prepareCostOf(tree)).toEqual([{ currency: 'r0', baseCost: seedCost }])
 
     // The seed attack carries a `stealResource`, so it must keep a cost to load.
     const blocked = removeAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0')

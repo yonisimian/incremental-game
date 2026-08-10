@@ -20,6 +20,12 @@ const STEAL_ATTACK: AttackDefinition = {
   effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
 }
 
+/** The same steal, authored as a flat quantity rather than a share. */
+const FLAT_STEAL_ATTACK: AttackDefinition = {
+  ...STEAL_ATTACK,
+  effects: [{ type: 'stealResource', resource: 'r0', amount: 200 }],
+}
+
 const PASSIVE_ATTACK: AttackDefinition = {
   id: 'a1',
   kind: 'passive',
@@ -226,5 +232,45 @@ describe('resolveAttackStrike', () => {
     const victim = makeState({ resources: { r0: 0 } })
     expect(resolveAttackStrike(attacker, victim, STEAL_ATTACK, mode)).toEqual([])
     expect(attacker.resources.r0).toBe(0)
+  })
+
+  it('moves a flat amount when the effect authors one', () => {
+    const mode = makeMode()
+    const attacker = makeState({ resources: { r0: 100 } })
+    const victim = makeState({ resources: { r0: 500 } })
+    const results = resolveAttackStrike(attacker, victim, FLAT_STEAL_ATTACK, mode)
+    expect(victim.resources.r0).toBe(300)
+    expect(attacker.resources.r0).toBe(300)
+    expect(results).toEqual([{ resource: 'r0', amount: 200 }])
+  })
+
+  it('caps a flat steal at what the victim holds', () => {
+    const mode = makeMode()
+    const attacker = makeState({ resources: { r0: 0 } })
+    const victim = makeState({ resources: { r0: 50 } })
+    const results = resolveAttackStrike(attacker, victim, FLAT_STEAL_ATTACK, mode)
+    expect(victim.resources.r0).toBe(0)
+    expect(attacker.resources.r0).toBe(50)
+    expect(results).toEqual([{ resource: 'r0', amount: 50 }])
+  })
+
+  it('does not credit the attacker score for a flat steal either', () => {
+    const mode = makeMode()
+    const attacker = makeState({ score: 100, resources: { r0: 0 } })
+    const victim = makeState({ resources: { r0: 500 } })
+    resolveAttackStrike(attacker, victim, FLAT_STEAL_ATTACK, mode)
+    expect(attacker.score).toBe(100)
+  })
+
+  it('rejects a steal that authors both a fraction and an amount', () => {
+    const mode = makeMode()
+    const attacker = makeState()
+    const victim = makeState()
+    const bothAttack: AttackDefinition = {
+      ...STEAL_ATTACK,
+      effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1, amount: 200 }],
+    }
+    expect(() => resolveAttackStrike(attacker, victim, bothAttack, mode)).toThrow()
+    expect(victim.resources.r0).toBe(5000)
   })
 })

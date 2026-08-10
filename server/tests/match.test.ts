@@ -5,6 +5,7 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
+  getAttackPrepareCost,
   getModeDefinition,
 } from '@game/shared'
 import { Match } from '../src/match.js'
@@ -1128,7 +1129,13 @@ describe('Match', () => {
       const m = enterPlaying()
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
-      // No Wood grant — the 1000 prepare cost is unaffordable.
+      // Drain p1 to one short of the prepare cost, read from the tree — early
+      // income would otherwise cover a cheaply-tuned cost and arm the attack.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const held = latestUpdate(ws1).player.resources.r0
+      const cost = getAttackPrepareCost(mode.attacks.find((a) => a.id === 'a0')!).r0
+      m.grantResourcesForTest('p1', { r0: cost - 1 - held })
+
       m.handleMessage('p1', activateMsg('a0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)

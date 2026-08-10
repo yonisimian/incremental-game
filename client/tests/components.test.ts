@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
+  getAttackPrepareCost,
   getAvailableUpgrades,
   getModeDefinition,
 } from '@game/shared'
@@ -194,6 +195,9 @@ describe('attackPanel', () => {
     u.effects?.some((e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0'),
   )!
 
+  /** a0's authored Wood prepare cost, so tuning the tree can't break these. */
+  const a0WoodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+
   /** An idler state with the attack panel + a0 unlocked, plus `wood` Wood held. */
   function withA0Unlocked(wood: number, extra: Partial<GameState['player']> = {}): GameState {
     return makeIdlerState({
@@ -218,7 +222,7 @@ describe('attackPanel', () => {
   })
 
   it('renders an affordable active attack as an enabled button with its cost', () => {
-    const html = renderHtml(withA0Unlocked(2000))
+    const html = renderHtml(withA0Unlocked(a0WoodCost * 2))
     expect(html).toContain('data-attack="a0"')
     expect(html).toContain('attack-cost')
     // Enabled: no `disabled` attribute and no blocked/preparing status.
@@ -227,7 +231,7 @@ describe('attackPanel', () => {
   })
 
   it('disables an unaffordable active attack with a blocked status', () => {
-    const html = renderHtml(withA0Unlocked(100))
+    const html = renderHtml(withA0Unlocked(Math.max(0, a0WoodCost - 1)))
     expect(html).toContain('data-attack="a0"')
     expect(html).toContain('disabled')
     expect(html).toContain('attack-status--blocked')

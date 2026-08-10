@@ -111,11 +111,14 @@ export interface AttackStrikeResult {
 
 /**
  * Resolve an active attack's strike. For each `resourceSteal` effect it carries,
- * move `fraction × (victim's held amount)` of that resource from `victim` to
- * `attacker`. Mutates both states in place and returns what was moved (for event
- * feeds / VFX). The victim's debit is bounded by what they hold (can't steal more
- * than exists); the attacker is credited via `creditResource` with an *empty*
- * score resource, so stolen resources never count toward score.
+ * move some of that resource from `victim` to `attacker` — either `fraction ×
+ * (victim's held amount)` or a flat `amount`, whichever the effect authored.
+ * Mutates both states in place and returns what was moved (for event feeds /
+ * VFX). Every take is capped at what the victim holds, so a flat steal against
+ * an emptier stockpile takes the stockpile rather than overdrawing it (a share
+ * can't overshoot on its own, `fraction` being at most 1). The attacker is
+ * credited via `creditResource` with an *empty* score resource, so stolen
+ * resources never count toward score.
  */
 export function resolveAttackStrike(
   attacker: PlayerState,
@@ -128,7 +131,8 @@ export function resolveAttackStrike(
     for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
       if (!('kind' in out) || out.kind !== 'resourceSteal') continue
       const held = victim.resources[out.resource] ?? 0
-      const amount = Math.max(0, held * out.fraction)
+      const requested = 'amount' in out ? out.amount : held * out.fraction
+      const amount = Math.min(held, Math.max(0, requested))
       if (amount <= 0) continue
       victim.resources[out.resource] = held - amount
       creditResource(attacker, out.resource, amount, '')
