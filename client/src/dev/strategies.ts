@@ -128,6 +128,7 @@ function isPrereqClosed(subset: UpgradeDefinition[], subsetIds: Set<string>): bo
       resources: {},
       upgrades: Object.fromEntries([...subsetIds].map((id) => [id, 1])),
       generators: {},
+      pendingAttacks: [],
       meta: {},
     }
     if (!isPrerequisiteSatisfied(u.prerequisites, state)) return false

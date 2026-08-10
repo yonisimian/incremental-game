@@ -62,6 +62,7 @@ describe('IDLER_STRATEGIES — auto-generated', () => {
           resources: {},
           upgrades: Object.fromEntries([...purchased].map((id) => [id, 1])),
           generators: {},
+          pendingAttacks: [],
           meta: {},
         }
         expect(

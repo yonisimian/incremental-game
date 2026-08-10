@@ -1,5 +1,6 @@
 import type { LayerAccumulator, Modifier, ModifierContext, ResourceLayers } from './types.js'
 import type { PlayerState } from '../types.js'
+import { MAX_RESOURCE } from '../game-config.js'
 
 // ─── Pipeline Core ───────────────────────────────────────────────────
 
@@ -16,10 +17,10 @@ const BASE_FIELD_RE = /^b(\d+)$/
 
 /**
  * Resolve a modifier `field` to the resource layer it targets, or `null` if it
- * isn't a resource field the pipeline owns (`clickIncome`/`globalMultiplier` are
- * handled separately; generator ids are folded away before this runs). A `bK`
- * field maps to the base layer of the K-th declared resource; a raw resource id
- * maps to its global layer. An out-of-range `bK` or unknown id is inert here —
+ * isn't a resource field the pipeline owns (`clickIncome` is handled
+ * separately; generator ids are folded away before this runs). A `bK` field maps
+ * to the base layer of the K-th declared resource; a raw resource id maps to
+ * its global layer. An out-of-range `bK` or unknown id is inert here —
  * `validateModeDefinition` already rejects those at boot.
  */
 function resolveField(
@@ -36,11 +37,10 @@ function resolveField(
 
 /**
  * Run the modifier pipeline: accumulate each resource's `base` / `global` layers
- * plus the standalone `clickIncome` and `globalMultiplier` tracks. Returns the
- * raw {@link ModifierContext} — layers are NOT yet combined into a rate (see
- * {@link finalizeRate}). Per-generator output is assumed already folded into
- * resource-id (`global`-layer) modifiers by `collectModifiers`, so this never
- * sees a generator-id `field`.
+ * plus the standalone `clickIncome` track. Returns the raw {@link ModifierContext}
+ * — layers are NOT yet combined into a rate (see {@link finalizeRate}).
+ * Per-generator output is assumed already folded into resource-id (`global`-layer)
+ * modifiers by `collectModifiers`, so this never sees a generator-id `field`.
  */
 export function computeIncome(
   modifiers: readonly Modifier[],
@@ -49,7 +49,6 @@ export function computeIncome(
   const ctx: ModifierContext = {
     clickIncome: 0,
     resources: {},
-    globalMultiplier: 1.0,
   }
   // Seed every declared resource so each key is always present downstream.
   for (const key of resources) ctx.resources[key] = freshLayers()
@@ -59,11 +58,6 @@ export function computeIncome(
     if (m.field === 'clickIncome') {
       if (m.stage === 'additive') ctx.clickIncome += m.value
       else ctx.clickIncome *= m.value
-      continue
-    }
-    if (m.field === 'globalMultiplier') {
-      if (m.stage === 'additive') ctx.globalMultiplier += m.value
-      else ctx.globalMultiplier *= m.value
       continue
     }
     // Resource field: route into the base or global layer.
@@ -79,29 +73,52 @@ export function computeIncome(
 
 /**
  * Combine one resource's layers into its per-second rate:
- * `(base.add·base.mult + global.add) · global.mult · globalMultiplier`. The
- * `global` layer (per-resource multiplier + folded generator output) wraps the
- * base subtotal; `globalMultiplier` scales everything on top.
+ * `(base.add·base.mult + global.add) · global.mult`.
+ * The `global` layer (per-resource multiplier + folded generator output) wraps
+ * the base subtotal.
  */
-function finalizeRate(layers: ResourceLayers | undefined, globalMultiplier: number): number {
+function saturateRate(value: number): number {
+  if (value === Infinity) return MAX_RESOURCE
+  if (value === -Infinity) return -MAX_RESOURCE
+  if (Number.isNaN(value)) return 0
+  return Math.min(MAX_RESOURCE, value)
+}
+
+function finalizeRate(layers: ResourceLayers | undefined): number {
   if (!layers) return 0
   const base = layers.base.add * layers.base.mult
-  const combined = (base + layers.global.add) * layers.global.mult
-  return combined * globalMultiplier
+  return saturateRate((base + layers.global.add) * layers.global.mult)
+}
+
+/**
+ * Credit `amount` of `resource` to `state`, saturating at {@link MAX_RESOURCE},
+ * and mirror it into `score` when it's the score resource. A non-finite amount
+ * credits nothing except `Infinity`, which saturates to the cap.
+ */
+export function creditResource(
+  state: PlayerState,
+  resource: string,
+  amount: number,
+  scoreResource: string,
+): void {
+  if (Number.isNaN(amount) || amount <= 0) return
+  const gain = amount === Infinity ? MAX_RESOURCE : amount
+  state.resources[resource] = Math.min(MAX_RESOURCE, (state.resources[resource] ?? 0) + gain)
+  if (resource === scoreResource) {
+    state.score = Math.min(MAX_RESOURCE, state.score + gain)
+  }
 }
 
 // ─── Convenience Functions ───────────────────────────────────────────
 
-/** Compute the income from a single click (globalMultiplier applied). */
+/** Compute the income from a single click. */
 export function computeClickIncome(modifiers: readonly Modifier[]): number {
-  const ctx = computeIncome(modifiers)
-  return ctx.clickIncome * ctx.globalMultiplier
+  return saturateRate(computeIncome(modifiers).clickIncome)
 }
 
 /**
  * Compute passive income rates per second as a resource map.
  * Keys are seeded from `resources` so every declared key is always present.
- * globalMultiplier is applied to each rate.
  */
 export function computePassiveRates(
   modifiers: readonly Modifier[],
@@ -110,7 +127,7 @@ export function computePassiveRates(
   const ctx = computeIncome(modifiers, resources)
   const result: Record<string, number> = {}
   for (const key of resources) {
-    result[key] = finalizeRate(ctx.resources[key], ctx.globalMultiplier)
+    result[key] = finalizeRate(ctx.resources[key])
   }
   return result
 }
@@ -142,7 +159,6 @@ export function applyPassiveTick(
 
   for (const resource of resources) {
     const gain = rates[resource] * tickSec
-    state.resources[resource] = (state.resources[resource] ?? 0) + gain
-    if (resource === scoreResource) state.score += gain
+    creditResource(state, resource, gain, scoreResource)
   }
 }

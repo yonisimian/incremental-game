@@ -53,6 +53,8 @@ export function actionSummary(
         target: genName(action.generatorId),
         params: `×${action.count ?? 1}`,
       }
+    case 'sell_generator':
+      return { kind: 'sell', target: genName(action.generatorId), params: '×1' }
     case 'set_highlight':
       return { kind: 'highlight', target: resName(action.highlight), params: '' }
     case 'set_click_rate':

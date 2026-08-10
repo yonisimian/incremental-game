@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
 import type { Goal } from '@game/shared'
-import { BROADCAST_INTERVAL_MS, COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
+import {
+  BROADCAST_INTERVAL_MS,
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getAttackPrepareCost,
+  getModeDefinition,
+} from '@game/shared'
 import { Match } from '../src/match.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
 
@@ -17,6 +23,23 @@ const BUY_UPGRADE_GOAL: Goal = {
   type: 'buy-upgrade',
   label: '🏆 Race to Buy',
   safetyCapSec: 600,
+}
+
+/**
+ * Collect every wire hazard in a JSON-parsed message: a `null` (what
+ * `JSON.stringify` emits for `Infinity`/`NaN`) or a non-finite number. A clean
+ * broadcast has neither — optional fields are omitted, never null.
+ */
+function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
+  if (node === null) out.push(`${path} = null`)
+  else if (typeof node === 'number') {
+    if (!Number.isFinite(node)) out.push(`${path} = ${node}`)
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => wireHazards(v, `${path}[${i}]`, out))
+  } else if (typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) wireHazards(v, `${path}.${k}`, out)
+  }
+  return out
 }
 
 describe('Match', () => {
@@ -233,6 +256,28 @@ describe('Match', () => {
       // No espionage unlocked → no resource/rate intel.
       expect(opp.resources).toEqual({})
       expect(opp.rates).toEqual({})
+    })
+
+    it('never wires null or non-finite numbers when a stockpile saturates at the cap', () => {
+      const m = enterPlaying()
+      // Fill the score resource to the ceiling, then unlock Wood Bank, whose
+      // output scales with that near-max stockpile — production now dwarfs a
+      // double's remaining headroom, so each tick tips r0 past the ceiling.
+      // Before the cap this wired Infinity → null → 0 ("you lost everything");
+      // it must now hold at MAX_RESOURCE.
+      m.grantResourcesForTest('p1', { r0: Number.MAX_VALUE })
+      let seq = 1
+      for (let i = 0; i < 4; i++) m.handleMessage('p1', buyMsg('be-af-mr', seq++))
+      for (let i = 0; i < 5; i++) m.handleMessage('p1', buyMsg('be-mf-mr', seq++))
+      m.handleMessage('p1', buyMsg('be-mr-bank', seq))
+
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      // `latestUpdate` parses the JSON the server actually sent, so this is the
+      // exact wire form the client would read.
+      const update = latestUpdate(ws1)
+      expect(update.player.resources.r0).toBe(Number.MAX_VALUE) // saturated, not null/Infinity
+      expect(wireHazards(update)).toEqual([])
     })
 
     it('reveals an opponent resource only to a viewer who unlocked it', () => {
@@ -1020,6 +1065,80 @@ describe('Match', () => {
 
       // Only one ROUND_END — the action after the trophy buy is not processed
       expect(sentOfType(ws1, 'ROUND_END')).toHaveLength(1)
+    })
+  })
+
+  // ── Active attacks ─────────────────────────────────────────────────
+
+  describe('active attacks', () => {
+    const mode = getModeDefinition('idler')
+    // Resolve the (flattened) upgrade ids that gate the attack panel and a0,
+    // rather than hard-coding authoring ids, so the test tracks the tree.
+    const panelUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'panelUnlock' && (e as { panel?: string }).panel === 'attack',
+      ),
+    )!
+    const a0Upgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0',
+      ),
+    )!
+
+    function activateMsg(attackId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'activate_attack', timestamp: Date.now(), attackId }],
+      })
+    }
+
+    /** Unlock the attack panel + a0 for p1 (both free) and grant Wood to raid. */
+    function armAttacker(m: Match) {
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      m.grantResourcesForTest('p1', { r0: 2000 })
+    }
+
+    it('lands a strike after the preparation time, moving Wood between players', () => {
+      const m = enterPlaying()
+      armAttacker(m)
+      m.grantResourcesForTest('p2', { r0: 1000 })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+
+      // Right after activation the strike is pending, not yet resolved.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+
+      // Advance past the 3s preparation; the strike lands and drains the pending queue.
+      vi.advanceTimersByTime(3000)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+
+      const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(outgoing).toContainEqual(
+        expect.objectContaining({ attack: 'a0', direction: 'outgoing', resource: 'r0' }),
+      )
+      const incoming = sentOfType(ws2, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(incoming).toContainEqual(
+        expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
+      )
+    })
+
+    it('rejects an activation the player cannot afford', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      // Drain p1 to one short of the prepare cost, read from the tree — early
+      // income would otherwise cover a cheaply-tuned cost and arm the attack.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const held = latestUpdate(ws1).player.resources.r0
+      const cost = getAttackPrepareCost(mode.attacks.find((a) => a.id === 'a0')!).r0
+      m.grantResourcesForTest('p1', { r0: cost - 1 - held })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
     })
   })
 })

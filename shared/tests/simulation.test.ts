@@ -168,6 +168,31 @@ describe('simulate — structural blocks are reported, not stalled', () => {
   })
 })
 
+describe('simulate — sell_generator', () => {
+  it('sells a generator and reports the event with a sell: label', () => {
+    // Buy g0 (cost 10) at t=5, then sell it the same cursor pass.
+    const result = simulate(
+      strat([
+        { kind: 'buy_generator', generatorId: 'g0' },
+        { kind: 'sell_generator', generatorId: 'g0' },
+      ]),
+      { modeDef: mode },
+    )
+    const sell = result.events.find((e) => e.kind === 'sell_generator')
+    expect(sell?.label).toBe('sell:g0')
+    expect(result.notReached).toHaveLength(0)
+  })
+
+  it('reports selling what is not owned as a permanent block without stalling', () => {
+    const result = simulate(strat([{ kind: 'sell_generator', generatorId: 'g0' }]), {
+      modeDef: mode,
+    })
+    expect(result.events.some((e) => e.kind === 'sell_generator')).toBe(false)
+    expect(result.notReached).toHaveLength(1)
+    expect(result.notReached[0].reason).toBe('not-owned')
+  })
+})
+
 describe('simulate — round-end reporting', () => {
   it('reports an unaffordable buy left in the queue when time runs out', () => {
     // g0 costs 10; at 2 r0/sec only 4 r0 accrue in a 2s round.
@@ -286,6 +311,24 @@ describe('applySimAction', () => {
     expect(r.status).toBe('applied')
     expect(s.meta.highlight).toBe('r0')
   })
+
+  it('sells an owned generator, crediting the refund', () => {
+    const s = state({ resources: { r0: 0 }, generators: { g0: 1 } })
+    const r = applySimAction(s, { kind: 'sell_generator', generatorId: 'g0' }, mode, upgradeMap)
+    expect(r.status).toBe('applied')
+    expect(s.generators.g0).toBe(0)
+    expect(s.resources.r0).toBe(5) // floor(10 * 0.5)
+  })
+
+  it('reports selling an unowned generator as a permanent block', () => {
+    const r = applySimAction(
+      state({ generators: { g0: 0 } }),
+      { kind: 'sell_generator', generatorId: 'g0' },
+      mode,
+      upgradeMap,
+    )
+    expect(r).toEqual({ status: 'permanent', reason: 'not-owned' })
+  })
 })
 
 // ─── Schema / validation ──────────────────────────────────────────────
@@ -294,6 +337,20 @@ describe('parseStrategy', () => {
   it('accepts a well-formed strategy', () => {
     const s = parseStrategy(strat([{ kind: 'buy', upgradeId: 'u_rep', count: 2 }]))
     expect(s.actions).toHaveLength(1)
+  })
+
+  it('accepts a sell_generator action and rejects extra keys on it', () => {
+    expect(parseStrategy(strat([{ kind: 'sell_generator', generatorId: 'g0' }])).actions).toEqual([
+      { kind: 'sell_generator', generatorId: 'g0' },
+    ])
+    const withExtra = strat([
+      {
+        kind: 'sell_generator',
+        generatorId: 'g0',
+        count: 2,
+      } as unknown as QueueStrategy['actions'][number],
+    ])
+    expect(() => parseStrategy(withExtra)).toThrow()
   })
 
   it('rejects a cps above MAX_CPS', () => {
@@ -309,6 +366,7 @@ describe('serializeStrategy — round-trip', () => {
   const full = strat([
     { kind: 'buy', upgradeId: 'u_rep', count: 2 },
     { kind: 'buy_generator', generatorId: 'g0' },
+    { kind: 'sell_generator', generatorId: 'g0' },
     { kind: 'set_highlight', highlight: 'r0' },
     { kind: 'set_click_rate', resource: 'r0', cps: 5 },
     { kind: 'set_click_rate', cps: 3 },

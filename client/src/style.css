@@ -1379,8 +1379,46 @@ body {
   background: var(--surface);
   color: var(--text);
   text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.attack-btn:not(:disabled):hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.attack-btn:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.attack-btn.preparing {
+  border-color: var(--gold);
+  opacity: 1;
+}
+
+.attack-cost {
+  grid-column: 2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.attack-status {
+  grid-column: 2;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.attack-status--preparing {
+  color: var(--gold);
+}
+
+.attack-status--blocked {
+  color: var(--text-muted, var(--text));
 }
 
 .attack-icon {
@@ -1398,10 +1436,38 @@ body {
   color: var(--text-muted, var(--text));
 }
 
-.attack-hint {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted, var(--text));
+/* ─── Attack strike toasts ─── */
+.vfx-attack-toasts {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.vfx-attack-toast {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.vfx-attack-toast--incoming {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.vfx-attack-toast--outgoing {
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 .pact-content {
@@ -1564,6 +1630,23 @@ body {
 
 .generator-buy-btn.buy-max {
   background: var(--accent-dim, var(--surface));
+}
+
+/* Selling is a secondary/undo action — muted by default, danger tint on hover
+   so it never reads as the primary buy action. */
+.generator-buy-btn.generator-sell-btn {
+  background: transparent;
+  color: var(--text-dim, var(--text));
+}
+
+.generator-buy-btn.generator-sell-btn:not(:disabled):hover {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.generator-card .generator-actions + .generator-actions {
+  margin-top: 0.35rem;
 }
 
 /* ─── End Screen ───────────────────────────────────────────────────── */

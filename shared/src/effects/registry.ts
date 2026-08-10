@@ -1,6 +1,6 @@
 import type { ModeDefinition } from '../modes/types.js'
 import type { EffectRef, PlayerState } from '../types.js'
-import type { EffectDef, EffectOutput } from './types.js'
+import type { EffectDef, EffectHost, EffectOutput } from './types.js'
 
 const registry = new Map<string, EffectDef<unknown>>()
 
@@ -27,6 +27,29 @@ export function resolveEffect(type: string): EffectDef<unknown> | undefined {
 /** Every registered effect type name, sorted — the source list for the editor's picker. */
 export function listEffectTypes(): string[] {
   return [...registry.keys()].sort()
+}
+
+/**
+ * Hosts an effect may be authored on when it declares none: the two
+ * production-pipeline hosts, which fit every effect whose output
+ * `collectModifiers` (or a gate it feeds) consumes. Offensive effects — the ones
+ * only an attack strike or the enemy-debuff pass reads — opt out by declaring
+ * their own {@link EffectDef.hosts}.
+ */
+export const DEFAULT_EFFECT_HOSTS: readonly EffectHost[] = ['mode', 'upgrade']
+
+/** Where effect `type` may be authored (the default set when it declares none). */
+export function effectHosts(type: string): readonly EffectHost[] {
+  return registry.get(type)?.hosts ?? DEFAULT_EFFECT_HOSTS
+}
+
+/**
+ * Whether effect `type` may be authored on `host`. An unknown type is allowed
+ * here — `prepareEffect` owns that failure, and reporting it as a placement
+ * error would be misleading.
+ */
+export function isEffectAllowedOn(type: string, host: EffectHost): boolean {
+  return !registry.has(type) || effectHosts(type).includes(host)
 }
 
 /**

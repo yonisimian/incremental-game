@@ -6,6 +6,7 @@ import {
   type OpponentView,
   type PlayerState,
   type PurchaseEvent,
+  type AttackEvent,
   type RoomSettings,
   type RoomErrorReason,
   type RoundEndMessage,
@@ -21,9 +22,12 @@ import {
   getAvailableUpgrades,
   collectModifiers,
   computeClickIncome as pipelineClickIncome,
+  creditResource,
   canAffordGenerator,
   getMaxAffordableGeneratorCount,
   applyGeneratorPurchase,
+  applyGeneratorSell,
+  canSellGenerator,
   isGeneratorUnlocked,
   resolveGeneratorDef,
   isMaxed,
@@ -34,6 +38,12 @@ import {
   applyPurchase,
   isClickUnlocked,
   isHighlightActive,
+  isValidAttackActivation,
+  applyAttackActivation,
+  getModeFlavor,
+  getAttackName,
+  getAttackIcon,
+  getResourceIcon,
 } from '@game/shared'
 import {
   getSeq,
@@ -58,9 +68,11 @@ import {
   shakeScreen,
   resetCombo,
   shockwave,
+  spawnAttackToast,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
+import { formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -128,17 +140,23 @@ export interface GameState {
   roomError: RoomErrorReason | null
 }
 
+export type StateChangeHandler = (state: Readonly<GameState>) => void
+
+// ─── Pending optimistic actions ─────────────────────────────────────────
+
+type PredictedAction =
+  | { kind: 'click'; resource: string }
+  | { kind: 'buy'; upgradeId: string }
+  | { kind: 'buy_generator'; generatorId: string }
+  | { kind: 'sell_generator'; generatorId: string }
+  | { kind: 'set_highlight'; highlight: string }
+  | { kind: 'activate_attack'; attackId: string }
+
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
 interface PendingBatch {
   seq: number
-  /** Resource each click credited, in order (so reconciliation re-credits the right bucket). */
-  clicks: string[]
-  purchases: string[]
-  generatorPurchases: string[]
-  highlight?: string
+  actions: PredictedAction[]
 }
-
-export type StateChangeHandler = (state: Readonly<GameState>) => void
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -147,6 +165,7 @@ const EMPTY_PLAYER_STATE: PlayerState = {
   resources: {},
   upgrades: {},
   generators: {},
+  pendingAttacks: [],
   meta: {},
 }
 
@@ -383,8 +402,7 @@ export function doClick(target?: string): void {
 
   // Optimistic local update
   const income = computeClickIncome(state.player)
-  state.player.resources[resource] = (state.player.resources[resource] ?? 0) + income
-  if (resource === modeDef.scoreResource) state.player.score += income
+  creditResource(state.player, resource, income, modeDef.scoreResource)
 
   // Local click telemetry (data panel) — counted once per real click, never in
   // reconciliation, so optimistic re-application can't double-count.
@@ -401,7 +419,7 @@ export function doClick(target?: string): void {
 
   // Queue for server
   queueAction({ type: 'click', timestamp: Date.now(), resource })
-  trackPendingClick(resource)
+  trackPredicted({ kind: 'click', resource })
   notify()
 }
 
@@ -441,7 +459,7 @@ export function setHighlight(target: string): void {
 
   state.player.meta.highlight = target
   queueAction({ type: 'set_highlight', timestamp: Date.now(), highlight: target })
-  trackPendingHighlight(target)
+  trackPredicted({ kind: 'set_highlight', highlight: target })
   notify()
 }
 
@@ -472,7 +490,7 @@ export function doBuy(upgradeId: string): void {
 
   // Queue for server
   queueAction({ type: 'buy', timestamp: Date.now(), upgradeId })
-  trackPendingPurchase(upgradeId)
+  trackPredicted({ kind: 'buy', upgradeId })
   notify()
 }
 
@@ -487,7 +505,7 @@ export function doBuyGenerator(generatorId: string): void {
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
-  trackPendingGeneratorPurchase(generatorId)
+  trackPredicted({ kind: 'buy_generator', generatorId })
   notify()
 }
 
@@ -507,9 +525,34 @@ export function doBuyGeneratorMax(generatorId: string): void {
     if (!canAffordGenerator(state.player, effectiveDef)) break
     applyGeneratorPurchase(state.player, generatorId, modeDef)
     queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
-    trackPendingGeneratorPurchase(generatorId)
+    trackPredicted({ kind: 'buy_generator', generatorId })
   }
 
+  notify()
+}
+
+/** Attempt to sell one copy of a generator (optimistic). */
+export function doSellGenerator(generatorId: string): void {
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  const def = modeDef.generators.find((g) => g.id === generatorId)
+  if (!def) return
+  if (!canSellGenerator(state.player, def)) return
+  applyGeneratorSell(state.player, generatorId, modeDef)
+  queueAction({ type: 'sell_generator', timestamp: Date.now(), generatorId })
+  trackPredicted({ kind: 'sell_generator', generatorId })
+  notify()
+}
+
+/** Activate an active attack (optimistic) — pays the prepare cost and queues the strike. */
+export function doActivateAttack(attackId: string): void {
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!isValidAttackActivation(state.player, attackId, modeDef)) return
+  applyAttackActivation(state.player, attackId, modeDef)
+  shakeScreen('light')
+  queueAction({ type: 'activate_attack', timestamp: Date.now(), attackId })
+  trackPredicted({ kind: 'activate_attack', attackId })
   notify()
 }
 
@@ -648,50 +691,67 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const reconciled = clonePlayerState(msg.player)
   const modeDef = state.mode ? getModeDefinition(state.mode) : undefined
   for (const batch of pendingBatches) {
-    for (const resource of batch.clicks) {
-      const income = computeClickIncome(reconciled)
-      const target = modeDef?.resources.includes(resource) ? resource : undefined
-      if (modeDef && target) {
-        reconciled.resources[target] = (reconciled.resources[target] ?? 0) + income
-        if (target === modeDef.scoreResource) reconciled.score += income
-      }
-    }
-    for (const uid of batch.purchases) {
-      const def = state.upgrades.find((u) => u.id === uid)
-      if (!def) continue
-
-      const owned = reconciled.upgrades[uid] ?? 0
-      if (isMaxed(def, owned)) continue
-
-      // Skip if this purchase is not unlocked in the reconciled state
-      if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) continue
-
-      // Check correct resource and apply
-      if (!modeDef) continue
-      const cost = getUpgradeNextCost(def, owned)
-      if (isCostAffordable(reconciled.resources, cost)) {
-        for (const [currency, amount] of Object.entries(cost)) {
-          reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
+    for (const action of batch.actions) {
+      switch (action.kind) {
+        case 'click': {
+          if (!modeDef) break
+          const income = computeClickIncome(reconciled)
+          const target = modeDef.resources.includes(action.resource) ? action.resource : undefined
+          if (!target) break
+          creditResource(reconciled, target, income, modeDef.scoreResource)
+          break
         }
-        grantUpgrade(reconciled, uid)
+        case 'buy': {
+          if (!modeDef) break
+          const def = state.upgrades.find((u) => u.id === action.upgradeId)
+          if (!def) break
+
+          const owned = reconciled.upgrades[action.upgradeId] ?? 0
+          if (isMaxed(def, owned)) break
+          if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
+          const cost = getUpgradeNextCost(def, owned)
+          if (!isCostAffordable(reconciled.resources, cost)) break
+          for (const [currency, amount] of Object.entries(cost)) {
+            reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
+          }
+          grantUpgrade(reconciled, action.upgradeId)
+          break
+        }
+        case 'sell_generator': {
+          if (!modeDef) break
+          const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
+          if (!gdef) break
+          if (!canSellGenerator(reconciled, gdef)) break
+          applyGeneratorSell(reconciled, action.generatorId, modeDef)
+          break
+        }
+        case 'set_highlight': {
+          if (!modeDef) break
+          if (!modeDef.resources.includes(action.highlight)) break
+          reconciled.meta.highlight = action.highlight
+          break
+        }
+        case 'buy_generator': {
+          if (!modeDef) break
+          const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
+          if (!gdef) break
+          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+          if (!canAffordGenerator(reconciled, effectiveGdef)) break
+          applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
+          break
+        }
+        case 'activate_attack': {
+          if (!modeDef) break
+          if (!isValidAttackActivation(reconciled, action.attackId, modeDef)) break
+          applyAttackActivation(reconciled, action.attackId, modeDef)
+          break
+        }
       }
-    }
-    // Re-apply pending highlight
-    if (batch.highlight) {
-      reconciled.meta.highlight = batch.highlight
-    }
-    // Re-apply pending generator purchases
-    for (const gid of batch.generatorPurchases) {
-      if (!modeDef) continue
-      const gdef = modeDef.generators.find((g) => g.id === gid)
-      if (!gdef) continue
-      const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
-      if (!canAffordGenerator(reconciled, effectiveGdef)) continue
-      applyGeneratorPurchase(reconciled, gid, modeDef)
     }
   }
 
   state.player = reconciled
+  if (msg.attackEvents) showAttackEvents(msg.attackEvents, modeDef)
   if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
   notify()
@@ -720,26 +780,14 @@ function getOrCreateBatch(): PendingBatch {
   const targetSeq = getSeq() + 1
   let batch = pendingBatches.find((b) => b.seq === targetSeq)
   if (!batch) {
-    batch = { seq: targetSeq, clicks: [], purchases: [], generatorPurchases: [] }
+    batch = { seq: targetSeq, actions: [] }
     pendingBatches.push(batch)
   }
   return batch
 }
 
-function trackPendingClick(resource: string): void {
-  getOrCreateBatch().clicks.push(resource)
-}
-
-function trackPendingPurchase(upgradeId: string): void {
-  getOrCreateBatch().purchases.push(upgradeId)
-}
-
-function trackPendingHighlight(target: string): void {
-  getOrCreateBatch().highlight = target
-}
-
-function trackPendingGeneratorPurchase(generatorId: string): void {
-  getOrCreateBatch().generatorPurchases.push(generatorId)
+function trackPredicted(action: PredictedAction): void {
+  getOrCreateBatch().actions.push(action)
 }
 
 // ─── Private: countdown ──────────────────────────────────────────────
@@ -770,6 +818,31 @@ function grantUpgrade(player: PlayerState, uid: string): void {
   player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
 }
 
+/**
+ * Surface landed attack strikes as transient toasts. `outgoing` = one of our
+ * attacks hit the opponent; `incoming` = we were hit (also shakes the screen).
+ * Display strings are resolved from the mode flavor here — the server sends only
+ * abstract ids.
+ */
+function showAttackEvents(
+  events: readonly AttackEvent[],
+  modeDef: ModeDefinition | undefined,
+): void {
+  if (!modeDef) return
+  const flavor = getModeFlavor(modeDef)
+  for (const ev of events) {
+    const name = getAttackName(flavor, ev.attack)
+    const icon = getAttackIcon(flavor, ev.attack)
+    const amount = `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
+    if (ev.direction === 'outgoing') {
+      spawnAttackToast(`${icon} ${name}: stole ${amount}`, 'outgoing')
+    } else {
+      spawnAttackToast(`${icon} ${name}: lost ${amount}`, 'incoming')
+      shakeScreen('medium')
+    }
+  }
+}
+
 function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
@@ -784,6 +857,7 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     resources: { ...s.resources },
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
+    pendingAttacks: [...s.pendingAttacks],
     meta: structuredClone(s.meta),
   }
 }

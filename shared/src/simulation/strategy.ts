@@ -46,6 +46,7 @@ const SimActionSchema = z.discriminatedUnion('kind', [
     /** How many units to buy back-to-back; each blocks until affordable. Default 1. */
     count: z.number().int().positive().optional(),
   }),
+  z.strictObject({ kind: z.literal('sell_generator'), generatorId: z.string() }),
   z.strictObject({ kind: z.literal('set_highlight'), highlight: z.string() }),
   z.strictObject({
     kind: z.literal('set_click_rate'),
@@ -71,6 +72,7 @@ export type QueueStrategy = z.infer<typeof QueueStrategySchema>
 /** Narrowed per-kind action types, for consumers that handle one kind at a time. */
 export type BuyAction = Extract<SimAction, { kind: 'buy' }>
 export type BuyGeneratorAction = Extract<SimAction, { kind: 'buy_generator' }>
+export type SellGeneratorAction = Extract<SimAction, { kind: 'sell_generator' }>
 export type SetHighlightAction = Extract<SimAction, { kind: 'set_highlight' }>
 export type SetClickRateAction = Extract<SimAction, { kind: 'set_click_rate' }>
 export type WaitAction = Extract<SimAction, { kind: 'wait' }>
@@ -110,6 +112,8 @@ function canonicalAction(action: SimAction): Record<string, unknown> {
         generatorId: action.generatorId,
         ...(action.count !== undefined && { count: action.count }),
       }
+    case 'sell_generator':
+      return { kind: 'sell_generator', generatorId: action.generatorId }
     case 'set_highlight':
       return { kind: 'set_highlight', highlight: action.highlight }
     case 'set_click_rate':
@@ -157,6 +161,10 @@ export function validateStrategyForMode(strategy: QueueStrategy, mode: ModeDefin
           problems.push(`${at}: unknown upgrade "${action.upgradeId}"`)
         break
       case 'buy_generator':
+        if (!generatorIds.has(action.generatorId))
+          problems.push(`${at}: unknown generator "${action.generatorId}"`)
+        break
+      case 'sell_generator':
         if (!generatorIds.has(action.generatorId))
           problems.push(`${at}: unknown generator "${action.generatorId}"`)
         break

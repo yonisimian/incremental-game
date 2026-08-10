@@ -13,7 +13,13 @@ import {
 } from '../game-config.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
-import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import {
+  applyEffect,
+  effectHosts,
+  isEffectAllowedOn,
+  normalizeEffectOutputs,
+  prepareEffect,
+} from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
@@ -21,7 +27,7 @@ import {
   NON_RESOURCE_INTEL_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
-import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
+import type { BaseModifierOutput, EffectHost, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
   allPactIds,
@@ -33,6 +39,14 @@ import {
 } from '../unlock-gates.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
+
+/** How each effect host reads in an authoring error message. */
+const HOST_LABELS: Record<EffectHost, string> = {
+  mode: 'the mode',
+  upgrade: 'an upgrade',
+  passiveAttack: 'a passive attack',
+  activeAttack: 'an active attack',
+}
 
 /**
  * Validate that a single flavor's display data covers exactly the mode's
@@ -233,7 +247,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
-        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'clickIncome', or 'globalMultiplier')`,
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
       )
   }
   for (const m of def.nativeModifiers) checkProductionField('native modifier', m.field)
@@ -248,26 +262,114 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of a.effects ?? []) checkBaseModifier(`attack '${a.id}'`, ref)
   }
 
-  // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
-  // opponent-pipeline target. It's a mode-specific string the generic schema
-  // only checks is present, so validate it against the *enemy-debuff* target
-  // catalog — a subset of `relativeModifier`'s (resource rates + globalMultiplier
-  // only). Generator-id and `clickIncome` targets are rejected here because the
-  // debuff merges into the opponent's pipeline after generator output is folded
-  // and only on the passive path, so they'd silently do nothing (see
-  // `enemyDebuffTargetsFor`). Also flags an offensive effect on an active attack,
-  // which has no continuous behavior yet (likely an authoring mistake).
+  // Effect placement. Each host is read by different code and keeps different
+  // output kinds, so a ref on the wrong one doesn't misbehave — it silently does
+  // nothing. Every effect declares where it may live (defaulting to the
+  // production-pipeline hosts), so this is one generic check rather than a
+  // special case per offensive effect.
+  const checkHost = (where: string, host: EffectHost, refs: readonly EffectRef[]): void => {
+    for (const ref of refs) {
+      if (isEffectAllowedOn(ref.type, host)) continue
+      throw new Error(
+        `[${id}] ${where} carries a '${ref.type}' effect, which only applies on ${effectHosts(
+          ref.type,
+        )
+          .map((h) => HOST_LABELS[h])
+          .join(' / ')} — here it would silently do nothing`,
+      )
+    }
+  }
+  checkHost('the mode', 'mode', def.effects ?? [])
+  for (const u of def.upgrades) checkHost(`upgrade '${u.id}'`, 'upgrade', u.effects ?? [])
+  for (const attack of def.attacks) {
+    checkHost(
+      `${attack.kind} attack '${attack.id}'`,
+      attack.kind === 'passive' ? 'passiveAttack' : 'activeAttack',
+      attack.effects ?? [],
+    )
+  }
+
+  // `enemyProductionModifier` effects (carried by passive attacks) name a
+  // `field` — the opponent-pipeline target. It's a mode-specific string the
+  // generic schema only checks is present, so validate it against the
+  // *enemy-debuff* target catalog — a subset of `relativeModifier`'s (resource
+  // rates only). Generator-id and `clickIncome` targets are rejected here because
+  // the debuff merges into the opponent's pipeline after generator output is
+  // folded and only on the passive path, so they'd silently do nothing (see
+  // `enemyDebuffTargetsFor`).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
       if (ref.type !== 'enemyProductionModifier') continue
-      if (attack.kind !== 'passive')
-        throw new Error(
-          `[${id}] attack '${attack.id}' carries an enemyProductionModifier but is not passive (active attacks have no continuous effect yet)`,
-        )
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates and globalMultiplier can be debuffed)`,
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates can be debuffed)`,
+        )
+    }
+  }
+
+  // Active-attack cost/timing + `stealResource` integrity. An active attack that
+  // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
+  // strike), so both fields must be present and well-formed; a passive attack is
+  // always-on and never activated, so declaring either is an authoring mistake.
+  // Effect-less active attacks stay legal — they're placeholders.
+  for (const attack of def.attacks) {
+    const hasEffects = (attack.effects?.length ?? 0) > 0
+    const hasCost = attack.prepareCost !== undefined && Object.keys(attack.prepareCost).length > 0
+
+    if (attack.kind === 'passive') {
+      if (attack.prepareCost !== undefined || attack.prepareTimeSec !== undefined)
+        throw new Error(
+          `[${id}] passive attack '${attack.id}' declares prepareCost/prepareTimeSec, but passive attacks are always-on and never activated`,
+        )
+    } else {
+      // active
+      if (hasEffects) {
+        if (!hasCost)
+          throw new Error(
+            `[${id}] active attack '${attack.id}' carries effects but has no prepareCost`,
+          )
+        if (attack.prepareTimeSec === undefined)
+          throw new Error(
+            `[${id}] active attack '${attack.id}' carries effects but has no prepareTimeSec`,
+          )
+      }
+      if (attack.prepareTimeSec !== undefined && attack.prepareTimeSec < 0)
+        throw new Error(`[${id}] active attack '${attack.id}' has a negative prepareTimeSec`)
+      for (const currency of Object.keys(attack.prepareCost ?? {})) {
+        if (!resourceKeys.has(currency))
+          throw new Error(
+            `[${id}] active attack '${attack.id}' prepareCost references unknown resource '${currency}'`,
+          )
+      }
+    }
+
+    // `stealResource` may only ride an active attack, and must name a real
+    // resource. Checked for every attack so a misplaced steal on a passive attack
+    // fails loudly rather than silently never resolving.
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'stealResource') continue
+      if (attack.kind !== 'active')
+        throw new Error(
+          `[${id}] attack '${attack.id}' carries a stealResource effect but is not active (steals resolve on a strike, which only active attacks have)`,
+        )
+      if (typeof ref.resource === 'string' && !resourceKeys.has(ref.resource))
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect references unknown resource '${ref.resource}'`,
+        )
+      // The take is authored as *either* a share (`fraction`) or a flat quantity
+      // (`amount`). The effect's schema already rejects both-or-neither, but as a
+      // union it can only report "Invalid input" — so name the mistake here,
+      // ahead of the `prepareEffect` pass below that raises the zod error.
+      const hasFraction = ref.fraction !== undefined
+      const hasAmount = ref.amount !== undefined
+      if (hasFraction && hasAmount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect sets both 'fraction' and 'amount' — use exactly one (a share of the victim's stockpile, or a flat quantity)`,
+        )
+      if (!hasFraction && !hasAmount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealResource effect sets neither 'fraction' nor 'amount' — use exactly one (a share of the victim's stockpile, or a flat quantity)`,
         )
     }
   }
@@ -382,6 +484,7 @@ export function createInitialState(mode: ModeDefinition): PlayerState {
     resources: { ...mode.initialResources },
     upgrades: Object.fromEntries(mode.upgrades.map((u) => [u.id, 0])),
     generators: Object.fromEntries(mode.generators.map((g) => [g.id, 0])),
+    pendingAttacks: [],
     meta: structuredClone(mode.initialMeta),
   }
 }
@@ -703,6 +806,7 @@ function playerWithout(
     resources: { ...state.resources },
     upgrades: opts.upgrades ? {} : { ...state.upgrades },
     generators: opts.generators ? {} : { ...state.generators },
+    pendingAttacks: [...state.pendingAttacks],
     meta: structuredClone(state.meta),
   }
 }

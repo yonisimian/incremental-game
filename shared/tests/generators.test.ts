@@ -5,13 +5,17 @@ import {
   getGeneratorBulkCost,
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
+  getGeneratorSellRefund,
+  canSellGenerator,
   applyGeneratorPurchase,
+  applyGeneratorSell,
   isGeneratorUnlocked,
   collectGeneratorCostFactors,
   applyGeneratorCostFactors,
   resolveGeneratorDef,
 } from '../src/generators.js'
 import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
+import { MAX_RESOURCE } from '../src/game-config.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -51,6 +55,7 @@ function makeState(overrides?: Partial<PlayerState>): PlayerState {
     resources: { r0: 100 },
     upgrades: {},
     generators: {},
+    pendingAttacks: [],
     meta: {},
     ...overrides,
   }
@@ -203,6 +208,19 @@ describe('canAffordGenerator', () => {
     const state = makeState({ resources: { r0: 10 }, generators: {} })
     expect(canAffordGenerator(state, def)).toBe(true) // cost = baseCost when 0 owned
   })
+
+  it('rejects a cost-curve overflow at the resource cap (NaN-cliff guard)', () => {
+    // A geometric curve overflows a double at a high enough owned count, and
+    // `Math.floor(Infinity)` is `Infinity`.
+    const def = makeDef({ baseCost: 10, costScaling: 1.15 })
+    expect(getGeneratorCost(def, 6000)).toBe(Infinity)
+    // A stockpile capped at MAX_RESOURCE still cannot clear an Infinity price —
+    // `MAX_RESOURCE >= Infinity` is false — so the buy is unaffordable rather
+    // than debiting Infinity and poisoning the stockpile to NaN. This guard is
+    // only sound *because* stockpiles are capped below Infinity.
+    const state = makeState({ resources: { r0: MAX_RESOURCE }, generators: { g0: 6000 } })
+    expect(canAffordGenerator(state, def)).toBe(false)
+  })
 })
 
 // ─── applyGeneratorPurchase ──────────────────────────────────────────
@@ -251,6 +269,50 @@ describe('applyGeneratorPurchase', () => {
 
     expect(state.resources.r0).toBe(15) // 20 - 5
     expect(state.generators.g0).toBe(1)
+  })
+})
+
+// ─── sell generator support ───────────────────────────────────────────
+
+describe('getGeneratorSellRefund', () => {
+  it('returns 0 when no generator is owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    expect(getGeneratorSellRefund(def, 0)).toBe(0)
+  })
+
+  it('returns 50% of the copy being sold, floored', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    expect(getGeneratorSellRefund(def, 1)).toBe(5) // sell first copy at cost 10
+    expect(getGeneratorSellRefund(def, 2)).toBe(10) // sell second copy at cost 20
+  })
+})
+
+describe('canSellGenerator', () => {
+  it('returns false when no copies are owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1 })
+    const state = makeState({ generators: {} })
+    expect(canSellGenerator(state, def)).toBe(false)
+  })
+
+  it('returns true when at least one copy is owned', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 1 })
+    const state = makeState({ generators: { g0: 1 } })
+    expect(canSellGenerator(state, def)).toBe(true)
+  })
+})
+
+describe('applyGeneratorSell', () => {
+  it('refunds resources and decrements owned count without changing score', () => {
+    const def = makeDef({ baseCost: 10, costScaling: 2 })
+    const mode = makeMode([def])
+    const state = makeState({ score: 100, resources: { r0: 0 }, generators: { g0: 2 } })
+
+    applyGeneratorSell(state, 'g0', mode)
+
+    // Selling the second copy refunds floor(20 * 0.5) = 10
+    expect(state.resources.r0).toBe(10)
+    expect(state.generators.g0).toBe(1)
+    expect(state.score).toBe(100)
   })
 })
 

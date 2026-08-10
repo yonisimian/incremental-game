@@ -65,6 +65,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 0, r1: 0 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r0' as const },
         upgrades: {
           'be-af-mr': 0,
@@ -85,6 +86,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 0, r1: 0 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r0' as const },
         upgrades: {
           'be-af-mr': 0,
@@ -109,6 +111,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 200, r1: 200 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r0' as const },
         upgrades: {
           'be-af-mr': 0,
@@ -160,6 +163,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 9999, r1: 9999 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r0' as const },
         upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0, u4: 0, u5: 0 },
       }
@@ -185,6 +189,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 0, r1: 0 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r0' as const },
         upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0 },
       }
@@ -202,6 +207,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 0, r1: 1000 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r1' as const },
         upgrades: { 'g1-g2': 1 },
       }
@@ -217,6 +223,7 @@ describe('Bot', () => {
         score: 0,
         resources: { r0: 1000, r1: 1000 },
         generators: {},
+        pendingAttacks: [],
         meta: { highlight: 'r1' as const },
         upgrades: {},
       }

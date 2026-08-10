@@ -13,9 +13,11 @@ import {
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
+  isEffectAllowedOn,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
+  type EffectHost,
   type TreeFile,
 } from '@game/shared'
 
@@ -43,6 +45,13 @@ interface EffectEntry {
  */
 export interface EffectsHost {
   readonly tree: TreeFile
+  /**
+   * Which host these effects live on. The "+ effect" picker offers only the
+   * effects legal there, so an effect no consumer would ever read — a steal on
+   * an upgrade, a production bonus on an attack — can't be authored in the first
+   * place (`validateModeDefinition` rejects it at load either way).
+   */
+  readonly effectHost: EffectHost
   getEffects(): readonly EffectEntry[]
   setEffects(next: EffectEntry[]): void
 }
@@ -67,7 +76,7 @@ function field(label: string, control: HTMLElement): HTMLDivElement {
  * One picker option: a bare key (label = key) or an explicit value/label pair
  * (so catalog-driven fields can show a human description while storing the key).
  */
-type EffectFieldOption = string | { readonly value: string; readonly label: string }
+export type EffectFieldOption = string | { readonly value: string; readonly label: string }
 
 /**
  * Fixed option set for an effect's string param, or `undefined` to render a free
@@ -76,13 +85,17 @@ type EffectFieldOption = string | { readonly value: string; readonly label: stri
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
  * `:rate` variant per resource (per-second production) and the non-resource
- * intel keys (peak CPS, purchases). `relativeModifier`'s `field`/`source` come
- * from the shared addressable-field catalog (labelled), the same set the
+ * intel keys (peak CPS, purchases), and `stealResource`'s `resource` from the
+ * tree's resource keys. `relativeModifier`'s `field`/`source` come from the
+ * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
- * narrower enemy-debuff catalog (resource rates + globalMultiplier only —
- * generator/click targets don't apply to a debuff).
+ * narrower enemy-debuff catalog (resource rates only — generator/click targets
+ * don't apply to a debuff).
+ *
+ * Exported for testing: every id-referencing param should resolve to a picker,
+ * so free text can never author a key the boot-time validator would reject.
  */
-function effectFieldOptions(
+export function effectFieldOptions(
   tree: TreeFile,
   effectType: string,
   fieldKey: string,
@@ -117,12 +130,15 @@ function effectFieldOptions(
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return tree.attacks.map((a) => a.id)
   }
+  if (effectType === 'stealResource' && fieldKey === 'resource') {
+    return tree.resources
+  }
   if (effectType === 'unlockPact' && fieldKey === 'pact') {
     return tree.pacts.map((p) => p.id)
   }
   // `baseModifier` targets the same production catalog the boot-time validator
   // enforces: each resource's global rate (`rK`) and isolated base producer
-  // (`bK`), each generator, plus the `clickIncome` / `globalMultiplier` specials.
+  // (`bK`), each generator, plus the `clickIncome` special.
   if (effectType === 'baseModifier' && fieldKey === 'field') {
     return addressableTargetsFor(
       tree.resources,
@@ -324,6 +340,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     label: 'Unlocks',
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
+  { label: 'Offense', types: ['stealResource'] },
 ]
 
 /**
@@ -357,7 +374,7 @@ export function buildEffectsSection(host: EffectsHost): HTMLElement {
   }
   render()
 
-  const types = listEffectTypes()
+  const types = listEffectTypes().filter((type) => isEffectAllowedOn(type, host.effectHost))
   const addSelect = el('select', 'ed-input')
   for (const group of groupEffectTypes(types)) {
     const optgroup = document.createElement('optgroup')

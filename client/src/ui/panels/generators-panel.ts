@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { doBuyGenerator, doBuyGeneratorMax } from '../../game.js'
+import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import {
   type GeneratorDefinition,
@@ -10,8 +10,10 @@ import {
   generatorCostCurrency,
   getGeneratorCost,
   getGeneratorBulkCost,
+  getGeneratorSellRefund,
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
+  canSellGenerator,
   isGeneratorUnlocked,
   resolveGeneratorDef,
   getResourceIcon,
@@ -31,6 +33,8 @@ export interface GeneratorCardNums {
   readonly affordable: boolean
   readonly maxAffordable: number
   readonly bulkCost: number
+  readonly sellRefund: number
+  readonly canSell: boolean
 }
 
 /**
@@ -45,13 +49,14 @@ export function renderGeneratorCardView(
   flavor: ModeFlavor,
   nums: GeneratorCardNums,
 ): string {
-  const { owned, nextCost, affordable, maxAffordable, bulkCost } = nums
+  const { owned, nextCost, affordable, maxAffordable, bulkCost, sellRefund, canSell } = nums
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
   const costIcon = getResourceIcon(flavor, generatorCostCurrency(def))
+  const inert = !affordable && !canSell // Dim when we can't buy and can't sell the card.
   return `
-    <article class="generator-card${!affordable ? ' too-expensive' : ''}" data-generator="${def.id}">
+    <article class="generator-card${inert ? ' too-expensive' : ''}" data-generator="${def.id}">
       <div class="generator-summary">
         <span class="generator-icon">${getGeneratorIcon(flavor, def.id)}</span>
         <span class="generator-info">
@@ -66,6 +71,11 @@ export function renderGeneratorCardView(
         </button>
         <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
           Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}
+        </button>
+      </div>
+      <div class="generator-actions">
+        <button class="generator-buy-btn generator-sell-btn" data-action="sell" ${!canSell ? 'disabled' : ''}>
+          Sell 1 — +${costIcon}${formatNumber(sellRefund)}
         </button>
       </div>
     </article>
@@ -93,12 +103,16 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const maxAffordable = getMaxAffordableGeneratorCount(state.player, effectiveDef)
       const bulkCost =
         maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
+      const sellRefund = getGeneratorSellRefund(effectiveDef, owned)
+      const canSell = canSellGenerator(state.player, effectiveDef)
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
         affordable,
         maxAffordable,
         bulkCost,
+        sellRefund,
+        canSell,
       })
     })
     .join('')
@@ -124,17 +138,22 @@ export const generatorsPanel: Panel = {
     if (!list || list.dataset.delegated) return
     list.dataset.delegated = 'true'
     list.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.generator-buy-btn')
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]')
       if (!btn || btn.disabled) return
       const card = btn.closest<HTMLElement>('.generator-card')
       if (!card) return
       const gid = card.dataset.generator
       if (!gid) return
 
-      if (btn.dataset.action === 'buy-max') {
-        doBuyGeneratorMax(gid)
-      } else {
-        doBuyGenerator(gid)
+      switch (btn.dataset.action) {
+        case 'buy-max':
+          doBuyGeneratorMax(gid)
+          break
+        case 'sell':
+          doSellGenerator(gid)
+          break
+        default:
+          doBuyGenerator(gid)
       }
     })
   },

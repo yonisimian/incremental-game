@@ -3,6 +3,7 @@ import type { Goal, RoundEndMessage, RoundStartMessage, StateUpdateMessage } fro
 import {
   COUNTDOWN_SEC,
   getAvailableUpgrades,
+  getAttackPrepareCost,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -74,6 +75,7 @@ function makeStateUpdate(overrides: Partial<StateUpdateMessage> = {}): StateUpda
       resources: { r0: 0 },
       upgrades: { ...defaultUpgrades },
       generators: {},
+      pendingAttacks: [],
       meta: {},
     },
     opponent: {
@@ -257,6 +259,7 @@ describe('game.ts', () => {
             // g0 is gated behind the g1-g2 upgrade; grant it so buy-max applies.
             upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
           opponent: {
@@ -281,7 +284,180 @@ describe('game.ts', () => {
     })
   })
 
-  // ── STATE_UPDATE reconciliation ──────────────────────────────────
+  describe('doSellGenerator', () => {
+    it('sells a generator optimistically and queues a sell action', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            pendingAttacks: [],
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 55,
+        }),
+      )
+
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doSellGenerator('g0')
+
+      const s = game.getState()
+      expect(s.player.generators.g0).toBe(0)
+      expect(s.player.resources.r1).toBeGreaterThan(0)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'sell_generator', generatorId: 'g0' }),
+      )
+    })
+
+    it('replays an unacked sell action on top of server state', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            pendingAttacks: [],
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 55,
+        }),
+      )
+
+      game.doSellGenerator('g0')
+      expect(game.getState().player.generators.g0).toBe(0)
+      expect(game.getState().player.resources.r1).toBeGreaterThan(0)
+
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: {
+            score: 0,
+            resources: { r1: 0 },
+            upgrades: { ...defaultUpgrades, 'g1-g2': 1 },
+            generators: { g0: 1 },
+            pendingAttacks: [],
+            meta: {},
+          },
+          opponent: {
+            score: 0,
+            resources: { r0: 0 },
+            rates: {},
+          },
+          timeLeft: 54,
+        }),
+      )
+
+      const s = game.getState()
+      expect(s.player.generators.g0).toBe(0)
+      expect(s.player.resources.r1).toBeGreaterThan(0)
+    })
+  })
+
+  // ── Active attacks (optimistic) ──────────────────────────────────
+
+  describe('doActivateAttack', () => {
+    // Resolve the (flattened) upgrade ids that gate the attack panel and a0, so
+    // the test tracks the tree rather than hard-coding authoring ids.
+    const panelUpgrade = idlerDef.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'panelUnlock' && (e as { panel?: string }).panel === 'attack',
+      ),
+    )!
+    const a0Upgrade = idlerDef.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0',
+      ),
+    )!
+
+    /** a0's authored Wood prepare cost, read from the tree rather than pinned here. */
+    const woodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+    /** Wood held by an armed player: the cost over again, so a strike leaves a remainder. */
+    const armedWood = woodCost * 2
+
+    /** A player snapshot that has the panel + a0 unlocked and enough Wood to arm. */
+    function armedPlayer(): StateUpdateMessage['player'] {
+      return {
+        score: 0,
+        resources: { r0: armedWood },
+        upgrades: { ...defaultUpgrades, [panelUpgrade.id]: 1, [a0Upgrade.id]: 1 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { gameSec: 5 },
+      }
+    }
+
+    it('activates optimistically, deducts the prepare cost, and queues an action', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
+
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivateAttack('a0')
+
+      const s = game.getState()
+      expect(s.player.pendingAttacks).toHaveLength(1)
+      expect(s.player.pendingAttacks[0]?.attack).toBe('a0')
+      expect(s.player.resources.r0).toBe(armedWood - woodCost)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(queueAction)).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'activate_attack', attackId: 'a0' }),
+      )
+    })
+
+    it('is a no-op when the prepare cost is unaffordable', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          ackSeq: 0,
+          player: { ...armedPlayer(), resources: { r0: Math.max(0, woodCost - 1) } },
+        }),
+      )
+
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivateAttack('a0')
+
+      expect(game.getState().player.pendingAttacks).toHaveLength(0)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('replays an unacked activation on top of server state', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
+
+      game.doActivateAttack('a0')
+      expect(game.getState().player.pendingAttacks).toHaveLength(1)
+
+      // A server snapshot that still hasn't acked the activation — it must be
+      // re-applied so the pending strike doesn't flicker away.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
+      const s = game.getState()
+      expect(s.player.pendingAttacks).toHaveLength(1)
+      expect(s.player.resources.r0).toBe(armedWood - woodCost)
+    })
+  })
 
   describe('STATE_UPDATE', () => {
     it('adopts server state when no pending actions', () => {
@@ -294,6 +470,7 @@ describe('game.ts', () => {
             resources: { r0: 5 },
             upgrades: { ...defaultUpgrades },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
           opponent: {
@@ -351,6 +528,7 @@ describe('game.ts', () => {
             resources: { r0: 50 },
             upgrades: { ...defaultUpgrades },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
@@ -366,6 +544,7 @@ describe('game.ts', () => {
             resources: { r0: 0 },
             upgrades: { ...defaultUpgrades, 'sc-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
@@ -388,6 +567,7 @@ describe('game.ts', () => {
             resources: { r0: 50 },
             upgrades: { ...defaultUpgrades },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
@@ -407,6 +587,7 @@ describe('game.ts', () => {
             resources: { r0: 55 },
             upgrades: { ...defaultUpgrades },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
@@ -428,6 +609,7 @@ describe('game.ts', () => {
             resources: { r0: 5, r1: 5 },
             upgrades: { 'sh-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: { highlight: 'r0' },
           },
         }),
@@ -445,6 +627,7 @@ describe('game.ts', () => {
             resources: { r0: 5, r1: 5 },
             upgrades: { 'sh-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: { highlight: 'r0' },
           },
         }),
@@ -494,6 +677,7 @@ describe('game.ts', () => {
             resources: { r0: 10 },
             upgrades: { ...defaultUpgrades },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
@@ -598,6 +782,7 @@ describe('game.ts', () => {
             resources: { r0: 0, r1: 0 },
             upgrades: { 'sh-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: { highlight: 'r0' },
           },
         }),
@@ -652,6 +837,7 @@ describe('game.ts', () => {
             resources: { r0: amount, r1: 0 },
             upgrades: { 'sh-unlock': 1, 'sc-unlock': 0 },
             generators: {},
+            pendingAttacks: [],
             meta: { highlight: 'r0' },
           },
         }),
@@ -679,6 +865,7 @@ describe('game.ts', () => {
             resources: { r0: 0, r1: 0 },
             upgrades: { 'sc-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: { highlight: 'r0' },
           },
         }),
@@ -736,6 +923,7 @@ describe('game.ts', () => {
             resources: { r0: 0, r1: 0 },
             upgrades: { 'sc-unlock': 1 },
             generators: {},
+            pendingAttacks: [],
             meta: {},
           },
         }),
