@@ -824,6 +824,13 @@ export function setGeneratorFlavor(
 /** Default icon for a new attack, before the author picks one. */
 const DEFAULT_ATTACK_ICON = '💥'
 
+/** One currency of an attack's preparation cost. */
+export interface AttackCostRow {
+  readonly currency: string
+  /** The flat amount charged on activation (attack costs never scale). */
+  readonly baseCost: number
+}
+
 /** An editable attack row: mechanics (id, kind) + primary-flavor display. */
 export interface AttackRow {
   readonly id: string
@@ -831,10 +838,8 @@ export interface AttackRow {
   readonly name: string
   readonly icon: string
   readonly description: string
-  /** Preparation cost currency (single-currency; first entry of `prepareCost`). */
-  readonly prepareCurrency: string
-  /** Preparation cost amount (the `baseCost` of that entry, 0 when unset). */
-  readonly prepareBaseCost: number
+  /** Preparation cost, one entry per currency in authoring order (empty when unset). */
+  readonly prepareCost: readonly AttackCostRow[]
   /** Seconds between activation and the strike landing (0 when unset). */
   readonly prepareTimeSec: number
 }
@@ -850,21 +855,18 @@ function uniqueAttackId(tree: TreeFile): string {
 /** Attack rows for the editor (primary flavor joined, in declaration order). */
 export function listAttacks(tree: TreeFile): AttackRow[] {
   const flavor = new Map((tree.flavors[0]?.attacks ?? []).map((a) => [a.id, a]))
-  const defaultCurrency = tree.resources[0] ?? 'r0'
   return tree.attacks.map((a) => {
     const f = flavor.get(a.id)
-    const [prepareCurrency, prepareEntry] = Object.entries(a.prepareCost ?? {})[0] ?? [
-      defaultCurrency,
-      { baseCost: 0 },
-    ]
     return {
       id: a.id,
       kind: a.kind,
       name: f?.name ?? a.id,
       icon: f?.icon ?? DEFAULT_ATTACK_ICON,
       description: f?.description ?? '',
-      prepareCurrency,
-      prepareBaseCost: prepareEntry.baseCost,
+      prepareCost: Object.entries(a.prepareCost ?? {}).map(([currency, entry]) => ({
+        currency,
+        baseCost: entry.baseCost,
+      })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
     }
   })
@@ -945,31 +947,96 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
   }
 }
 
-/** A preparation-cost/time edit for an active attack. */
-export type AttackPreparePatch = Partial<{
-  currency: string
-  baseCost: number
-  timeSec: number
-}>
-
 /**
- * Set attack `id`'s preparation cost (single flat currency) and/or time. Unknown
- * id is a no-op. Preparation cost is evaluated at level 0, so it is always a flat
- * `{ baseCost }` entry — no scaling. Only meaningful on `active` attacks; the
- * boot-time validator rejects prepare data on passive attacks.
+ * Set attack `id`'s preparation lead time in seconds. Unknown id is a no-op.
+ * Only meaningful on `active` attacks; the boot-time validator rejects prepare
+ * data on passive attacks (see {@link setAttackKind}).
  */
-export function setAttackPrepare(tree: TreeFile, id: string, patch: AttackPreparePatch): void {
+export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  const [curCurrency, curEntry] = Object.entries(attack.prepareCost ?? {})[0] ?? [
-    tree.resources[0] ?? 'r0',
-    { baseCost: 0 },
-  ]
-  const currency = patch.currency ?? curCurrency
-  const baseCost = patch.baseCost ?? curEntry.baseCost
-  attack.prepareCost = { [currency]: { baseCost } }
-  if (patch.timeSec !== undefined) attack.prepareTimeSec = patch.timeSec
-  else attack.prepareTimeSec ??= 0
+  attack.prepareTimeSec = timeSec
+}
+
+/**
+ * Set one currency's flat preparation cost on attack `id`, leaving the attack's
+ * other currencies untouched — a prepare cost may charge several resources at
+ * once. Unknown id is a no-op. Attack costs are always evaluated at level 0, so
+ * every entry is a flat `{ baseCost }` — no scaling. A prepare cost without a
+ * prepare time fails validation at boot, so the time defaults to 0 here.
+ */
+export function setAttackPrepareCost(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+  baseCost: number,
+): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  attack.prepareCost = { ...attack.prepareCost, [currency]: { baseCost } }
+  attack.prepareTimeSec ??= 0
+}
+
+/**
+ * Add the first resource not already charged to attack `id`'s prepare cost, at
+ * a base cost of 0. Returns the currency added, or `null` when the id is unknown
+ * or every resource is already charged.
+ */
+export function addAttackPrepareCurrency(tree: TreeFile, id: string): string | null {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return null
+  const free = tree.resources.find((key) => !(key in (attack.prepareCost ?? {})))
+  if (free === undefined) return null
+  setAttackPrepareCost(tree, id, free, 0)
+  return free
+}
+
+/**
+ * Move one prepare-cost entry of attack `id` from currency `from` to `to`,
+ * preserving the order of the other entries (so the editor's rows don't jump).
+ * Returns `false` — leaving the tree untouched — when `from` isn't charged or
+ * `to` already is, since merging the two would silently drop an amount.
+ */
+export function setAttackPrepareCurrency(
+  tree: TreeFile,
+  id: string,
+  from: string,
+  to: string,
+): boolean {
+  if (from === to) return true
+  const attack = tree.attacks.find((a) => a.id === id)
+  const cost = attack?.prepareCost
+  if (!attack || !cost || !(from in cost) || to in cost) return false
+  attack.prepareCost = Object.fromEntries(
+    Object.entries(cost).map(([key, entry]) => [key === from ? to : key, entry]),
+  )
+  return true
+}
+
+/**
+ * Drop `currency` from attack `id`'s prepare cost, removing the cost entirely
+ * once its last currency goes. Refuses to strip the last currency of an active
+ * attack that carries effects: such an attack is activated by paying its cost,
+ * and the boot-time validator rejects it without one.
+ */
+export function removeAttackPrepareCurrency(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+): MutationResult {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return { ok: false, reason: `unknown attack '${id}'` }
+  const cost = attack.prepareCost
+  if (!cost || !(currency in cost))
+    return { ok: false, reason: `attack '${id}' has no ${currency} prepare cost` }
+
+  const rest = Object.entries(cost).filter(([key]) => key !== currency)
+  if (rest.length === 0 && attack.kind === 'active' && (attack.effects?.length ?? 0) > 0)
+    return { ok: false, reason: 'an active attack with effects needs a prepare cost' }
+
+  if (rest.length === 0) delete attack.prepareCost
+  else attack.prepareCost = Object.fromEntries(rest)
+  return { ok: true }
 }
 
 /** The effect refs on attack `id` (empty when none / unknown id). */

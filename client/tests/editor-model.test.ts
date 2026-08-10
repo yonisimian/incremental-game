@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getAttackPrepareCost,
   parseBalanceFile,
   parseTreeFile,
   toModeDefinition,
@@ -46,7 +47,12 @@ import {
   attackReferences,
   setAttackKind,
   setAttackEffects,
-  setAttackPrepare,
+  setAttackPrepareTime,
+  setAttackPrepareCost,
+  setAttackPrepareCurrency,
+  addAttackPrepareCurrency,
+  removeAttackPrepareCurrency,
+  type AttackCostRow,
   listEnvelopes,
   addableEnvelopeGoalTypes,
   addEnvelope,
@@ -752,21 +758,97 @@ describe('attacks', () => {
   // The id of the seed active attack (prepare cost/time + `stealResource`).
   const ACTIVE_ATTACK = 'a0'
 
+  /** The seed active attack's prepare-cost rows, in authoring order. */
+  const prepareCostOf = (tree: TreeFile, id = ACTIVE_ATTACK): AttackCostRow[] => [
+    ...listAttacks(tree).find((a) => a.id === id)!.prepareCost,
+  ]
+
   it('surfaces an active attack prepare cost and time', () => {
     const active = listAttacks(idler()).find((a) => a.id === ACTIVE_ATTACK)!
     expect(active.kind).toBe('active')
-    expect(active.prepareBaseCost).toBeGreaterThan(0)
     expect(active.prepareTimeSec).toBeGreaterThan(0)
-    expect(active.prepareCurrency).toBeTruthy()
+    expect(active.prepareCost).toHaveLength(1)
+    expect(active.prepareCost[0].currency).toBeTruthy()
+    expect(active.prepareCost[0].baseCost).toBeGreaterThan(0)
   })
 
-  it('setAttackPrepare updates cost, currency, and time and stays loadable', () => {
+  it('setAttackPrepareCost/Time update one currency and the lead time', () => {
     const tree = idler()
-    setAttackPrepare(tree, ACTIVE_ATTACK, { baseCost: 500, currency: 'r0', timeSec: 5 })
+    setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r0', 500)
+    setAttackPrepareTime(tree, ACTIVE_ATTACK, 5)
     const active = listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!
-    expect(active.prepareBaseCost).toBe(500)
-    expect(active.prepareCurrency).toBe('r0')
+    expect(active.prepareCost).toEqual([{ currency: 'r0', baseCost: 500 }])
     expect(active.prepareTimeSec).toBe(5)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('charges several currencies at once and keeps the tree loadable', () => {
+    const tree = idler()
+    expect(addAttackPrepareCurrency(tree, ACTIVE_ATTACK)).toBe('r1')
+    setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r1', 250)
+    expect(prepareCostOf(tree)).toEqual([
+      { currency: 'r0', baseCost: 1000 },
+      { currency: 'r1', baseCost: 250 },
+    ])
+    // Both currencies survive the codec round-trip into a runnable mode.
+    const attack = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(getAttackPrepareCost(attack)).toEqual({ r0: 1000, r1: 250 })
+  })
+
+  it('editing one currency leaves the attack’s other currencies untouched', () => {
+    const tree = idler()
+    addAttackPrepareCurrency(tree, ACTIVE_ATTACK)
+    setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r1', 250)
+    setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r0', 42)
+    expect(prepareCostOf(tree)).toEqual([
+      { currency: 'r0', baseCost: 42 },
+      { currency: 'r1', baseCost: 250 },
+    ])
+  })
+
+  it('addAttackPrepareCurrency returns null once every resource is charged', () => {
+    const tree = idler()
+    while (addAttackPrepareCurrency(tree, ACTIVE_ATTACK) !== null) {
+      // charge every remaining resource
+    }
+    expect(prepareCostOf(tree)).toHaveLength(tree.resources.length)
+    expect(addAttackPrepareCurrency(tree, ACTIVE_ATTACK)).toBeNull()
+  })
+
+  it('setAttackPrepareCurrency moves an entry in place and refuses to merge two', () => {
+    const tree = idler()
+    const spare = addResource(tree)
+    addAttackPrepareCurrency(tree, ACTIVE_ATTACK)
+    setAttackPrepareCost(tree, ACTIVE_ATTACK, 'r1', 250)
+    // r0 → an already-charged currency would silently drop one of the amounts.
+    expect(setAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0', 'r1')).toBe(false)
+    expect(prepareCostOf(tree)).toEqual([
+      { currency: 'r0', baseCost: 1000 },
+      { currency: 'r1', baseCost: 250 },
+    ])
+    // Moving the first entry keeps it first, so the editor's rows don't jump.
+    expect(setAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0', spare)).toBe(true)
+    expect(prepareCostOf(tree)).toEqual([
+      { currency: spare, baseCost: 1000 },
+      { currency: 'r1', baseCost: 250 },
+    ])
+  })
+
+  it('removeAttackPrepareCurrency drops one currency but never the last of an armed attack', () => {
+    const tree = idler()
+    addAttackPrepareCurrency(tree, ACTIVE_ATTACK)
+    expect(removeAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r1').ok).toBe(true)
+    expect(prepareCostOf(tree)).toEqual([{ currency: 'r0', baseCost: 1000 }])
+
+    // The seed attack carries a `stealResource`, so it must keep a cost to load.
+    const blocked = removeAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0')
+    expect(blocked.ok).toBe(false)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Without effects there's nothing to pay for, so the cost may go entirely.
+    setAttackEffects(tree, ACTIVE_ATTACK, [])
+    expect(removeAttackPrepareCurrency(tree, ACTIVE_ATTACK, 'r0').ok).toBe(true)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.prepareCost).toBeUndefined()
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 

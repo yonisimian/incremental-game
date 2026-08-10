@@ -1060,6 +1060,15 @@ body {
   min-width: 0;
 }
 
+/* Attack prepare costs are always flat (charged once, at level 0), so their rows
+   drop the scaling columns: currency | cost | remove-button. */
+.ed-attack-cost-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.5fr;
+  gap: 2px;
+  align-items: center;
+}
+
 .ed-cost-header {
   margin-bottom: 2px;
 }
