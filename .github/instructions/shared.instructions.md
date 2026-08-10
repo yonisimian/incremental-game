@@ -1,7 +1,7 @@
 ---
 description: 'Conventions for shared/src (game logic, effects, modifier pipeline, flavor, mode/tree data). Use when adding or editing effects, modifiers, modes, or the idler tree.'
 name: 'shared package conventions'
-applyTo: ['shared/src/**', 'shared/trees/**']
+applyTo: 'shared/src/**,shared/trees/**'
 ---
 
 # `shared/` conventions
