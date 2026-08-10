@@ -67,7 +67,7 @@ function field(label: string, control: HTMLElement): HTMLDivElement {
  * One picker option: a bare key (label = key) or an explicit value/label pair
  * (so catalog-driven fields can show a human description while storing the key).
  */
-type EffectFieldOption = string | { readonly value: string; readonly label: string }
+export type EffectFieldOption = string | { readonly value: string; readonly label: string }
 
 /**
  * Fixed option set for an effect's string param, or `undefined` to render a free
@@ -76,13 +76,17 @@ type EffectFieldOption = string | { readonly value: string; readonly label: stri
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
  * `:rate` variant per resource (per-second production) and the non-resource
- * intel keys (peak CPS, purchases). `relativeModifier`'s `field`/`source` come
- * from the shared addressable-field catalog (labelled), the same set the
+ * intel keys (peak CPS, purchases), and `stealResource`'s `resource` from the
+ * tree's resource keys. `relativeModifier`'s `field`/`source` come from the
+ * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
  * narrower enemy-debuff catalog (resource rates only — generator/click targets
  * don't apply to a debuff).
+ *
+ * Exported for testing: every id-referencing param should resolve to a picker,
+ * so free text can never author a key the boot-time validator would reject.
  */
-function effectFieldOptions(
+export function effectFieldOptions(
   tree: TreeFile,
   effectType: string,
   fieldKey: string,
@@ -116,6 +120,9 @@ function effectFieldOptions(
   }
   if (effectType === 'unlockAttack' && fieldKey === 'attack') {
     return tree.attacks.map((a) => a.id)
+  }
+  if (effectType === 'stealResource' && fieldKey === 'resource') {
+    return tree.resources
   }
   if (effectType === 'unlockPact' && fieldKey === 'pact') {
     return tree.pacts.map((p) => p.id)
