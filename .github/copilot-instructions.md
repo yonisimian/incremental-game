@@ -19,6 +19,9 @@ This file is the always-loaded guardrail set — keep it short. Heavier guidance
 ## Hard rules (never violate)
 
 - **Commit locally, never push** without explicit approval. Use conventional prefixes: `feat:`, `fix:`, `chore:`, `test:`, `refactor:`, `docs:`.
+- **Never rewrite pushed history.** Once a commit is on the remote, don't `--amend`,
+  rebase, or squash it — add a new commit and a normal (fast-forward) push instead.
+  Force-pushing a shared branch requires explicit approval and a stated reason.
 - **When in doubt, ask** rather than assume.
 
 ## Workflow
