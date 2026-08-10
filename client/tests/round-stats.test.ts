@@ -14,7 +14,15 @@ function makeMode(highlightEnabled = true): ModeDefinition {
 }
 
 function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
-  return { score: 0, resources: {}, upgrades: {}, generators: {}, meta: {}, ...overrides }
+  return {
+    score: 0,
+    resources: {},
+    upgrades: {},
+    generators: {},
+    pendingAttacks: [],
+    meta: {},
+    ...overrides,
+  }
 }
 
 /** A player whose game clock reads `gameSec`, highlighting `highlight`. */

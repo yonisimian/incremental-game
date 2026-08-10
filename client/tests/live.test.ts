@@ -108,7 +108,10 @@ describe('DevRecorder', () => {
     const mod = await import('../src/dev-recorder.js')
     mod.initDevRecorder()
     // recorderTick should be a no-op — no channel opened
-    mod.recorderTick({ score: 10, resources: {}, upgrades: {}, generators: {}, meta: {} }, 30)
+    mod.recorderTick(
+      { score: 10, resources: {}, upgrades: {}, generators: {}, pendingAttacks: [], meta: {} },
+      30,
+    )
     // No channel should have been created
     expect(channels.get('dev-panel')).toBeUndefined()
   })
@@ -140,7 +143,14 @@ describe('DevRecorder', () => {
 
     mod.recorderRoundStart('idler', 35)
     mod.recorderTick(
-      { score: 5, resources: { r0: 5, r1: 2 }, upgrades: {}, generators: {}, meta: {} },
+      {
+        score: 5,
+        resources: { r0: 5, r1: 2 },
+        upgrades: {},
+        generators: {},
+        pendingAttacks: [],
+        meta: {},
+      },
       30,
     )
     mod.recorderRoundEnd(42)
@@ -165,7 +175,14 @@ describe('DevRecorder', () => {
     mod.recorderRoundStart('idler', 35)
 
     mod.recorderTick(
-      { score: 0, resources: { r0: 0, r1: 0 }, upgrades: {}, generators: {}, meta: {} },
+      {
+        score: 0,
+        resources: { r0: 0, r1: 0 },
+        upgrades: {},
+        generators: {},
+        pendingAttacks: [],
+        meta: {},
+      },
       30, // timeLeft = 30 → elapsed = 5
     )
 
@@ -180,7 +197,17 @@ describe('DevRecorder', () => {
     mod.initDevRecorder()
 
     // Tick without round-start — should be a no-op
-    mod.recorderTick({ score: 5, resources: { r0: 5 }, upgrades: {}, generators: {}, meta: {} }, 30)
+    mod.recorderTick(
+      {
+        score: 5,
+        resources: { r0: 5 },
+        upgrades: {},
+        generators: {},
+        pendingAttacks: [],
+        meta: {},
+      },
+      30,
+    )
 
     const group = channels.get('dev-panel')!
     expect(group[0].messages).toHaveLength(0)
@@ -196,7 +223,14 @@ describe('DevRecorder', () => {
 
     // Tick after round-end should be a no-op
     mod.recorderTick(
-      { score: 99, resources: { r0: 99 }, upgrades: {}, generators: {}, meta: {} },
+      {
+        score: 99,
+        resources: { r0: 99 },
+        upgrades: {},
+        generators: {},
+        pendingAttacks: [],
+        meta: {},
+      },
       25,
     )
 

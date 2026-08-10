@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getAvailableUpgrades } from '@game/shared'
+import {
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getAttackPrepareCost,
+  getAvailableUpgrades,
+  getModeDefinition,
+} from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
+import { attackPanel } from '../src/ui/panels/attack-panel.js'
 import { stubMode, stubUpgrades } from './_stub-mode.js'
 
 // ─── Test fixture helpers ───────────────────────────────────
@@ -18,6 +25,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
       resources: { r0: 0, r1: 0 },
       upgrades: Object.fromEntries(upgrades.map((u) => [u.id, 0])),
       generators: {},
+      pendingAttacks: [],
       meta: { highlight: 'r0' },
       ...playerOverrides,
     },
@@ -171,5 +179,74 @@ describe('renderUpgradeTree', () => {
     synthetic.player.upgrades = { src: 0, dst: 0 }
     const { edgesSvg } = renderUpgradeTree(synthetic)
     expect(edgesSvg).toBe('') // no <line> emitted
+  })
+})
+
+// ─── attackPanel ─────────────────────────────────────────────────────
+
+describe('attackPanel', () => {
+  const idlerDef = getModeDefinition('idler')
+  const panelUpgrade = idlerDef.upgrades.find((u) =>
+    u.effects?.some(
+      (e) => e.type === 'panelUnlock' && (e as { panel?: string }).panel === 'attack',
+    ),
+  )!
+  const a0Upgrade = idlerDef.upgrades.find((u) =>
+    u.effects?.some((e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0'),
+  )!
+
+  /** a0's authored Wood prepare cost, so tuning the tree can't break these. */
+  const a0WoodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+
+  /** An idler state with the attack panel + a0 unlocked, plus `wood` Wood held. */
+  function withA0Unlocked(wood: number, extra: Partial<GameState['player']> = {}): GameState {
+    return makeIdlerState({
+      resources: { r0: wood, r1: 0 },
+      upgrades: { [panelUpgrade.id]: 1, [a0Upgrade.id]: 1 },
+      ...extra,
+    })
+  }
+
+  function renderHtml(state: GameState): string {
+    // This suite runs in the node environment (no DOM). The panel's `render`
+    // only assigns `innerHTML`, so a minimal stub container suffices.
+    const container = { innerHTML: '' } as HTMLElement
+    attackPanel.render(container, state)
+    return container.innerHTML
+  }
+
+  it('shows the locked placeholder when no attack is unlocked', () => {
+    const html = renderHtml(makeIdlerState())
+    expect(html).toContain('panel-placeholder')
+    expect(html).not.toContain('data-attack="a0"')
+  })
+
+  it('renders an affordable active attack as an enabled button with its cost', () => {
+    const html = renderHtml(withA0Unlocked(a0WoodCost * 2))
+    expect(html).toContain('data-attack="a0"')
+    expect(html).toContain('attack-cost')
+    // Enabled: no `disabled` attribute and no blocked/preparing status.
+    expect(html).not.toContain('disabled')
+    expect(html).not.toContain('attack-status--blocked')
+  })
+
+  it('disables an unaffordable active attack with a blocked status', () => {
+    const html = renderHtml(withA0Unlocked(Math.max(0, a0WoodCost - 1)))
+    expect(html).toContain('data-attack="a0"')
+    expect(html).toContain('disabled')
+    expect(html).toContain('attack-status--blocked')
+    expect(html).toContain('Not enough resources')
+  })
+
+  it('shows a countdown while an activation is preparing', () => {
+    const html = renderHtml(
+      withA0Unlocked(1000, {
+        pendingAttacks: [{ attack: 'a0', readyAtSec: 12 }],
+        meta: { highlight: 'r0', gameSec: 10 },
+      }),
+    )
+    expect(html).toContain('attack-status--preparing')
+    expect(html).toContain('Striking in 2.0s')
+    expect(html).toContain('disabled')
   })
 })

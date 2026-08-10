@@ -11,6 +11,7 @@ const baseState: PlayerState = {
   resources: { r0: 0 },
   upgrades: { u0: 0, u1: 0, u2: 0 },
   generators: {},
+  pendingAttacks: [],
   meta: {},
 }
 

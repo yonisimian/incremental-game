@@ -88,11 +88,40 @@
   "attacks": [
     {
       "id": "a0",
-      "kind": "active"
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 1000
+        }
+      },
+      "prepareTimeSec": 3,
+      "effects": [
+        {
+          "type": "stealResource",
+          "resource": "r0",
+          "fraction": 0.1
+        }
+      ]
     },
     {
       "id": "a1",
-      "kind": "active"
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 100
+        },
+        "r1": {
+          "baseCost": 100
+        }
+      },
+      "prepareTimeSec": 3,
+      "effects": [
+        {
+          "type": "stealResource",
+          "resource": "r1",
+          "amount": 500
+        }
+      ]
     },
     {
       "id": "a2",
@@ -613,15 +642,15 @@
       "attacks": [
         {
           "id": "a0",
-          "name": "First Attack",
-          "icon": "💥",
-          "description": ""
+          "name": "Steal Wood",
+          "icon": "🪓",
+          "description": "Steal enemy's wood. (does not affect score)"
         },
         {
           "id": "a1",
           "name": "Second Attack",
           "icon": "💥",
-          "description": ""
+          "description": "Steal enemy's ale. (does not affect score)"
         },
         {
           "id": "a2",

@@ -36,7 +36,7 @@ const gateCache = new WeakMap<ModeDefinition, Map<string, ReadonlyMap<string, re
  * building an index — they ignore everything but their authored params.
  */
 function probeState(): PlayerState {
-  return { score: 0, resources: {}, upgrades: {}, generators: {}, meta: {} }
+  return { score: 0, resources: {}, upgrades: {}, generators: {}, pendingAttacks: [], meta: {} }
 }
 
 /**

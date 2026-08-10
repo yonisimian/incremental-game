@@ -108,18 +108,37 @@ export type AttackKind = 'active' | 'passive'
  * effects it carries. Attacks are unlocked via an `unlockAttack` effect and
  * shown in the attack panel. A `passive` attack's effects (e.g.
  * `enemyProductionModifier`) apply continuously to the *opponent's* production
- * while the attack is unlocked — gathered by `collectEnemyDebuffs`; active
- * attacks have no continuous behavior yet (they await a trigger mechanism).
- * Display data lives in `AttackFlavor`. `kind` groups attacks into separate
- * blocks in the panel.
+ * while the attack is unlocked — gathered by `collectEnemyDebuffs`. An `active`
+ * attack is *activated* by paying its `prepareCost`; after `prepareTimeSec` game
+ * seconds it strikes, resolving its effects once against the opponent (e.g.
+ * `stealResource`). Display data lives in `AttackFlavor`. `kind` groups attacks
+ * into separate blocks in the panel.
  */
 export interface AttackDefinition {
   readonly id: string
   readonly kind: AttackKind
   /**
+   * What activating this attack costs, paid up front at activation. Same shape as
+   * upgrade/generator costs, but evaluated at level 0 — attacks have no cost
+   * curve, so each activation costs the same and `scaleType`/`scaleFactor` go
+   * unused (`scaledCost(entry, 0)` is the evaluation point). Required for an
+   * `active` attack that carries effects; forbidden on a `passive` one (which is
+   * always-on and never activated).
+   */
+  readonly prepareCost?: Readonly<Record<string, CostEntry>>
+  /**
+   * Seconds between activation and the strike landing. Measured in *game* seconds
+   * (`meta.gameSec`), so it freezes with the round rather than tracking wall
+   * clock. `0` strikes on the next tick. Required alongside `prepareCost` on an
+   * active attack with effects; forbidden on a passive one.
+   */
+  readonly prepareTimeSec?: number
+  /**
    * Offensive effects this attack carries. Each ref names a registered effect
-   * plus its params; only `enemyModifier`-emitting effects on *passive* attacks
-   * currently have a runtime effect (applied to the opponent). Optional.
+   * plus its params. On a *passive* attack an `enemyModifier`-emitting effect
+   * applies continuously to the opponent; on an *active* attack a
+   * `resourceSteal`-emitting effect resolves once, when the attack strikes.
+   * Optional (an effect-less attack is a placeholder). Optional.
    */
   readonly effects?: readonly EffectRef[]
 }
@@ -149,12 +168,28 @@ export interface PlayerState {
   upgrades: Record<string, number>
   /** Owned generators, keyed by generator ID. */
   generators: Record<string, number>
+  /** Active attacks that have been paid for and are waiting out their preparation. */
+  pendingAttacks: PendingAttack[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
 }
 
+/**
+ * An activated attack waiting out its preparation time before it strikes.
+ * Created by `applyAttackActivation` and drained by the server's strike
+ * resolution once `meta.gameSec` reaches `readyAtSec`. Unlike `meta`, this is an
+ * engine-level, wire-stable field reasoned about during reconciliation.
+ */
+export interface PendingAttack {
+  /** Attack id (matches {@link AttackDefinition.id}). */
+  readonly attack: string
+  /** `meta.gameSec` value at which it strikes. */
+  readonly readyAtSec: number
+}
+
 /** Possible action types a client can send. */
-export type ActionType = 'click' | 'buy' | 'buy_generator' | 'sell_generator' | 'set_highlight'
+export type ActionType =
+  'click' | 'buy' | 'buy_generator' | 'sell_generator' | 'set_highlight' | 'activate_attack'
 
 /** A single player action with a timestamp. */
 export interface PlayerAction {
@@ -169,6 +204,8 @@ export interface PlayerAction {
   highlight?: string
   /** For 'click' actions: which resource the click credits (defaults to the score resource). */
   resource?: string
+  /** For 'activate_attack' actions: which attack to activate. */
+  attackId?: string
 }
 
 // ─── Goal / Win Condition ────────────────────────────────────────────

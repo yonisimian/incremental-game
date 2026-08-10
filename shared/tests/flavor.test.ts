@@ -447,7 +447,71 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/carries an enemyProductionModifier but is not passive/)
+    }).toThrow(/'enemyProductionModifier' effect, which only applies on a passive attack/)
+  })
+
+  it('throws when a stealResource is carried by a passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Raid', icon: '🪓', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/'stealResource' effect, which only applies on an active attack/)
+  })
+
+  it('throws when an offensive effect is carried by an upgrade', () => {
+    const def = makeValidDef({
+      upgrades: [
+        {
+          id: 'u0',
+          cost: { r0: { baseCost: 10 } },
+          purchaseLimit: 1,
+          effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+        },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' carries a 'stealResource' effect/)
+  })
+
+  // A production effect on an attack is read by nobody: `collectEnemyDebuffs`
+  // keeps only `enemyModifier` outputs and `resolveAttackStrike` only
+  // `resourceSteal`, so it would silently do nothing.
+  it('throws when a production effect is carried by an attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Odd', icon: '❓', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/'baseModifier' effect, which only applies on the mode \/ an upgrade/)
+  })
+
+  it('accepts a production effect authored on the mode itself', () => {
+    const def = makeValidDef({
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 5 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
   })
 
   it('throws when an unlockPact effect references an unknown pact', () => {

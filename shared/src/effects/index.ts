@@ -10,6 +10,7 @@ import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
+import { stealResource } from './seed/steal-resource.js'
 import { systemUnlock } from './seed/system-unlock.js'
 import { unlockAttack } from './seed/unlock-attack.js'
 import { unlockPact } from './seed/unlock-pact.js'
@@ -29,8 +30,9 @@ registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
 registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
+registerEffect('stealResource', stealResource)
 
-export type { EffectDef } from './types.js'
+export type { EffectDef, EffectHost } from './types.js'
 export type {
   EffectOutput,
   BaseModifierOutput,
@@ -42,6 +44,7 @@ export type {
   PactUnlockOutput,
   EnemyDataAccessOutput,
   EnemyModifierOutput,
+  ResourceStealOutput,
 } from './types.js'
 export {
   applyEffect,
@@ -50,6 +53,9 @@ export {
   resolveEffect,
   listEffectTypes,
   normalizeEffectOutputs,
+  DEFAULT_EFFECT_HOSTS,
+  effectHosts,
+  isEffectAllowedOn,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'
@@ -76,6 +82,7 @@ export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
+export type { StealResourceParams } from './seed/steal-resource.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
 export {
   addressableSources,

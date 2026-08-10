@@ -46,4 +46,10 @@ function apply(p: EnemyProductionModifierParams): EnemyModifierOutput {
   return { kind: 'enemyModifier', modifier: { stage: p.stage, field: p.field, value: p.value } }
 }
 
-export const enemyProductionModifier: EffectDef<EnemyProductionModifierParams> = { schema, apply }
+export const enemyProductionModifier: EffectDef<EnemyProductionModifierParams> = {
+  schema,
+  apply,
+  // Only `collectEnemyDebuffs` reads this output, and it walks the *passive*
+  // attacks a player holds — anywhere else the debuff would never be gathered.
+  hosts: ['passiveAttack'],
+}

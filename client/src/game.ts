@@ -6,6 +6,7 @@ import {
   type OpponentView,
   type PlayerState,
   type PurchaseEvent,
+  type AttackEvent,
   type RoomSettings,
   type RoomErrorReason,
   type RoundEndMessage,
@@ -37,6 +38,12 @@ import {
   applyPurchase,
   isClickUnlocked,
   isHighlightActive,
+  isValidAttackActivation,
+  applyAttackActivation,
+  getModeFlavor,
+  getAttackName,
+  getAttackIcon,
+  getResourceIcon,
 } from '@game/shared'
 import {
   getSeq,
@@ -61,9 +68,11 @@ import {
   shakeScreen,
   resetCombo,
   shockwave,
+  spawnAttackToast,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
+import { formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -141,6 +150,7 @@ type PredictedAction =
   | { kind: 'buy_generator'; generatorId: string }
   | { kind: 'sell_generator'; generatorId: string }
   | { kind: 'set_highlight'; highlight: string }
+  | { kind: 'activate_attack'; attackId: string }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
 interface PendingBatch {
@@ -155,6 +165,7 @@ const EMPTY_PLAYER_STATE: PlayerState = {
   resources: {},
   upgrades: {},
   generators: {},
+  pendingAttacks: [],
   meta: {},
 }
 
@@ -533,6 +544,18 @@ export function doSellGenerator(generatorId: string): void {
   notify()
 }
 
+/** Activate an active attack (optimistic) — pays the prepare cost and queues the strike. */
+export function doActivateAttack(attackId: string): void {
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!isValidAttackActivation(state.player, attackId, modeDef)) return
+  applyAttackActivation(state.player, attackId, modeDef)
+  shakeScreen('light')
+  queueAction({ type: 'activate_attack', timestamp: Date.now(), attackId })
+  trackPredicted({ kind: 'activate_attack', attackId })
+  notify()
+}
+
 /** Cancel matchmaking queue or leave the room and return to lobby. */
 export function cancelQueue(): void {
   if (state.screen !== 'waiting' && state.screen !== 'room') return
@@ -717,11 +740,18 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
           break
         }
+        case 'activate_attack': {
+          if (!modeDef) break
+          if (!isValidAttackActivation(reconciled, action.attackId, modeDef)) break
+          applyAttackActivation(reconciled, action.attackId, modeDef)
+          break
+        }
       }
     }
   }
 
   state.player = reconciled
+  if (msg.attackEvents) showAttackEvents(msg.attackEvents, modeDef)
   if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
   notify()
@@ -788,6 +818,31 @@ function grantUpgrade(player: PlayerState, uid: string): void {
   player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
 }
 
+/**
+ * Surface landed attack strikes as transient toasts. `outgoing` = one of our
+ * attacks hit the opponent; `incoming` = we were hit (also shakes the screen).
+ * Display strings are resolved from the mode flavor here — the server sends only
+ * abstract ids.
+ */
+function showAttackEvents(
+  events: readonly AttackEvent[],
+  modeDef: ModeDefinition | undefined,
+): void {
+  if (!modeDef) return
+  const flavor = getModeFlavor(modeDef)
+  for (const ev of events) {
+    const name = getAttackName(flavor, ev.attack)
+    const icon = getAttackIcon(flavor, ev.attack)
+    const amount = `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
+    if (ev.direction === 'outgoing') {
+      spawnAttackToast(`${icon} ${name}: stole ${amount}`, 'outgoing')
+    } else {
+      spawnAttackToast(`${icon} ${name}: lost ${amount}`, 'incoming')
+      shakeScreen('medium')
+    }
+  }
+}
+
 function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
@@ -802,6 +857,7 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     resources: { ...s.resources },
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
+    pendingAttacks: [...s.pendingAttacks],
     meta: structuredClone(s.meta),
   }
 }

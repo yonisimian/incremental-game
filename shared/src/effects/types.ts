@@ -132,14 +132,46 @@ export interface EnemyModifierOutput {
 }
 
 /**
+ * An instantaneous transfer from the *victim's* stockpile to the attacker,
+ * emitted by the `stealResource` effect on an active attack. Unlike
+ * {@link EnemyModifierOutput} (continuous, merged into the opponent's pipeline),
+ * this is resolved once, at the moment the attack strikes, by
+ * `resolveAttackStrike`; every other output consumer ignores it.
+ *
+ * The take is either a share of what the victim holds or a flat quantity — a
+ * union rather than one optional-of-each field, so a consumer must branch on
+ * which was authored instead of silently reading an absent one as `undefined`.
+ * Either way `resolveAttackStrike` caps the transfer at the victim's balance.
+ */
+export type ResourceStealOutput = ResourceStealShare | ResourceStealFlat
+
+/** Common shape of a steal, whatever the take is expressed as. */
+interface ResourceStealBase {
+  readonly kind: 'resourceSteal'
+  /** Which resource is taken from the victim (a key in `mode.resources`). */
+  readonly resource: string
+}
+
+/** Take a share of the victim's stockpile, e.g. `0.1` = 10%. */
+interface ResourceStealShare extends ResourceStealBase {
+  readonly fraction: number
+}
+
+/** Take a flat quantity, capped at what the victim holds. */
+interface ResourceStealFlat extends ResourceStealBase {
+  readonly amount: number
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
- * {@link EnemyDataAccessOutput}, or an {@link EnemyModifierOutput}. Each is
- * routed to a different subsystem (`collectModifiers` /
- * `collectGeneratorCostFactors` / the unlock gates / `hasEnemyDataAccess` /
- * `collectEnemyDebuffs`); every consumer ignores the outputs it doesn't own.
+ * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, or a
+ * {@link ResourceStealOutput}. Each is routed to a different subsystem
+ * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
+ * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike`); every
+ * consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -152,6 +184,23 @@ export type EffectOutput =
   | PactUnlockOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput
+  | ResourceStealOutput
+
+/**
+ * Where an effect ref may be authored. Each host is read by different code and
+ * keeps different output kinds, so an effect placed on the wrong one doesn't
+ * misbehave — it silently does nothing, which is why placement is declared
+ * (see {@link EffectDef.hosts}) and enforced at load.
+ *
+ * - `mode` — the mode's own `effects`: always-on, ungated (`collectModifiers`).
+ * - `upgrade` — an upgrade's `effects`: while owned, scaled by owned count
+ *   (`collectModifiers`).
+ * - `passiveAttack` — a passive attack's `effects`: continuous, against the
+ *   opponent, and only `enemyModifier` outputs survive (`collectEnemyDebuffs`).
+ * - `activeAttack` — an active attack's `effects`: resolved once when the strike
+ *   lands, and only `resourceSteal` outputs survive (`resolveAttackStrike`).
+ */
+export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn
@@ -162,6 +211,15 @@ export type EffectOutput =
  * trust boundary), and the dev editor can introspect it to generate a form.
  */
 export interface EffectDef<P> {
+  /**
+   * The hosts this effect may be authored on. Defaults to
+   * {@link DEFAULT_EFFECT_HOSTS} — the production-pipeline hosts — since that
+   * fits every effect whose output `collectModifiers` (or a gate it feeds)
+   * consumes. Offensive effects declare the attack kind they resolve on
+   * instead. `validateModeDefinition` rejects a ref authored elsewhere, and the
+   * editor's picker only offers effects legal for the section being edited.
+   */
+  readonly hosts?: readonly EffectHost[]
   /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.

@@ -14,6 +14,7 @@ function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
     resources: { r0: 0 },
     upgrades: { 'choice-a': 0, 'choice-b': 0, normal: 0, ...overrides.upgrades },
     generators: {},
+    pendingAttacks: [],
     meta: {},
     ...overrides,
   }

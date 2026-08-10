@@ -68,6 +68,7 @@ describe('isValidPurchase', () => {
         'sc-unlock': 0,
       },
       generators: {},
+      pendingAttacks: [],
       meta: {},
       ...overrides,
     }
@@ -127,6 +128,7 @@ describe('isValidPurchase — choice groups', () => {
       resources: { r0: 9999 },
       upgrades: { 'choice-a': 0, 'choice-b': 0, ...overrides.upgrades },
       generators: {},
+      pendingAttacks: [],
       meta: {},
       ...overrides,
     }
@@ -154,6 +156,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
       resources: { r0: 99999 },
       upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
       generators: {},
+      pendingAttacks: [],
       meta: {},
     }
   }
@@ -228,6 +231,7 @@ describe('isValidPurchase — prerequisites', () => {
       resources: { r0: 9999, r1: 9999 },
       upgrades: Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])),
       generators: {},
+      pendingAttacks: [],
       meta: { highlight: 'r0' },
       ...overrides,
     }
