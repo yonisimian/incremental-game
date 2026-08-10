@@ -15,7 +15,7 @@ Only run this after I have **explicitly** approved shipping ("push", "ship it",
 1. Confirm the working tree is committed (`git status`) and the commits use
    conventional prefixes (`feat:`, `fix:`, `chore:`, `test:`, `refactor:`, `docs:`).
 2. Run the gate the `pre-push` hook enforces, so the push can't bounce:
-   `pnpm typecheck && pnpm format:check && pnpm lint && pnpm lint:css`.
+   `pnpm typecheck && pnpm format:check && pnpm lint && pnpm lint:css && pnpm check:balance && pnpm lint:instructions`.
 3. Push the branch (use `--force-with-lease`, never `--force`, if I asked to force).
 
 ## PR create / edit — use the REST API, not `gh pr edit`/`gh pr create`
