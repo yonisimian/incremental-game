@@ -18,6 +18,7 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:css": "tsx scripts/lint-css.ts",
+    "lint:instructions": "tsx scripts/lint-instructions.ts",
     "lint:exports": "knip",
     "check:balance": "tsx scripts/check-balance.ts",
     "format": "prettier --write .",
@@ -54,7 +55,7 @@
   "packageManager": "pnpm@10.28.1",
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged && npx knip --include exports,types",
-    "pre-push": "pnpm typecheck && pnpm format:check && pnpm lint && pnpm lint:css && pnpm check:balance"
+    "pre-push": "pnpm typecheck && pnpm format:check && pnpm lint && pnpm lint:css && pnpm check:balance && pnpm lint:instructions"
   },
   "lint-staged": {
     "*.{ts,js,json,jsonc,yml,yaml,md,css,html}": "prettier --write",
