@@ -91,7 +91,7 @@
       "kind": "active",
       "prepareCost": {
         "r0": {
-          "baseCost": 5
+          "baseCost": 1000
         }
       },
       "prepareTimeSec": 3,
@@ -105,23 +105,7 @@
     },
     {
       "id": "a1",
-      "kind": "active",
-      "prepareCost": {
-        "r0": {
-          "baseCost": 5
-        },
-        "r1": {
-          "baseCost": 7
-        }
-      },
-      "prepareTimeSec": 0,
-      "effects": [
-        {
-          "type": "stealResource",
-          "resource": "r1",
-          "amount": 150
-        }
-      ]
+      "kind": "active"
     },
     {
       "id": "a2",
@@ -644,13 +628,13 @@
           "id": "a0",
           "name": "Steal Wood",
           "icon": "🪓",
-          "description": "Spend 1000 Wood to prepare a raid. After 3 seconds it strikes, taking 10% of the enemy's stockpiled Wood and adding it to yours. Stolen Wood does not count toward your score."
+          "description": "Steal enemy`s wood"
         },
         {
           "id": "a1",
           "name": "Second Attack",
           "icon": "💥",
-          "description": ""
+          "description": "Steal enemy`s ale"
         },
         {
           "id": "a2",
