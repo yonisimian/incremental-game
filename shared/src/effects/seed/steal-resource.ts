@@ -46,4 +46,10 @@ function apply(p: StealResourceParams): ResourceStealOutput {
     : { kind: 'resourceSteal', resource: p.resource, fraction: p.fraction }
 }
 
-export const stealResource: EffectDef<StealResourceParams> = { schema, apply }
+export const stealResource: EffectDef<StealResourceParams> = {
+  schema,
+  apply,
+  // A steal resolves on a strike, and only `resolveAttackStrike` reads this
+  // output — an active attack is the one host where it can ever fire.
+  hosts: ['activeAttack'],
+}

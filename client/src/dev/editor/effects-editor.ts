@@ -13,9 +13,11 @@ import {
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
+  isEffectAllowedOn,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
+  type EffectHost,
   type TreeFile,
 } from '@game/shared'
 
@@ -43,6 +45,13 @@ interface EffectEntry {
  */
 export interface EffectsHost {
   readonly tree: TreeFile
+  /**
+   * Which host these effects live on. The "+ effect" picker offers only the
+   * effects legal there, so an effect no consumer would ever read — a steal on
+   * an upgrade, a production bonus on an attack — can't be authored in the first
+   * place (`validateModeDefinition` rejects it at load either way).
+   */
+  readonly effectHost: EffectHost
   getEffects(): readonly EffectEntry[]
   setEffects(next: EffectEntry[]): void
 }
@@ -365,7 +374,7 @@ export function buildEffectsSection(host: EffectsHost): HTMLElement {
   }
   render()
 
-  const types = listEffectTypes()
+  const types = listEffectTypes().filter((type) => isEffectAllowedOn(type, host.effectHost))
   const addSelect = el('select', 'ed-input')
   for (const group of groupEffectTypes(types)) {
     const optgroup = document.createElement('optgroup')

@@ -13,7 +13,13 @@ import {
 } from '../game-config.js'
 // Importing from the effects barrel ensures seed effects are registered
 // whenever `collectModifiers` is reachable (incl. tests that import this module).
-import { applyEffect, normalizeEffectOutputs, prepareEffect } from '../effects/index.js'
+import {
+  applyEffect,
+  effectHosts,
+  isEffectAllowedOn,
+  normalizeEffectOutputs,
+  prepareEffect,
+} from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
@@ -21,7 +27,7 @@ import {
   NON_RESOURCE_INTEL_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
-import type { BaseModifierOutput, EffectOutput } from '../effects/index.js'
+import type { BaseModifierOutput, EffectHost, EffectOutput } from '../effects/index.js'
 import {
   allAttackIds,
   allPactIds,
@@ -33,6 +39,14 @@ import {
 } from '../unlock-gates.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
+
+/** How each effect host reads in an authoring error message. */
+const HOST_LABELS: Record<EffectHost, string> = {
+  mode: 'the mode',
+  upgrade: 'an upgrade',
+  passiveAttack: 'a passive attack',
+  activeAttack: 'an active attack',
+}
 
 /**
  * Validate that a single flavor's display data covers exactly the mode's
@@ -248,23 +262,45 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of a.effects ?? []) checkBaseModifier(`attack '${a.id}'`, ref)
   }
 
-  // `enemyProductionModifier` effects (carried by attacks) name a `field` — the
-  // opponent-pipeline target. It's a mode-specific string the generic schema
-  // only checks is present, so validate it against the *enemy-debuff* target
-  // catalog — a subset of `relativeModifier`'s (resource rates only). Generator-id
-  // and `clickIncome` targets are rejected here because the
-  // debuff merges into the opponent's pipeline after generator output is folded
-  // and only on the passive path, so they'd silently do nothing (see
-  // `enemyDebuffTargetsFor`). Also flags an offensive effect on an active attack,
-  // which has no continuous behavior yet (likely an authoring mistake).
+  // Effect placement. Each host is read by different code and keeps different
+  // output kinds, so a ref on the wrong one doesn't misbehave — it silently does
+  // nothing. Every effect declares where it may live (defaulting to the
+  // production-pipeline hosts), so this is one generic check rather than a
+  // special case per offensive effect.
+  const checkHost = (where: string, host: EffectHost, refs: readonly EffectRef[]): void => {
+    for (const ref of refs) {
+      if (isEffectAllowedOn(ref.type, host)) continue
+      throw new Error(
+        `[${id}] ${where} carries a '${ref.type}' effect, which only applies on ${effectHosts(
+          ref.type,
+        )
+          .map((h) => HOST_LABELS[h])
+          .join(' / ')} — here it would silently do nothing`,
+      )
+    }
+  }
+  checkHost('the mode', 'mode', def.effects ?? [])
+  for (const u of def.upgrades) checkHost(`upgrade '${u.id}'`, 'upgrade', u.effects ?? [])
+  for (const attack of def.attacks) {
+    checkHost(
+      `${attack.kind} attack '${attack.id}'`,
+      attack.kind === 'passive' ? 'passiveAttack' : 'activeAttack',
+      attack.effects ?? [],
+    )
+  }
+
+  // `enemyProductionModifier` effects (carried by passive attacks) name a
+  // `field` — the opponent-pipeline target. It's a mode-specific string the
+  // generic schema only checks is present, so validate it against the
+  // *enemy-debuff* target catalog — a subset of `relativeModifier`'s (resource
+  // rates only). Generator-id and `clickIncome` targets are rejected here because
+  // the debuff merges into the opponent's pipeline after generator output is
+  // folded and only on the passive path, so they'd silently do nothing (see
+  // `enemyDebuffTargetsFor`).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
       if (ref.type !== 'enemyProductionModifier') continue
-      if (attack.kind !== 'passive')
-        throw new Error(
-          `[${id}] attack '${attack.id}' carries an enemyProductionModifier but is not passive (active attacks have no continuous effect yet)`,
-        )
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
           `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates can be debuffed)`,

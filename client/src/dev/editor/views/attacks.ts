@@ -166,6 +166,9 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   // ── Effects (offensive — applied to the opponent) ──
   card.append(
     buildEffectsSection({
+      // Offensive effects resolve on different code paths per kind, so the
+      // picker follows this attack's: a steal on active, a debuff on passive.
+      effectHost: row.kind === 'active' ? 'activeAttack' : 'passiveAttack',
       tree,
       getEffects: () => attackEffects(tree, row.id),
       setEffects: (next) => {

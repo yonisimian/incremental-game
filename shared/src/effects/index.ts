@@ -32,7 +32,7 @@ registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('stealResource', stealResource)
 
-export type { EffectDef } from './types.js'
+export type { EffectDef, EffectHost } from './types.js'
 export type {
   EffectOutput,
   BaseModifierOutput,
@@ -53,6 +53,9 @@ export {
   resolveEffect,
   listEffectTypes,
   normalizeEffectOutputs,
+  DEFAULT_EFFECT_HOSTS,
+  effectHosts,
+  isEffectAllowedOn,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'

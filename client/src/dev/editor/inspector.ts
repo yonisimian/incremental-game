@@ -523,6 +523,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildPurchaseLimitSection(ctx, cost.refresh),
     buildPrerequisitesSection(ctx),
     buildEffectsSection({
+      effectHost: 'upgrade',
       tree: ctx.tree,
       getEffects: () => ctx.node.effects ?? [],
       setEffects: (next) => {

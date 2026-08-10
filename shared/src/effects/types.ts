@@ -187,6 +187,22 @@ export type EffectOutput =
   | ResourceStealOutput
 
 /**
+ * Where an effect ref may be authored. Each host is read by different code and
+ * keeps different output kinds, so an effect placed on the wrong one doesn't
+ * misbehave — it silently does nothing, which is why placement is declared
+ * (see {@link EffectDef.hosts}) and enforced at load.
+ *
+ * - `mode` — the mode's own `effects`: always-on, ungated (`collectModifiers`).
+ * - `upgrade` — an upgrade's `effects`: while owned, scaled by owned count
+ *   (`collectModifiers`).
+ * - `passiveAttack` — a passive attack's `effects`: continuous, against the
+ *   opponent, and only `enemyModifier` outputs survive (`collectEnemyDebuffs`).
+ * - `activeAttack` — an active attack's `effects`: resolved once when the strike
+ *   lands, and only `resourceSteal` outputs survive (`resolveAttackStrike`).
+ */
+export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
+
+/**
  * A registered effect: a zod schema describing its params, plus how to turn
  * parsed params into a modifier at runtime.
  *
@@ -195,6 +211,15 @@ export type EffectOutput =
  * trust boundary), and the dev editor can introspect it to generate a form.
  */
 export interface EffectDef<P> {
+  /**
+   * The hosts this effect may be authored on. Defaults to
+   * {@link DEFAULT_EFFECT_HOSTS} — the production-pipeline hosts — since that
+   * fits every effect whose output `collectModifiers` (or a gate it feeds)
+   * consumes. Offensive effects declare the attack kind they resolve on
+   * instead. `validateModeDefinition` rejects a ref authored elsewhere, and the
+   * editor's picker only offers effects legal for the section being edited.
+   */
+  readonly hosts?: readonly EffectHost[]
   /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.
