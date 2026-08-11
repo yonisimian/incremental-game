@@ -2343,12 +2343,27 @@ body {
   border-left: 2px solid var(--border);
 }
 
+.data-gen-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .data-gen-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+/* The parts behind the rate: authored base, additive bonus, multipliers. */
+.data-gen-detail {
+  font-family: monospace;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  opacity: 0.75;
 }
 
 .data-gen-name {

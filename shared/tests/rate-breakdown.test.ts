@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeRateBreakdown, collectModifiers } from '../src/modes/index.js'
+import {
+  collectGeneratorOutputs,
+  collectModifiers,
+  computeRateBreakdown,
+} from '../src/modes/index.js'
 import { computePassiveRates } from '../src/modifiers/pipeline.js'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { Modifier } from '../src/modifiers/types.js'
@@ -95,7 +99,7 @@ describe('computeRateBreakdown', () => {
     expect(bd.byGenerator.g0).toBe(12)
   })
 
-  it('splits the generator bucket across generators by raw output', () => {
+  it('splits the generator bucket across generators by output', () => {
     const mode = makeMode({ generators: [makeGen('g0', 'r0', 1), makeGen('g1', 'r0', 5)] })
     const bd = computeRateBreakdown(makeState({ generators: { g0: 2, g1: 2 } }), mode).r0
     // raw: g0 = 2, g1 = 10 → total 12
@@ -104,6 +108,26 @@ describe('computeRateBreakdown', () => {
     expect(bd.byGenerator.g1).toBeCloseTo(10)
     const sum = Object.values(bd.byGenerator).reduce((a, b) => a + b, 0)
     expect(sum).toBeCloseTo(bd.generators)
+  })
+
+  it('weights the split by effective output, not the authored rate', () => {
+    // g0 and g1 produce the same raw rate, but a ×3 lands on g1 alone — it must
+    // report three times g0's share, not an equal one.
+    const boost: UpgradeDefinition = {
+      id: 'u0',
+      cost: { r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1 } },
+      purchaseLimit: 1,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'g1', value: 3 }],
+    }
+    const mode = makeMode({
+      generators: [makeGen('g0', 'r0', 2), makeGen('g1', 'r0', 2)],
+      upgrades: [boost],
+    })
+    const state = makeState({ generators: { g0: 1, g1: 1 }, upgrades: { u0: 1 } })
+    const bd = computeRateBreakdown(state, mode).r0
+    expect(bd.total).toBeCloseTo(8) // 2 + 2×3
+    expect(bd.byGenerator.g0).toBeCloseTo(2)
+    expect(bd.byGenerator.g1).toBeCloseTo(6)
   })
 
   it('buckets always sum to the authoritative total', () => {
@@ -165,5 +189,64 @@ describe('computeRateBreakdown', () => {
     expect(bd.r0.generators).toBe(6)
     expect(bd.r1.generators).toBe(5)
     expect(bd.r0.byGenerator.g1).toBeUndefined()
+  })
+})
+
+describe('collectGeneratorOutputs', () => {
+  /** An upgrade granting `effects` to some generator. */
+  function makeBoost(id: string, effects: UpgradeDefinition['effects']): UpgradeDefinition {
+    return {
+      id,
+      cost: { r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1 } },
+      purchaseLimit: 5,
+      effects,
+    }
+  }
+
+  it('reports an unboosted generator as its authored rate', () => {
+    const mode = makeMode({ generators: [makeGen('g0', 'r0', 2)] })
+    expect(collectGeneratorOutputs(makeState({ generators: { g0: 3 } }), mode).g0).toEqual({
+      owned: 3,
+      ratePerUnit: 2,
+      additivePerUnit: 0,
+      multiplier: 1,
+      effective: 6,
+    })
+  })
+
+  it('keeps additive and multiplicative bonuses apart', () => {
+    const mode = makeMode({
+      generators: [makeGen('g0', 'r0', 2)],
+      upgrades: [
+        makeBoost('u0', [{ type: 'baseModifier', stage: 'additive', field: 'g0', value: 0.5 }]),
+        makeBoost('u1', [
+          { type: 'baseModifier', stage: 'multiplicative', field: 'g0', value: 1.5 },
+        ]),
+      ],
+    })
+    const state = makeState({ generators: { g0: 4 }, upgrades: { u0: 2, u1: 2 } })
+    const out = collectGeneratorOutputs(state, mode).g0
+    // Both compound with the owning upgrade's count: additive ×2, multiplicative ^2.
+    expect(out.additivePerUnit).toBeCloseTo(1)
+    expect(out.multiplier).toBeCloseTo(2.25)
+    expect(out.effective).toBeCloseTo((2 + 1) * 4 * 2.25)
+  })
+
+  it('reports every generator, including unowned ones', () => {
+    const mode = makeMode({ generators: [makeGen('g0', 'r0', 2), makeGen('g1', 'r1', 5)] })
+    const outputs = collectGeneratorOutputs(makeState({ generators: { g0: 1 } }), mode)
+    expect(Object.keys(outputs)).toEqual(['g0', 'g1'])
+    expect(outputs.g1).toMatchObject({ owned: 0, effective: 0 })
+  })
+
+  it('sums to what the pipeline actually receives', () => {
+    const mode = makeMode({
+      generators: [makeGen('g0', 'r0', 2), makeGen('g1', 'r0', 5)],
+      upgrades: [makeBoost('u0', [{ type: 'lowerTierBoost', perUnit: 0.1 }])],
+    })
+    const state = makeState({ generators: { g0: 3, g1: 2 }, upgrades: { u0: 1 } })
+    const outputs = collectGeneratorOutputs(state, mode)
+    const summed = outputs.g0.effective + outputs.g1.effective
+    expect(summed).toBeCloseTo(truthRate(state, mode, 'r0'))
   })
 })

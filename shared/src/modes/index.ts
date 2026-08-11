@@ -1,6 +1,13 @@
 import type { Modifier } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
-import type { EffectRef, GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
+import type {
+  EffectRef,
+  GameMode,
+  GeneratorDefinition,
+  Goal,
+  PlayerState,
+  UpgradeDefinition,
+} from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
@@ -677,11 +684,30 @@ export function hasEnemyDataAccess(
 
 // ─── Modifier Collection ─────────────────────────────────────────────
 
+/** Generator-targeted bonuses accumulated for one generator, before its owned count. */
+interface GeneratorAccumulator {
+  additive: number
+  multiplicative: number
+}
+
+/** The modifier pass's raw result, before generator output is folded into resources. */
+interface CollectedModifiers {
+  /** Everything the pipeline consumes directly (resource + click tracks). */
+  readonly modifiers: Modifier[]
+  /** Per-generator bonuses, keyed by generator id (an entry per declared generator). */
+  readonly generatorModifiers: Map<string, GeneratorAccumulator>
+}
+
 /**
- * Collect all active modifiers for a player: native + owned upgrades + state-derived.
- * This is the bridge between game domain types and the pure pipeline.
+ * Run the modifier pass: native + owned upgrades + state-derived effects, with
+ * generator-targeted modifiers held back in their own accumulators rather than
+ * folded into resource rates. Shared by {@link collectModifiers} (which folds
+ * them) and {@link collectGeneratorOutputs} (which reports them).
  */
-export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinition): Modifier[] {
+function collectRawModifiers(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): CollectedModifiers {
   const modifiers: Modifier[] = []
 
   // Native modifiers (base income rates for this mode)
@@ -756,26 +782,88 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     }
   }
 
-  // Generator modifiers — apply accumulated generator-targeted bonuses.
-  // additive: extra rate per generator unit (total bonus = additive × owned).
-  // multiplicative: factor applied to the generator's total output.
+  return { modifiers, generatorModifiers }
+}
+
+/**
+ * How much one generator produces, broken into the parts that compose it:
+ * `effective = (ratePerUnit + additivePerUnit) × owned × multiplier`.
+ *
+ * These are the generator's *own* numbers — resource-wide stages (highlight,
+ * global multipliers, enemy debuffs) apply afterwards to the resource as a
+ * whole, so a generator's delivered share of a rate can exceed `effective`.
+ */
+export interface GeneratorOutput {
+  /** How many of this generator the player owns (0 for unowned). */
+  readonly owned: number
+  /** The generator's authored rate, per unit. */
+  readonly ratePerUnit: number
+  /** Additive bonuses granted to this generator, per unit. */
+  readonly additivePerUnit: number
+  /** Multiplicative bonuses on this generator's total output (1 = none). */
+  readonly multiplier: number
+  /** What this generator feeds the pipeline, before resource-wide stages. */
+  readonly effective: number
+}
+
+/** Compose one generator's output from its authored rate + accumulated bonuses. */
+function generatorOutput(
+  gen: GeneratorDefinition,
+  owned: number,
+  acc: GeneratorAccumulator,
+): GeneratorOutput {
+  const ratePerUnit = gen.production.rate
+  return {
+    owned,
+    ratePerUnit,
+    additivePerUnit: acc.additive,
+    multiplier: acc.multiplicative,
+    effective: (ratePerUnit + acc.additive) * owned * acc.multiplicative,
+  }
+}
+
+/**
+ * Collect all active modifiers for a player: native + owned upgrades + state-derived.
+ * This is the bridge between game domain types and the pure pipeline.
+ *
+ * Generator-targeted bonuses are folded here: each owned generator contributes
+ * its {@link GeneratorOutput.effective} rate as one additive modifier on the
+ * resource it produces (see {@link collectGeneratorOutputs} for the parts).
+ */
+export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinition): Modifier[] {
+  const { modifiers, generatorModifiers } = collectRawModifiers(state, mode)
+
   for (const gen of mode.generators) {
     const owned = state.generators[gen.id] ?? 0
     if (owned <= 0) continue
-
-    const genState = generatorModifiers.get(gen.id)!
-    const baseRate = gen.production.rate * owned
-    const additiveBonus = genState.additive * owned
-    const effectiveRate = (baseRate + additiveBonus) * genState.multiplicative
-
-    modifiers.push({
-      stage: 'additive',
-      field: gen.production.resource,
-      value: effectiveRate,
-    })
+    const { effective } = generatorOutput(gen, owned, generatorModifiers.get(gen.id)!)
+    modifiers.push({ stage: 'additive', field: gen.production.resource, value: effective })
   }
 
   return modifiers
+}
+
+/**
+ * Decompose every generator's output into its authored rate, the additive
+ * bonuses it has been granted, and its multiplier — the parts `collectModifiers`
+ * collapses into a single number. For display (the data panel's per-generator
+ * rows); the pipeline itself only needs the composed rate.
+ *
+ * Every declared generator gets an entry, including unowned ones (`owned: 0`,
+ * `effective: 0`) — their bonus accumulators are still reported, so a caller can
+ * show what a generator *would* produce.
+ */
+export function collectGeneratorOutputs(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): Record<string, GeneratorOutput> {
+  const { generatorModifiers } = collectRawModifiers(state, mode)
+  const outputs: Record<string, GeneratorOutput> = {}
+  for (const gen of mode.generators) {
+    const owned = state.generators[gen.id] ?? 0
+    outputs[gen.id] = generatorOutput(gen, owned, generatorModifiers.get(gen.id)!)
+  }
+  return outputs
 }
 
 /**
@@ -823,8 +911,11 @@ function playerWithoutGenerators(state: Readonly<PlayerState>): PlayerState {
  * matches the income the server actually applies.
  *
  * `byGenerator` splits the generator bucket across owned generators in
- * proportion to their raw output (`rate × owned`); generators are mutually
- * additive, so this preserves the exact bucket sum.
+ * proportion to their *effective* output (`collectGeneratorOutputs`, i.e. after
+ * their own additive/multiplicative bonuses); generators are mutually additive,
+ * so this preserves the exact bucket sum. Weighting by the authored rate instead
+ * would misattribute the bucket whenever a bonus targets one generator — a
+ * ×3-boosted tier would report the same share as an unboosted one.
  *
  * Upgrades are deliberately *not* a bucket: they have no standalone output, they
  * scale whichever producer they target. An upgrade boosting generator output is
@@ -842,18 +933,17 @@ export function computeRateBreakdown(
   const total = rateFor(state)
   const noGen = rateFor(playerWithoutGenerators(state))
 
-  // Raw generator output per resource, for proportionally splitting the
+  // Effective generator output per resource, for proportionally splitting the
   // generator bucket across the individual generators that feed it.
-  const genRawByResource = new Map<string, { total: number; byId: Record<string, number> }>()
+  const outputs = collectGeneratorOutputs(state, mode)
+  const genOutByResource = new Map<string, { total: number; byId: Record<string, number> }>()
   for (const gen of mode.generators) {
-    const owned = state.generators[gen.id] ?? 0
-    if (owned <= 0) continue
-    const raw = gen.production.rate * owned
-    if (raw <= 0) continue
-    const entry = genRawByResource.get(gen.production.resource) ?? { total: 0, byId: {} }
-    entry.total += raw
-    entry.byId[gen.id] = (entry.byId[gen.id] ?? 0) + raw
-    genRawByResource.set(gen.production.resource, entry)
+    const { effective } = outputs[gen.id]
+    if (effective <= 0) continue
+    const entry = genOutByResource.get(gen.production.resource) ?? { total: 0, byId: {} }
+    entry.total += effective
+    entry.byId[gen.id] = (entry.byId[gen.id] ?? 0) + effective
+    genOutByResource.set(gen.production.resource, entry)
   }
 
   const result: Record<string, ResourceRateBreakdown> = {}
@@ -863,10 +953,10 @@ export function computeRateBreakdown(
     const generators = t - base
 
     const byGenerator: Record<string, number> = {}
-    const raw = genRawByResource.get(r)
-    if (raw && raw.total > 0) {
-      for (const [id, rawRate] of Object.entries(raw.byId)) {
-        byGenerator[id] = generators * (rawRate / raw.total)
+    const out = genOutByResource.get(r)
+    if (out && out.total > 0) {
+      for (const [id, effective] of Object.entries(out.byId)) {
+        byGenerator[id] = generators * (effective / out.total)
       }
     }
 

@@ -1,15 +1,17 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { roundStats } from '../../stats/round-stats.js'
-import { formatMultiplier, formatNumber } from '../format-number.js'
+import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
 import {
   type DynamicBonus,
+  type GeneratorOutput,
   type ModeDefinition,
   type ModeFlavor,
   type Modifier,
   type ResourceRateBreakdown,
   collectDynamicBonuses,
+  collectGeneratorOutputs,
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
@@ -25,16 +27,19 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
+// Rates keep a decimal here rather than going through `formatNumber` directly:
+// every notation floors below 1000, which would report a +0.5/s generator as
+// "+0/s" — the panel exists to be precise about exactly these numbers.
+
 /** Format a per-second production rate (e.g. "+2/s", "+0.5/s", "-1/s"). */
 function formatRate(rate: number): string {
-  const decimals = Number.isInteger(rate) ? 0 : 1
   const sign = rate < 0 ? '-' : '+'
-  return `${sign}${formatNumber(Math.abs(rate), decimals)}/s`
+  return `${sign}${formatDecimal(Math.abs(rate), 1)}/s`
 }
 
 /** Format a rate without a leading sign (for breakdown sub-rows). */
 function formatAmount(rate: number): string {
-  return formatNumber(rate, Number.isInteger(rate) ? 0 : 1)
+  return formatDecimal(rate, 1)
 }
 
 /** Percentage share of `part` out of `total` (0 when total is 0). */
@@ -132,9 +137,12 @@ function renderGeneratorRow(modeDef: ModeDefinition, flavor: ModeFlavor, resourc
   const genRows = gens
     .map(
       (g) => `
-        <div class="data-gen-row" id="data-gen-row-${resource}-${g.id}">
-          <span class="data-gen-name">${getGeneratorIcon(flavor, g.id)} ${getGeneratorName(flavor, g.id)}</span>
-          <span class="data-gen-rate" id="data-gen-rate-${resource}-${g.id}">—</span>
+        <div class="data-gen-entry" id="data-gen-row-${resource}-${g.id}">
+          <div class="data-gen-row">
+            <span class="data-gen-name">${getGeneratorIcon(flavor, g.id)} ${getGeneratorName(flavor, g.id)}</span>
+            <span class="data-gen-rate" id="data-gen-rate-${resource}-${g.id}">—</span>
+          </div>
+          <div class="data-gen-detail" id="data-gen-detail-${resource}-${g.id}">—</div>
         </div>`,
     )
     .join('')
@@ -148,6 +156,27 @@ function renderGeneratorRow(modeDef: ModeDefinition, flavor: ModeFlavor, resourc
       <div class="data-gen-list">${genRows}</div>
     </div>
   `
+}
+
+/**
+ * The parts behind a generator's rate, as one line:
+ * `base 2/s ea · add +0.5/s ea · mult ×1.6 · shared ×1.43`.
+ *
+ * The first three are the generator's own numbers, per unit owned, so they stay
+ * readable as the count grows: `(base + add) × owned × mult` is what it feeds
+ * the pipeline. `shared` is what the resource-wide stages (highlight, global
+ * bonuses, enemy debuffs) then do to it — shown only when it isn't ×1, so the
+ * row's rate always reconciles with the parts.
+ */
+function generatorDetail(out: GeneratorOutput, delivered: number): string {
+  const parts = [
+    `base ${formatDecimal(out.ratePerUnit)}/s ea`,
+    `add +${formatDecimal(out.additivePerUnit)}/s ea`,
+    `mult ×${formatMultiplier(out.multiplier)}`,
+  ]
+  const shared = out.effective > 0 ? delivered / out.effective : 1
+  if (Math.abs(shared - 1) > 0.005) parts.push(`shared ×${formatMultiplier(shared)}`)
+  return parts.join(' · ')
 }
 
 // ─── Live bonuses ────────────────────────────────────────────────────
@@ -388,6 +417,7 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Production + source breakdown (debuffs folded in so totals match the header).
   const breakdown = computeRateBreakdown(state.player, modeDef, state.debuffs)
+  const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
     setText(`data-total-rate-${r}`, formatRate(bd.total))
@@ -404,6 +434,7 @@ function updateNumbers(state: Readonly<GameState>): void {
       const row = document.getElementById(`data-gen-row-${r}-${g.id}`)
       if (row) row.style.display = owned > 0 ? '' : 'none'
       setText(`data-gen-rate-${r}-${g.id}`, `${formatRate(rate)} ×${owned}`)
+      setText(`data-gen-detail-${r}-${g.id}`, generatorDetail(outputs[g.id], rate))
     }
   }
 
