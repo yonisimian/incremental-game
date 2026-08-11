@@ -44,17 +44,87 @@ function generatorsFor(modeDef: ModeDefinition, resource: string) {
   return modeDef.generators.filter((g) => g.production.resource === resource)
 }
 
+// ─── Collapsible sections ────────────────────────────────────────────
+//
+// Every section (and each resource's per-generator list) can be folded away.
+// Keys are mode-agnostic (`prod:r0`, `gens:r0`, `inventory`, …) and the
+// collapsed set is persisted, so the layout survives tab switches and rounds.
+
+const COLLAPSE_STORAGE_KEY = 'data-panel-collapsed'
+
+const collapsedKeys = loadCollapsed()
+
+function loadCollapsed(): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(COLLAPSE_STORAGE_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((k): k is string => typeof k === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveCollapsed(): void {
+  try {
+    localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify([...collapsedKeys]))
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Fold/unfold the group a toggle button heads (its parent element), and
+ * remember the choice. Collapsed content stays in the DOM — `updateNumbers`
+ * keeps writing to it, so re-expanding shows live numbers immediately.
+ */
+function toggleCollapse(btn: HTMLElement): void {
+  const key = btn.dataset.collapse
+  const group = btn.parentElement
+  if (!key || !group) return
+  const isCollapsed = !group.classList.contains('collapsed')
+  group.classList.toggle('collapsed', isCollapsed)
+  btn.setAttribute('aria-expanded', String(!isCollapsed))
+  if (isCollapsed) collapsedKeys.add(key)
+  else collapsedKeys.delete(key)
+  saveCollapsed()
+}
+
 // ─── Rendering ───────────────────────────────────────────────────────
 
-/** One resource's production + source-breakdown block (stable IDs, filled by update()). */
-function renderResourceBlock(
-  modeDef: ModeDefinition,
-  flavor: ModeFlavor,
-  resource: string,
-): string {
-  const icon = getResourceIcon(flavor, resource)
-  const name = getResourceName(flavor, resource)
+/**
+ * A collapsible section card: a clickable header (title + optional `summary`
+ * HTML that stays visible while collapsed) over `body`. Exported for tests.
+ */
+export function renderSection(key: string, title: string, body: string, summary = ''): string {
+  const isCollapsed = collapsedKeys.has(key)
+  return `
+    <section class="data-section${isCollapsed ? ' collapsed' : ''}">
+      <button class="data-section-head" type="button" data-collapse="${key}" aria-expanded="${!isCollapsed}">
+        <span class="data-section-title"><span class="data-caret" aria-hidden="true">▾</span> ${title}</span>
+        ${summary}
+      </button>
+      <div class="data-section-body">${body}</div>
+    </section>
+  `
+}
+
+/**
+ * The "Generators" source row. With generators declared for this resource the
+ * row doubles as a toggle for the per-generator breakdown beneath it;
+ * otherwise it's a plain row (nothing to fold).
+ */
+function renderGeneratorRow(modeDef: ModeDefinition, flavor: ModeFlavor, resource: string): string {
+  const caret = ' <span class="data-caret" aria-hidden="true">▾</span>'
+  const label = (withCaret: boolean): string =>
+    `<span class="data-source-label"><i class="data-swatch data-swatch-gen"></i> Generators${withCaret ? caret : ''}</span>`
+  const value = `<span id="data-src-gen-${resource}">—</span>`
   const gens = generatorsFor(modeDef, resource)
+  if (gens.length === 0) {
+    return `<div class="data-source-row">${label(false)}${value}</div>`
+  }
+
+  const key = `gens:${resource}`
+  const isCollapsed = collapsedKeys.has(key)
   const genRows = gens
     .map(
       (g) => `
@@ -66,11 +136,26 @@ function renderResourceBlock(
     .join('')
 
   return `
-    <section class="data-resource" data-resource="${resource}">
-      <div class="data-resource-head">
-        <span class="data-resource-name">${icon} ${name}</span>
-        <span class="data-resource-rate" id="data-total-rate-${resource}">—</span>
-      </div>
+    <div class="data-gen-group${isCollapsed ? ' collapsed' : ''}">
+      <button class="data-source-row data-source-toggle" type="button" data-collapse="${key}" aria-expanded="${!isCollapsed}">
+        ${label(true)}
+        ${value}
+      </button>
+      <div class="data-gen-list">${genRows}</div>
+    </div>
+  `
+}
+
+/** One resource's production + source-breakdown section (stable IDs, filled by update()). */
+function renderResourceSection(
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  resource: string,
+): string {
+  const icon = getResourceIcon(flavor, resource)
+  const name = getResourceName(flavor, resource)
+
+  const body = `
       <div class="data-breakdown">
         <div class="data-bar" role="img" aria-label="Production sources for ${name}">
           <span class="data-bar-seg data-bar-base" id="data-bar-base-${resource}"></span>
@@ -80,19 +165,23 @@ function renderResourceBlock(
           <span class="data-source-label"><i class="data-swatch data-swatch-base"></i> Base</span>
           <span id="data-src-base-${resource}">—</span>
         </div>
-        <div class="data-source-row">
-          <span class="data-source-label"><i class="data-swatch data-swatch-gen"></i> Generators</span>
-          <span id="data-src-gen-${resource}">—</span>
-        </div>
-        ${gens.length > 0 ? `<div class="data-gen-list">${genRows}</div>` : ''}
-      </div>
-    </section>
-  `
+        ${renderGeneratorRow(modeDef, flavor, resource)}
+      </div>`
+
+  // The rate rides in the header, so a collapsed section still shows the total.
+  return renderSection(
+    `prod:${resource}`,
+    `${icon} ${name} production`,
+    body,
+    `<span class="data-resource-rate" id="data-total-rate-${resource}">—</span>`,
+  )
 }
 
 /** Build the full panel skeleton once (numbers filled by update()). */
 function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: boolean): string {
-  const production = modeDef.resources.map((r) => renderResourceBlock(modeDef, flavor, r)).join('')
+  const production = modeDef.resources
+    .map((r) => renderResourceSection(modeDef, flavor, r))
+    .join('')
 
   const inventoryRows = modeDef.resources
     .map(
@@ -115,9 +204,10 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
     .join('')
 
   const clicking = modeDef.clicksEnabled
-    ? `
-      <section class="data-section">
-        <h3 class="data-section-title">🖱️ Clicking</h3>
+    ? renderSection(
+        'clicking',
+        '🖱️ Clicking',
+        `
         <div class="data-stat-grid">
           <div class="data-stat">
             <span class="data-stat-label">Per click</span>
@@ -140,8 +230,8 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
             <span class="data-stat-value" id="data-click-earned">—</span>
           </div>
           ${earnedByResource}
-        </div>
-      </section>`
+        </div>`,
+      )
     : ''
 
   const dwellRows = modeDef.resources
@@ -155,9 +245,10 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
     .join('')
 
   const highlight = modeDef.highlightEnabled
-    ? `
-      <section class="data-section">
-        <h3 class="data-section-title">✨ Highlight</h3>
+    ? renderSection(
+        'highlight',
+        '✨ Highlight',
+        `
         <div class="data-stat-grid">
           <div class="data-stat">
             <span class="data-stat-label">Current</span>
@@ -169,20 +260,14 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
           </div>
         </div>
         <p class="data-subhead">Time highlighted</p>
-        <div class="data-stat-grid">${dwellRows}</div>
-      </section>`
+        <div class="data-stat-grid">${dwellRows}</div>`,
+      )
     : ''
 
-  return `
-    <div class="data-panel">
-      <section class="data-section">
-        <h3 class="data-section-title">⚙️ Production</h3>
-        ${production}
-      </section>
-      ${clicking}
-      ${highlight}
-      <section class="data-section">
-        <h3 class="data-section-title">📦 Inventory</h3>
+  const inventory = renderSection(
+    'inventory',
+    '📦 Inventory',
+    `
         <div class="data-stat-grid">
           ${inventoryRows}
           ${
@@ -201,8 +286,15 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
             <span class="data-stat-label">⬆️ Upgrades</span>
             <span class="data-stat-value" id="data-inv-upgrades">—</span>
           </div>
-        </div>
-      </section>
+        </div>`,
+  )
+
+  return `
+    <div class="data-panel" id="data-panel">
+      ${production}
+      ${clicking}
+      ${highlight}
+      ${inventory}
     </div>
   `
 }
@@ -301,6 +393,15 @@ export const dataPanel: Panel = {
     const showScore = state.goal?.type !== 'buy-upgrade'
     container.innerHTML = renderSkeleton(modeDef, getModeFlavor(modeDef), showScore)
     updateNumbers(state)
+  },
+
+  bind() {
+    // One delegated listener on the (freshly rendered) panel root covers every
+    // section header and generator-list toggle.
+    document.getElementById('data-panel')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-collapse]')
+      if (btn) toggleCollapse(btn)
+    })
   },
 
   update(state) {
