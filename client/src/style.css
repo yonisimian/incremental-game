@@ -2262,10 +2262,6 @@ body {
   background: var(--accent);
 }
 
-.data-bar-upg {
-  background: var(--gold);
-}
-
 .data-source-row {
   display: flex;
   align-items: center;
@@ -2298,10 +2294,6 @@ body {
 
 .data-swatch-gen {
   background: var(--accent);
-}
-
-.data-swatch-upg {
-  background: var(--gold);
 }
 
 .data-gen-list {

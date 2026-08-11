@@ -83,7 +83,6 @@ describe('computeRateBreakdown', () => {
     expect(bd.total).toBe(2)
     expect(bd.base).toBe(2)
     expect(bd.generators).toBe(0)
-    expect(bd.upgrades).toBe(0)
   })
 
   it('attributes generator output to the generators bucket', () => {
@@ -121,8 +120,11 @@ describe('computeRateBreakdown', () => {
     })
     const state = makeState({ generators: { g0: 3 }, upgrades: { u0: 2 } })
     const bd = computeRateBreakdown(state, mode).r0
-    expect(bd.base + bd.generators + bd.upgrades).toBeCloseTo(bd.total)
+    expect(bd.base + bd.generators).toBeCloseTo(bd.total)
     expect(bd.total).toBeCloseTo(truthRate(state, mode, 'r0'))
+    // The upgrade boosts the base producer, so its contribution lands in `base`:
+    // native 1 + 2 × 1.5 = 4.
+    expect(bd.base).toBeCloseTo(4)
   })
 
   it('telescopes correctly when a shared multiplicative modifier is present', () => {
@@ -141,7 +143,7 @@ describe('computeRateBreakdown', () => {
     expect(bd.total).toBeCloseTo(14)
     expect(bd.base).toBeCloseTo(2) // native 1 * 2
     expect(bd.generators).toBeCloseTo(12) // gen 6 * 2
-    expect(bd.base + bd.generators + bd.upgrades).toBeCloseTo(bd.total)
+    expect(bd.base + bd.generators).toBeCloseTo(bd.total)
   })
 
   it('folds debuffs into the total', () => {

@@ -779,59 +779,55 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
 
 /**
  * Attribution of one resource's passive rate to the systems that produce it.
- * `base + generators + upgrades` always equals `total` (the same number the
- * header shows), and `byGenerator` sums to `generators`. See
- * {@link computeRateBreakdown}.
+ * `base + generators` always equals `total` (the same number the header shows),
+ * and `byGenerator` sums to `generators`. See {@link computeRateBreakdown}.
  */
 export interface ResourceRateBreakdown {
   /** Authoritative per-second rate (matches `computePassiveRates`). */
   total: number
-  /** Native modifiers + mode-level effects (the always-on floor). */
+  /**
+   * The base producer: native modifiers + mode-level effects, *including* every
+   * upgrade boost applied to them. Upgrades are not a bucket of their own — a
+   * base-boosting upgrade shows up here, a generator-boosting one in
+   * `generators`.
+   */
   base: number
   /** Contribution of all generators producing this resource. */
   generators: number
-  /** Contribution of owned upgrades (their production/base modifiers). */
-  upgrades: number
   /** Per-generator contribution (owned generators producing this resource). */
   byGenerator: Record<string, number>
 }
 
-/** Shallow player-state clone with the named collections optionally emptied. */
-function playerWithout(
-  state: Readonly<PlayerState>,
-  opts: { generators?: boolean; upgrades?: boolean },
-): PlayerState {
+/** Shallow player-state clone with every generator un-owned. */
+function playerWithoutGenerators(state: Readonly<PlayerState>): PlayerState {
   return {
     score: state.score,
     resources: { ...state.resources },
-    upgrades: opts.upgrades ? {} : { ...state.upgrades },
-    generators: opts.generators ? {} : { ...state.generators },
+    upgrades: { ...state.upgrades },
+    generators: {},
     pendingAttacks: [...state.pendingAttacks],
     meta: structuredClone(state.meta),
   }
 }
 
 /**
- * Decompose each resource's passive rate into base / generator / upgrade
- * contributions, for display (e.g. the data panel).
+ * Decompose each resource's passive rate into base / generator contributions,
+ * for display (e.g. the data panel).
  *
- * Each bucket is measured by *differencing* the full pipeline against the
- * pipeline with a system removed, so shared multiplicative stages (highlight,
- * global multipliers, debuffs) cancel and the three buckets telescope back to
- * the authoritative total — regardless of how the modifiers compose. Optional
- * `debuffs` (from `collectEnemyDebuffs`) are merged in so the total matches the
- * income the server actually applies.
+ * The generator bucket is measured by *differencing* the full pipeline against
+ * the pipeline with no generators owned, so shared multiplicative stages
+ * (highlight, global multipliers, debuffs) cancel and the two buckets telescope
+ * back to the authoritative total — regardless of how the modifiers compose.
+ * Optional `debuffs` (from `collectEnemyDebuffs`) are merged in so the total
+ * matches the income the server actually applies.
  *
  * `byGenerator` splits the generator bucket across owned generators in
  * proportion to their raw output (`rate × owned`); generators are mutually
  * additive, so this preserves the exact bucket sum.
  *
- * Attribution ordering: generators are removed first, then upgrades, so an
- * upgrade that boosts *generator* output lands in the `generators` bucket, not
- * `upgrades` (removing the generators already takes that boosted contribution
- * with them). The `upgrades` bucket therefore reflects an upgrade's effect on
- * the base/native floor only. Buckets still sum exactly to `total`; this only
- * decides which bucket a cross-system interaction is credited to.
+ * Upgrades are deliberately *not* a bucket: they have no standalone output, they
+ * scale whichever producer they target. An upgrade boosting generator output is
+ * folded into `generators`, one boosting the base producer into `base`.
  */
 export function computeRateBreakdown(
   state: Readonly<PlayerState>,
@@ -843,8 +839,7 @@ export function computeRateBreakdown(
     computePassiveRates([...collectModifiers(player, mode), ...debuffs], resources)
 
   const total = rateFor(state)
-  const noGen = rateFor(playerWithout(state, { generators: true }))
-  const noGenUpg = rateFor(playerWithout(state, { generators: true, upgrades: true }))
+  const noGen = rateFor(playerWithoutGenerators(state))
 
   // Raw generator output per resource, for proportionally splitting the
   // generator bucket across the individual generators that feed it.
@@ -863,9 +858,8 @@ export function computeRateBreakdown(
   const result: Record<string, ResourceRateBreakdown> = {}
   for (const r of resources) {
     const t = total[r] ?? 0
-    const generators = t - (noGen[r] ?? 0)
-    const upgrades = (noGen[r] ?? 0) - (noGenUpg[r] ?? 0)
-    const base = noGenUpg[r] ?? 0
+    const base = noGen[r] ?? 0
+    const generators = t - base
 
     const byGenerator: Record<string, number> = {}
     const raw = genRawByResource.get(r)
@@ -875,7 +869,7 @@ export function computeRateBreakdown(
       }
     }
 
-    result[r] = { total: t, base, generators, upgrades, byGenerator }
+    result[r] = { total: t, base, generators, byGenerator }
   }
   return result
 }

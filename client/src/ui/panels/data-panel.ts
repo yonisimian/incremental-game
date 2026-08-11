@@ -75,7 +75,6 @@ function renderResourceBlock(
         <div class="data-bar" role="img" aria-label="Production sources for ${name}">
           <span class="data-bar-seg data-bar-base" id="data-bar-base-${resource}"></span>
           <span class="data-bar-seg data-bar-gen" id="data-bar-gen-${resource}"></span>
-          <span class="data-bar-seg data-bar-upg" id="data-bar-upg-${resource}"></span>
         </div>
         <div class="data-source-row">
           <span class="data-source-label"><i class="data-swatch data-swatch-base"></i> Base</span>
@@ -84,10 +83,6 @@ function renderResourceBlock(
         <div class="data-source-row">
           <span class="data-source-label"><i class="data-swatch data-swatch-gen"></i> Generators</span>
           <span id="data-src-gen-${resource}">—</span>
-        </div>
-        <div class="data-source-row">
-          <span class="data-source-label"><i class="data-swatch data-swatch-upg"></i> Upgrades</span>
-          <span id="data-src-upg-${resource}">—</span>
         </div>
         ${gens.length > 0 ? `<div class="data-gen-list">${genRows}</div>` : ''}
       </div>
@@ -224,12 +219,10 @@ function updateNumbers(state: Readonly<GameState>): void {
     setText(`data-total-rate-${r}`, formatRate(bd.total))
     setText(`data-src-base-${r}`, formatAmount(bd.base))
     setText(`data-src-gen-${r}`, formatAmount(bd.generators))
-    setText(`data-src-upg-${r}`, formatAmount(bd.upgrades))
 
-    const total = bd.base + bd.generators + bd.upgrades
+    const total = bd.base + bd.generators
     setBarWidth(`data-bar-base-${r}`, share(bd.base, total))
     setBarWidth(`data-bar-gen-${r}`, share(bd.generators, total))
-    setBarWidth(`data-bar-upg-${r}`, share(bd.upgrades, total))
 
     for (const g of generatorsFor(modeDef, r)) {
       const rate = bd.byGenerator[g.id] ?? 0
