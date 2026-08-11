@@ -1,12 +1,15 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { roundStats } from '../../stats/round-stats.js'
-import { formatNumber } from '../format-number.js'
+import { formatMultiplier, formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
 import {
+  type DynamicBonus,
   type ModeDefinition,
   type ModeFlavor,
+  type Modifier,
   type ResourceRateBreakdown,
+  collectDynamicBonuses,
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
@@ -17,6 +20,7 @@ import {
   getGeneratorName,
   getResourceIcon,
   getResourceName,
+  getUpgradeName,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -146,6 +150,70 @@ function renderGeneratorRow(modeDef: ModeDefinition, flavor: ModeFlavor, resourc
   `
 }
 
+// ─── Live bonuses ────────────────────────────────────────────────────
+//
+// Upgrades whose worth moves with the game state — a bank that scales with the
+// stockpile, Socialism/Capitalism tracking generator ownership. Their cards can
+// only state a rule ("1% per 1000 🪵"), so this section reports what the rule is
+// paying right now. Rows are rebuilt (not patched) because both the upgrades on
+// show and the fields they hit change during a round.
+
+/** What a modifier's `field` targets, in flavor terms ("🪵 base", "🪓 Woodcutter"). */
+function targetLabel(field: string, modeDef: ModeDefinition, flavor: ModeFlavor): string {
+  if (field === 'clickIncome') return 'per click'
+  const baseIndex = /^b(\d+)$/.exec(field)?.[1]
+  if (baseIndex !== undefined) {
+    const resource = modeDef.resources[Number(baseIndex)]
+    return resource ? `${getResourceIcon(flavor, resource)} base` : field
+  }
+  if (modeDef.resources.includes(field)) return getResourceIcon(flavor, field)
+  if (modeDef.generators.some((g) => g.id === field)) {
+    return `${getGeneratorIcon(flavor, field)} ${getGeneratorName(flavor, field)}`
+  }
+  return field
+}
+
+/** A modifier's current value ("×1.04", "+3"). */
+function formatModifierValue(m: Modifier): string {
+  return m.stage === 'additive' ? `+${formatAmount(m.value)}` : `×${formatMultiplier(m.value)}`
+}
+
+/**
+ * One upgrade's live contribution. A bonus that hits every resource with the
+ * same value (Socialism) collapses to a single "all" entry instead of repeating
+ * itself per resource.
+ */
+function formatBonus(bonus: DynamicBonus, modeDef: ModeDefinition, flavor: ModeFlavor): string {
+  const [first, ...rest] = bonus.modifiers
+  const uniform = rest.every((m) => m.stage === first.stage && m.value === first.value)
+  const coversEveryResource =
+    bonus.modifiers.length === modeDef.resources.length &&
+    modeDef.resources.every((r) => bonus.modifiers.some((m) => m.field === r))
+  if (uniform && coversEveryResource && modeDef.resources.length > 1) {
+    return `all ${formatModifierValue(first)}`
+  }
+  return bonus.modifiers
+    .map((m) => `${targetLabel(m.field, modeDef, flavor)} ${formatModifierValue(m)}`)
+    .join(', ')
+}
+
+/** The live-bonus rows for the current state (empty when nothing dynamic is active). */
+function renderBonusRows(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string {
+  return collectDynamicBonuses(state.player, modeDef)
+    .map(
+      (bonus) => `
+        <div class="data-bonus-row">
+          <span class="data-bonus-name">${getUpgradeName(flavor, bonus.upgradeId)}</span>
+          <span class="data-bonus-value">${formatBonus(bonus, modeDef, flavor)}</span>
+        </div>`,
+    )
+    .join('')
+}
+
 /** One resource's production + source-breakdown section (stable IDs, filled by update()). */
 function renderResourceSection(
   modeDef: ModeDefinition,
@@ -178,10 +246,23 @@ function renderResourceSection(
 }
 
 /** Build the full panel skeleton once (numbers filled by update()). */
-function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: boolean): string {
+function renderSkeleton(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  showScore: boolean,
+): string {
   const production = modeDef.resources
     .map((r) => renderResourceSection(modeDef, flavor, r))
     .join('')
+
+  // Rows are filled here too (not just by update()) so a tab switch mid-round
+  // paints the current bonuses immediately.
+  const bonuses = renderSection(
+    'bonuses',
+    '🔀 Live bonuses',
+    `<div class="data-bonus-list" id="data-bonus-list">${renderBonusRows(state, modeDef, flavor)}</div>`,
+  )
 
   const inventoryRows = modeDef.resources
     .map(
@@ -292,6 +373,7 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
   return `
     <div class="data-panel" id="data-panel">
       ${production}
+      ${bonuses}
       ${clicking}
       ${highlight}
       ${inventory}
@@ -325,6 +407,16 @@ function updateNumbers(state: Readonly<GameState>): void {
     }
   }
 
+  // Live bonuses. The whole list is re-rendered when it changes, and the section
+  // hides itself while nothing dynamic is active (early round, none owned).
+  const list = document.getElementById('data-bonus-list')
+  if (list) {
+    const rows = renderBonusRows(state, modeDef, getModeFlavor(modeDef))
+    if (rows !== list.innerHTML) list.innerHTML = rows
+    const section = list.closest<HTMLElement>('.data-section')
+    if (section) section.style.display = rows === '' ? 'none' : ''
+  }
+
   // Clicking (per-click income excludes debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
     const clickIncome = computeClickIncome(collectModifiers(state.player, modeDef))
@@ -347,7 +439,7 @@ function updateNumbers(state: Readonly<GameState>): void {
       `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
     const mult = getHighlightMultiplier(state.player, modeDef)
-    setText('data-hl-mult', `×${formatNumber(mult, Number.isInteger(mult) ? 0 : 2)}`)
+    setText('data-hl-mult', `×${formatMultiplier(mult)}`)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)
     }
@@ -391,7 +483,7 @@ export const dataPanel: Panel = {
     // Race-to-buy hides scores entirely (the opponent's is never revealed), so
     // the score stat is meaningless there — omit it.
     const showScore = state.goal?.type !== 'buy-upgrade'
-    container.innerHTML = renderSkeleton(modeDef, getModeFlavor(modeDef), showScore)
+    container.innerHTML = renderSkeleton(state, modeDef, getModeFlavor(modeDef), showScore)
     updateNumbers(state)
   },
 

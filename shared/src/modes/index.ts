@@ -16,6 +16,7 @@ import {
 import {
   applyEffect,
   effectHosts,
+  isDynamicEffect,
   isEffectAllowedOn,
   normalizeEffectOutputs,
   prepareEffect,
@@ -872,6 +873,53 @@ export function computeRateBreakdown(
     result[r] = { total: t, base, generators, byGenerator }
   }
   return result
+}
+
+/**
+ * One owned upgrade's *live* contribution: the modifiers its state-dependent
+ * effects emit for the state it was collected against. See
+ * {@link collectDynamicBonuses}.
+ */
+export interface DynamicBonus {
+  /** The owned upgrade these modifiers come from. */
+  readonly upgradeId: string
+  /** What it is contributing right now (never empty). */
+  readonly modifiers: readonly Modifier[]
+}
+
+/**
+ * Snapshot what every owned *dynamic* upgrade is worth at this instant, for
+ * display (e.g. the data panel's live-bonuses section).
+ *
+ * Only effects flagged `dynamic` (see `EffectDef.dynamic`) are read — a bank
+ * that scales with the stockpile, a synergy that tracks generator ownership.
+ * Flat bonuses are excluded on purpose: their value is already printed on the
+ * upgrade card, so re-listing them would bury the numbers that actually move.
+ * An upgrade whose dynamic effects are all currently inactive (no generators
+ * owned, empty stockpile) is omitted entirely.
+ *
+ * Dynamic effects emit raw {@link Modifier}s, which are applied verbatim — no
+ * owned-count compounding — so what's reported here is exactly what the
+ * pipeline receives. Mode-level effects are out of scope: they're always-on and
+ * have no upgrade to name in the UI.
+ */
+export function collectDynamicBonuses(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): DynamicBonus[] {
+  const bonuses: DynamicBonus[] = []
+  for (const upgrade of mode.upgrades) {
+    if ((state.upgrades[upgrade.id] ?? 0) <= 0) continue
+    const modifiers: Modifier[] = []
+    for (const ref of upgrade.effects ?? []) {
+      if (!isDynamicEffect(ref.type)) continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (!('kind' in out) && 'stage' in out) modifiers.push(out)
+      }
+    }
+    if (modifiers.length > 0) bonuses.push({ upgradeId: upgrade.id, modifiers })
+  }
+  return bonuses
 }
 
 /**

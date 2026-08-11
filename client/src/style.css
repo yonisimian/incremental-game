@@ -2362,6 +2362,34 @@ body {
   white-space: nowrap;
 }
 
+.data-bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.data-bonus-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.data-bonus-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Multi-target bonuses (Pyramid hits every generator) wrap rather than clip. */
+.data-bonus-value {
+  font-family: monospace;
+  color: var(--gold);
+  text-align: right;
+}
+
 .data-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

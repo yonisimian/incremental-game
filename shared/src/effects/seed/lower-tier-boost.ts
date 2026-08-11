@@ -41,4 +41,4 @@ function apply(
   return mods
 }
 
-export const lowerTierBoost: EffectDef<LowerTierBoostParams> = { schema, apply }
+export const lowerTierBoost: EffectDef<LowerTierBoostParams> = { schema, apply, dynamic: true }

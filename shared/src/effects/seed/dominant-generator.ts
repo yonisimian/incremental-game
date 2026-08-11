@@ -46,4 +46,8 @@ function apply(
   return [{ stage: 'multiplicative', field: leaderId, value: p.multiplier }]
 }
 
-export const dominantGenerator: EffectDef<DominantGeneratorParams> = { schema, apply }
+export const dominantGenerator: EffectDef<DominantGeneratorParams> = {
+  schema,
+  apply,
+  dynamic: true,
+}

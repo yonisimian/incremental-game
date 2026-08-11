@@ -221,6 +221,15 @@ export interface EffectDef<P> {
    */
   readonly hosts?: readonly EffectHost[]
   /**
+   * Whether `apply`'s output depends on *live player state* rather than params
+   * alone — a bank that scales with the stockpile held, a synergy that tracks
+   * generator ownership. Purely declarative: nothing in the pipeline branches on
+   * it. It marks the effects whose current worth can't be read off the upgrade
+   * card, so the UI can surface what they're contributing right now
+   * (`collectDynamicBonuses`). Defaults to `false`.
+   */
+  readonly dynamic?: boolean
+  /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.
    */

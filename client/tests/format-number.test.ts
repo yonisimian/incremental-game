@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
+  formatMultiplier,
   formatNumber,
   formatNumberAs,
   setNotation,
@@ -163,6 +164,34 @@ describe('decimal separator', () => {
     expect(formatNumber(1000)).toBe('1K')
     setNotation('scientific')
     expect(formatNumber(100000)).toBe('1e5')
+  })
+})
+
+describe('formatMultiplier', () => {
+  // Every notation floors sub-1000 values, which would render every bonus as a
+  // flat "1" — the reason multipliers bypass notation entirely down there.
+  it('keeps the fractional part that notation would floor away', () => {
+    for (const notation of ['scientific', 'engineering', 'name'] as const) {
+      setNotation(notation)
+      expect(formatMultiplier(1.25)).toBe('1.25')
+      expect(formatMultiplier(1.4285714)).toBe('1.43')
+    }
+  })
+
+  it('trims trailing zeros so a whole multiplier reads as one', () => {
+    expect(formatMultiplier(3)).toBe('3')
+    expect(formatMultiplier(1.5)).toBe('1.5')
+    expect(formatMultiplier(1.001)).toBe('1')
+  })
+
+  it('honours the decimal-separator preference', () => {
+    setDecimalSeparator('comma')
+    expect(formatMultiplier(1.25)).toBe('1,25')
+  })
+
+  it('falls back to the configured notation once large', () => {
+    setNotation('scientific')
+    expect(formatMultiplier(12345)).toBe('1.23e4')
   })
 })
 
