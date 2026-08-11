@@ -163,12 +163,49 @@ interface ResourceStealFlat extends ResourceStealBase {
 }
 
 /**
+ * An instantaneous transfer of *generator copies* from the victim to the
+ * attacker, emitted by the `stealGenerator` effect on an active attack. The
+ * generator-side twin of {@link ResourceStealOutput}, resolved at the same
+ * moment by the same consumer (`resolveAttackStrike`) — a separate kind because
+ * the two move different things and obey different rules: copies are whole
+ * numbers (a share is floored), and moving one shifts *both* players' cost
+ * curves, since a generator's next-copy price is a function of how many that
+ * player owns. Stolen copies produce for their new owner even if the attacker
+ * never unlocked that generator — `collectModifiers` reads owned counts, not
+ * unlock gates — so a steal is also a shortcut past the tech tree.
+ *
+ * The take is either a share of the victim's copies or a flat count — a union
+ * rather than one optional-of-each field, so a consumer must branch on which was
+ * authored instead of silently reading an absent one as `undefined`. Either way
+ * `resolveAttackStrike` caps the transfer at what the victim owns.
+ */
+export type GeneratorStealOutput = GeneratorStealShare | GeneratorStealFlat
+
+/** Common shape of a generator steal, whatever the take is expressed as. */
+interface GeneratorStealBase {
+  readonly kind: 'generatorSteal'
+  /** Which generator is taken from the victim (an id in `mode.generators`). */
+  readonly generator: string
+}
+
+/** Take a share of the victim's copies, e.g. `0.5` = half (floored). */
+interface GeneratorStealShare extends GeneratorStealBase {
+  readonly fraction: number
+}
+
+/** Take a flat number of copies, capped at what the victim owns. */
+interface GeneratorStealFlat extends GeneratorStealBase {
+  readonly count: number
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
- * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, or a
- * {@link ResourceStealOutput}. Each is routed to a different subsystem
+ * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, or one of the
+ * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}).
+ * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike`); every
  * consumer ignores the outputs it doesn't own.
@@ -185,6 +222,7 @@ export type EffectOutput =
   | EnemyDataAccessOutput
   | EnemyModifierOutput
   | ResourceStealOutput
+  | GeneratorStealOutput
 
 /**
  * Where an effect ref may be authored. Each host is read by different code and
@@ -198,7 +236,8 @@ export type EffectOutput =
  * - `passiveAttack` — a passive attack's `effects`: continuous, against the
  *   opponent, and only `enemyModifier` outputs survive (`collectEnemyDebuffs`).
  * - `activeAttack` — an active attack's `effects`: resolved once when the strike
- *   lands, and only `resourceSteal` outputs survive (`resolveAttackStrike`).
+ *   lands, and only the steal outputs (`resourceSteal`, `generatorSteal`)
+ *   survive (`resolveAttackStrike`).
  */
 export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
 

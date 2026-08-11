@@ -35,6 +35,13 @@ export interface GeneratorCardNums {
   readonly bulkCost: number
   readonly sellRefund: number
   readonly canSell: boolean
+  /**
+   * The card is shown for a generator this player hasn't unlocked — only
+   * possible when copies were stolen from an opponent who had. Buying is barred
+   * until the unlocking upgrade is owned, so the buy buttons say so instead of
+   * quoting a price that can't be paid. Defaults to unlocked.
+   */
+  readonly locked?: boolean
 }
 
 /**
@@ -50,6 +57,7 @@ export function renderGeneratorCardView(
   nums: GeneratorCardNums,
 ): string {
   const { owned, nextCost, affordable, maxAffordable, bulkCost, sellRefund, canSell } = nums
+  const locked = nums.locked === true
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
@@ -67,10 +75,14 @@ export function renderGeneratorCardView(
       </div>
       <div class="generator-actions">
         <button class="generator-buy-btn" data-action="buy" ${!affordable ? 'disabled' : ''}>
-          Buy 1 — ${costIcon}${formatNumber(nextCost)}
+          ${locked ? '🔒 Locked' : `Buy 1 — ${costIcon}${formatNumber(nextCost)}`}
         </button>
         <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
-          Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}
+          ${
+            locked
+              ? '🔒 Locked'
+              : `Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}`
+          }
         </button>
       </div>
       <div class="generator-actions">
@@ -93,14 +105,26 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       </div>
     `
   }
+  // A generator shows once it's unlocked *or* once copies are held: an attack
+  // can hand over copies of a generator this player never unlocked, and those
+  // produce (`collectModifiers` reads owned counts, not gates), so hiding the
+  // card would hide live income. Buying more still needs the unlock — hence the
+  // per-card `unlocked` gate on the buy buttons below.
   const cards = modeDef.generators
-    .filter((def) => isGeneratorUnlocked(state.player, def, modeDef))
+    .filter(
+      (def) =>
+        isGeneratorUnlocked(state.player, def, modeDef) ||
+        (state.player.generators[def.id] ?? 0) > 0,
+    )
     .map((def) => {
       const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
       const owned = state.player.generators[def.id] ?? 0
+      const unlocked = isGeneratorUnlocked(state.player, def, modeDef)
       const nextCost = getGeneratorCost(effectiveDef, owned)
-      const affordable = canAffordGenerator(state.player, effectiveDef)
-      const maxAffordable = getMaxAffordableGeneratorCount(state.player, effectiveDef)
+      const affordable = unlocked && canAffordGenerator(state.player, effectiveDef)
+      const maxAffordable = unlocked
+        ? getMaxAffordableGeneratorCount(state.player, effectiveDef)
+        : 0
       const bulkCost =
         maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
       const sellRefund = getGeneratorSellRefund(effectiveDef, owned)
@@ -113,6 +137,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         bulkCost,
         sellRefund,
         canSell,
+        locked: !unlocked,
       })
     })
     .join('')

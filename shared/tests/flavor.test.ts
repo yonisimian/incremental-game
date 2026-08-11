@@ -468,6 +468,24 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/'stealResource' effect, which only applies on an active attack/)
   })
 
+  it('throws when a stealGenerator is carried by a passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'stealGenerator', generator: 'g0', fraction: 0.5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Raid', icon: '🪓', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/'stealGenerator' effect, which only applies on an active attack/)
+  })
+
   it('throws when an offensive effect is carried by an upgrade', () => {
     const def = makeValidDef({
       upgrades: [

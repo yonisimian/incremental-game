@@ -106,25 +106,42 @@ export interface PurchaseEvent {
 }
 
 /**
- * A single attack strike that landed, surfaced to *both* players since a
- * resource theft is directly observable (the victim sees their stockpile drop).
- * `direction` is relative to the receiving player: `outgoing` = one of your
- * attacks struck the opponent, `incoming` = the opponent's attack struck you.
- * The client resolves `attack` → name / icon from the mode flavor (the server
- * never sends display strings) and shows a toast; `resource`/`amount` describe
- * what moved so the toast can read "Stole 50 🪵".
+ * A single attack strike that landed, surfaced to *both* players since a theft
+ * is directly observable (the victim sees their stockpile or generator count
+ * drop). `direction` is relative to the receiving player: `outgoing` = one of
+ * your attacks struck the opponent, `incoming` = the opponent's attack struck
+ * you. The client resolves `attack` → name / icon from the mode flavor (the
+ * server never sends display strings) and shows a toast; `kind` says what moved
+ * so the toast can read "Stole 50 🪵" or "Stole ×2 🪚".
  */
-export interface AttackEvent {
+export type AttackEvent = ResourceAttackEvent | GeneratorAttackEvent
+
+/** Fields every strike event carries, whatever it moved. */
+interface AttackEventBase {
   /** Abstract attack id (matches `AttackDefinition.id`) — resolved to flavor client-side. */
   attack: string
   /** Whose strike this was, relative to the receiving player. */
   direction: 'outgoing' | 'incoming'
+  /** Round-elapsed game seconds when the strike landed (mirrors `meta.gameSec`). */
+  t: number
+}
+
+/** A stockpile theft. */
+export interface ResourceAttackEvent extends AttackEventBase {
+  kind: 'resource'
   /** Abstract resource id that was moved. */
   resource: string
   /** How much of `resource` the strike moved. */
   amount: number
-  /** Round-elapsed game seconds when the strike landed (mirrors `meta.gameSec`). */
-  t: number
+}
+
+/** A generator theft — copies changed owner, along with their production. */
+export interface GeneratorAttackEvent extends AttackEventBase {
+  kind: 'generator'
+  /** Abstract generator id whose copies moved. */
+  generator: string
+  /** How many copies the strike moved. */
+  count: number
 }
 
 /**

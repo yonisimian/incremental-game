@@ -103,22 +103,46 @@ export function dueAttacks(state: Readonly<PlayerState>, gameSec: number): Pendi
   return state.pendingAttacks.filter((p) => p.readyAtSec <= gameSec)
 }
 
-/** What a single strike moved: `amount` of `resource` from victim to attacker. */
-export interface AttackStrikeResult {
+/**
+ * What a single strike moved from victim to attacker: `amount` of a resource,
+ * or `count` copies of a generator. A union on `kind` rather than one shape with
+ * optional fields, so consumers (the event feed, VFX) must branch instead of
+ * reading an absent field as `undefined`.
+ */
+export type AttackStrikeResult = ResourceStrikeResult | GeneratorStrikeResult
+
+/** A resource theft: `amount` of `resource` moved. */
+export interface ResourceStrikeResult {
+  readonly kind: 'resource'
   readonly resource: string
   readonly amount: number
 }
 
+/** A generator theft: `count` copies of `generator` moved. */
+export interface GeneratorStrikeResult {
+  readonly kind: 'generator'
+  readonly generator: string
+  readonly count: number
+}
+
 /**
- * Resolve an active attack's strike. For each `resourceSteal` effect it carries,
- * move some of that resource from `victim` to `attacker` — either `fraction ×
- * (victim's held amount)` or a flat `amount`, whichever the effect authored.
- * Mutates both states in place and returns what was moved (for event feeds /
- * VFX). Every take is capped at what the victim holds, so a flat steal against
- * an emptier stockpile takes the stockpile rather than overdrawing it (a share
- * can't overshoot on its own, `fraction` being at most 1). The attacker is
- * credited via `creditResource` with an *empty* score resource, so stolen
- * resources never count toward score.
+ * Resolve an active attack's strike, moving whatever its steal effects name from
+ * `victim` to `attacker`. Mutates both states in place and returns what was
+ * moved (for event feeds / VFX).
+ *
+ * - `resourceSteal` — either `fraction × (victim's held amount)` or a flat
+ *   `amount`, whichever the effect authored. Capped at what the victim holds, so
+ *   a flat steal against an emptier stockpile takes the stockpile rather than
+ *   overdrawing it (a share can't overshoot on its own, `fraction` being at most
+ *   1). The attacker is credited via `creditResource` with an *empty* score
+ *   resource, so stolen resources never count toward score.
+ * - `generatorSteal` — either `fraction × (victim's owned copies)`, floored to a
+ *   whole copy, or a flat `count`; capped at what the victim owns. Copies simply
+ *   change hands, so *both* cost curves move with them: the victim's next copy
+ *   gets cheaper and the attacker's dearer, since price is a function of owned
+ *   count. No unlock check on either side — the attacker keeps and produces from
+ *   a generator they never unlocked (`collectModifiers` reads owned counts, not
+ *   gates), though buying more still requires the unlock.
  */
 export function resolveAttackStrike(
   attacker: PlayerState,
@@ -129,14 +153,26 @@ export function resolveAttackStrike(
   const results: AttackStrikeResult[] = []
   for (const ref of def.effects ?? []) {
     for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
-      if (!('kind' in out) || out.kind !== 'resourceSteal') continue
-      const held = victim.resources[out.resource] ?? 0
-      const requested = 'amount' in out ? out.amount : held * out.fraction
-      const amount = Math.min(held, Math.max(0, requested))
-      if (amount <= 0) continue
-      victim.resources[out.resource] = held - amount
-      creditResource(attacker, out.resource, amount, '')
-      results.push({ resource: out.resource, amount })
+      if (!('kind' in out)) continue
+      if (out.kind === 'resourceSteal') {
+        const held = victim.resources[out.resource] ?? 0
+        const requested = 'amount' in out ? out.amount : held * out.fraction
+        const amount = Math.min(held, Math.max(0, requested))
+        if (amount <= 0) continue
+        victim.resources[out.resource] = held - amount
+        creditResource(attacker, out.resource, amount, '')
+        results.push({ kind: 'resource', resource: out.resource, amount })
+      } else if (out.kind === 'generatorSteal') {
+        const owned = victim.generators[out.generator] ?? 0
+        // Floor a share to a whole copy: half of three sawmills is one, and half
+        // of one is none (which drops out below rather than moving a fraction).
+        const requested = 'count' in out ? out.count : Math.floor(owned * out.fraction)
+        const count = Math.min(owned, Math.max(0, requested))
+        if (count <= 0) continue
+        victim.generators[out.generator] = owned - count
+        attacker.generators[out.generator] = (attacker.generators[out.generator] ?? 0) + count
+        results.push({ kind: 'generator', generator: out.generator, count })
+      }
     }
   }
   return results

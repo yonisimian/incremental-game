@@ -707,13 +707,18 @@ export function addGenerator(tree: TreeFile): string {
 
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
- * `generatorUnlock` effects naming it, and `relativeModifier` fields targeting its
- * output — across every effect location.
+ * `generatorUnlock` / `stealGenerator` effects naming it, and `relativeModifier`
+ * fields targeting its output — across every effect location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
   for (const ref of allEffectRefs(tree)) {
-    if ((ref.type === 'generatorCost' || ref.type === 'generatorUnlock') && ref.generator === id) {
+    if (
+      (ref.type === 'generatorCost' ||
+        ref.type === 'generatorUnlock' ||
+        ref.type === 'stealGenerator') &&
+      ref.generator === id
+    ) {
       refs.push(`a ${ref.type} effect`)
     } else if (ref.type === 'relativeModifier' && ref.field === id) {
       refs.push('a relativeModifier field')
@@ -726,7 +731,8 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
- * param of `generatorCost`/`generatorUnlock`, `relativeModifier`/`baseModifier`
+ * param of `generatorCost`/`generatorUnlock`/`stealGenerator`,
+ * `relativeModifier`/`baseModifier`
  * field targets, across every effect location, and every flavor's generator
  * entry). Fails (no mutation) when the new id is blank, in use, or the old id is
  * absent.
@@ -743,7 +749,9 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
   }
   for (const ref of allEffectRefs(tree)) {
     if (
-      (ref.type === 'generatorCost' || ref.type === 'generatorUnlock') &&
+      (ref.type === 'generatorCost' ||
+        ref.type === 'generatorUnlock' ||
+        ref.type === 'stealGenerator') &&
       ref.generator === oldId
     ) {
       ref.generator = newId

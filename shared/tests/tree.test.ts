@@ -408,6 +408,69 @@ describe('tree codec — stealResource take', () => {
   })
 })
 
+// ─── stealGenerator: share vs flat copy count ────────────────────────
+
+/** A tree with one generator whose lone active attack steals it with `params`. */
+function treeWithGenSteal(params: Record<string, unknown>, generator = 'g0'): TreeFile {
+  const tree = minimalTree()
+  tree.generators = [
+    { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 1 } },
+  ]
+  tree.flavors[0].generators = [{ id: 'g0', name: 'Gen', icon: 'x' }]
+  tree.attacks = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareCost: { r0: { baseCost: 10 } },
+      prepareTimeSec: 1,
+      effects: [{ type: 'stealGenerator', generator, ...params }],
+    },
+  ]
+  tree.flavors[0].attacks = [{ id: 'a0', name: 'Raid', icon: 'x', description: '' }]
+  return tree
+}
+
+describe('tree codec — stealGenerator take', () => {
+  it('accepts a share of the victim copies', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({ fraction: 0.5 }))).not.toThrow()
+  })
+
+  it('accepts a flat copy count', () => {
+    const def = toModeDefinition(treeWithGenSteal({ count: 2 }))
+    expect(def.attacks[0].effects?.[0]).toMatchObject({ count: 2 })
+  })
+
+  it('rejects authoring both a fraction and a count', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({ fraction: 0.5, count: 2 }))).toThrow(
+      /sets both 'fraction' and 'count'/u,
+    )
+  })
+
+  it('rejects authoring neither', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({}))).toThrow(
+      /sets neither 'fraction' nor 'count'/u,
+    )
+  })
+
+  it('rejects an unknown generator id', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({ count: 1 }, 'nope'))).toThrow(
+      /references unknown generator 'nope'/u,
+    )
+  })
+
+  it('rejects a share outside (0, 1]', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({ fraction: 1.5 }))).toThrow()
+    expect(() => toModeDefinition(treeWithGenSteal({ fraction: 0 }))).toThrow()
+  })
+
+  // Copies are whole things — a fractional or non-positive count is a mistake.
+  it('rejects a fractional or non-positive copy count', () => {
+    expect(() => toModeDefinition(treeWithGenSteal({ count: 1.5 }))).toThrow()
+    expect(() => toModeDefinition(treeWithGenSteal({ count: 0 }))).toThrow()
+    expect(() => toModeDefinition(treeWithGenSteal({ count: -2 }))).toThrow()
+  })
+})
+
 // ─── Envelopes moved to the balance sidecar ──────────────────────────
 
 describe('tree codec — envelopes are no longer tree data', () => {

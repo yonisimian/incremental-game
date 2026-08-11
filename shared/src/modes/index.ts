@@ -372,6 +372,30 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
           `[${id}] attack '${attack.id}' stealResource effect sets neither 'fraction' nor 'amount' — use exactly one (a share of the victim's stockpile, or a flat quantity)`,
         )
     }
+
+    // `stealGenerator` — the generator-side twin, checked the same way: active
+    // attacks only, a real generator id, and exactly one of `fraction`/`count`.
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'stealGenerator') continue
+      if (attack.kind !== 'active')
+        throw new Error(
+          `[${id}] attack '${attack.id}' carries a stealGenerator effect but is not active (steals resolve on a strike, which only active attacks have)`,
+        )
+      if (typeof ref.generator === 'string' && !generatorIds.has(ref.generator))
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealGenerator effect references unknown generator '${ref.generator}'`,
+        )
+      const hasFraction = ref.fraction !== undefined
+      const hasCount = ref.count !== undefined
+      if (hasFraction && hasCount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealGenerator effect sets both 'fraction' and 'count' — use exactly one (a share of the victim's copies, or a flat number of copies)`,
+        )
+      if (!hasFraction && !hasCount)
+        throw new Error(
+          `[${id}] attack '${attack.id}' stealGenerator effect sets neither 'fraction' nor 'count' — use exactly one (a share of the victim's copies, or a flat number of copies)`,
+        )
+    }
   }
 
   // Effect refs: resolve + parse once up front, so unknown types or malformed
