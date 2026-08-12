@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BATTERY_DEFAULTS, collectBatteryParams } from '../src/highlight-battery.js'
 import { applyEffect } from '../src/effects/index.js'
+import { isHighlightBatteryActive } from '../src/modes/index.js'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { EffectRef, PlayerState, UpgradeDefinition } from '../src/types.js'
 
@@ -46,6 +47,50 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
 function makeState(upgrades: Record<string, number> = {}): PlayerState {
   return { score: 0, resources: {}, upgrades, generators: {}, pendingAttacks: [], meta: {} }
 }
+
+/** An upgrade whose sole effect unlocks `system`. */
+function unlockUpgrade(id: string, system: string): UpgradeDefinition {
+  return makeUpgrade(id, [{ type: 'systemUnlock', system }])
+}
+
+// ─── isHighlightBatteryActive ────────────────────────────────────────
+
+describe('isHighlightBatteryActive', () => {
+  it('is hidden when no upgrade grants it', () => {
+    // The inverse of the input systems: an ungated *battery* stays off, where an
+    // ungated click/highlight would be on.
+    expect(isHighlightBatteryActive(makeState(), makeMode())).toBe(false)
+  })
+
+  it('is inactive while the granting upgrade is unowned', () => {
+    const mode = makeMode({ upgrades: [unlockUpgrade('shb', 'highlightBattery')] })
+    expect(isHighlightBatteryActive(makeState(), mode)).toBe(false)
+  })
+
+  it('is active once the granting upgrade is owned', () => {
+    const mode = makeMode({ upgrades: [unlockUpgrade('shb', 'highlightBattery')] })
+    expect(isHighlightBatteryActive(makeState({ shb: 1 }), mode)).toBe(true)
+  })
+
+  it('is inactive while the highlight itself is still locked', () => {
+    // A battery for a highlight you can't use would charge and drain against
+    // nothing, so the battery gate implies the highlight gate.
+    const mode = makeMode({
+      upgrades: [unlockUpgrade('sh', 'highlight'), unlockUpgrade('shb', 'highlightBattery')],
+    })
+    expect(isHighlightBatteryActive(makeState({ shb: 1 }), mode)).toBe(false)
+    expect(isHighlightBatteryActive(makeState({ sh: 1, shb: 1 }), mode)).toBe(true)
+  })
+
+  it('is inactive in a mode with highlighting disabled', () => {
+    const mode = makeMode({
+      highlightEnabled: false,
+      initialMeta: {},
+      upgrades: [unlockUpgrade('shb', 'highlightBattery')],
+    })
+    expect(isHighlightBatteryActive(makeState({ shb: 1 }), mode)).toBe(false)
+  })
+})
 
 // ─── batteryStat params ──────────────────────────────────────────────
 

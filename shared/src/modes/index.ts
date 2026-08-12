@@ -529,6 +529,27 @@ export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefini
 }
 
 /**
+ * Whether the highlight battery is currently active for this player.
+ *
+ * Unlike the *input* systems above, this is **hidden by default**: the battery is
+ * an added mechanic, so it needs an owned upgrade that grants it (a mode that
+ * never mentions it simply doesn't have one). That's the inverse of
+ * `isSystemUnlocked`'s "no gate → always available", which is why this reads the
+ * gate index directly rather than reusing it — mirroring how `isAttackUnlocked`
+ * departs from `isPanelUnlocked`.
+ *
+ * Implies `isHighlightActive`: a battery for a highlight you can't use would
+ * charge and drain against nothing.
+ */
+export function isHighlightBatteryActive(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): boolean {
+  if (!isHighlightActive(state, mode)) return false
+  return anyOwned(state, systemGateUpgrades(mode, 'highlightBattery'))
+}
+
+/**
  * Apply a highlight selection to `state`, returning whether it was accepted.
  *
  * The one validator for the mechanic: the highlight must be unlocked, and the

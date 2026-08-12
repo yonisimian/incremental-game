@@ -182,8 +182,9 @@ export type ResimFn = (strategy: QueueStrategy, mode: ModeDefinition) => SimResu
 /**
  * Effect types that gate **sim reachability** rather than production: an upgrade
  * carrying one of these unlocks a whole subsystem the simulation reads
- * (`systemUnlock` → the click/highlight input systems, consulted by
- * `isSystemUnlocked`; `generatorUnlock` → a generator's purchasability,
+ * (`systemUnlock` → the click/highlight input systems and the highlight battery,
+ * consulted by `isSystemUnlocked` / `isHighlightBatteryActive`;
+ * `generatorUnlock` → a generator's purchasability,
  * consulted by `isGeneratorUnlocked`). Ablating such a node by stripping its
  * effects also strips the gate, so its measured contribution is contaminated by
  * everything it unlocks. `panelUnlock` is intentionally absent: it gates only UI
