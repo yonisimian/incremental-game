@@ -37,7 +37,8 @@ import {
   getUpgradeNextCost,
   applyPurchase,
   isClickUnlocked,
-  isHighlightActive,
+  readHighlight,
+  applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
   getModeFlavor,
@@ -149,7 +150,7 @@ type PredictedAction =
   | { kind: 'buy'; upgradeId: string }
   | { kind: 'buy_generator'; generatorId: string }
   | { kind: 'sell_generator'; generatorId: string }
-  | { kind: 'set_highlight'; highlight: string }
+  | { kind: 'set_highlight'; highlight: string | null }
   | { kind: 'activate_attack'; attackId: string }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
@@ -448,19 +449,25 @@ export function cycleClickTarget(): void {
   notify()
 }
 
-/** Set the highlighted currency (idler mode, optimistic). */
-export function setHighlight(target: string): void {
+/**
+ * Set the highlighted currency, or release the highlight with `null` (idler
+ * mode, optimistic).
+ */
+export function setHighlight(target: string | null): void {
   if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
-  if (!isHighlightActive(state.player, modeDef)) return
-  if (!modeDef.resources.includes(target)) return
-  if (state.player.meta.highlight === target) return
+  if (readHighlight(state.player) === target) return
+  if (!applyHighlightSelection(state.player, modeDef, target)) return
 
-  state.player.meta.highlight = target
   queueAction({ type: 'set_highlight', timestamp: Date.now(), highlight: target })
   trackPredicted({ kind: 'set_highlight', highlight: target })
   notify()
+}
+
+/** Toggle the highlight on `target` — selecting it, or releasing it if already held. */
+export function toggleHighlight(target: string): void {
+  setHighlight(readHighlight(state.player) === target ? null : target)
 }
 
 /** Attempt to purchase an upgrade (optimistic). */
@@ -727,8 +734,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
         }
         case 'set_highlight': {
           if (!modeDef) break
-          if (!modeDef.resources.includes(action.highlight)) break
-          reconciled.meta.highlight = action.highlight
+          applyHighlightSelection(reconciled, modeDef, action.highlight)
           break
         }
         case 'buy_generator': {

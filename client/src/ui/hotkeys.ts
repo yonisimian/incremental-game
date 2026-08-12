@@ -16,6 +16,7 @@ import {
   getUpgradeCostTotal,
   isClickUnlocked,
   isHighlightActive,
+  readHighlight,
 } from '@game/shared'
 
 /** Register global keyboard shortcuts. Call once at startup. */
@@ -115,10 +116,11 @@ export function initHotkeys(): void {
     // Tab — cycle highlight (non-clicking modes with highlight), unless focus is inside the tab grid
     if (e.key === 'Tab') {
       if (inTabGrid || !isHighlightActive(state.player, modeDef)) return
-      const resources = modeDef.resources
-      const current = (state.player.meta.highlight as string | undefined) ?? resources[0]
-      const idx = resources.indexOf(current)
-      setHighlight(resources[(idx + 1) % resources.length])
+      // Each resource, then "released" — so Tab alone reaches every selection.
+      // An unrecognized current value lands on -1 and cycles to the first resource.
+      const cycle: (string | null)[] = [...modeDef.resources, null]
+      const idx = cycle.indexOf(readHighlight(state.player))
+      setHighlight(cycle[(idx + 1) % cycle.length])
       return
     }
 

@@ -689,7 +689,7 @@ describe('Match', () => {
       return m
     }
 
-    function highlightMsg(highlight: string, seq: number) {
+    function highlightMsg(highlight: string | null, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
         seq,
@@ -763,6 +763,27 @@ describe('Match', () => {
       const r1Delta = after.player.resources.r1 - before.player.resources.r1
       expect(r0Delta).toBeCloseTo(1, 0)
       expect(r1Delta).toBeCloseTo(2, 0)
+    })
+
+    it('releasing the highlight drops production back to the base rate', () => {
+      const m = enterIdlerWithHighlight()
+      m.handleMessage('p1', highlightMsg(null, 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      expect(before.player.meta.highlight).toBeNull()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(1000)
+      const after = latestUpdate(ws1)
+      // Nothing highlighted → neither resource gets the ×2.
+      expect(after.player.resources.r0 - before.player.resources.r0).toBeCloseTo(1, 0)
+      expect(after.player.resources.r1 - before.player.resources.r1).toBeCloseTo(1, 0)
+    })
+
+    it('ignores a highlight naming an unknown resource', () => {
+      const m = enterIdlerWithHighlight()
+      m.handleMessage('p1', highlightMsg('nope', 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.meta.highlight).toBe('r0')
     })
 
     it('Heavy Logging adds +5 base r0/sec', () => {

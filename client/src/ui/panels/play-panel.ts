@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { doClick, setHighlight, getClickTarget } from '../../game.js'
+import { doClick, toggleHighlight, getClickTarget } from '../../game.js'
 import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
@@ -10,15 +10,9 @@ import {
   getResourceName,
   isClickUnlocked,
   isHighlightActive,
+  readHighlight,
 } from '@game/shared'
 import type { ModeDefinition } from '@game/shared'
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function getHighlight(state: Readonly<GameState>): string {
-  const modeDef = getModeDefinition(state.mode!)
-  return (state.player.meta.highlight as string | undefined) ?? modeDef.resources[0]
-}
 
 // ─── Play Panel ────────────────────────────────────────────────
 
@@ -57,14 +51,14 @@ function renderCurrencyCards(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
   if (!isHighlightActive(state.player, modeDef)) return ''
   const flavor = getModeFlavor(modeDef)
-  const highlight = getHighlight(state)
+  const highlight = readHighlight(state.player)
 
   const cards = modeDef.resources
     .map((key) => {
       const balance = formatNumber(state.player.resources[key])
       const isHighlighted = highlight === key
       return `
-      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}">
+      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}" aria-pressed="${isHighlighted}">
         <span class="card-emoji">${getResourceIcon(flavor, key)}</span>
         <span class="card-name">${getResourceName(flavor, key)}</span>
         <span class="card-balance" id="${key}-balance">${balance}</span>
@@ -92,11 +86,15 @@ function renderIdlerContent(state: Readonly<GameState>): string {
   `
 }
 
-/** Attach highlight-select listeners to the currency cards currently in the DOM. */
+/**
+ * Attach highlight-select listeners to the currency cards currently in the DOM.
+ * Clicking the held card releases the highlight — the only way to get back to
+ * "nothing highlighted" with the mouse.
+ */
 function bindCurrencyCards(modeDef: ModeDefinition): void {
   for (const key of modeDef.resources) {
     document.getElementById(`card-${key}`)?.addEventListener('click', () => {
-      setHighlight(key)
+      toggleHighlight(key)
     })
   }
 }
@@ -144,10 +142,12 @@ export const playPanel: Panel = {
       cards = null
     }
     if (cards) {
-      const highlight = getHighlight(state)
+      const highlight = readHighlight(state.player)
       for (const key of modeDef.resources) {
         setText(`${key}-balance`, formatNumber(state.player.resources[key]))
-        document.getElementById(`card-${key}`)?.classList.toggle('highlighted', highlight === key)
+        const card = document.getElementById(`card-${key}`)
+        card?.classList.toggle('highlighted', highlight === key)
+        card?.setAttribute('aria-pressed', String(highlight === key))
       }
     }
 

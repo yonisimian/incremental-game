@@ -1,4 +1,9 @@
-import { type ModeDefinition, type PlayerState, isHighlightActive } from '@game/shared'
+import {
+  type ModeDefinition,
+  type PlayerState,
+  isHighlightActive,
+  readHighlight,
+} from '@game/shared'
 
 /**
  * Per-round manual-clicking telemetry (data panel). Not authoritative and never
@@ -27,6 +32,8 @@ interface ClickStats {
 interface HighlightStats {
   /** Seconds each resource has been the highlighted resource this round. */
   dwellByResource: Record<string, number>
+  /** Seconds spent with the highlight released this round. */
+  releasedSec: number
 }
 
 /** Rolling window used to derive the instantaneous clicks/sec (for peak tracking). */
@@ -77,8 +84,11 @@ class RoundStats {
   /**
    * Advance per-tick telemetry from an authoritative server state. Credits
    * elapsed game time (since the last tick) to the currently-highlighted
-   * resource, using the server's `meta.gameSec` clock so paused time isn't
-   * counted; dwell only accrues while the highlight mechanic is active.
+   * resource — or to {@link releasedSec} while the highlight is released, so the
+   * buckets account for the whole round rather than silently crediting a
+   * resource the player wasn't holding. Uses the server's `meta.gameSec` clock so
+   * paused time isn't counted; dwell only accrues while the highlight mechanic is
+   * active.
    */
   recordTick(player: Readonly<PlayerState>, modeDef: ModeDefinition): void {
     const gameSec = (player.meta.gameSec as number | undefined) ?? 0
@@ -86,7 +96,11 @@ class RoundStats {
     this.lastHighlightGameSec = gameSec
     if (delta <= 0) return
     if (!isHighlightActive(player, modeDef)) return
-    const highlight = (player.meta.highlight as string | undefined) ?? modeDef.scoreResource
+    const highlight = readHighlight(player)
+    if (highlight === null) {
+      this.highlight.releasedSec += delta
+      return
+    }
     this.highlight.dwellByResource[highlight] =
       (this.highlight.dwellByResource[highlight] ?? 0) + delta
   }
@@ -114,6 +128,11 @@ class RoundStats {
   /** Seconds each resource has been the highlighted resource this round. */
   get dwellByResource(): Readonly<Record<string, number>> {
     return this.highlight.dwellByResource
+  }
+
+  /** Seconds spent with the highlight released this round. */
+  get releasedSec(): number {
+    return this.highlight.releasedSec
   }
 
   /**
@@ -144,7 +163,7 @@ function emptyClickStats(): ClickStats {
 
 /** A fresh, zeroed highlight-stats record for a new round. */
 function emptyHighlightStats(): HighlightStats {
-  return { dwellByResource: {} }
+  return { dwellByResource: {}, releasedSec: 0 }
 }
 
 /** The single round-analytics accumulator, shared by `game.ts` and the data panel. */

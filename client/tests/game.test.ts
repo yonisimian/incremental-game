@@ -636,6 +636,28 @@ describe('game.ts', () => {
       // Pending highlight should be replayed
       expect(game.getState().player.meta.highlight).toBe('r1')
     })
+
+    it('replays an unacked highlight release on top of server state', () => {
+      enterIdlerPlaying(game)
+
+      const serverPlayer = {
+        score: 5,
+        resources: { r0: 5, r1: 5 },
+        upgrades: { 'sh-unlock': 1 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { highlight: 'r0' },
+      }
+      game.handleServerMessage(makeStateUpdate({ player: serverPlayer }))
+
+      game.setHighlight(null)
+      expect(game.getState().player.meta.highlight).toBeNull()
+
+      // A snapshot that predates the release must not resurrect the old
+      // selection — the replay has to re-apply the release, not just switches.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: serverPlayer }))
+      expect(game.getState().player.meta.highlight).toBeNull()
+    })
   })
 
   // ── ROUND_END ────────────────────────────────────────────────────
@@ -823,6 +845,24 @@ describe('game.ts', () => {
       unlockHighlight(game)
       game.setHighlight('bogus')
       expect(game.getState().player.meta.highlight).toBe('r0') // unchanged
+    })
+
+    it('releases the highlight on null', () => {
+      enterIdlerPlaying(game)
+      unlockHighlight(game)
+      game.setHighlight(null)
+      expect(game.getState().player.meta.highlight).toBeNull()
+    })
+
+    it('toggles the held resource off and a different one on', () => {
+      enterIdlerPlaying(game)
+      unlockHighlight(game)
+      game.toggleHighlight('r0') // already held → release
+      expect(game.getState().player.meta.highlight).toBeNull()
+      game.toggleHighlight('r1') // nothing held → select
+      expect(game.getState().player.meta.highlight).toBe('r1')
+      game.toggleHighlight('r0') // a different one held → switch, not release
+      expect(game.getState().player.meta.highlight).toBe('r0')
     })
   })
 

@@ -11,6 +11,7 @@ import {
   computeClickIncome,
   computeRateBreakdown,
   getHighlightMultiplier,
+  readHighlight,
   getModeDefinition,
   getModeFlavor,
   getGeneratorIcon,
@@ -149,15 +150,22 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
       </section>`
     : ''
 
-  const dwellRows = modeDef.resources
-    .map(
+  const dwellRows = [
+    ...modeDef.resources.map(
       (r) => `
           <div class="data-stat">
             <span class="data-stat-label">${getResourceIcon(flavor, r)} ${getResourceName(flavor, r)}</span>
             <span class="data-stat-value" id="data-hl-dwell-${r}">—</span>
           </div>`,
-    )
-    .join('')
+    ),
+    // Released time closes the round out: the resource rows plus this one account
+    // for the whole clock.
+    `
+          <div class="data-stat">
+            <span class="data-stat-label">🚫 Released</span>
+            <span class="data-stat-value" id="data-hl-released">—</span>
+          </div>`,
+  ].join('')
 
   const highlight = modeDef.highlightEnabled
     ? `
@@ -256,16 +264,19 @@ function updateNumbers(state: Readonly<GameState>): void {
   // Highlight
   if (modeDef.highlightEnabled) {
     const flavor = getModeFlavor(modeDef)
-    const current = (state.player.meta.highlight as string | undefined) ?? modeDef.scoreResource
+    const current = readHighlight(state.player)
     setText(
       'data-hl-current',
-      `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
+      current === null
+        ? 'Released'
+        : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
     const mult = getHighlightMultiplier(state.player, modeDef)
     setText('data-hl-mult', `×${formatNumber(mult, Number.isInteger(mult) ? 0 : 2)}`)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)
     }
+    setText('data-hl-released', `${formatNumber(roundStats.releasedSec, 1)}s`)
   }
 
   // Inventory

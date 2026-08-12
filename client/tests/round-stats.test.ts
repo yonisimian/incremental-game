@@ -26,7 +26,7 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
 }
 
 /** A player whose game clock reads `gameSec`, highlighting `highlight`. */
-function playerAt(gameSec: number, highlight = 'r0'): PlayerState {
+function playerAt(gameSec: number, highlight: string | null = 'r0'): PlayerState {
   return makePlayer({ meta: { gameSec, highlight } })
 }
 
@@ -88,10 +88,19 @@ describe('RoundStats', () => {
       expect(Object.keys(roundStats.dwellByResource)).toHaveLength(0)
     })
 
-    it('falls back to the score resource when nothing is highlighted', () => {
+    it('credits released time to its own bucket, not to a resource', () => {
       roundStats.recordTick(makePlayer({ meta: { gameSec: 3 } }), makeMode())
 
-      expect(roundStats.dwellByResource.r0).toBeCloseTo(3)
+      expect(Object.keys(roundStats.dwellByResource)).toHaveLength(0)
+      expect(roundStats.releasedSec).toBeCloseTo(3)
+    })
+
+    it('splits a round between a held resource and released time', () => {
+      roundStats.recordTick(playerAt(2, 'r0'), makeMode())
+      roundStats.recordTick(playerAt(5, null), makeMode())
+
+      expect(roundStats.dwellByResource.r0).toBeCloseTo(2)
+      expect(roundStats.releasedSec).toBeCloseTo(3)
     })
   })
 
