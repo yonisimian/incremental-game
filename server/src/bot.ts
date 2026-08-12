@@ -6,6 +6,11 @@ import type {
   UpgradeDefinition,
 } from '@game/shared'
 import {
+  collectBatteryParams,
+  getHighlightMultiplier,
+  isHighlightBatteryActive,
+  readBatteryCharge,
+  readHighlight,
   getPrerequisiteUpgradeIds,
   getCostCurrency,
   generatorCostCurrency,
@@ -23,7 +28,7 @@ type BotAction =
   | { type: 'click'; resource: string }
   | { type: 'buy'; upgradeId: string }
   | { type: 'buy_generator'; generatorId: string }
-  | { type: 'set_highlight'; highlight: string }
+  | { type: 'set_highlight'; highlight: string | null }
 
 /** Strategy interface — one `decide` call per game tick. */
 export interface BotStrategy {
@@ -86,6 +91,13 @@ export class IdlerBot implements BotStrategy {
   private readonly plan: { id: string; currency: string }[]
 
   private planIndex = 0
+
+  /**
+   * Whether the bot is currently in the lantern's recharge half-cycle (highlight
+   * released). Hysteresis state, so it must persist between ticks — deriving it
+   * from the charge alone would flap at both ends of the tank.
+   */
+  private recharging = false
 
   private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
 
@@ -234,14 +246,74 @@ export class IdlerBot implements BotStrategy {
     }
   }
 
+  /**
+   * Whether cycling the lantern beats simply holding the highlight forever.
+   *
+   * Not obvious, and worth checking rather than assuming: releasing gives up the
+   * *whole* highlight bonus, not just the lantern's share. Holding forever settles
+   * at an empty lantern and pays the plain highlight multiplier continuously;
+   * cycling pays the boosted multiplier for `max/drain` seconds and nothing at all
+   * for `max/charge` seconds. At the default numbers (×1.5 lantern, equal rates)
+   * those are a dead heat, and with a strong highlight multiplier cycling is
+   * *worse* — a bot that always cycled would regress.
+   *
+   * The lantern's factor is sampled at half charge, so a charge-band bonus at
+   * either end is ignored: bands only ever make cycling better, so the bias is
+   * toward holding, which is the safe direction to be wrong in.
+   */
+  private worthCycling(state: Readonly<PlayerState>, farm: string): boolean {
+    const params = collectBatteryParams(state, this.modeDef)
+    if (params.chargeRate <= 0 || params.drainRate <= 0) return false
+
+    const probe = (charge: number): Readonly<PlayerState> => ({
+      ...state,
+      meta: { ...state.meta, highlight: farm, hlCharge: charge },
+    })
+    const boosted = getHighlightMultiplier(probe(params.maxCharge / 2), this.modeDef)
+    const plain = getHighlightMultiplier(probe(0), this.modeDef)
+
+    const holdSec = params.maxCharge / params.drainRate
+    const chargeSec = params.maxCharge / params.chargeRate
+    // Released earns the bare rate — multiplier 1, not `plain`.
+    const cycleAverage = (holdSec * boosted + chargeSec) / (holdSec + chargeSec)
+    return cycleAverage > plain
+  }
+
+  /**
+   * What to highlight this tick: the farmed resource, or `null` while running the
+   * lantern's recharge half-cycle. Plain hysteresis — hold until the lantern is
+   * dry, refill until it's full — so the bot switches twice per tank rather than
+   * flapping every tick.
+   */
+  private highlightTarget(state: Readonly<PlayerState>, farm: string): string | null {
+    if (!isHighlightBatteryActive(state, this.modeDef)) {
+      this.recharging = false
+      return farm
+    }
+    const charge = readBatteryCharge(state)
+    if (charge === null || !this.worthCycling(state, farm)) {
+      this.recharging = false
+      return farm
+    }
+    const params = collectBatteryParams(state, this.modeDef)
+    if (this.recharging) {
+      if (charge >= params.maxCharge) this.recharging = false
+    } else if (charge <= 0) {
+      this.recharging = true
+    }
+    return this.recharging ? null : farm
+  }
+
   decide(state: Readonly<PlayerState>): BotAction[] {
     const actions: BotAction[] = []
 
     const farm = this.farmCurrency(state)
+    const highlight = this.highlightTarget(state, farm)
 
-    // Highlight the resource we're currently farming (boosts its passive income).
-    if (state.meta.highlight !== farm) {
-      actions.push({ type: 'set_highlight', highlight: farm })
+    // Highlight the resource we're currently farming (boosts its passive income),
+    // or release it to refill the lantern.
+    if (readHighlight(state) !== highlight) {
+      actions.push({ type: 'set_highlight', highlight })
     }
 
     // Advance the upgrade plan (buy the current target when affordable).
