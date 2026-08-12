@@ -23,6 +23,7 @@ import {
   computePassiveRates,
   creditResource,
 } from '../modifiers/pipeline.js'
+import { advanceHighlightBattery } from '../highlight-battery.js'
 import type { GameMode, UpgradeDefinition } from '../types.js'
 import { applySimAction } from './apply.js'
 import type { QueueStrategy, SimAction, WaitCondition } from './strategy.js'
@@ -252,7 +253,9 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
   for (let tick = 0; tick < totalTicks; tick++) {
     const timeSec = (tick + 1) * tickSec
 
-    // 1) passive + generator income
+    // 1) passive + generator income. The battery advances first: its charge
+    // feeds the modifiers collected next (see `advanceHighlightBattery`).
+    advanceHighlightBattery(state, modeDef, tickSec)
     const modifiers = collectModifiers(state, modeDef)
     applyPassiveTick(state, modeDef.resources, modeDef.scoreResource, modifiers, tickSec)
 

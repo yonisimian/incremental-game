@@ -6,19 +6,22 @@
  * factor (see plan 30). Unlike every other bonus in the game it is *stateful* —
  * a level that integrates over time — so it splits into three pieces:
  *
- *  1. **Parameters** (this module): capacity, rates, and peak factor, collected
- *     from owned upgrades' `batteryStat` effects on top of {@link
- *     BATTERY_DEFAULTS}.
- *  2. **The integrator** (later): advances the stored charge each tick.
+ *  1. **Parameters**: capacity, rates, and peak factor, collected from owned
+ *     upgrades' `batteryStat` effects on top of {@link BATTERY_DEFAULTS}.
+ *  2. **The integrator** ({@link advanceHighlightBattery}): advances the stored
+ *     charge each tick.
  *  3. **The factor** (later): turns the current charge into a multiplier.
  *
- * Only (1) exists so far; nothing reads these parameters yet.
+ * (1) and (2) exist; nothing reads the charge yet, so the battery is still
+ * inert — it fills and empties without paying out.
  */
 
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
 import type { BatteryStatOutput, EffectOutput } from './effects/index.js'
 import { BATTERY_STATS } from './effects/seed/battery-stat.js'
 import type { BatteryStat } from './effects/seed/battery-stat.js'
+import { readHighlight } from './highlight.js'
+import { isHighlightBatteryActive } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { EffectRef, PlayerState } from './types.js'
 
@@ -133,4 +136,66 @@ export function collectBatteryParams(
     resolved[stat] = Math.max(FLOORS[stat], (BATTERY_DEFAULTS[stat] + adds[stat]) * mults[stat])
   }
   return resolved
+}
+
+// ─── Charge state ────────────────────────────────────────────────────
+
+/**
+ * `meta` key holding the battery's stored charge, in the same units as
+ * {@link BatteryParams.maxCharge}.
+ *
+ * Absent until the battery unlocks, which is what lets {@link
+ * advanceHighlightBattery} tell "never had a battery" from "ran it down to 0" and
+ * seed the opening charge only once. Lives in `meta` (like `gameSec` and
+ * `peakCps`), so it rides the existing state broadcast with no wire change.
+ */
+export const BATTERY_CHARGE_KEY = 'hlCharge'
+
+/**
+ * The battery's stored charge, or `null` when it has none yet (locked, or
+ * unlocked but not yet seeded). A non-finite stored value reads as `null` so a
+ * corrupt snapshot re-seeds rather than poisoning every later tick.
+ */
+export function readBatteryCharge(state: Readonly<PlayerState>): number | null {
+  const raw = state.meta[BATTERY_CHARGE_KEY]
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+}
+
+/**
+ * Advance the battery's stored charge by one tick of `tickSec` seconds.
+ *
+ * Charges while the highlight is released, drains while a resource is held,
+ * clamped to `[0, maxCharge]`. A no-op while the battery is locked, so a mode
+ * without one never grows the `meta` key.
+ *
+ * On the tick the battery unlocks, charge is seeded to **half of capacity** —
+ * the opening position is a deliberate middle, not a full tank (which would make
+ * the first burst free) or an empty one (which would make the unlock feel like a
+ * downgrade). Seeding here rather than in `initialMeta` keeps the seed correct
+ * when the unlock is bought mid-round, and keeps modes that have no battery from
+ * carrying a meaningless initial value.
+ *
+ * **Call once per tick, before `collectModifiers`.** The factor is derived from
+ * the charge, and the tick loops build their modifier list *before* applying
+ * income — so advancing afterwards would pay out this tick against last tick's
+ * charge, and in particular would grant one extra boosted tick after the battery
+ * hit empty.
+ */
+export function advanceHighlightBattery(
+  state: PlayerState,
+  mode: ModeDefinition,
+  tickSec: number,
+): void {
+  if (!isHighlightBatteryActive(state, mode)) return
+
+  const { maxCharge, chargeRate, drainRate } = collectBatteryParams(state, mode)
+  const stored = readBatteryCharge(state)
+  // First tick with a battery: open at half capacity.
+  const current = stored ?? maxCharge / 2
+  const held = readHighlight(state) !== null
+  const delta = (held ? -drainRate : chargeRate) * tickSec
+
+  // Clamping also handles a capacity that *shrank* (a mis-authored `mult` below
+  // 1), which would otherwise leave the stored charge stuck above the new cap.
+  state.meta[BATTERY_CHARGE_KEY] = Math.min(maxCharge, Math.max(0, current + delta))
 }

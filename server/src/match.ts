@@ -14,6 +14,7 @@ import {
   computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
+  advanceHighlightBattery,
   applyPurchase,
   applyGeneratorPurchase,
   creditResource,
@@ -486,6 +487,10 @@ export class Match {
 
   private applyPassiveIncome(player: MatchPlayer, opponent: MatchPlayer): void {
     const tickSec = TICK_INTERVAL_MS / 1000
+    // Advance the highlight battery first: its charge feeds the modifiers
+    // collected below, so this tick's income must be priced off this tick's
+    // charge (see `advanceHighlightBattery`).
+    advanceHighlightBattery(player.state, this.modeDef, tickSec)
     // The defender's own modifiers plus the offensive debuffs the opponent's
     // unlocked passive attacks inflict (e.g. a -10% wood-production attack).
     const modifiers = [

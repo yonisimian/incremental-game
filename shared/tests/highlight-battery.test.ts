@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { BATTERY_DEFAULTS, collectBatteryParams } from '../src/highlight-battery.js'
+import {
+  BATTERY_CHARGE_KEY,
+  BATTERY_DEFAULTS,
+  advanceHighlightBattery,
+  collectBatteryParams,
+  readBatteryCharge,
+} from '../src/highlight-battery.js'
 import { applyEffect } from '../src/effects/index.js'
 import { isHighlightBatteryActive } from '../src/modes/index.js'
 import type { ModeDefinition } from '../src/modes/types.js'
@@ -51,6 +57,23 @@ function makeState(upgrades: Record<string, number> = {}): PlayerState {
 /** An upgrade whose sole effect unlocks `system`. */
 function unlockUpgrade(id: string, system: string): UpgradeDefinition {
   return makeUpgrade(id, [{ type: 'systemUnlock', system }])
+}
+
+/** A mode whose `shb` upgrade grants the battery, plus any extra upgrades. */
+function batteryMode(extra: UpgradeDefinition[] = []): ModeDefinition {
+  return makeMode({ upgrades: [unlockUpgrade('shb', 'highlightBattery'), ...extra] })
+}
+
+/** State with the battery granted, `highlight` held (null = released). */
+function batteryState(
+  highlight: string | null,
+  upgrades: Record<string, number> = {},
+  charge?: number,
+): PlayerState {
+  const state = makeState({ shb: 1, ...upgrades })
+  state.meta.highlight = highlight
+  if (charge !== undefined) state.meta[BATTERY_CHARGE_KEY] = charge
+  return state
 }
 
 // ─── isHighlightBatteryActive ────────────────────────────────────────
@@ -235,5 +258,98 @@ describe('collectBatteryParams', () => {
       ],
     })
     expect(collectBatteryParams(makeState({ zero: 1 }), mode).maxCharge).toBeGreaterThan(0)
+  })
+})
+
+// ─── advanceHighlightBattery ─────────────────────────────────────────
+
+describe('advanceHighlightBattery', () => {
+  const half = BATTERY_DEFAULTS.maxCharge / 2
+
+  it('does nothing while the battery is locked', () => {
+    const state = makeState()
+    state.meta.highlight = 'r0'
+    advanceHighlightBattery(state, batteryMode(), 1)
+    // Not even the key — a mode without a battery never grows one.
+    expect(BATTERY_CHARGE_KEY in state.meta).toBe(false)
+    expect(readBatteryCharge(state)).toBeNull()
+  })
+
+  it('seeds at half capacity on the first tick, then integrates from there', () => {
+    const state = batteryState(null)
+    advanceHighlightBattery(state, batteryMode(), 1)
+    // Seeded at half, then one second of charging at the default 1/sec.
+    expect(readBatteryCharge(state)).toBeCloseTo(half + 1)
+  })
+
+  it('drains while a resource is held', () => {
+    const state = batteryState('r0', {}, 10)
+    advanceHighlightBattery(state, batteryMode(), 0.25)
+    expect(readBatteryCharge(state)).toBeCloseTo(9.75)
+  })
+
+  it('charges while the highlight is released', () => {
+    const state = batteryState(null, {}, 10)
+    advanceHighlightBattery(state, batteryMode(), 0.25)
+    expect(readBatteryCharge(state)).toBeCloseTo(10.25)
+  })
+
+  it('clamps at empty rather than going negative', () => {
+    const state = batteryState('r0', {}, 0.1)
+    advanceHighlightBattery(state, batteryMode(), 1)
+    expect(readBatteryCharge(state)).toBe(0)
+  })
+
+  it('clamps at capacity rather than overfilling', () => {
+    const state = batteryState(null, {}, BATTERY_DEFAULTS.maxCharge - 0.1)
+    advanceHighlightBattery(state, batteryMode(), 1)
+    expect(readBatteryCharge(state)).toBe(BATTERY_DEFAULTS.maxCharge)
+  })
+
+  it('honours upgraded rates', () => {
+    const mode = batteryMode([
+      makeUpgrade('cs', [{ type: 'batteryStat', stat: 'chargeRate', op: 'add', value: 3 }]),
+      makeUpgrade('ds', [{ type: 'batteryStat', stat: 'drainRate', op: 'mult', value: 0.5 }]),
+    ])
+    const charging = batteryState(null, { cs: 1 }, 0)
+    advanceHighlightBattery(charging, mode, 1)
+    expect(readBatteryCharge(charging)).toBeCloseTo(4) // 1 default + 3
+
+    const draining = batteryState('r0', { ds: 1 }, 10)
+    advanceHighlightBattery(draining, mode, 1)
+    expect(readBatteryCharge(draining)).toBeCloseTo(9.5) // 1 * 0.5
+  })
+
+  it('seeds against the upgraded capacity, not the default one', () => {
+    const mode = batteryMode([
+      makeUpgrade('mc', [{ type: 'batteryStat', stat: 'maxCharge', op: 'add', value: 20 }]),
+    ])
+    const state = batteryState('r0', { mc: 1 })
+    advanceHighlightBattery(state, mode, 0)
+    expect(readBatteryCharge(state)).toBeCloseTo(20) // half of 20 + 20
+  })
+
+  it('clamps a stored charge that now exceeds a shrunken capacity', () => {
+    // Only reachable via a mis-authored `mult` below 1, but the stored charge
+    // must not sit above the cap forever.
+    const mode = batteryMode([
+      makeUpgrade('shrink', [{ type: 'batteryStat', stat: 'maxCharge', op: 'mult', value: 0.25 }]),
+    ])
+    const state = batteryState(null, { shrink: 1 }, BATTERY_DEFAULTS.maxCharge)
+    advanceHighlightBattery(state, mode, 0)
+    expect(readBatteryCharge(state)).toBe(BATTERY_DEFAULTS.maxCharge * 0.25)
+  })
+
+  it('re-seeds from a corrupt stored charge instead of propagating it', () => {
+    const state = batteryState(null)
+    state.meta[BATTERY_CHARGE_KEY] = Number.NaN
+    advanceHighlightBattery(state, batteryMode(), 1)
+    expect(readBatteryCharge(state)).toBeCloseTo(half + 1)
+  })
+
+  it('holds steady across a zero-length tick', () => {
+    const state = batteryState('r0', {}, 7)
+    advanceHighlightBattery(state, batteryMode(), 0)
+    expect(readBatteryCharge(state)).toBe(7)
   })
 })
