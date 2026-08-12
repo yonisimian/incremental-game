@@ -122,7 +122,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   validateUpgradePrerequisites(def.upgrades)
   validateUpgradeChoiceGroups(def.upgrades)
 
-  // highlightEnabled ↔ initialMeta consistency
+  // highlightEnabled ↔ initialMeta consistency. The *key* must be present, but
+  // `null` is a valid value — it means the round opens with nothing highlighted
+  // (see `readHighlight`). Requiring the key keeps that an authored choice rather
+  // than an omission.
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
 
@@ -529,8 +532,10 @@ export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefini
  * The multiplicative bonus currently applied to the highlighted resource by
  * `highlightMultiplier` effects — mode-level effects (always on) and owned
  * upgrades (compounding `multiplier ^ owned`, matching `collectModifiers`).
- * Returns `1` when nothing boosts the highlight. Independent of *which* resource
- * is highlighted (the factor only moves between resources).
+ * Returns `1` when nothing boosts the highlight — and also while nothing is
+ * highlighted, since the effects go inactive with no resource to land on.
+ * Otherwise independent of *which* resource is highlighted (the factor only
+ * moves between resources).
  */
 export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeDefinition): number {
   let mult = 1

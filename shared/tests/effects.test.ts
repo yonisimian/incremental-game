@@ -139,13 +139,15 @@ describe('highlightMultiplier behavior (golden)', () => {
     expect(mods.some((m) => m.stage === 'multiplicative' && m.field === 'r0')).toBe(false)
   })
 
-  it('falls back to r0 when no resource is highlighted', () => {
+  it('contributes nothing when no resource is highlighted', () => {
     const def = getModeDefinition('idler')
     const state = idlerState()
     state.upgrades['sh-unlock'] = 1
-    delete state.meta.highlight
-    const mods = collectModifiers(state, def)
-    expect(mods).toContainEqual({ stage: 'multiplicative', field: 'r0', value: 2 })
+    for (const highlight of [null, undefined]) {
+      state.meta.highlight = highlight
+      const mods = collectModifiers(state, def)
+      expect(mods.some((m) => m.stage === 'multiplicative')).toBe(false)
+    }
   })
 
   it('raises the highlight to ×2.2 once the boost upgrade (sh-mf-hp) is owned', () => {
