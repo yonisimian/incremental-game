@@ -10,9 +10,11 @@ import {
   getResourceName,
   isClickUnlocked,
   isHighlightActive,
+  isHighlightBatteryActive,
   readHighlight,
 } from '@game/shared'
 import type { ModeDefinition } from '@game/shared'
+import { BATTERY_BAR_ID, renderBatteryBar, syncBatteryBar } from './battery-bar.js'
 
 // ─── Play Panel ────────────────────────────────────────────────
 
@@ -80,6 +82,7 @@ function renderIdlerContent(state: Readonly<GameState>): string {
   // themselves come and go as their gates flip, so they can't be the anchor.
   return `
     <div class="play-content" id="play-content">
+      ${renderBatteryBar(state)}
       ${renderCurrencyCards(state)}
       ${renderClickButtons(state)}
     </div>
@@ -128,13 +131,30 @@ export const playPanel: Panel = {
     const root = document.getElementById('play-content')
     if (!root) return
 
+    // Lantern bar: present only once the battery is unlocked, and always above
+    // the selector cards it belongs to. Same inject/remove-on-gate-flip pattern
+    // as the cards below.
+    const batteryUnlocked = isHighlightBatteryActive(state.player, modeDef)
+    const bar = document.getElementById(BATTERY_BAR_ID)
+    if (batteryUnlocked && !bar) {
+      root.insertAdjacentHTML('afterbegin', renderBatteryBar(state))
+    } else if (!batteryUnlocked && bar) {
+      bar.remove()
+    }
+    // Re-anchors the extrapolation from this snapshot and (re)starts its rAF loop.
+    syncBatteryBar(state)
+
     // Highlight selector cards: present only while highlighting is unlocked.
     // Inject/remove on the frame the gate flips (mid-match purchase) so the
     // resource blocks aren't shown until the player can actually highlight them.
     const highlightUnlocked = isHighlightActive(state.player, modeDef)
     let cards = root.querySelector('.currency-cards')
     if (highlightUnlocked && !cards) {
-      root.insertAdjacentHTML('afterbegin', renderCurrencyCards(state))
+      // Keep DOM order (lantern bar first); fall back to the panel start when the
+      // bar is absent (battery still locked).
+      const barEl = document.getElementById(BATTERY_BAR_ID)
+      if (barEl) barEl.insertAdjacentHTML('afterend', renderCurrencyCards(state))
+      else root.insertAdjacentHTML('afterbegin', renderCurrencyCards(state))
       cards = root.querySelector('.currency-cards')
       bindCurrencyCards(modeDef)
     } else if (!highlightUnlocked && cards) {
