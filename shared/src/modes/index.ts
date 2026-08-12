@@ -2,6 +2,8 @@ import type { Modifier } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
 import type { EffectRef, GameMode, Goal, PlayerState, UpgradeDefinition } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
+import { readHighlight } from '../highlight.js'
+import { batteryFactor } from '../highlight-battery.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
@@ -33,9 +35,9 @@ import {
   allPactIds,
   anyOwned,
   attackGateUpgrades,
+  isHighlightActive,
   pactGateUpgrades,
   panelGateUpgrades,
-  systemGateUpgrades,
 } from '../unlock-gates.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -505,49 +507,8 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
 }
 
 // ─── Highlight ────────────────────────────────────────────────────────
-
-/**
- * Whether an input system is unlocked: gated by any upgrade carrying a
- * `systemUnlock` effect naming it (locked until one is owned). A system that no
- * upgrade gates is always unlocked. Callers check the relevant `*Enabled` flag
- * first.
- */
-function isSystemUnlocked(
-  state: Readonly<PlayerState>,
-  mode: ModeDefinition,
-  system: string,
-): boolean {
-  const gates = systemGateUpgrades(mode, system)
-  if (!gates) return true // no upgrade gates this system → always available
-  return anyOwned(state, gates)
-}
-
-/** Whether the highlight mechanic is currently active for this player. */
-export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
-  if (!mode.highlightEnabled) return false
-  return isSystemUnlocked(state, mode, 'highlight')
-}
-
-/**
- * Whether the highlight battery is currently active for this player.
- *
- * Unlike the *input* systems above, this is **hidden by default**: the battery is
- * an added mechanic, so it needs an owned upgrade that grants it (a mode that
- * never mentions it simply doesn't have one). That's the inverse of
- * `isSystemUnlocked`'s "no gate → always available", which is why this reads the
- * gate index directly rather than reusing it — mirroring how `isAttackUnlocked`
- * departs from `isPanelUnlocked`.
- *
- * Implies `isHighlightActive`: a battery for a highlight you can't use would
- * charge and drain against nothing.
- */
-export function isHighlightBatteryActive(
-  state: Readonly<PlayerState>,
-  mode: ModeDefinition,
-): boolean {
-  if (!isHighlightActive(state, mode)) return false
-  return anyOwned(state, systemGateUpgrades(mode, 'highlightBattery'))
-}
+//
+// The `is*Unlocked` / `is*Active` system predicates live in `unlock-gates`.
 
 /**
  * Apply a highlight selection to `state`, returning whether it was accepted.
@@ -570,16 +531,21 @@ export function applyHighlightSelection(
 }
 
 /**
- * The multiplicative bonus currently applied to the highlighted resource by
- * `highlightMultiplier` effects — mode-level effects (always on) and owned
- * upgrades (compounding `multiplier ^ owned`, matching `collectModifiers`).
- * Returns `1` when nothing boosts the highlight — and also while nothing is
+ * The multiplicative bonus currently applied to the highlighted resource:
+ * `highlightMultiplier` effects — mode-level (always on) and owned upgrades
+ * (compounding `multiplier ^ owned`, matching `collectModifiers`) — times the
+ * highlight battery's current factor.
+ *
+ * Returns `1` when nothing boosts the highlight, and also while nothing is
  * highlighted, since the effects go inactive with no resource to land on.
  * Otherwise independent of *which* resource is highlighted (the factor only
  * moves between resources).
  */
 export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeDefinition): number {
-  let mult = 1
+  // Released → no bonus lands anywhere, so report neutral rather than the
+  // battery factor alone (which has no resource to multiply).
+  if (readHighlight(state) === null) return 1
+  let mult = batteryFactor(state, mode)
 
   const accumulate = (refs: readonly EffectRef[] | undefined, owned: number): void => {
     for (const ref of refs ?? []) {
@@ -598,12 +564,6 @@ export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeD
     if (owned > 0) accumulate(upgrade.effects, owned)
   }
   return mult
-}
-
-/** Whether the click mechanic is currently active for this player. */
-export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
-  if (!mode.clicksEnabled) return false
-  return isSystemUnlocked(state, mode, 'click')
 }
 
 /**
@@ -799,6 +759,19 @@ export function collectModifiers(state: Readonly<PlayerState>, mode: ModeDefinit
     for (const ref of upgrade.effects ?? []) {
       routeEffect(applyEffect(ref, state, mode), owned)
     }
+  }
+
+  // The highlight battery multiplies the highlighted resource on top of whatever
+  // `highlightMultiplier` effects already gave it. Applied here rather than as a
+  // registered effect for two reasons: its parameters are *already* folded across
+  // every owning upgrade by `collectBatteryParams`, so routing it through
+  // `routeBaseModifier` would compound the owned count a second time; and an
+  // effect that reads the battery would close an import cycle
+  // (`effects/index` → seed → `highlight-battery` → `effects/index`).
+  const highlight = readHighlight(state)
+  if (highlight !== null) {
+    const factor = batteryFactor(state, mode)
+    if (factor !== 1) routeModifier({ stage: 'multiplicative', field: highlight, value: factor })
   }
 
   // Generator modifiers — apply accumulated generator-targeted bonuses.

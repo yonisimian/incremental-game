@@ -3,11 +3,18 @@ import {
   BATTERY_CHARGE_KEY,
   BATTERY_DEFAULTS,
   advanceHighlightBattery,
+  batteryFactor,
   collectBatteryParams,
   readBatteryCharge,
 } from '../src/highlight-battery.js'
 import { applyEffect } from '../src/effects/index.js'
-import { isHighlightBatteryActive } from '../src/modes/index.js'
+import {
+  collectModifiers,
+  computeRateBreakdown,
+  getHighlightMultiplier,
+} from '../src/modes/index.js'
+import { computePassiveRates } from '../src/modifiers/pipeline.js'
+import { isHighlightBatteryActive } from '../src/unlock-gates.js'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { EffectRef, PlayerState, UpgradeDefinition } from '../src/types.js'
 
@@ -351,5 +358,186 @@ describe('advanceHighlightBattery', () => {
     const state = batteryState('r0', {}, 7)
     advanceHighlightBattery(state, batteryMode(), 0)
     expect(readBatteryCharge(state)).toBe(7)
+  })
+})
+
+// ─── batteryFactor ───────────────────────────────────────────────────
+
+describe('batteryFactor', () => {
+  it('is neutral while the battery is locked', () => {
+    expect(batteryFactor(makeState(), batteryMode())).toBe(1)
+  })
+
+  it('is neutral before the charge is seeded', () => {
+    // Unlocked but not yet ticked: no charge state, so nothing to pay out.
+    expect(batteryFactor(makeState({ shb: 1 }), batteryMode())).toBe(1)
+  })
+
+  it('pays the full factor at any charge above empty', () => {
+    // A gate, not a scale: 1 unit pays the same as a full tank.
+    expect(batteryFactor(batteryState('r0', {}, 1), batteryMode())).toBe(BATTERY_DEFAULTS.factor)
+    expect(batteryFactor(batteryState('r0', {}, BATTERY_DEFAULTS.maxCharge), batteryMode())).toBe(
+      BATTERY_DEFAULTS.factor,
+    )
+  })
+
+  it('snaps back to neutral at empty', () => {
+    expect(batteryFactor(batteryState('r0', {}, 0), batteryMode())).toBe(1)
+  })
+
+  it('reflects an upgraded factor', () => {
+    const mode = batteryMode([
+      makeUpgrade('bp', [{ type: 'batteryStat', stat: 'factor', op: 'add', value: 0.5 }]),
+    ])
+    expect(batteryFactor(batteryState('r0', { bp: 2 }, 5), mode)).toBeCloseTo(
+      BATTERY_DEFAULTS.factor + 1,
+    )
+  })
+})
+
+// ─── The factor in the pipeline ──────────────────────────────────────
+
+describe('the battery factor in the pipeline', () => {
+  /** Battery mode that also produces 10 r0/sec and doubles the highlight. */
+  function producingMode(extra: UpgradeDefinition[] = []): ModeDefinition {
+    return makeMode({
+      upgrades: [unlockUpgrade('shb', 'highlightBattery'), ...extra],
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      nativeModifiers: [{ stage: 'additive', field: 'b0', value: 10 }],
+    })
+  }
+  const rate = (state: PlayerState, mode: ModeDefinition): number =>
+    computePassiveRates(collectModifiers(state, mode), mode.resources).r0
+
+  it('multiplies the highlighted resource on top of the highlight bonus', () => {
+    const mode = producingMode()
+    // 10 base × 2 highlight × 1.5 battery
+    expect(rate(batteryState('r0', {}, 5), mode)).toBeCloseTo(30)
+  })
+
+  it('drops the battery share the moment charge hits empty', () => {
+    const mode = producingMode()
+    // Still the ×2 highlight, but no battery — the snap, not a fade.
+    expect(rate(batteryState('r0', {}, 0), mode)).toBeCloseTo(20)
+  })
+
+  it('lands on the held resource only, and nowhere while released', () => {
+    const mode = makeMode({
+      resources: ['r0', 'r1'],
+      upgrades: [unlockUpgrade('shb', 'highlightBattery')],
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      nativeModifiers: [
+        { stage: 'additive', field: 'b0', value: 10 },
+        { stage: 'additive', field: 'b1', value: 10 },
+      ],
+      flavors: [
+        {
+          id: 'test',
+          displayName: 'Test',
+          themeClass: 'test',
+          scoreLabel: 'Score',
+          showClickStats: false,
+          resources: [
+            { key: 'r0', displayName: 'r0', icon: '🪵' },
+            { key: 'r1', displayName: 'r1', icon: '🍺' },
+          ],
+          upgrades: [{ id: 'shb', name: 'shb', icon: '⬆️', description: '' }],
+          generators: [],
+          attacks: [],
+          pacts: [],
+        },
+      ],
+    })
+    const held = computePassiveRates(
+      collectModifiers(batteryState('r1', {}, 5), mode),
+      mode.resources,
+    )
+    expect(held.r0).toBeCloseTo(10)
+    expect(held.r1).toBeCloseTo(30)
+
+    // Released: the battery is charging, and pays out on neither resource.
+    const released = computePassiveRates(
+      collectModifiers(batteryState(null, {}, 5), mode),
+      mode.resources,
+    )
+    expect(released.r0).toBeCloseTo(10)
+    expect(released.r1).toBeCloseTo(10)
+  })
+
+  it('does not compound the factor a second time per owning upgrade', () => {
+    // The params are already folded by owned count; the emitted modifier must be
+    // the resolved factor exactly once, however many levels are owned.
+    const mode = producingMode([
+      makeUpgrade('bp', [{ type: 'batteryStat', stat: 'factor', op: 'add', value: 0.5 }]),
+    ])
+    // 10 × 2 highlight × (1.5 + 3×0.5 = 3) battery
+    expect(rate(batteryState('r0', { bp: 3 }, 5), mode)).toBeCloseTo(60)
+  })
+})
+
+// ─── getHighlightMultiplier ──────────────────────────────────────────
+
+describe('getHighlightMultiplier with a battery', () => {
+  const mode = makeMode({
+    upgrades: [unlockUpgrade('shb', 'highlightBattery')],
+    effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+  })
+
+  it('reports the battery share so the panel matches the real rate', () => {
+    expect(getHighlightMultiplier(batteryState('r0', {}, 5), mode)).toBeCloseTo(3) // 2 × 1.5
+  })
+
+  it('reports the highlight bonus alone at empty', () => {
+    expect(getHighlightMultiplier(batteryState('r0', {}, 0), mode)).toBeCloseTo(2)
+  })
+
+  it('reports neutral while released', () => {
+    expect(getHighlightMultiplier(batteryState(null, {}, 5), mode)).toBe(1)
+  })
+})
+
+// ─── Rate breakdown ──────────────────────────────────────────────────
+
+describe('computeRateBreakdown with a battery', () => {
+  it('still telescopes to the authoritative total', () => {
+    // The battery is a shared multiplicative stage, so it scales the buckets
+    // rather than forming one — but they must still sum to the real rate, which
+    // is what the data panel's bars are drawn from.
+    const mode = makeMode({
+      upgrades: [
+        unlockUpgrade('shb', 'highlightBattery'),
+        makeUpgrade('u', [{ type: 'baseModifier', stage: 'additive', field: 'b0', value: 5 }]),
+      ],
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      nativeModifiers: [{ stage: 'additive', field: 'b0', value: 10 }],
+      generators: [
+        { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 3 } },
+      ],
+      flavors: [
+        {
+          id: 'test',
+          displayName: 'Test',
+          themeClass: 'test',
+          scoreLabel: 'Score',
+          showClickStats: false,
+          resources: [{ key: 'r0', displayName: 'r0', icon: '🪵' }],
+          upgrades: [
+            { id: 'shb', name: 'shb', icon: '⬆️', description: '' },
+            { id: 'u', name: 'u', icon: '⬆️', description: '' },
+          ],
+          generators: [{ id: 'g0', name: 'g0', icon: '⚙️' }],
+          attacks: [],
+          pacts: [],
+        },
+      ],
+    })
+    const state = batteryState('r0', { u: 1 }, 5)
+    state.generators.g0 = 2
+
+    const bd = computeRateBreakdown(state, mode).r0
+    expect(bd.base + bd.generators + bd.upgrades).toBeCloseTo(bd.total)
+    expect(bd.total).toBeCloseTo(
+      computePassiveRates(collectModifiers(state, mode), mode.resources).r0,
+    )
   })
 })

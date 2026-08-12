@@ -10,12 +10,8 @@
 // not-reached.
 
 import { MAX_CPS, TICK_INTERVAL_MS, MAX_RESOURCE } from '../game-config.js'
-import {
-  collectModifiers,
-  createInitialState,
-  getModeDefinition,
-  isClickUnlocked,
-} from '../modes/index.js'
+import { collectModifiers, createInitialState, getModeDefinition } from '../modes/index.js'
+import { isClickUnlocked } from '../unlock-gates.js'
 import type { ModeDefinition } from '../modes/types.js'
 import {
   applyPassiveTick,

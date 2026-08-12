@@ -3,8 +3,8 @@
  *
  * A family of effects (`panelUnlock`, `generatorUnlock`, `systemUnlock`,
  * `unlockAttack`, `unlockPact`) carry no production weight — instead, while the
- * owning upgrade is held they mark a UI panel, a generator, an input system
- * (clicking / highlighting), an attack, or a pact as unlocked. Each shares the
+ * owning upgrade is held they mark a UI panel, a generator, a system (clicking /
+ * highlighting / the highlight battery), an attack, or a pact as unlocked. Each shares the
  * same shape: build a
  * reverse index — gate key → ids
  * of the upgrades whose effect names it — so an "is this unlocked?" check is an
@@ -155,4 +155,61 @@ export function anyOwned(
   ids: readonly string[] | undefined,
 ): boolean {
   return ids?.some((id) => (state.upgrades[id] ?? 0) > 0) ?? false
+}
+
+// ─── System gates ────────────────────────────────────────────────────
+//
+// The `systemUnlock` predicates live here rather than in `modes/` so that
+// `highlight-battery` can consult them without importing the mode registry,
+// which imports the battery back (the one runtime import cycle this layering
+// avoids). They read only a mode's own `*Enabled` flags plus the gate index
+// above, so this is their natural home either way.
+
+/**
+ * Whether an input system is unlocked: gated by any upgrade carrying a
+ * `systemUnlock` effect naming it (locked until one is owned). A system that no
+ * upgrade gates is always unlocked. Callers check the relevant `*Enabled` flag
+ * first.
+ */
+function isSystemUnlocked(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  system: string,
+): boolean {
+  const gates = systemGateUpgrades(mode, system)
+  if (!gates) return true // no upgrade gates this system → always available
+  return anyOwned(state, gates)
+}
+
+/** Whether the click mechanic is currently active for this player. */
+export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
+  if (!mode.clicksEnabled) return false
+  return isSystemUnlocked(state, mode, 'click')
+}
+
+/** Whether the highlight mechanic is currently active for this player. */
+export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
+  if (!mode.highlightEnabled) return false
+  return isSystemUnlocked(state, mode, 'highlight')
+}
+
+/**
+ * Whether the highlight battery is currently active for this player.
+ *
+ * Unlike the *input* systems above, this is **hidden by default**: the battery is
+ * an added mechanic, so it needs an owned upgrade that grants it (a mode that
+ * never mentions it simply doesn't have one). That's the inverse of
+ * `isSystemUnlocked`'s "no gate → always available", which is why this reads the
+ * gate index directly rather than reusing it — mirroring how `isAttackUnlocked`
+ * departs from `isPanelUnlocked`.
+ *
+ * Implies `isHighlightActive`: a battery for a highlight you can't use would
+ * charge and drain against nothing.
+ */
+export function isHighlightBatteryActive(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): boolean {
+  if (!isHighlightActive(state, mode)) return false
+  return anyOwned(state, systemGateUpgrades(mode, 'highlightBattery'))
 }

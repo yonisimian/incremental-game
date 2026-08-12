@@ -10,10 +10,8 @@
  *     upgrades' `batteryStat` effects on top of {@link BATTERY_DEFAULTS}.
  *  2. **The integrator** ({@link advanceHighlightBattery}): advances the stored
  *     charge each tick.
- *  3. **The factor** (later): turns the current charge into a multiplier.
- *
- * (1) and (2) exist; nothing reads the charge yet, so the battery is still
- * inert — it fills and empties without paying out.
+ *  3. **The factor** ({@link batteryFactor}): turns the current charge into a
+ *     multiplier, which `collectModifiers` applies to the highlighted resource.
  */
 
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
@@ -21,7 +19,7 @@ import type { BatteryStatOutput, EffectOutput } from './effects/index.js'
 import { BATTERY_STATS } from './effects/seed/battery-stat.js'
 import type { BatteryStat } from './effects/seed/battery-stat.js'
 import { readHighlight } from './highlight.js'
-import { isHighlightBatteryActive } from './modes/index.js'
+import { isHighlightBatteryActive } from './unlock-gates.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { EffectRef, PlayerState } from './types.js'
 
@@ -198,4 +196,26 @@ export function advanceHighlightBattery(
   // Clamping also handles a capacity that *shrank* (a mis-authored `mult` below
   // 1), which would otherwise leave the stored charge stuck above the new cap.
   state.meta[BATTERY_CHARGE_KEY] = Math.min(maxCharge, Math.max(0, current + delta))
+}
+
+// ─── Factor ──────────────────────────────────────────────────────────
+
+/**
+ * The multiplier the battery currently contributes on top of the highlight's own
+ * factor — `1` (neutral) whenever it contributes nothing.
+ *
+ * The battery is a **gate, not a scale**: holding any charge at all pays the full
+ * `factor`, and at empty it snaps back to `1` rather than fading out. That snap is
+ * the feedback that teaches the rhythm — a gradual fade would let a player run
+ * permanently near-empty and never notice the cost of holding the highlight.
+ *
+ * Returns `1` when the battery has no charge state (locked, or unlocked but not
+ * yet seeded), which is why this needs no unlock check of its own: {@link
+ * advanceHighlightBattery} is the only writer of the charge key and it already
+ * gates on `isHighlightBatteryActive`.
+ */
+export function batteryFactor(state: Readonly<PlayerState>, mode: ModeDefinition): number {
+  const charge = readBatteryCharge(state)
+  if (charge === null || charge <= 0) return 1
+  return collectBatteryParams(state, mode).factor
 }
