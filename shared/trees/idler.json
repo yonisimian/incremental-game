@@ -432,45 +432,45 @@
         },
         {
           "id": "shb-unlock",
-          "name": "shb-unlock",
-          "icon": "🔎",
-          "description": "Unlock highlight battery."
+          "name": "🪔 Lantern",
+          "icon": "🪔",
+          "description": "Unlock the lantern: it refills while nothing is highlighted and burns while a resource is. Highlight income is ×1.5 while it holds oil."
         },
         {
           "id": "shb-bp",
-          "name": "shb-bp",
-          "icon": "🔎",
-          "description": "Increase battery factor."
+          "name": "🪔 Brighter Flame",
+          "icon": "🪔",
+          "description": "The lit lantern boosts highlight income by a further +0.25×."
         },
         {
           "id": "shb-mc",
-          "name": "shb-mc",
-          "icon": "🔎",
-          "description": "Highlight battery increase max charge."
+          "name": "🪔 Bigger Reservoir",
+          "icon": "🪔",
+          "description": "The lantern holds 5 more oil, so it burns 5 seconds longer."
         },
         {
           "id": "shb-mf-cs",
-          "name": "shb-mf-cs",
-          "icon": "🔎",
-          "description": "Increase battery charging speed."
+          "name": "🪔 Quicker Refill",
+          "icon": "🪔",
+          "description": "Refill 0.5 more oil per second while nothing is highlighted."
         },
         {
           "id": "shb-mf-ds",
-          "name": "shb-mf-ds",
-          "icon": "🔎",
-          "description": "Decrease battery draining speed."
+          "name": "🪔 Slower Burn",
+          "icon": "🪔",
+          "description": "Burn 10% less oil per second while a resource is highlighted."
         },
         {
           "id": "shb-hcp",
-          "name": "shb-hcp",
-          "icon": "🔎",
-          "description": "High charge more power."
+          "name": "🪔 Full Flame",
+          "icon": "🪔",
+          "description": "+0.5× more while the lantern is at least three-quarters full. Rewards short bursts."
         },
         {
           "id": "shb-lcp",
-          "name": "shb-lcp",
-          "icon": "🔎",
-          "description": "Low charge more power."
+          "name": "🪔 Last Drop",
+          "icon": "🪔",
+          "description": "+0.5× more while the lantern is down to its last quarter. Rewards long holds."
         },
         {
           "id": "sb-unlock",
@@ -1725,7 +1725,11 @@
             },
             {
               "id": "shb-unlock",
-              "cost": {},
+              "cost": {
+                "r0": {
+                  "baseCost": 100
+                }
+              },
               "purchaseLimit": 1,
               "prerequisites": {
                 "type": "upgrade",
@@ -1738,7 +1742,13 @@
               "children": [
                 {
                   "id": "shb-bp",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 100,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.2
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1747,11 +1757,25 @@
                   "offset": {
                     "x": 96,
                     "y": 96
-                  }
+                  },
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "factor",
+                      "op": "add",
+                      "value": 0.25
+                    }
+                  ]
                 },
                 {
                   "id": "shb-mc",
-                  "cost": {},
+                  "cost": {
+                    "r0": {
+                      "baseCost": 75,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
                   "purchaseLimit": null,
                   "prerequisites": {
                     "type": "upgrade",
@@ -1764,7 +1788,13 @@
                   "children": [
                     {
                       "id": "shb-mf-cs",
-                      "cost": {},
+                      "cost": {
+                        "r0": {
+                          "baseCost": 75,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
                       "purchaseLimit": null,
                       "prerequisites": {
                         "type": "upgrade",
@@ -1777,7 +1807,11 @@
                       "children": [
                         {
                           "id": "shb-lcp",
-                          "cost": {},
+                          "cost": {
+                            "r0": {
+                              "baseCost": 250
+                            }
+                          },
                           "purchaseLimit": 1,
                           "choiceGroup": "battery-choice",
                           "prerequisites": {
@@ -1787,13 +1821,35 @@
                           "offset": {
                             "x": 0,
                             "y": 96
-                          }
+                          },
+                          "effects": [
+                            {
+                              "type": "batteryBand",
+                              "band": "low",
+                              "threshold": 0.25,
+                              "bonus": 0.5
+                            }
+                          ]
+                        }
+                      ],
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "chargeRate",
+                          "op": "add",
+                          "value": 0.5
                         }
                       ]
                     },
                     {
                       "id": "shb-mf-ds",
-                      "cost": {},
+                      "cost": {
+                        "r0": {
+                          "baseCost": 75,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
                       "purchaseLimit": null,
                       "prerequisites": {
                         "type": "upgrade",
@@ -1806,7 +1862,11 @@
                       "children": [
                         {
                           "id": "shb-hcp",
-                          "cost": {},
+                          "cost": {
+                            "r0": {
+                              "baseCost": 250
+                            }
+                          },
                           "purchaseLimit": 1,
                           "choiceGroup": "battery-choice",
                           "prerequisites": {
@@ -1816,11 +1876,41 @@
                           "offset": {
                             "x": 0,
                             "y": 96
-                          }
+                          },
+                          "effects": [
+                            {
+                              "type": "batteryBand",
+                              "band": "high",
+                              "threshold": 0.75,
+                              "bonus": 0.5
+                            }
+                          ]
+                        }
+                      ],
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "drainRate",
+                          "op": "mult",
+                          "value": 0.9
                         }
                       ]
                     }
+                  ],
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "maxCharge",
+                      "op": "add",
+                      "value": 5
+                    }
                   ]
+                }
+              ],
+              "effects": [
+                {
+                  "type": "systemUnlock",
+                  "system": "highlightBattery"
                 }
               ]
             }
