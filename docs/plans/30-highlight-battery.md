@@ -20,7 +20,7 @@ The mechanic:
    keeps only its own base factor.
 4. Further upgrades raise the battery factor, its max capacity, its charge speed,
    and lower its drain speed; two mutually-exclusive picks reshape the
-   charge→power response curve.
+   charge band it pays a bonus in.
 
 The 7 upgrade nodes for this already exist in the idler tree as **layout-only
 placeholders** (`shb-unlock` … `shb-lcp`) — ids, offsets, prerequisites, purchase
@@ -93,8 +93,9 @@ per-tick state advance driven by effect-collected parameters.
 Consequences worth stating:
 
 - The snap at empty is intentionally harsh — it's the feedback that teaches the
-  rhythm. The **curve** upgrades (`shb-hcp`/`shb-lcp`) shape how much of the bonus
-  you get _above_ empty; they never change the fact that empty means `1×`.
+  rhythm. The **band** upgrades (`shb-hcp`/`shb-lcp`) add a bonus in one end of
+  the tank; they never change the fact that empty means `1×`, and never reduce the
+  flat payout either (see [Charge bands](#charge-bands)).
 - Seeding at unlock (rather than round start) keeps `initialMeta` untouched and
   means no boot-validation rule is owed. `meta.hlCharge` simply does not exist
   until the battery is unlocked.
@@ -105,17 +106,14 @@ Consequences worth stating:
 
 ### New shared module: `shared/src/highlight-battery.ts`
 
-Owns the parameter shape, the defaults, the curve functions, the integrator, and
-the derived factor. One module so the server, the sim, and the client read the
-same math.
+Owns the parameter shape, the defaults, the charge bands, the integrator, and the
+derived factor. One module so the server, the sim, and the client read the same
+math.
 
 ```ts
-/** Charge→power response shape. */
-export type BatteryCurve = 'linear' | 'highWeighted' | 'lowWeighted'
-
 /** The battery's fully-resolved parameters for one player. */
 export interface BatteryParams {
-  /** Peak multiplier applied on top of the highlight factor (at full response). */
+  /** Multiplier applied on top of the highlight factor at any charge above empty. */
   factor: number
   /** Capacity, in charge units (1 unit = 1 second of drain at drainRate 1). */
   maxCharge: number
@@ -123,7 +121,6 @@ export interface BatteryParams {
   chargeRate: number
   /** Units lost per second while a resource is highlighted. */
   drainRate: number
-  curve: BatteryCurve
 }
 
 export const BATTERY_DEFAULTS: Readonly<BatteryParams> = {
@@ -131,7 +128,6 @@ export const BATTERY_DEFAULTS: Readonly<BatteryParams> = {
   maxCharge: 20,
   chargeRate: 1,
   drainRate: 1,
-  curve: 'linear',
 }
 ```
 
@@ -175,22 +171,44 @@ Per the kind-routing convention, every existing consumer ignores it —
 `collectModifiers`, `collectGeneratorCostFactors`, and the unlock gates need no
 change to _tolerate_ it.
 
-### Curve authoring
+### Charge bands
 
-`shb-hcp` / `shb-lcp` set the response shape. Either a `curve` field on
-`batteryStat` (making `stat`/`op`/`value` optional-ish, which muddies the schema)
-or a sibling one-field effect:
+**Superseded the original "response curve" design — implemented as bands instead.**
+The plan first proposed `factor = 1 + (F−1)·f(charge/max)` with `f` one of
+`linear` / `highWeighted` / `lowWeighted`. That silently contradicts the answered
+design question above: a `linear` default makes the battery a _scale_ (at 1%
+charge you'd get ~1% of the bonus), not the **gate** that was chosen. Any curve
+shape is also a strict downgrade from a flat payout, so neither pick could be an
+upgrade.
+
+Instead, `shb-hcp` / `shb-lcp` each add a **conditional bonus inside one end of
+the tank**, on top of the flat payout:
 
 ```ts
-// batteryCurve — preferred: keeps batteryStat's schema strict
-const schema = z.strictObject({ curve: z.enum(['linear', 'highWeighted', 'lowWeighted']) })
+// batteryBand
+const schema = z.strictObject({
+  band: z.enum(['high', 'low']),
+  threshold: z.number().gt(0).lt(1), // fraction of capacity delimiting the band
+  bonus: z.number().gt(0), // added to the factor while inside the band
+})
 ```
 
-Recommend **`batteryCurve` as its own effect**. Two tiny strict schemas beat one
-schema with mutually-exclusive fields, and it reads better in the editor. The two
-nodes are already mutually exclusive via `choiceGroup: "battery-choice"`, so
-nothing needs to resolve a conflict — but the collector should still be
-deterministic (last-declared wins) rather than order-dependent-by-accident.
+- `high` pays at or above `threshold` — rewards short bursts, released early to
+  top back up.
+- `low` pays at or below `threshold` — rewards long holds, run down to the wire.
+
+Both are strict gains, so neither pick is a downgrade, and they reward genuinely
+opposite play patterns. The threshold is measured against _current_ capacity, so
+a capacity upgrade moves where a band starts paying.
+
+This can't fold into `BatteryParams` (which is charge-independent), so bands stay
+a list — `collectBatteryBands` — that `batteryFactor` evaluates against the
+current charge. `threshold` is strictly inside `(0, 1)`: at `0` or `1` one side
+covers the whole tank, which is an unconditional factor bump — that's what
+`batteryStat` is for.
+
+The two nodes are already mutually exclusive via `choiceGroup: "battery-choice"`,
+so nothing needs to resolve a conflict, but several bands simply add up.
 
 ### Collection
 
@@ -255,24 +273,25 @@ identical behavior with no duplicated math.
 export function batteryFactor(state: Readonly<PlayerState>, mode: ModeDefinition): number
 ```
 
-`charge <= 0` → `1`. Otherwise `1 + (factor − 1) · f(charge / maxCharge)` where
-`f` is:
+`charge <= 0` → `1` (the hard snap). Any charge above empty → the resolved
+`factor`, plus every owned {@link BatteryBand} whose end of the tank the current
+charge sits in. A **gate, not a scale**: one charge unit pays the same as a full
+tank.
 
-| curve          | `f(x)`    | effect                                              |
-| -------------- | --------- | --------------------------------------------------- |
-| `linear`       | `x`       | payoff proportional to charge                       |
-| `highWeighted` | `x²`      | most of the bonus only near full — burst play       |
-| `lowWeighted`  | `sqrt(x)` | near-peak bonus almost immediately — sustained play |
+Applied directly in `collectModifiers` as a multiplicative modifier on the
+currently-highlighted resource — **not** as a registered effect, for two reasons:
 
-Applied as a **mode-level** effect emitting a multiplicative `baseModifier` on the
-currently-highlighted resource — mode-level specifically because
-[`routeBaseModifier`](../../shared/src/modes/index.ts#L714) compounds
-`value ** owned`, and the params are **already folded** by `collectBatteryParams`.
-An upgrade-level ref would compound `shb-bp`'s contribution twice.
+- `collectBatteryParams` has already folded the owned count across every
+  contributing upgrade, so routing the result through `routeBaseModifier` (which
+  compounds `value ** owned`) would compound `shb-bp` twice.
+- An effect that read the battery would close a runtime import cycle
+  (`effects/index` → seed → `highlight-battery` → `effects/index`). `shared/src`
+  had zero runtime cycles before this work and still does; keeping it that way is
+  also why the `systemUnlock` predicates moved from `modes/index` to
+  `unlock-gates`.
 
-`getHighlightMultiplier` ([modes/index.ts:535](../../shared/src/modes/index.ts#L535))
-only scans `highlightMultiplier` refs today, so it must fold the battery in or the
-data panel under-reports the real factor.
+`getHighlightMultiplier` folds the battery in, so the data panel reports the
+multiplier the pipeline actually applies.
 
 **Why not `relativeModifier` with a `meta:hlCharge` source?** Its `field` is a
 static authored string; the target here is _whichever_ resource is highlighted.
@@ -361,11 +380,11 @@ longer means what it did.
 | Area                                                                            | What                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New `shared/tests/highlight-battery.test.ts`                                    | Integrator: clamps at `0` and `maxCharge`; drains only while highlighted; charges only while released; seeds at half on unlock; inert while locked; non-finite reset; `maxCharge` shrink clamps stored charge. |
-| Same file                                                                       | `batteryFactor`: `1×` at empty; peak at full; each curve's midpoint ordering (`lowWeighted` > `linear` > `highWeighted` at `x = 0.5`).                                                                         |
-| [effects.test.ts](../../shared/tests/effects.test.ts)                           | `batteryStat` / `batteryCurve` param folding across multiple owned levels; add-then-mult ordering; floors clamp a negative.                                                                                    |
+| Same file                                                                       | `batteryFactor`: `1×` at empty; full factor at any charge above empty; each band pays only inside its end of the tank, measured against upgraded capacity.                                                     |
+| [effects.test.ts](../../shared/tests/effects.test.ts)                           | `batteryStat` / `batteryBand` param folding across multiple owned levels; add-then-mult ordering; floors clamp a negative.                                                                                     |
 | [highlight-multiplier.test.ts](../../shared/tests/highlight-multiplier.test.ts) | No highlight → no modifier (was: silently boosted `r0`).                                                                                                                                                       |
 | [rate-breakdown.test.ts](../../shared/tests/rate-breakdown.test.ts)             | Buckets still telescope to the authoritative total with the battery active, charged and empty.                                                                                                                 |
-| [modes.test.ts](../../shared/tests/modes.test.ts)                               | `highlightEnabled` + `initialMeta.highlight: null` boots; unknown `stat`/`curve` refuses to boot.                                                                                                              |
+| [modes.test.ts](../../shared/tests/modes.test.ts)                               | `highlightEnabled` + `initialMeta.highlight: null` boots; unknown `stat`/`band` refuses to boot.                                                                                                               |
 | [simulation.test.ts](../../shared/tests/simulation.test.ts) / live-export       | Null highlight round-trips through strategy → sim → export.                                                                                                                                                    |
 | [match.test.ts](../../server/tests/match.test.ts)                               | Server accepts a null highlight; charge advances across ticks; charge is in the broadcast.                                                                                                                     |
 | [bot.test.ts](../../server/tests/bot.test.ts)                                   | Bot releases at empty and re-highlights once charged.                                                                                                                                                          |
@@ -434,8 +453,8 @@ slips; it's a coherent mechanic on its own)
    `charge > 0`; fold the battery into `getHighlightMultiplier`. Tests:
    rate-breakdown, highlight-battery.
 
-8. `feat(effects): charge-response curves for the battery factor`
-   `batteryCurve` effect + the three `f(x)` shapes + collector wiring. Tests:
+8. `feat(effects): charge-band bonuses for the battery factor`
+   `batteryBand` effect + `collectBatteryBands` + `batteryFactor` wiring. Tests:
    effects, highlight-battery.
 
 **Phase C — turn it on**
@@ -488,11 +507,11 @@ number a player actually reasons about. Display concern only — the data panel'
 time-to-empty covers it. Flagging in case the flavor text wants to promise
 seconds.
 
-**Q4 — Curve choice permanence.** `battery-choice` makes `shb-hcp`/`shb-lcp`
-mutually exclusive and permanent for the round. Given `highWeighted` favors burst
-play and `lowWeighted` favors sustained play, the pick interacts with click-heavy
-vs idle strategies — worth checking in the sim that neither strictly dominates
-before the costs are frozen.
+**Q4 — Band choice permanence.** `battery-choice` makes `shb-hcp`/`shb-lcp`
+mutually exclusive and permanent for the round. The `high` band favors burst play
+and `low` favors sustained play, so the pick interacts with click-heavy vs idle
+strategies — worth checking in the sim that neither strictly dominates before the
+thresholds and bonuses are frozen.
 
 **Q5 — Should the factor apply to click income too?** No. The battery multiplies
 the **highlight** factor, and highlight is a passive-rate mechanic. Deliberately
@@ -506,7 +525,7 @@ out of scope, not rejected.
   `shb-unlock`. Moving them to authored `batteryStat` refs is additive and touches
   no consumer.
 - **Overcharge / burst spend.** No "dump the whole battery for a short massive
-  spike" mechanic. The curve upgrades are the only shape control in v1.
+  spike" mechanic. The band upgrades are the only shape control in v1.
 - **Opponent visibility.** The opponent's battery is not intel. `accessEnemyData`
   keys are resource-shaped ([access-enemy-data.ts](../../shared/src/effects/seed/access-enemy-data.ts));
   exposing a meta scalar would need a new non-resource intel key like `peakCps`

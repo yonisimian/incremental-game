@@ -11,11 +11,14 @@
  *  2. **The integrator** ({@link advanceHighlightBattery}): advances the stored
  *     charge each tick.
  *  3. **The factor** ({@link batteryFactor}): turns the current charge into a
- *     multiplier, which `collectModifiers` applies to the highlighted resource.
+ *     multiplier, which `collectModifiers` applies to the highlighted resource,
+ *     plus any charge-band bonuses ({@link collectBatteryBands}).
  */
 
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
-import type { BatteryStatOutput, EffectOutput } from './effects/index.js'
+import type { BatteryBandOutput, BatteryStatOutput, EffectOutput } from './effects/index.js'
+
+import type { BatteryBandSide } from './effects/seed/battery-band.js'
 import { BATTERY_STATS } from './effects/seed/battery-stat.js'
 import type { BatteryStat } from './effects/seed/battery-stat.js'
 import { readHighlight } from './highlight.js'
@@ -23,12 +26,14 @@ import { isHighlightBatteryActive } from './unlock-gates.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { EffectRef, PlayerState } from './types.js'
 
-// Re-exported from the `batteryStat` seed (its schema owns the canonical stat
-// list, so the enum and the load-time validation can't drift) — mirroring how
-// `unlock-gates` re-exports `UNLOCKABLE_SYSTEMS`. This module is the sole
-// re-exporter, so the shared barrel has exactly one path to it.
+// Re-exported from the seeds (each schema owns its canonical enum, so the list
+// and the load-time validation can't drift) — mirroring how `unlock-gates`
+// re-exports `UNLOCKABLE_SYSTEMS`. This module is the sole re-exporter, so the
+// shared barrel has exactly one path to each.
 export { BATTERY_STATS } from './effects/seed/battery-stat.js'
 export type { BatteryStat } from './effects/seed/battery-stat.js'
+export { BATTERY_BANDS } from './effects/seed/battery-band.js'
+export type { BatteryBandSide } from './effects/seed/battery-band.js'
 
 /**
  * The battery's fully-resolved parameters for one player.
@@ -198,6 +203,59 @@ export function advanceHighlightBattery(
   state.meta[BATTERY_CHARGE_KEY] = Math.min(maxCharge, Math.max(0, current + delta))
 }
 
+// ─── Charge bands ────────────────────────────────────────────────────
+
+/** A conditional factor bonus paid only in one end of the tank. */
+export interface BatteryBand {
+  readonly band: BatteryBandSide
+  /** Fraction of capacity delimiting the band. */
+  readonly threshold: number
+  /** Added to the factor while the charge is inside the band. */
+  readonly bonus: number
+}
+
+/** Whether an effect output is a charge-band bonus. */
+function isBatteryBandOutput(out: EffectOutput): out is BatteryBandOutput {
+  return 'kind' in out && out.kind === 'batteryBand'
+}
+
+/**
+ * Collect every owned upgrade's `batteryBand` bonuses.
+ *
+ * Unlike {@link collectBatteryParams} these can't be folded into a single number:
+ * whether each pays depends on the charge at the moment the factor is read, so
+ * they stay a list and {@link batteryFactor} decides. The `bonus` scales linearly
+ * with the owned count, matching how an additive `batteryStat` does.
+ *
+ * The idler's two band upgrades are mutually exclusive (one `choiceGroup`), so at
+ * most one is owned there — but nothing here assumes that, and several bands
+ * simply add up.
+ */
+export function collectBatteryBands(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): BatteryBand[] {
+  const bands: BatteryBand[] = []
+
+  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
+    for (const ref of refs ?? []) {
+      if (ref.type !== 'batteryBand') continue
+      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (isBatteryBandOutput(o)) {
+          bands.push({ band: o.band, threshold: o.threshold, bonus: o.bonus * owned })
+        }
+      }
+    }
+  }
+
+  collect(mode.effects, 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) collect(upgrade.effects, owned)
+  }
+  return bands
+}
+
 // ─── Factor ──────────────────────────────────────────────────────────
 
 /**
@@ -209,6 +267,11 @@ export function advanceHighlightBattery(
  * the feedback that teaches the rhythm — a gradual fade would let a player run
  * permanently near-empty and never notice the cost of holding the highlight.
  *
+ * On top of that flat payout, each owned {@link BatteryBand} adds its bonus while
+ * the charge sits in its end of the tank — so a player can be rewarded for
+ * keeping the tank topped up (`high`) or for running it to the wire (`low`)
+ * without either becoming a prerequisite for the battery paying out at all.
+ *
  * Returns `1` when the battery has no charge state (locked, or unlocked but not
  * yet seeded), which is why this needs no unlock check of its own: {@link
  * advanceHighlightBattery} is the only writer of the charge key and it already
@@ -217,5 +280,13 @@ export function advanceHighlightBattery(
 export function batteryFactor(state: Readonly<PlayerState>, mode: ModeDefinition): number {
   const charge = readBatteryCharge(state)
   if (charge === null || charge <= 0) return 1
-  return collectBatteryParams(state, mode).factor
+
+  const { factor, maxCharge } = collectBatteryParams(state, mode)
+  const ratio = Math.min(1, charge / maxCharge)
+  let total = factor
+  for (const band of collectBatteryBands(state, mode)) {
+    const inside = band.band === 'high' ? ratio >= band.threshold : ratio <= band.threshold
+    if (inside) total += band.bonus
+  }
+  return total
 }

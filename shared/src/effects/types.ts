@@ -6,6 +6,7 @@ import type { PlayerState } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
+import type { BatteryBandSide } from './seed/battery-band.js'
 
 /**
  * A reduction to a generator's cost curve, emitted by a cost-track effect.
@@ -184,6 +185,25 @@ export interface BatteryStatOutput {
 }
 
 /**
+ * A conditional bonus to the highlight battery's factor, paid only while the
+ * charge sits in one end of the tank. Emitted by the `batteryBand` effect while
+ * the owning upgrade is held.
+ *
+ * Consumed by `collectBatteryBands` / `batteryFactor`. Unlike {@link
+ * BatteryStatOutput} this can't be folded into the charge-independent
+ * {@link BatteryParams}, because whether it pays depends on the *current* charge.
+ */
+export interface BatteryBandOutput {
+  readonly kind: 'batteryBand'
+  /** `high` pays at or above `threshold` of capacity; `low` at or below it. */
+  readonly band: BatteryBandSide
+  /** Fraction of capacity delimiting the band, strictly inside `(0, 1)`. */
+  readonly threshold: number
+  /** Added to the battery's factor while the charge is inside the band. */
+  readonly bonus: number
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
@@ -207,6 +227,7 @@ export type EffectOutput =
   | EnemyModifierOutput
   | ResourceStealOutput
   | BatteryStatOutput
+  | BatteryBandOutput
 
 /**
  * Where an effect ref may be authored. Each host is read by different code and

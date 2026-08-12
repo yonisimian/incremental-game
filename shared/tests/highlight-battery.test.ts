@@ -541,3 +541,97 @@ describe('computeRateBreakdown with a battery', () => {
     )
   })
 })
+
+// ─── batteryBand ─────────────────────────────────────────────────────
+
+describe('batteryBand', () => {
+  const mode = makeMode()
+
+  it('echoes the authored band', () => {
+    expect(
+      applyEffect(
+        { type: 'batteryBand', band: 'high', threshold: 0.75, bonus: 0.5 },
+        makeState(),
+        mode,
+      ),
+    ).toEqual({ kind: 'batteryBand', band: 'high', threshold: 0.75, bonus: 0.5 })
+  })
+
+  it('rejects an unknown band', () => {
+    expect(() =>
+      applyEffect(
+        { type: 'batteryBand', band: 'middle', threshold: 0.5, bonus: 0.5 },
+        makeState(),
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  it('rejects a threshold at the edges (it would cover the whole tank)', () => {
+    for (const threshold of [0, 1]) {
+      expect(() =>
+        applyEffect(
+          { type: 'batteryBand', band: 'high', threshold, bonus: 0.5 },
+          makeState(),
+          mode,
+        ),
+      ).toThrow()
+    }
+  })
+})
+
+describe('charge bands in batteryFactor', () => {
+  /** Battery mode with one band upgrade. */
+  function bandMode(band: 'high' | 'low', threshold: number, bonus = 1): ModeDefinition {
+    return batteryMode([makeUpgrade('band', [{ type: 'batteryBand', band, threshold, bonus }])])
+  }
+  const max = BATTERY_DEFAULTS.maxCharge
+  const base = BATTERY_DEFAULTS.factor
+
+  it('pays a high band only at or above its threshold', () => {
+    const mode = bandMode('high', 0.75)
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max), mode)).toBeCloseTo(base + 1)
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max * 0.75), mode)).toBeCloseTo(base + 1)
+    // Below the band: the flat payout still applies — the band is a bonus, not a
+    // prerequisite for the battery working at all.
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max * 0.5), mode)).toBeCloseTo(base)
+  })
+
+  it('pays a low band only at or below its threshold', () => {
+    const mode = bandMode('low', 0.25)
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max * 0.1), mode)).toBeCloseTo(base + 1)
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max * 0.25), mode)).toBeCloseTo(base + 1)
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max * 0.5), mode)).toBeCloseTo(base)
+  })
+
+  it('still snaps to neutral at empty, band or not', () => {
+    // The low band must not resurrect a payout from an empty tank.
+    expect(batteryFactor(batteryState('r0', { band: 1 }, 0), bandMode('low', 0.25))).toBe(1)
+  })
+
+  it('is inert while the band upgrade is unowned', () => {
+    expect(batteryFactor(batteryState('r0', {}, max), bandMode('high', 0.75))).toBeCloseTo(base)
+  })
+
+  it('measures the band against upgraded capacity', () => {
+    // 10 units is full on the default tank (band pays) but a quarter of a
+    // doubled one (band does not).
+    const mode = batteryMode([
+      makeUpgrade('band', [{ type: 'batteryBand', band: 'high', threshold: 0.75, bonus: 1 }]),
+      makeUpgrade('mc', [{ type: 'batteryStat', stat: 'maxCharge', op: 'mult', value: 2 }]),
+    ])
+    expect(batteryFactor(batteryState('r0', { band: 1 }, max), mode)).toBeCloseTo(base + 1)
+    expect(batteryFactor(batteryState('r0', { band: 1, mc: 1 }, max), mode)).toBeCloseTo(base)
+  })
+
+  it('adds up several applicable bands and scales by owned count', () => {
+    const mode = batteryMode([
+      makeUpgrade('h', [{ type: 'batteryBand', band: 'high', threshold: 0.5, bonus: 1 }]),
+      makeUpgrade('l', [{ type: 'batteryBand', band: 'low', threshold: 0.9, bonus: 0.5 }]),
+    ])
+    // At 60% both bands apply: h once, l at 2 levels.
+    expect(batteryFactor(batteryState('r0', { h: 1, l: 2 }, max * 0.6), mode)).toBeCloseTo(
+      base + 1 + 1,
+    )
+  })
+})

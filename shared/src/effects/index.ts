@@ -1,6 +1,7 @@
 import { registerEffect } from './registry.js'
 import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
+import { batteryBand } from './seed/battery-band.js'
 import { batteryStat } from './seed/battery-stat.js'
 import { baseModifier } from './seed/base-modifier.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
@@ -24,6 +25,7 @@ registerEffect('dominantGenerator', dominantGenerator)
 registerEffect('balancedGenerators', balancedGenerators)
 registerEffect('generatorCost', generatorCost)
 registerEffect('batteryStat', batteryStat)
+registerEffect('batteryBand', batteryBand)
 registerEffect('panelUnlock', panelUnlock)
 registerEffect('generatorUnlock', generatorUnlock)
 registerEffect('systemUnlock', systemUnlock)
@@ -39,6 +41,7 @@ export type {
   EffectOutput,
   BaseModifierOutput,
   BatteryStatOutput,
+  BatteryBandOutput,
   GeneratorCostOutput,
   PanelUnlockOutput,
   GeneratorUnlockOutput,
@@ -70,6 +73,7 @@ export type { GeneratorCostParams } from './seed/generator-cost.js'
 // stat/op enums (mirroring `unlock-gates` for `UNLOCKABLE_SYSTEMS`), so the
 // shared barrel has exactly one path to each.
 export type { BatteryStatParams } from './seed/battery-stat.js'
+export type { BatteryBandParams } from './seed/battery-band.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
 export type { GeneratorUnlockParams } from './seed/generator-unlock.js'
 export type { SystemUnlockParams } from './seed/system-unlock.js'
