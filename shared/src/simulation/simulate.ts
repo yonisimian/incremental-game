@@ -156,7 +156,7 @@ export function simulate(strategy: QueueStrategy, options?: SimulateOptions): Si
       case 'sell_generator':
         return `sell:${action.generatorId}`
       case 'set_highlight':
-        return `highlight:${action.highlight}`
+        return action.highlight === null ? 'highlight:off' : `highlight:${action.highlight}`
       case 'set_click_rate':
         return `click:${action.cps}`
       case 'wait':

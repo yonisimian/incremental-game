@@ -88,6 +88,10 @@ describe('actionSummary', () => {
     expect(actionSummary({ kind: 'set_highlight', highlight: 'r1' }, mode).target).toBe('Ale')
   })
 
+  it('labels a released highlight as "release"', () => {
+    expect(actionSummary({ kind: 'set_highlight', highlight: null }, mode).target).toBe('release')
+  })
+
   it('shows the score default for a resourceless click rate', () => {
     expect(actionSummary({ kind: 'set_click_rate', cps: 5 }, mode)).toEqual({
       kind: 'click rate',

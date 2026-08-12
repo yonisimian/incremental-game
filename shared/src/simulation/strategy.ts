@@ -47,7 +47,9 @@ const SimActionSchema = z.discriminatedUnion('kind', [
     count: z.number().int().positive().optional(),
   }),
   z.strictObject({ kind: z.literal('sell_generator'), generatorId: z.string() }),
-  z.strictObject({ kind: z.literal('set_highlight'), highlight: z.string() }),
+  // `null` releases the highlight — a real selection, not an omission, so it
+  // round-trips through save files rather than being dropped as falsy.
+  z.strictObject({ kind: z.literal('set_highlight'), highlight: z.string().nullable() }),
   z.strictObject({
     kind: z.literal('set_click_rate'),
     resource: z.string().optional(),
@@ -169,7 +171,8 @@ export function validateStrategyForMode(strategy: QueueStrategy, mode: ModeDefin
           problems.push(`${at}: unknown generator "${action.generatorId}"`)
         break
       case 'set_highlight':
-        if (!resources.has(action.highlight))
+        // `null` is the release, so there's no resource to check.
+        if (action.highlight !== null && !resources.has(action.highlight))
           problems.push(`${at}: unknown resource "${action.highlight}"`)
         break
       case 'set_click_rate':

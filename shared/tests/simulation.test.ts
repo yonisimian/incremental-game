@@ -312,6 +312,22 @@ describe('applySimAction', () => {
     expect(s.meta.highlight).toBe('r0')
   })
 
+  it('releases the highlight on a null selection', () => {
+    const s = state()
+    applySimAction(s, { kind: 'set_highlight', highlight: 'r0' }, mode, upgradeMap)
+    const r = applySimAction(s, { kind: 'set_highlight', highlight: null }, mode, upgradeMap)
+    expect(r.status).toBe('applied')
+    expect(s.meta.highlight).toBeNull()
+  })
+
+  it('treats an unknown resource as an applied no-op', () => {
+    const s = state({ meta: { highlight: 'r0' } })
+    const r = applySimAction(s, { kind: 'set_highlight', highlight: 'nope' }, mode, upgradeMap)
+    // Applied, not blocked: waiting can't make an unknown resource appear.
+    expect(r.status).toBe('applied')
+    expect(s.meta.highlight).toBe('r0')
+  })
+
   it('sells an owned generator, crediting the refund', () => {
     const s = state({ resources: { r0: 0 }, generators: { g0: 1 } })
     const r = applySimAction(s, { kind: 'sell_generator', generatorId: 'g0' }, mode, upgradeMap)
@@ -417,5 +433,17 @@ describe('validateStrategyForMode', () => {
     expect(
       validateStrategyForMode(strat([{ kind: 'set_highlight', highlight: 'r0' }]), mode),
     ).toEqual([])
+  })
+
+  it('accepts a null highlight (the release) as a valid selection', () => {
+    expect(
+      validateStrategyForMode(strat([{ kind: 'set_highlight', highlight: null }]), mode),
+    ).toEqual([])
+  })
+
+  it('round-trips a null highlight through parse and serialize', () => {
+    const source = strat([{ kind: 'set_highlight', highlight: null }])
+    const parsed = parseStrategy(JSON.parse(serializeStrategy(source)))
+    expect(parsed.actions).toEqual([{ kind: 'set_highlight', highlight: null }])
   })
 })

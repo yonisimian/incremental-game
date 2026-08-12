@@ -200,8 +200,12 @@ export interface PlayerAction {
   upgradeId?: string
   /** For 'buy_generator' / 'sell_generator' actions: the generator to buy or sell. */
   generatorId?: string
-  /** For 'set_highlight' actions: which resource to highlight. */
-  highlight?: string
+  /**
+   * For 'set_highlight' actions: which resource to highlight, or `null` to
+   * release the highlight (see `readHighlight`). `undefined` means the action
+   * carries no selection at all and is dropped.
+   */
+  highlight?: string | null
   /** For 'click' actions: which resource the click credits (defaults to the score resource). */
   resource?: string
   /** For 'activate_attack' actions: which attack to activate. */

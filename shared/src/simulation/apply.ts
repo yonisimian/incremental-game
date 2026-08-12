@@ -17,7 +17,7 @@
 //                more time won't help.
 
 import { applyGeneratorPurchase, applyGeneratorSell } from '../generators.js'
-import { applyPurchase } from '../modes/index.js'
+import { applyHighlightSelection, applyPurchase } from '../modes/index.js'
 import type { ModeDefinition } from '../modes/types.js'
 import {
   generatorBlockReason,
@@ -59,10 +59,12 @@ export function applySimAction(
 ): SimApplyResult {
   switch (action.kind) {
     case 'set_highlight': {
-      // Instant and always "applied"; an unknown resource is a no-op (the
-      // save/load boundary rejects those, matching the server which ignores
-      // highlights naming a non-resource).
-      if (mode.resources.includes(action.highlight)) state.meta.highlight = action.highlight
+      // Instant and always "applied" — a rejected selection (unknown resource, or
+      // highlighting before it's unlocked) is a no-op rather than a block, since
+      // more time won't make an unknown resource exist and the save/load boundary
+      // already rejects one. `null` releases the highlight. Shares the server's
+      // validator, so a strategy can't get a highlight the real game would refuse.
+      applyHighlightSelection(state, mode, action.highlight)
       return { status: 'applied' }
     }
     case 'buy': {

@@ -19,7 +19,7 @@ const sell = (generatorId: string, ms: number): PlayerAction => ({
   generatorId,
   timestamp: ms,
 })
-const hl = (highlight: string, ms: number): PlayerAction => ({
+const hl = (highlight: string | null, ms: number): PlayerAction => ({
   type: 'set_highlight',
   highlight,
   timestamp: ms,
@@ -42,6 +42,14 @@ describe('liveActionsToStrategy', () => {
       { kind: 'set_highlight', highlight: 'r0' },
       { kind: 'buy', upgradeId: 'u1' },
       { kind: 'buy_generator', generatorId: 'g0' },
+    ])
+  })
+
+  it('exports a released highlight rather than dropping it as falsy', () => {
+    const s = liveActionsToStrategy([hl('r0', 0), hl(null, 10)], 'idler', 'x')
+    expect(s.actions).toEqual([
+      { kind: 'set_highlight', highlight: 'r0' },
+      { kind: 'set_highlight', highlight: null },
     ])
   })
 

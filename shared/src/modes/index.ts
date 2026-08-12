@@ -529,6 +529,26 @@ export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefini
 }
 
 /**
+ * Apply a highlight selection to `state`, returning whether it was accepted.
+ *
+ * The one validator for the mechanic: the highlight must be unlocked, and the
+ * selection must be either a resource this mode declares or `null` (release).
+ * Every writer goes through here — the server's player and bot paths, the
+ * client's prediction and its reconciliation replay, and the simulator — so a
+ * selection can't be legal on one and silently dropped on another.
+ */
+export function applyHighlightSelection(
+  state: PlayerState,
+  mode: ModeDefinition,
+  highlight: string | null,
+): boolean {
+  if (!isHighlightActive(state, mode)) return false
+  if (highlight !== null && !mode.resources.includes(highlight)) return false
+  state.meta.highlight = highlight
+  return true
+}
+
+/**
  * The multiplicative bonus currently applied to the highlighted resource by
  * `highlightMultiplier` effects — mode-level effects (always on) and owned
  * upgrades (compounding `multiplier ^ owned`, matching `collectModifiers`).
