@@ -56,6 +56,7 @@ describe('effect registry', () => {
       'accessEnemyData',
       'balancedGenerators',
       'baseModifier',
+      'batteryStat',
       'dominantGenerator',
       'enemyProductionModifier',
       'generatorCost',

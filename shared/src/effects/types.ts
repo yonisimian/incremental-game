@@ -3,6 +3,9 @@ import type { ZodType } from 'zod'
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
 import type { PlayerState } from '../types.js'
+// Type-only (erased at runtime), so naming the seed here can't create an import
+// cycle — and the schema's enum stays the single source of truth for both.
+import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
 
 /**
  * A reduction to a generator's cost curve, emitted by a cost-track effect.
@@ -163,6 +166,24 @@ interface ResourceStealFlat extends ResourceStealBase {
 }
 
 /**
+ * An adjustment to one of the highlight battery's parameters, emitted by the
+ * `batteryStat` effect while the owning upgrade is held.
+ *
+ * Consumed by `collectBatteryParams`, which owns the owned-count compounding,
+ * the cross-upgrade stacking, and the clamping — this output is just the authored
+ * adjustment echoed back. Carries no production weight, so the modifier pipeline
+ * ignores it.
+ */
+export interface BatteryStatOutput {
+  readonly kind: 'batteryStat'
+  /** Which battery parameter to move (see `BATTERY_STATS`). */
+  readonly stat: BatteryStat
+  /** `add` shifts the value; `mult` scales it. */
+  readonly op: BatteryStatOp
+  readonly value: number
+}
+
+/**
  * What an effect's `apply` can emit: a production {@link Modifier}, a
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
@@ -185,6 +206,7 @@ export type EffectOutput =
   | EnemyDataAccessOutput
   | EnemyModifierOutput
   | ResourceStealOutput
+  | BatteryStatOutput
 
 /**
  * Where an effect ref may be authored. Each host is read by different code and

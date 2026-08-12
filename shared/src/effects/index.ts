@@ -1,6 +1,7 @@
 import { registerEffect } from './registry.js'
 import { accessEnemyData } from './seed/access-enemy-data.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
+import { batteryStat } from './seed/battery-stat.js'
 import { baseModifier } from './seed/base-modifier.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
 import { enemyProductionModifier } from './seed/enemy-production-modifier.js'
@@ -22,6 +23,7 @@ registerEffect('lowerTierBoost', lowerTierBoost)
 registerEffect('dominantGenerator', dominantGenerator)
 registerEffect('balancedGenerators', balancedGenerators)
 registerEffect('generatorCost', generatorCost)
+registerEffect('batteryStat', batteryStat)
 registerEffect('panelUnlock', panelUnlock)
 registerEffect('generatorUnlock', generatorUnlock)
 registerEffect('systemUnlock', systemUnlock)
@@ -36,6 +38,7 @@ export type { EffectDef, EffectHost } from './types.js'
 export type {
   EffectOutput,
   BaseModifierOutput,
+  BatteryStatOutput,
   GeneratorCostOutput,
   PanelUnlockOutput,
   GeneratorUnlockOutput,
@@ -63,6 +66,10 @@ export type { LowerTierBoostParams } from './seed/lower-tier-boost.js'
 export type { DominantGeneratorParams } from './seed/dominant-generator.js'
 export type { BalancedGeneratorsParams } from './seed/balanced-generators.js'
 export type { GeneratorCostParams } from './seed/generator-cost.js'
+// Only the params type here; `highlight-battery` is the sole re-exporter of the
+// stat/op enums (mirroring `unlock-gates` for `UNLOCKABLE_SYSTEMS`), so the
+// shared barrel has exactly one path to each.
+export type { BatteryStatParams } from './seed/battery-stat.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
 export type { GeneratorUnlockParams } from './seed/generator-unlock.js'
 export type { SystemUnlockParams } from './seed/system-unlock.js'
