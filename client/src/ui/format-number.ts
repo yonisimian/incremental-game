@@ -169,6 +169,19 @@ export function formatNumber(value: number, decimals = 0): string {
 }
 
 /**
+ * Format a multiplier (`×1.25`, `×3`) — the fractional part is the whole point,
+ * so this bypasses notation entirely below 1000, where every notation floors to
+ * an integer and would render every bonus as a flat "1". Two decimals, trailing
+ * zeros trimmed; large multipliers fall back to the configured notation.
+ */
+export function formatMultiplier(value: number): string {
+  if (!isFinite(value)) return String(value)
+  if (Math.abs(value) >= 1000) return formatNumber(value)
+  const text = value.toFixed(2).replace(/\.?0+$/, '')
+  return applyDecimalSeparator(text, current.decimalSeparator)
+}
+
+/**
  * Format a number in an explicit notation / decimal separator, independent of
  * the persisted settings. Used to render settings previews that show the same
  * value across every notation without mutating global state.
