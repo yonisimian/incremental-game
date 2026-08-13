@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@game/shared": "workspace:*",
-    "ws": "~8.21.0"
+    "ws": "~8.21.3"
   },
   "devDependencies": {
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.2.0",
     "@types/ws": "~8.18.0",
-    "@vitest/coverage-v8": "~4.1.9",
-    "tsx": "~4.22.4",
+    "@vitest/coverage-v8": "~4.1.10",
+    "tsx": "~4.23.11",
     "typescript": "~6.0.3",
-    "vitest": "~4.1.9"
+    "vitest": "~4.1.10"
   }
 }
