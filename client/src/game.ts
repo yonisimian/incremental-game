@@ -44,6 +44,8 @@ import {
   getAttackName,
   getAttackIcon,
   getResourceIcon,
+  getGeneratorIcon,
+  getGeneratorName,
 } from '@game/shared'
 import {
   getSeq,
@@ -833,11 +835,16 @@ function showAttackEvents(
   for (const ev of events) {
     const name = getAttackName(flavor, ev.attack)
     const icon = getAttackIcon(flavor, ev.attack)
-    const amount = `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
+    // A resource theft reads as a quantity ("50 🪵"); a generator theft as a
+    // count of copies ("×2 🪚 Sawmill"), since the loss is production, not stock.
+    const what =
+      ev.kind === 'resource'
+        ? `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
+        : `×${ev.count} ${getGeneratorIcon(flavor, ev.generator)} ${getGeneratorName(flavor, ev.generator)}`
     if (ev.direction === 'outgoing') {
-      spawnAttackToast(`${icon} ${name}: stole ${amount}`, 'outgoing')
+      spawnAttackToast(`${icon} ${name}: stole ${what}`, 'outgoing')
     } else {
-      spawnAttackToast(`${icon} ${name}: lost ${amount}`, 'incoming')
+      spawnAttackToast(`${icon} ${name}: lost ${what}`, 'incoming')
       shakeScreen('medium')
     }
   }

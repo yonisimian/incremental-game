@@ -64,6 +64,7 @@ describe('effect registry', () => {
       'lowerTierBoost',
       'panelUnlock',
       'relativeModifier',
+      'stealGenerator',
       'stealResource',
       'systemUnlock',
       'unlockAttack',

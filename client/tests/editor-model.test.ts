@@ -672,6 +672,34 @@ describe('generators', () => {
     expect(entry.scaleFactor).toBe(2)
   })
 
+  // A `stealGenerator` on an attack points at a generator just like
+  // `generatorCost`/`generatorUnlock` do, so it must cascade on rename and block
+  // deletion — otherwise the edit leaves a dangling id the loader rejects.
+  it('renameGenerator rewrites a stealGenerator reference', () => {
+    const tree = idler()
+    const id = tree.generators[0].id
+    tree.attacks[0].effects = [
+      ...(tree.attacks[0].effects ?? []),
+      { type: 'stealGenerator', generator: id, fraction: 0.5 },
+    ]
+    expect(renameGenerator(tree, id, 'gmega')).toBe(true)
+    const steal = tree.attacks[0].effects.find((e) => e.type === 'stealGenerator')!
+    expect(steal.generator).toBe('gmega')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('removeGenerator refuses a generator a stealGenerator still names', () => {
+    const tree = idler()
+    const id = tree.generators[0].id
+    tree.attacks[0].effects = [
+      ...(tree.attacks[0].effects ?? []),
+      { type: 'stealGenerator', generator: id, count: 2 },
+    ]
+    const result = removeGenerator(tree, id)
+    expect(result.ok).toBe(false)
+    expect(tree.generators.some((g) => g.id === id)).toBe(true)
+  })
+
   it('removeGenerator drops an unreferenced generator and stays loadable', () => {
     const tree = idler()
     const id = addGenerator(tree)

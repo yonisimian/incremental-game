@@ -138,6 +138,40 @@
     {
       "id": "a3",
       "kind": "passive"
+    },
+    {
+      "id": "a4",
+      "kind": "active",
+      "prepareCost": {
+        "r1": {
+          "baseCost": 10
+        }
+      },
+      "prepareTimeSec": 3,
+      "effects": [
+        {
+          "type": "stealGenerator",
+          "generator": "g0",
+          "fraction": 0.5
+        }
+      ]
+    },
+    {
+      "id": "a5",
+      "kind": "active",
+      "prepareCost": {
+        "r1": {
+          "baseCost": 10
+        }
+      },
+      "prepareTimeSec": 3,
+      "effects": [
+        {
+          "type": "stealGenerator",
+          "generator": "g2",
+          "count": 1
+        }
+      ]
     }
   ],
   "pacts": [
@@ -593,6 +627,18 @@
           "description": ""
         },
         {
+          "id": "node-5",
+          "name": "node-5",
+          "icon": "💥",
+          "description": "Unlock Raid Woodcutters"
+        },
+        {
+          "id": "node-6",
+          "name": "node-6",
+          "icon": "💥",
+          "description": "Unlock Poach Sawmill"
+        },
+        {
           "id": "pact-node",
           "name": "pact-node",
           "icon": "🤝",
@@ -663,6 +709,18 @@
           "name": "Second Passive Attack",
           "icon": "💥",
           "description": ""
+        },
+        {
+          "id": "a4",
+          "name": "Raid Woodcutters",
+          "icon": "🪓",
+          "description": "Steal half the enemy's Woodcutters — they produce for you from now on. (does not affect score)"
+        },
+        {
+          "id": "a5",
+          "name": "Poach Sawmill",
+          "icon": "🏗️",
+          "description": "Steal one of the enemy's Sawmills, even one you haven't unlocked yourself. (does not affect score)"
         }
       ],
       "pacts": [
@@ -1954,6 +2012,44 @@
           "offset": {
             "x": -48,
             "y": 192
+          }
+        },
+        {
+          "id": "node-5",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a4"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 288
+          }
+        },
+        {
+          "id": "node-6",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "a5"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 288
           }
         }
       ]
