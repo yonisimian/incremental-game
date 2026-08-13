@@ -59,6 +59,90 @@ describe('Bot', () => {
       },
     ]
 
+    // ── Lantern duty cycle ────────────────────────────────────────
+
+    describe('lantern duty cycle', () => {
+      /** The real idler mode (its tree carries the lantern nodes), no generators. */
+      const mode: ModeDefinition = { ...getModeDefinition('idler'), generators: [] }
+
+      function stateWith(upgrades: Record<string, number>, meta: Record<string, unknown>) {
+        return {
+          score: 0,
+          resources: { r0: 0, r1: 0 },
+          generators: {},
+          pendingAttacks: [],
+          upgrades,
+          meta,
+        }
+      }
+      /** Lantern owned, bare — at the shipped defaults this is exactly break-even. */
+      const lantern = { 'sh-unlock': 1, 'shb-unlock': 1 }
+      /** One Brighter Flame tips cycling ahead of holding. */
+      const cycling = { ...lantern, 'shb-bp': 1 }
+      const highlightOf = (actions: ReturnType<IdlerBot['decide']>) =>
+        actions.filter((a) => a.type === 'set_highlight')
+
+      it('holds the highlight when there is no lantern', () => {
+        const bot = new IdlerBot(mode)
+        const actions = bot.decide(stateWith({ 'sh-unlock': 1 }, { highlight: null }))
+        expect(highlightOf(actions)).toEqual([{ type: 'set_highlight', highlight: 'r0' }])
+      })
+
+      it('releases the highlight once the lantern runs dry', () => {
+        const bot = new IdlerBot(mode)
+        const actions = bot.decide(stateWith(cycling, { highlight: 'r0', hlCharge: 0 }))
+        expect(highlightOf(actions)).toEqual([{ type: 'set_highlight', highlight: null }])
+      })
+
+      it('keeps holding while the lantern still has oil', () => {
+        const bot = new IdlerBot(mode)
+        expect(
+          highlightOf(bot.decide(stateWith(cycling, { highlight: 'r0', hlCharge: 5 }))),
+        ).toEqual([])
+      })
+
+      it('stays released until the lantern is full, then resumes', () => {
+        const bot = new IdlerBot(mode)
+        // Drain -> release.
+        bot.decide(stateWith(cycling, { highlight: 'r0', hlCharge: 0 }))
+        // Partly refilled: still recharging, so no switch back yet.
+        expect(
+          highlightOf(bot.decide(stateWith(cycling, { highlight: null, hlCharge: 15 }))),
+        ).toEqual([])
+        // Full: resume holding.
+        expect(
+          highlightOf(bot.decide(stateWith(cycling, { highlight: null, hlCharge: 20 }))),
+        ).toEqual([{ type: 'set_highlight', highlight: 'r0' }])
+      })
+
+      it('holds forever rather than cycling a bare lantern', () => {
+        // At the shipped defaults (×1.5 factor, equal rates, ×2 highlight) the two
+        // policies tie exactly, so releasing would buy nothing — see `worthCycling`.
+        const bot = new IdlerBot(mode)
+        expect(
+          highlightOf(bot.decide(stateWith(lantern, { highlight: 'r0', hlCharge: 0 }))),
+        ).toEqual([])
+      })
+
+      it('holds forever when a strong highlight multiplier outweighs the lantern', () => {
+        // Clearer Lens compounds the highlight bonus, so the multiplier given up
+        // while recharging grows faster than the lantern's share of it.
+        const bot = new IdlerBot(mode)
+        const actions = bot.decide(
+          stateWith({ ...cycling, 'sh-mf-hp': 20 }, { highlight: 'r0', hlCharge: 0 }),
+        )
+        expect(highlightOf(actions)).toEqual([])
+      })
+
+      it('cycles when a slower burn stretches the hold instead', () => {
+        const bot = new IdlerBot(mode)
+        const actions = bot.decide(
+          stateWith({ ...lantern, 'shb-mf-ds': 1 }, { highlight: 'r0', hlCharge: 0 }),
+        )
+        expect(highlightOf(actions)).toEqual([{ type: 'set_highlight', highlight: null }])
+      })
+    })
+
     it('stays on r0 highlight first (for be-af-mr)', () => {
       const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {

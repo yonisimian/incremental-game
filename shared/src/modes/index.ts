@@ -9,6 +9,8 @@ import type {
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
+import { readHighlight } from '../highlight.js'
+import { batteryFactor } from '../highlight-battery.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
@@ -41,9 +43,9 @@ import {
   allPactIds,
   anyOwned,
   attackGateUpgrades,
+  isHighlightActive,
   pactGateUpgrades,
   panelGateUpgrades,
-  systemGateUpgrades,
 } from '../unlock-gates.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -130,7 +132,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   validateUpgradePrerequisites(def.upgrades)
   validateUpgradeChoiceGroups(def.upgrades)
 
-  // highlightEnabled ↔ initialMeta consistency
+  // highlightEnabled ↔ initialMeta consistency. The *key* must be present, but
+  // `null` is a valid value — it means the round opens with nothing highlighted
+  // (see `readHighlight`). Requiring the key keeps that an authored choice rather
+  // than an omission.
   if (def.highlightEnabled && !('highlight' in def.initialMeta))
     throw new Error(`[${id}] highlightEnabled is true but initialMeta has no 'highlight' key`)
 
@@ -534,38 +539,45 @@ export function isMaxed(upgrade: UpgradeDefinition, ownedCount: number): boolean
 }
 
 // ─── Highlight ────────────────────────────────────────────────────────
+//
+// The `is*Unlocked` / `is*Active` system predicates live in `unlock-gates`.
 
 /**
- * Whether an input system is unlocked: gated by any upgrade carrying a
- * `systemUnlock` effect naming it (locked until one is owned). A system that no
- * upgrade gates is always unlocked. Callers check the relevant `*Enabled` flag
- * first.
+ * Apply a highlight selection to `state`, returning whether it was accepted.
+ *
+ * The one validator for the mechanic: the highlight must be unlocked, and the
+ * selection must be either a resource this mode declares or `null` (release).
+ * Every writer goes through here — the server's player and bot paths, the
+ * client's prediction and its reconciliation replay, and the simulator — so a
+ * selection can't be legal on one and silently dropped on another.
  */
-function isSystemUnlocked(
-  state: Readonly<PlayerState>,
+export function applyHighlightSelection(
+  state: PlayerState,
   mode: ModeDefinition,
-  system: string,
+  highlight: string | null,
 ): boolean {
-  const gates = systemGateUpgrades(mode, system)
-  if (!gates) return true // no upgrade gates this system → always available
-  return anyOwned(state, gates)
-}
-
-/** Whether the highlight mechanic is currently active for this player. */
-export function isHighlightActive(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
-  if (!mode.highlightEnabled) return false
-  return isSystemUnlocked(state, mode, 'highlight')
+  if (!isHighlightActive(state, mode)) return false
+  if (highlight !== null && !mode.resources.includes(highlight)) return false
+  state.meta.highlight = highlight
+  return true
 }
 
 /**
- * The multiplicative bonus currently applied to the highlighted resource by
- * `highlightMultiplier` effects — mode-level effects (always on) and owned
- * upgrades (compounding `multiplier ^ owned`, matching `collectModifiers`).
- * Returns `1` when nothing boosts the highlight. Independent of *which* resource
- * is highlighted (the factor only moves between resources).
+ * The multiplicative bonus currently applied to the highlighted resource:
+ * `highlightMultiplier` effects — mode-level (always on) and owned upgrades
+ * (compounding `multiplier ^ owned`, matching `collectModifiers`) — times the
+ * highlight battery's current factor.
+ *
+ * Returns `1` when nothing boosts the highlight, and also while nothing is
+ * highlighted, since the effects go inactive with no resource to land on.
+ * Otherwise independent of *which* resource is highlighted (the factor only
+ * moves between resources).
  */
 export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeDefinition): number {
-  let mult = 1
+  // Released → no bonus lands anywhere, so report neutral rather than the
+  // battery factor alone (which has no resource to multiply).
+  if (readHighlight(state) === null) return 1
+  let mult = batteryFactor(state, mode)
 
   const accumulate = (refs: readonly EffectRef[] | undefined, owned: number): void => {
     for (const ref of refs ?? []) {
@@ -584,12 +596,6 @@ export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeD
     if (owned > 0) accumulate(upgrade.effects, owned)
   }
   return mult
-}
-
-/** Whether the click mechanic is currently active for this player. */
-export function isClickUnlocked(state: Readonly<PlayerState>, mode: ModeDefinition): boolean {
-  if (!mode.clicksEnabled) return false
-  return isSystemUnlocked(state, mode, 'click')
 }
 
 /**
@@ -804,6 +810,19 @@ function collectRawModifiers(
     for (const ref of upgrade.effects ?? []) {
       routeEffect(applyEffect(ref, state, mode), owned)
     }
+  }
+
+  // The highlight battery multiplies the highlighted resource on top of whatever
+  // `highlightMultiplier` effects already gave it. Applied here rather than as a
+  // registered effect for two reasons: its parameters are *already* folded across
+  // every owning upgrade by `collectBatteryParams`, so routing it through
+  // `routeBaseModifier` would compound the owned count a second time; and an
+  // effect that reads the battery would close an import cycle
+  // (`effects/index` → seed → `highlight-battery` → `effects/index`).
+  const highlight = readHighlight(state)
+  if (highlight !== null) {
+    const factor = batteryFactor(state, mode)
+    if (factor !== 1) routeModifier({ stage: 'multiplicative', field: highlight, value: factor })
   }
 
   return { modifiers, generatorModifiers }

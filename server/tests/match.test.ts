@@ -689,7 +689,21 @@ describe('Match', () => {
       return m
     }
 
-    function highlightMsg(highlight: string, seq: number) {
+    /**
+     * Enter idler with the highlight *and* the lantern (shb-unlock) owned, and
+     * `highlight` selected. Resources are granted rather than accumulated so the
+     * battery's opening charge isn't spent waiting to afford the unlock.
+     */
+    function enterIdlerWithBattery(highlight: string | null = 'r0') {
+      const m = enterIdlerWithHighlight()
+      m.grantResourcesForTest('p1', { r0: 1000 })
+      m.handleMessage('p1', buyMsg('shb-unlock', 2))
+      m.handleMessage('p1', highlightMsg(highlight, 3))
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      return m
+    }
+
+    function highlightMsg(highlight: string | null, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
         seq,
@@ -763,6 +777,77 @@ describe('Match', () => {
       const r1Delta = after.player.resources.r1 - before.player.resources.r1
       expect(r0Delta).toBeCloseTo(1, 0)
       expect(r1Delta).toBeCloseTo(2, 0)
+    })
+
+    it('releasing the highlight drops production back to the base rate', () => {
+      const m = enterIdlerWithHighlight()
+      m.handleMessage('p1', highlightMsg(null, 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      expect(before.player.meta.highlight).toBeNull()
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(1000)
+      const after = latestUpdate(ws1)
+      // Nothing highlighted → neither resource gets the ×2.
+      expect(after.player.resources.r0 - before.player.resources.r0).toBeCloseTo(1, 0)
+      expect(after.player.resources.r1 - before.player.resources.r1).toBeCloseTo(1, 0)
+    })
+
+    it('ignores a highlight naming an unknown resource', () => {
+      const m = enterIdlerWithHighlight()
+      m.handleMessage('p1', highlightMsg('nope', 2))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.meta.highlight).toBe('r0')
+    })
+
+    it('seeds the lantern at half capacity and drains it while held', () => {
+      enterIdlerWithBattery('r0')
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const seeded = latestUpdate(ws1).player.meta.hlCharge as number
+      // Default capacity is 20, so it opens at 10 minus whatever already drained.
+      expect(seeded).toBeGreaterThan(8)
+      expect(seeded).toBeLessThanOrEqual(10)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(2000)
+      // Drains at 1/sec while a resource is held.
+      expect(latestUpdate(ws1).player.meta.hlCharge as number).toBeCloseTo(seeded - 2, 1)
+    })
+
+    it('refills the lantern while the highlight is released', () => {
+      enterIdlerWithBattery(null)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const seeded = latestUpdate(ws1).player.meta.hlCharge as number
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(2000)
+      expect(latestUpdate(ws1).player.meta.hlCharge as number).toBeCloseTo(seeded + 2, 1)
+    })
+
+    it('boosts the held resource while charged, then snaps back at empty', () => {
+      enterIdlerWithBattery('r0')
+      // Charged: base 1 × 2 (highlight) × 1.5 (lantern) = 3/sec.
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const before = latestUpdate(ws1)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(1000)
+      const charged = latestUpdate(ws1)
+      expect(charged.player.resources.r0 - before.player.resources.r0).toBeCloseTo(3, 0)
+
+      // Run it dry, then measure again: the ×1.5 is gone but the ×2 remains.
+      vi.advanceTimersByTime(30_000)
+      expect(latestUpdate(ws1).player.meta.hlCharge).toBe(0)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      const empty = latestUpdate(ws1)
+      ;(ws1.send as ReturnType<typeof vi.fn>).mockClear()
+      vi.advanceTimersByTime(1000)
+      const after = latestUpdate(ws1)
+      expect(after.player.resources.r0 - empty.player.resources.r0).toBeCloseTo(2, 0)
+    })
+
+    it('never grows a charge key for a player without the lantern', () => {
+      enterIdlerWithHighlight()
+      vi.advanceTimersByTime(2000)
+      expect(latestUpdate(ws1).player.meta.hlCharge).toBeUndefined()
     })
 
     it('Heavy Logging adds +5 base r0/sec', () => {

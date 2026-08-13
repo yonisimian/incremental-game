@@ -14,6 +14,7 @@ import {
   computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
+  advanceHighlightBattery,
   applyPurchase,
   applyGeneratorPurchase,
   creditResource,
@@ -29,7 +30,7 @@ import {
   ENEMY_DATA_PURCHASE_UPGRADE_KEY,
   ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
-  isHighlightActive,
+  applyHighlightSelection,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -420,13 +421,10 @@ export class Match {
         if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue
         this.applyPurchase(player, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, player)) break
-      } else if (action.type === 'set_highlight' && action.highlight) {
-        if (
-          isHighlightActive(player.state, this.modeDef) &&
-          this.modeDef.resources.includes(action.highlight)
-        ) {
-          player.state.meta.highlight = action.highlight
-        }
+      } else if (action.type === 'set_highlight' && action.highlight !== undefined) {
+        // `null` is a real selection (release the highlight); only `undefined`
+        // means the action carries none.
+        applyHighlightSelection(player.state, this.modeDef, action.highlight)
       } else if (action.type === 'buy_generator' && action.generatorId) {
         if (!isValidGeneratorPurchase(player.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(player.state, action.generatorId, this.modeDef)
@@ -481,19 +479,18 @@ export class Match {
         applyGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)
         this.recordPurchase(botPlayer, 'generator', action.generatorId)
       } else {
-        // set_highlight — validate identically to processActions
-        if (
-          isHighlightActive(botPlayer.state, this.modeDef) &&
-          this.modeDef.resources.includes(action.highlight)
-        ) {
-          botPlayer.state.meta.highlight = action.highlight
-        }
+        // set_highlight — same validator as processActions, by construction now.
+        applyHighlightSelection(botPlayer.state, this.modeDef, action.highlight)
       }
     }
   }
 
   private applyPassiveIncome(player: MatchPlayer, opponent: MatchPlayer): void {
     const tickSec = TICK_INTERVAL_MS / 1000
+    // Advance the highlight battery first: its charge feeds the modifiers
+    // collected below, so this tick's income must be priced off this tick's
+    // charge (see `advanceHighlightBattery`).
+    advanceHighlightBattery(player.state, this.modeDef, tickSec)
     // The defender's own modifiers plus the offensive debuffs the opponent's
     // unlocked passive attacks inflict (e.g. a -10% wood-production attack).
     const modifiers = [

@@ -321,7 +321,7 @@ export function initQueueSim(pane: HTMLElement): void {
         set('#q-generator', action.generatorId)
         break
       case 'set_highlight':
-        set('#q-resource', action.highlight)
+        set('#q-resource', action.highlight ?? '')
         break
       case 'set_click_rate':
         set('#q-resource', action.resource ?? '')
@@ -366,11 +366,9 @@ export function initQueueSim(pane: HTMLElement): void {
         if (!id) return fail('Select a target.')
         return { kind, generatorId: id }
       }
-      case 'set_highlight': {
-        const res = val('#q-resource')
-        if (!res) return fail('Select a resource.')
-        return { kind, highlight: res }
-      }
+      case 'set_highlight':
+        // Blank means release, so there's nothing to reject here.
+        return { kind, highlight: val('#q-resource') || null }
       case 'set_click_rate': {
         const cps = Number(val('#q-cps'))
         if (!Number.isFinite(cps) || cps < 0 || cps > MAX_CPS)
@@ -805,7 +803,9 @@ function paramsHtml(kind: SimAction['kind'], mode: ModeDefinition): string {
     case 'sell_generator':
       return `<label>Generator <select id="q-generator">${optionsHtml(generatorOptions(mode))}</select></label>`
     case 'set_highlight':
-      return `<label>Resource <select id="q-resource">${optionsHtml(resourceOptions(mode))}</select></label>`
+      // The blank option is the release — "highlight nothing" is a selection the
+      // queue must be able to express, not an unfilled form.
+      return `<label>Resource <select id="q-resource">${optionsHtml(resourceOptions(mode), 'release (none)')}</select></label>`
     case 'set_click_rate':
       return `
         <label>Resource <select id="q-resource">${optionsHtml(resourceOptions(mode), 'score (default)')}</select></label>

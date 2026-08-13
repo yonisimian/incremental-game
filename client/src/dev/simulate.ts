@@ -9,6 +9,7 @@ import type { GameMode, ModeDefinition, PlayerState } from '@game/shared'
 import {
   TICK_INTERVAL_MS,
   applyPassiveTick,
+  advanceHighlightBattery,
   applyPurchase,
   collectModifiers,
   computePassiveRates,
@@ -115,7 +116,8 @@ export function simulate(strategy: Strategy, mode: GameMode, options?: SimulateO
   for (let tick = 0; tick < totalTicks; tick++) {
     const timeSec = (tick + 1) * tickSec
 
-    // Step 1: passive income
+    // Step 1: passive income (battery first — its charge feeds the modifiers)
+    advanceHighlightBattery(state, modeDef, tickSec)
     const modifiers = collectModifiers(state, modeDef)
     applyPassiveTick(state, modeDef.resources, modeDef.scoreResource, modifiers, tickSec)
 

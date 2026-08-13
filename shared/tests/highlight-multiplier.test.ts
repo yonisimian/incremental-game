@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { getHighlightMultiplier } from '../src/modes/index.js'
+import { collectModifiers, getHighlightMultiplier } from '../src/modes/index.js'
+import { computePassiveRates } from '../src/modifiers/pipeline.js'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { EffectRef, PlayerState, UpgradeDefinition } from '../src/types.js'
 
@@ -50,6 +51,7 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
   }
 }
 
+/** A state with `r0` highlighted — the multiplier is inactive without one. */
 function makeState(overrides?: Partial<PlayerState>): PlayerState {
   return {
     score: 0,
@@ -57,7 +59,7 @@ function makeState(overrides?: Partial<PlayerState>): PlayerState {
     upgrades: {},
     generators: {},
     pendingAttacks: [],
-    meta: {},
+    meta: { highlight: 'r0' },
     ...overrides,
   }
 }
@@ -103,5 +105,37 @@ describe('getHighlightMultiplier', () => {
     const mode = makeMode({ effects: [{ type: 'highlightMultiplier', multiplier: 2 }] })
     expect(getHighlightMultiplier(makeState({ meta: { highlight: 'r0' } }), mode)).toBe(2)
     expect(getHighlightMultiplier(makeState({ meta: { highlight: 'r1' } }), mode)).toBe(2)
+  })
+
+  it('is inactive while nothing is highlighted', () => {
+    const mode = makeMode({
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      upgrades: [makeUpgrade('uh', [{ type: 'highlightMultiplier', multiplier: 3 }])],
+    })
+    const owned = { uh: 1 }
+    // Released, absent, and a non-string all mean "nothing highlighted" — none of
+    // them may fall back to a resource and hand out a multiplier.
+    expect(
+      getHighlightMultiplier(makeState({ upgrades: owned, meta: { highlight: null } }), mode),
+    ).toBe(1)
+    expect(getHighlightMultiplier(makeState({ upgrades: owned, meta: {} }), mode)).toBe(1)
+  })
+})
+
+describe('highlightMultiplier in the pipeline', () => {
+  const mode = makeMode({
+    effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+    nativeModifiers: [{ stage: 'additive', field: 'b0', value: 5 }],
+  })
+  const rates = (highlight: string | null): Record<string, number> =>
+    computePassiveRates(collectModifiers(makeState({ meta: { highlight } }), mode), mode.resources)
+
+  it('boosts only the highlighted resource', () => {
+    expect(rates('r0').r0).toBe(10)
+    expect(rates('r1').r0).toBe(5)
+  })
+
+  it('leaves production unmultiplied while nothing is highlighted', () => {
+    expect(rates(null).r0).toBe(5)
   })
 })

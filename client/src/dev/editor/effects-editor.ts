@@ -329,7 +329,7 @@ export interface EffectGroup {
  */
 export const EFFECT_GROUPS: readonly EffectGroup[] = [
   { label: 'Production', types: ['baseModifier', 'relativeModifier', 'enemyProductionModifier'] },
-  { label: 'Highlight', types: ['highlightMultiplier'] },
+  { label: 'Highlight', types: ['highlightMultiplier', 'batteryStat', 'batteryBand'] },
   {
     label: 'Generators',
     types: [

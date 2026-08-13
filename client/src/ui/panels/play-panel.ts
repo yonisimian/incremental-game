@@ -1,6 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
-import { doClick, setHighlight, getClickTarget } from '../../game.js'
+import { doClick, toggleHighlight, getClickTarget } from '../../game.js'
 import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
@@ -10,15 +10,11 @@ import {
   getResourceName,
   isClickUnlocked,
   isHighlightActive,
+  isHighlightBatteryActive,
+  readHighlight,
 } from '@game/shared'
 import type { ModeDefinition } from '@game/shared'
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function getHighlight(state: Readonly<GameState>): string {
-  const modeDef = getModeDefinition(state.mode!)
-  return (state.player.meta.highlight as string | undefined) ?? modeDef.resources[0]
-}
+import { BATTERY_BAR_ID, renderBatteryBar, syncBatteryBar } from './battery-bar.js'
 
 // ─── Play Panel ────────────────────────────────────────────────
 
@@ -57,14 +53,14 @@ function renderCurrencyCards(state: Readonly<GameState>): string {
   const modeDef = getModeDefinition(state.mode!)
   if (!isHighlightActive(state.player, modeDef)) return ''
   const flavor = getModeFlavor(modeDef)
-  const highlight = getHighlight(state)
+  const highlight = readHighlight(state.player)
 
   const cards = modeDef.resources
     .map((key) => {
       const balance = formatNumber(state.player.resources[key])
       const isHighlighted = highlight === key
       return `
-      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}">
+      <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}" aria-pressed="${isHighlighted}">
         <span class="card-emoji">${getResourceIcon(flavor, key)}</span>
         <span class="card-name">${getResourceName(flavor, key)}</span>
         <span class="card-balance" id="${key}-balance">${balance}</span>
@@ -86,17 +82,22 @@ function renderIdlerContent(state: Readonly<GameState>): string {
   // themselves come and go as their gates flip, so they can't be the anchor.
   return `
     <div class="play-content" id="play-content">
+      ${renderBatteryBar(state)}
       ${renderCurrencyCards(state)}
       ${renderClickButtons(state)}
     </div>
   `
 }
 
-/** Attach highlight-select listeners to the currency cards currently in the DOM. */
+/**
+ * Attach highlight-select listeners to the currency cards currently in the DOM.
+ * Clicking the held card releases the highlight — the only way to get back to
+ * "nothing highlighted" with the mouse.
+ */
 function bindCurrencyCards(modeDef: ModeDefinition): void {
   for (const key of modeDef.resources) {
     document.getElementById(`card-${key}`)?.addEventListener('click', () => {
-      setHighlight(key)
+      toggleHighlight(key)
     })
   }
 }
@@ -130,13 +131,30 @@ export const playPanel: Panel = {
     const root = document.getElementById('play-content')
     if (!root) return
 
+    // Lantern bar: present only once the battery is unlocked, and always above
+    // the selector cards it belongs to. Same inject/remove-on-gate-flip pattern
+    // as the cards below.
+    const batteryUnlocked = isHighlightBatteryActive(state.player, modeDef)
+    const bar = document.getElementById(BATTERY_BAR_ID)
+    if (batteryUnlocked && !bar) {
+      root.insertAdjacentHTML('afterbegin', renderBatteryBar(state))
+    } else if (!batteryUnlocked && bar) {
+      bar.remove()
+    }
+    // Re-anchors the extrapolation from this snapshot and (re)starts its rAF loop.
+    syncBatteryBar(state)
+
     // Highlight selector cards: present only while highlighting is unlocked.
     // Inject/remove on the frame the gate flips (mid-match purchase) so the
     // resource blocks aren't shown until the player can actually highlight them.
     const highlightUnlocked = isHighlightActive(state.player, modeDef)
     let cards = root.querySelector('.currency-cards')
     if (highlightUnlocked && !cards) {
-      root.insertAdjacentHTML('afterbegin', renderCurrencyCards(state))
+      // Keep DOM order (lantern bar first); fall back to the panel start when the
+      // bar is absent (battery still locked).
+      const barEl = document.getElementById(BATTERY_BAR_ID)
+      if (barEl) barEl.insertAdjacentHTML('afterend', renderCurrencyCards(state))
+      else root.insertAdjacentHTML('afterbegin', renderCurrencyCards(state))
       cards = root.querySelector('.currency-cards')
       bindCurrencyCards(modeDef)
     } else if (!highlightUnlocked && cards) {
@@ -144,10 +162,12 @@ export const playPanel: Panel = {
       cards = null
     }
     if (cards) {
-      const highlight = getHighlight(state)
+      const highlight = readHighlight(state.player)
       for (const key of modeDef.resources) {
         setText(`${key}-balance`, formatNumber(state.player.resources[key]))
-        document.getElementById(`card-${key}`)?.classList.toggle('highlighted', highlight === key)
+        const card = document.getElementById(`card-${key}`)
+        card?.classList.toggle('highlighted', highlight === key)
+        card?.setAttribute('aria-pressed', String(highlight === key))
       }
     }
 

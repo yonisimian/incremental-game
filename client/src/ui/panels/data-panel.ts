@@ -10,12 +10,17 @@ import {
   type ModeFlavor,
   type Modifier,
   type ResourceRateBreakdown,
+  batteryFactor,
+  collectBatteryParams,
   collectDynamicBonuses,
   collectGeneratorOutputs,
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
   getHighlightMultiplier,
+  isHighlightBatteryActive,
+  readBatteryCharge,
+  readHighlight,
   getModeDefinition,
   getModeFlavor,
   getGeneratorIcon,
@@ -41,6 +46,17 @@ function formatRate(rate: number): string {
 function formatAmount(rate: number): string {
   return formatDecimal(rate, 1)
 }
+
+/**
+ * A small quantity rendered faithfully (`0.25`, `9.5`, `20`).
+ *
+ * Every notation floors below 1000, so `formatNumber` turns a charge of 0.25 into
+ * "0" and a drain of 0.73/s into "-0/s" — both actively misleading next to a
+ * multiplier that is plainly still paying out. `formatMultiplier` is the existing
+ * escape hatch from that flooring; the alias keeps the call sites honest about
+ * what they're formatting.
+ */
+const formatQuantity = formatMultiplier
 
 /** Percentage share of `part` out of `total` (0 when total is 0). */
 function share(part: number, total: number): number {
@@ -344,15 +360,49 @@ function renderSkeleton(
       )
     : ''
 
-  const dwellRows = modeDef.resources
-    .map(
+  const dwellRows = [
+    ...modeDef.resources.map(
       (r) => `
           <div class="data-stat">
             <span class="data-stat-label">${getResourceIcon(flavor, r)} ${getResourceName(flavor, r)}</span>
             <span class="data-stat-value" id="data-hl-dwell-${r}">—</span>
           </div>`,
-    )
-    .join('')
+    ),
+    // Released time closes the round out: the resource rows plus this one account
+    // for the whole clock.
+    `
+          <div class="data-stat">
+            <span class="data-stat-label">🚫 Released</span>
+            <span class="data-stat-value" id="data-hl-released">—</span>
+          </div>`,
+  ].join('')
+
+  // Battery rows live under Highlight rather than in a section of their own: it's
+  // one mechanic, and the multiplier above already includes the battery's share.
+  // The whole block is `hidden` until the lantern is bought — `update` unhides it,
+  // since the skeleton is rendered once per round while the gate can flip mid-round.
+  const battery = `
+        <div id="data-battery" hidden>
+          <p class="data-subhead">🪔 Lantern</p>
+          <div class="data-stat-grid">
+            <div class="data-stat">
+              <span class="data-stat-label">Charge</span>
+              <span class="data-stat-value" id="data-bat-charge">—</span>
+            </div>
+            <div class="data-stat">
+              <span class="data-stat-label">Its multiplier</span>
+              <span class="data-stat-value" id="data-bat-factor">—</span>
+            </div>
+            <div class="data-stat">
+              <span class="data-stat-label">Net</span>
+              <span class="data-stat-value" id="data-bat-net">—</span>
+            </div>
+            <div class="data-stat">
+              <span class="data-stat-label" id="data-bat-eta-label">Runs dry in</span>
+              <span class="data-stat-value" id="data-bat-eta">—</span>
+            </div>
+          </div>
+        </div>`
 
   const highlight = modeDef.highlightEnabled
     ? renderSection(
@@ -369,6 +419,7 @@ function renderSkeleton(
             <span class="data-stat-value" id="data-hl-mult">—</span>
           </div>
         </div>
+        ${battery}
         <p class="data-subhead">Time highlighted</p>
         <div class="data-stat-grid">${dwellRows}</div>`,
       )
@@ -464,16 +515,20 @@ function updateNumbers(state: Readonly<GameState>): void {
   // Highlight
   if (modeDef.highlightEnabled) {
     const flavor = getModeFlavor(modeDef)
-    const current = (state.player.meta.highlight as string | undefined) ?? modeDef.scoreResource
+    const current = readHighlight(state.player)
     setText(
       'data-hl-current',
-      `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
+      current === null
+        ? 'Released'
+        : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
     const mult = getHighlightMultiplier(state.player, modeDef)
     setText('data-hl-mult', `×${formatMultiplier(mult)}`)
+    updateBattery(state, modeDef)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)
     }
+    setText('data-hl-released', `${formatNumber(roundStats.releasedSec, 1)}s`)
   }
 
   // Inventory
@@ -483,6 +538,40 @@ function updateNumbers(state: Readonly<GameState>): void {
   setText('data-inv-score', formatNumber(state.player.score))
   setText('data-inv-generators', formatNumber(sumCounts(state.player.generators)))
   setText('data-inv-upgrades', formatNumber(sumCounts(state.player.upgrades)))
+}
+
+/**
+ * Fill the lantern rows, or hide the block while the lantern is locked (the
+ * skeleton is rendered once per round, but the gate can flip mid-round).
+ *
+ * Reads the authoritative charge rather than the play panel's animated
+ * prediction: this is the diagnostics panel, so it should agree with the server
+ * even if that means stepping once per snapshot.
+ */
+function updateBattery(state: Readonly<GameState>, modeDef: ModeDefinition): void {
+  const block = document.getElementById('data-battery')
+  if (!block) return
+  const charge = readBatteryCharge(state.player)
+  const active = charge !== null && isHighlightBatteryActive(state.player, modeDef)
+  block.hidden = !active
+  if (charge === null || !active) return
+
+  const params = collectBatteryParams(state.player, modeDef)
+  const held = readHighlight(state.player) !== null
+  setText('data-bat-charge', `${formatQuantity(charge)} / ${formatQuantity(params.maxCharge)}`)
+  // The battery's own share, not the combined highlight multiplier above.
+  setText('data-bat-factor', `×${formatMultiplier(batteryFactor(state.player, modeDef))}`)
+  const net = held ? -params.drainRate : params.chargeRate
+  setText('data-bat-net', `${net < 0 ? '-' : '+'}${formatQuantity(Math.abs(net))}/s`)
+
+  // Which direction it's heading is the number a player plans against.
+  const rate = held ? params.drainRate : params.chargeRate
+  const remaining = held ? charge : params.maxCharge - charge
+  setText('data-bat-eta-label', held ? 'Runs dry in' : 'Full in')
+  setText(
+    'data-bat-eta',
+    rate <= 0 || remaining <= 0 ? '—' : `${formatNumber(Math.ceil(remaining / rate))}s`,
+  )
 }
 
 /** Set a breakdown-bar segment's width as a percentage. */

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { readHighlight } from '../../highlight.js'
 import type { PlayerState } from '../../types.js'
 import type { BaseModifierOutput, EffectDef } from '../types.js'
 
@@ -22,13 +23,17 @@ export type HighlightMultiplierParams = z.infer<typeof schema>
 /**
  * The effect does not gate itself: as a per-upgrade effect it runs only when its
  * host upgrade is owned; as a mode-level effect it always runs.
+ *
+ * Inactive (returns `null`) while nothing is highlighted — the bonus has no
+ * resource to land on, and defaulting to one would hand out a multiplier the
+ * player never selected.
  */
 function apply(
   p: HighlightMultiplierParams,
   state: Readonly<PlayerState>,
 ): BaseModifierOutput | null {
-  // `?? 'r0'` mirrors the prior idler default when no resource is highlighted.
-  const highlight = (state.meta.highlight as string | undefined) ?? 'r0'
+  const highlight = readHighlight(state)
+  if (highlight === null) return null
   return {
     kind: 'baseModifier',
     stage: 'multiplicative',
