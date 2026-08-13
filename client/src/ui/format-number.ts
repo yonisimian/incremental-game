@@ -169,6 +169,27 @@ export function formatNumber(value: number, decimals = 0): string {
 }
 
 /**
+ * Format a small value without losing its fractional part.
+ *
+ * Every notation floors below 1000 (abbreviation only kicks in above it), which
+ * is right for stockpiles but wrong for the numbers whose decimals *are* the
+ * information — multipliers, per-unit rates. This keeps up to `maxDecimals`
+ * places (trailing zeros trimmed) under 1000 and defers to the configured
+ * notation above it.
+ */
+export function formatDecimal(value: number, maxDecimals = 2): string {
+  if (!isFinite(value)) return String(value)
+  if (Math.abs(value) >= 1000) return formatNumber(value)
+  const text = value.toFixed(maxDecimals).replace(/\.?0+$/, '')
+  return applyDecimalSeparator(text, current.decimalSeparator)
+}
+
+/** Format a multiplier (`1.25`, `3`) — {@link formatDecimal} at two places. */
+export function formatMultiplier(value: number): string {
+  return formatDecimal(value, 2)
+}
+
+/**
  * Format a number in an explicit notation / decimal separator, independent of
  * the persisted settings. Used to render settings previews that show the same
  * value across every notation without mutating global state.

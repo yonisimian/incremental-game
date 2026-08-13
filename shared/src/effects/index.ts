@@ -58,6 +58,7 @@ export {
   normalizeEffectOutputs,
   DEFAULT_EFFECT_HOSTS,
   effectHosts,
+  isDynamicEffect,
   isEffectAllowedOn,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'

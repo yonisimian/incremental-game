@@ -1,12 +1,17 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { roundStats } from '../../stats/round-stats.js'
-import { formatNumber } from '../format-number.js'
+import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
 import {
+  type DynamicBonus,
+  type GeneratorOutput,
   type ModeDefinition,
   type ModeFlavor,
+  type Modifier,
   type ResourceRateBreakdown,
+  collectDynamicBonuses,
+  collectGeneratorOutputs,
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
@@ -17,20 +22,24 @@ import {
   getGeneratorName,
   getResourceIcon,
   getResourceName,
+  getUpgradeName,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
+// Rates keep a decimal here rather than going through `formatNumber` directly:
+// every notation floors below 1000, which would report a +0.5/s generator as
+// "+0/s" — the panel exists to be precise about exactly these numbers.
+
 /** Format a per-second production rate (e.g. "+2/s", "+0.5/s", "-1/s"). */
 function formatRate(rate: number): string {
-  const decimals = Number.isInteger(rate) ? 0 : 1
   const sign = rate < 0 ? '-' : '+'
-  return `${sign}${formatNumber(Math.abs(rate), decimals)}/s`
+  return `${sign}${formatDecimal(Math.abs(rate), 1)}/s`
 }
 
 /** Format a rate without a leading sign (for breakdown sub-rows). */
 function formatAmount(rate: number): string {
-  return formatNumber(rate, Number.isInteger(rate) ? 0 : 1)
+  return formatDecimal(rate, 1)
 }
 
 /** Percentage share of `part` out of `total` (0 when total is 0). */
@@ -44,60 +53,245 @@ function generatorsFor(modeDef: ModeDefinition, resource: string) {
   return modeDef.generators.filter((g) => g.production.resource === resource)
 }
 
+// ─── Collapsible sections ────────────────────────────────────────────
+//
+// Every section (and each resource's per-generator list) can be folded away.
+// Keys are mode-agnostic (`prod:r0`, `gens:r0`, `inventory`, …) and the
+// collapsed set is persisted, so the layout survives tab switches and rounds.
+
+const COLLAPSE_STORAGE_KEY = 'data-panel-collapsed'
+
+const collapsedKeys = loadCollapsed()
+
+function loadCollapsed(): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(COLLAPSE_STORAGE_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((k): k is string => typeof k === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveCollapsed(): void {
+  try {
+    localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify([...collapsedKeys]))
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Fold/unfold the group a toggle button heads (its parent element), and
+ * remember the choice. Collapsed content stays in the DOM — `updateNumbers`
+ * keeps writing to it, so re-expanding shows live numbers immediately.
+ */
+function toggleCollapse(btn: HTMLElement): void {
+  const key = btn.dataset.collapse
+  const group = btn.parentElement
+  if (!key || !group) return
+  const isCollapsed = !group.classList.contains('collapsed')
+  group.classList.toggle('collapsed', isCollapsed)
+  btn.setAttribute('aria-expanded', String(!isCollapsed))
+  if (isCollapsed) collapsedKeys.add(key)
+  else collapsedKeys.delete(key)
+  saveCollapsed()
+}
+
 // ─── Rendering ───────────────────────────────────────────────────────
 
-/** One resource's production + source-breakdown block (stable IDs, filled by update()). */
-function renderResourceBlock(
+/**
+ * A collapsible section card: a clickable header (title + optional `summary`
+ * HTML that stays visible while collapsed) over `body`. Exported for tests.
+ */
+export function renderSection(key: string, title: string, body: string, summary = ''): string {
+  const isCollapsed = collapsedKeys.has(key)
+  return `
+    <section class="data-section${isCollapsed ? ' collapsed' : ''}">
+      <button class="data-section-head" type="button" data-collapse="${key}" aria-expanded="${!isCollapsed}">
+        <span class="data-section-title"><span class="data-caret" aria-hidden="true">▾</span> ${title}</span>
+        ${summary}
+      </button>
+      <div class="data-section-body">${body}</div>
+    </section>
+  `
+}
+
+/**
+ * The "Generators" source row. With generators declared for this resource the
+ * row doubles as a toggle for the per-generator breakdown beneath it;
+ * otherwise it's a plain row (nothing to fold).
+ */
+function renderGeneratorRow(modeDef: ModeDefinition, flavor: ModeFlavor, resource: string): string {
+  const caret = ' <span class="data-caret" aria-hidden="true">▾</span>'
+  const label = (withCaret: boolean): string =>
+    `<span class="data-source-label"><i class="data-swatch data-swatch-gen"></i> Generators${withCaret ? caret : ''}</span>`
+  const value = `<span id="data-src-gen-${resource}">—</span>`
+  const gens = generatorsFor(modeDef, resource)
+  if (gens.length === 0) {
+    return `<div class="data-source-row">${label(false)}${value}</div>`
+  }
+
+  const key = `gens:${resource}`
+  const isCollapsed = collapsedKeys.has(key)
+  const genRows = gens
+    .map(
+      (g) => `
+        <div class="data-gen-entry" id="data-gen-row-${resource}-${g.id}">
+          <div class="data-gen-row">
+            <span class="data-gen-name">${getGeneratorIcon(flavor, g.id)} ${getGeneratorName(flavor, g.id)}</span>
+            <span class="data-gen-rate" id="data-gen-rate-${resource}-${g.id}">—</span>
+          </div>
+          <div class="data-gen-detail" id="data-gen-detail-${resource}-${g.id}">—</div>
+        </div>`,
+    )
+    .join('')
+
+  return `
+    <div class="data-gen-group${isCollapsed ? ' collapsed' : ''}">
+      <button class="data-source-row data-source-toggle" type="button" data-collapse="${key}" aria-expanded="${!isCollapsed}">
+        ${label(true)}
+        ${value}
+      </button>
+      <div class="data-gen-list">${genRows}</div>
+    </div>
+  `
+}
+
+/**
+ * The parts behind a generator's rate, as one line:
+ * `base 2/s ea · add +0.5/s ea · mult ×1.6 · shared ×1.43`.
+ *
+ * The first three are the generator's own numbers, per unit owned, so they stay
+ * readable as the count grows: `(base + add) × owned × mult` is what it feeds
+ * the pipeline. `shared` is what the resource-wide stages (highlight, global
+ * bonuses, enemy debuffs) then do to it — shown only when it isn't ×1, so the
+ * row's rate always reconciles with the parts.
+ */
+function generatorDetail(out: GeneratorOutput, delivered: number): string {
+  const parts = [
+    `base ${formatDecimal(out.ratePerUnit)}/s ea`,
+    `add +${formatDecimal(out.additivePerUnit)}/s ea`,
+    `mult ×${formatMultiplier(out.multiplier)}`,
+  ]
+  const shared = out.effective > 0 ? delivered / out.effective : 1
+  if (Math.abs(shared - 1) > 0.005) parts.push(`shared ×${formatMultiplier(shared)}`)
+  return parts.join(' · ')
+}
+
+// ─── Live bonuses ────────────────────────────────────────────────────
+//
+// Upgrades whose worth moves with the game state — a bank that scales with the
+// stockpile, Socialism/Capitalism tracking generator ownership. Their cards can
+// only state a rule ("1% per 1000 🪵"), so this section reports what the rule is
+// paying right now. Rows are rebuilt (not patched) because both the upgrades on
+// show and the fields they hit change during a round.
+
+/** What a modifier's `field` targets, in flavor terms ("🪵 base", "🪓 Woodcutter"). */
+function targetLabel(field: string, modeDef: ModeDefinition, flavor: ModeFlavor): string {
+  if (field === 'clickIncome') return 'per click'
+  const baseIndex = /^b(\d+)$/.exec(field)?.[1]
+  if (baseIndex !== undefined) {
+    const resource = modeDef.resources[Number(baseIndex)]
+    return resource ? `${getResourceIcon(flavor, resource)} base` : field
+  }
+  if (modeDef.resources.includes(field)) return getResourceIcon(flavor, field)
+  if (modeDef.generators.some((g) => g.id === field)) {
+    return `${getGeneratorIcon(flavor, field)} ${getGeneratorName(flavor, field)}`
+  }
+  return field
+}
+
+/** A modifier's current value ("×1.04", "+3"). */
+function formatModifierValue(m: Modifier): string {
+  return m.stage === 'additive' ? `+${formatAmount(m.value)}` : `×${formatMultiplier(m.value)}`
+}
+
+/**
+ * One upgrade's live contribution. A bonus that hits every resource with the
+ * same value (Socialism) collapses to a single "all" entry instead of repeating
+ * itself per resource.
+ */
+function formatBonus(bonus: DynamicBonus, modeDef: ModeDefinition, flavor: ModeFlavor): string {
+  const [first, ...rest] = bonus.modifiers
+  const uniform = rest.every((m) => m.stage === first.stage && m.value === first.value)
+  const coversEveryResource =
+    bonus.modifiers.length === modeDef.resources.length &&
+    modeDef.resources.every((r) => bonus.modifiers.some((m) => m.field === r))
+  if (uniform && coversEveryResource && modeDef.resources.length > 1) {
+    return `all ${formatModifierValue(first)}`
+  }
+  return bonus.modifiers
+    .map((m) => `${targetLabel(m.field, modeDef, flavor)} ${formatModifierValue(m)}`)
+    .join(', ')
+}
+
+/** The live-bonus rows for the current state (empty when nothing dynamic is active). */
+function renderBonusRows(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string {
+  return collectDynamicBonuses(state.player, modeDef)
+    .map(
+      (bonus) => `
+        <div class="data-bonus-row">
+          <span class="data-bonus-name">${getUpgradeName(flavor, bonus.upgradeId)}</span>
+          <span class="data-bonus-value">${formatBonus(bonus, modeDef, flavor)}</span>
+        </div>`,
+    )
+    .join('')
+}
+
+/** One resource's production + source-breakdown section (stable IDs, filled by update()). */
+function renderResourceSection(
   modeDef: ModeDefinition,
   flavor: ModeFlavor,
   resource: string,
 ): string {
   const icon = getResourceIcon(flavor, resource)
   const name = getResourceName(flavor, resource)
-  const gens = generatorsFor(modeDef, resource)
-  const genRows = gens
-    .map(
-      (g) => `
-        <div class="data-gen-row" id="data-gen-row-${resource}-${g.id}">
-          <span class="data-gen-name">${getGeneratorIcon(flavor, g.id)} ${getGeneratorName(flavor, g.id)}</span>
-          <span class="data-gen-rate" id="data-gen-rate-${resource}-${g.id}">—</span>
-        </div>`,
-    )
-    .join('')
 
-  return `
-    <section class="data-resource" data-resource="${resource}">
-      <div class="data-resource-head">
-        <span class="data-resource-name">${icon} ${name}</span>
-        <span class="data-resource-rate" id="data-total-rate-${resource}">—</span>
-      </div>
+  const body = `
       <div class="data-breakdown">
         <div class="data-bar" role="img" aria-label="Production sources for ${name}">
           <span class="data-bar-seg data-bar-base" id="data-bar-base-${resource}"></span>
           <span class="data-bar-seg data-bar-gen" id="data-bar-gen-${resource}"></span>
-          <span class="data-bar-seg data-bar-upg" id="data-bar-upg-${resource}"></span>
         </div>
         <div class="data-source-row">
           <span class="data-source-label"><i class="data-swatch data-swatch-base"></i> Base</span>
           <span id="data-src-base-${resource}">—</span>
         </div>
-        <div class="data-source-row">
-          <span class="data-source-label"><i class="data-swatch data-swatch-gen"></i> Generators</span>
-          <span id="data-src-gen-${resource}">—</span>
-        </div>
-        <div class="data-source-row">
-          <span class="data-source-label"><i class="data-swatch data-swatch-upg"></i> Upgrades</span>
-          <span id="data-src-upg-${resource}">—</span>
-        </div>
-        ${gens.length > 0 ? `<div class="data-gen-list">${genRows}</div>` : ''}
-      </div>
-    </section>
-  `
+        ${renderGeneratorRow(modeDef, flavor, resource)}
+      </div>`
+
+  // The rate rides in the header, so a collapsed section still shows the total.
+  return renderSection(
+    `prod:${resource}`,
+    `${icon} ${name} production`,
+    body,
+    `<span class="data-resource-rate" id="data-total-rate-${resource}">—</span>`,
+  )
 }
 
 /** Build the full panel skeleton once (numbers filled by update()). */
-function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: boolean): string {
-  const production = modeDef.resources.map((r) => renderResourceBlock(modeDef, flavor, r)).join('')
+function renderSkeleton(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  showScore: boolean,
+): string {
+  const production = modeDef.resources
+    .map((r) => renderResourceSection(modeDef, flavor, r))
+    .join('')
+
+  // Rows are filled here too (not just by update()) so a tab switch mid-round
+  // paints the current bonuses immediately.
+  const bonuses = renderSection(
+    'bonuses',
+    '🔀 Live bonuses',
+    `<div class="data-bonus-list" id="data-bonus-list">${renderBonusRows(state, modeDef, flavor)}</div>`,
+  )
 
   const inventoryRows = modeDef.resources
     .map(
@@ -120,9 +314,10 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
     .join('')
 
   const clicking = modeDef.clicksEnabled
-    ? `
-      <section class="data-section">
-        <h3 class="data-section-title">🖱️ Clicking</h3>
+    ? renderSection(
+        'clicking',
+        '🖱️ Clicking',
+        `
         <div class="data-stat-grid">
           <div class="data-stat">
             <span class="data-stat-label">Per click</span>
@@ -145,8 +340,8 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
             <span class="data-stat-value" id="data-click-earned">—</span>
           </div>
           ${earnedByResource}
-        </div>
-      </section>`
+        </div>`,
+      )
     : ''
 
   const dwellRows = modeDef.resources
@@ -160,9 +355,10 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
     .join('')
 
   const highlight = modeDef.highlightEnabled
-    ? `
-      <section class="data-section">
-        <h3 class="data-section-title">✨ Highlight</h3>
+    ? renderSection(
+        'highlight',
+        '✨ Highlight',
+        `
         <div class="data-stat-grid">
           <div class="data-stat">
             <span class="data-stat-label">Current</span>
@@ -174,20 +370,14 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
           </div>
         </div>
         <p class="data-subhead">Time highlighted</p>
-        <div class="data-stat-grid">${dwellRows}</div>
-      </section>`
+        <div class="data-stat-grid">${dwellRows}</div>`,
+      )
     : ''
 
-  return `
-    <div class="data-panel">
-      <section class="data-section">
-        <h3 class="data-section-title">⚙️ Production</h3>
-        ${production}
-      </section>
-      ${clicking}
-      ${highlight}
-      <section class="data-section">
-        <h3 class="data-section-title">📦 Inventory</h3>
+  const inventory = renderSection(
+    'inventory',
+    '📦 Inventory',
+    `
         <div class="data-stat-grid">
           ${inventoryRows}
           ${
@@ -206,8 +396,16 @@ function renderSkeleton(modeDef: ModeDefinition, flavor: ModeFlavor, showScore: 
             <span class="data-stat-label">⬆️ Upgrades</span>
             <span class="data-stat-value" id="data-inv-upgrades">—</span>
           </div>
-        </div>
-      </section>
+        </div>`,
+  )
+
+  return `
+    <div class="data-panel" id="data-panel">
+      ${production}
+      ${bonuses}
+      ${clicking}
+      ${highlight}
+      ${inventory}
     </div>
   `
 }
@@ -219,17 +417,16 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Production + source breakdown (debuffs folded in so totals match the header).
   const breakdown = computeRateBreakdown(state.player, modeDef, state.debuffs)
+  const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
     setText(`data-total-rate-${r}`, formatRate(bd.total))
     setText(`data-src-base-${r}`, formatAmount(bd.base))
     setText(`data-src-gen-${r}`, formatAmount(bd.generators))
-    setText(`data-src-upg-${r}`, formatAmount(bd.upgrades))
 
-    const total = bd.base + bd.generators + bd.upgrades
+    const total = bd.base + bd.generators
     setBarWidth(`data-bar-base-${r}`, share(bd.base, total))
     setBarWidth(`data-bar-gen-${r}`, share(bd.generators, total))
-    setBarWidth(`data-bar-upg-${r}`, share(bd.upgrades, total))
 
     for (const g of generatorsFor(modeDef, r)) {
       const rate = bd.byGenerator[g.id] ?? 0
@@ -237,7 +434,18 @@ function updateNumbers(state: Readonly<GameState>): void {
       const row = document.getElementById(`data-gen-row-${r}-${g.id}`)
       if (row) row.style.display = owned > 0 ? '' : 'none'
       setText(`data-gen-rate-${r}-${g.id}`, `${formatRate(rate)} ×${owned}`)
+      setText(`data-gen-detail-${r}-${g.id}`, generatorDetail(outputs[g.id], rate))
     }
+  }
+
+  // Live bonuses. The whole list is re-rendered when it changes, and the section
+  // hides itself while nothing dynamic is active (early round, none owned).
+  const list = document.getElementById('data-bonus-list')
+  if (list) {
+    const rows = renderBonusRows(state, modeDef, getModeFlavor(modeDef))
+    if (rows !== list.innerHTML) list.innerHTML = rows
+    const section = list.closest<HTMLElement>('.data-section')
+    if (section) section.style.display = rows === '' ? 'none' : ''
   }
 
   // Clicking (per-click income excludes debuffs, matching the credit applied on click).
@@ -262,7 +470,7 @@ function updateNumbers(state: Readonly<GameState>): void {
       `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
     const mult = getHighlightMultiplier(state.player, modeDef)
-    setText('data-hl-mult', `×${formatNumber(mult, Number.isInteger(mult) ? 0 : 2)}`)
+    setText('data-hl-mult', `×${formatMultiplier(mult)}`)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)
     }
@@ -306,8 +514,17 @@ export const dataPanel: Panel = {
     // Race-to-buy hides scores entirely (the opponent's is never revealed), so
     // the score stat is meaningless there — omit it.
     const showScore = state.goal?.type !== 'buy-upgrade'
-    container.innerHTML = renderSkeleton(modeDef, getModeFlavor(modeDef), showScore)
+    container.innerHTML = renderSkeleton(state, modeDef, getModeFlavor(modeDef), showScore)
     updateNumbers(state)
+  },
+
+  bind() {
+    // One delegated listener on the (freshly rendered) panel root covers every
+    // section header and generator-list toggle.
+    document.getElementById('data-panel')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-collapse]')
+      if (btn) toggleCollapse(btn)
+    })
   },
 
   update(state) {

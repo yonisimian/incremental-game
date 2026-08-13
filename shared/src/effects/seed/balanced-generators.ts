@@ -53,4 +53,8 @@ function apply(
   }))
 }
 
-export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = { schema, apply }
+export const balancedGenerators: EffectDef<BalancedGeneratorsParams> = {
+  schema,
+  apply,
+  dynamic: true,
+}

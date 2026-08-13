@@ -30,6 +30,15 @@ export function listEffectTypes(): string[] {
 }
 
 /**
+ * Whether effect `type` derives its output from live player state (see
+ * {@link EffectDef.dynamic}). Unknown types are not dynamic — `prepareEffect`
+ * owns that failure.
+ */
+export function isDynamicEffect(type: string): boolean {
+  return registry.get(type)?.dynamic === true
+}
+
+/**
  * Hosts an effect may be authored on when it declares none: the two
  * production-pipeline hosts, which fit every effect whose output
  * `collectModifiers` (or a gate it feeds) consumes. Offensive effects — the ones

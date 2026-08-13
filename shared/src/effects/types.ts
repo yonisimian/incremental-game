@@ -260,6 +260,23 @@ export interface EffectDef<P> {
    */
   readonly hosts?: readonly EffectHost[]
   /**
+   * Marks an effect whose *magnitude* can't be read off the upgrade card because
+   * it's computed from live player state — a bank scaling with the stockpile
+   * held, a synergy tracking generator ownership. The UI surfaces what these are
+   * paying right now (`collectDynamicBonuses`); flat effects are left off since
+   * their card already states their worth.
+   *
+   * The test is the *value*, not merely reading state: an effect that reads
+   * state only to pick a `field` while its value stays the authored constant
+   * (e.g. `highlightMultiplier`, whose ×N is fixed and printed on the card) is
+   * **not** dynamic — listing it would repeat a number the player can already
+   * see. Flag it only when the number itself moves.
+   *
+   * Purely declarative: nothing in the pipeline branches on it. Defaults to
+   * `false`.
+   */
+  readonly dynamic?: boolean
+  /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.
    */
