@@ -9,6 +9,7 @@ import {
   createInitialState,
   getModeDefinition,
   isAttackUnlocked,
+  isDynamicEffect,
   isPactUnlocked,
   listEffectTypes,
   registerEffect,
@@ -68,6 +69,21 @@ describe('effect registry', () => {
       'systemUnlock',
       'unlockAttack',
       'unlockPact',
+    ])
+  })
+
+  // Pins the dynamic set so adding/removing the flag is a deliberate, reviewed
+  // change: a new state-scaling effect that forgets `dynamic: true` never shows
+  // in the data panel's live-bonuses section, with no other signal. Note the
+  // criterion is the *value* moving, not merely reading state — e.g.
+  // `highlightMultiplier` reads state to pick a field but its ×N is fixed, so
+  // it is intentionally absent here.
+  it('pins which effects are dynamic', () => {
+    expect(listEffectTypes().filter(isDynamicEffect)).toEqual([
+      'balancedGenerators',
+      'dominantGenerator',
+      'lowerTierBoost',
+      'relativeModifier',
     ])
   })
 })

@@ -1004,6 +1004,10 @@ export function collectDynamicBonuses(
     for (const ref of upgrade.effects ?? []) {
       if (!isDynamicEffect(ref.type)) continue
       for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        // Only raw pipeline modifiers are reportable here. A dynamic effect that
+        // returns a *kinded* output (e.g. a `baseModifier`) is skipped — the UI
+        // has no owned-count-compounded value to show for it. Keep dynamic
+        // effects emitting raw `Modifier`s if their live worth should surface.
         if (!('kind' in out) && 'stage' in out) modifiers.push(out)
       }
     }
