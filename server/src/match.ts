@@ -509,8 +509,9 @@ export class Match {
   /**
    * Land every active attack whose preparation has elapsed this tick. For each
    * player, drain the pending strikes due at their current `meta.gameSec`,
-   * resolve them against the opponent (moving the stolen resource), and buffer an
-   * `outgoing`/`incoming` event pair per moved resource for the next broadcast.
+   * resolve them against the opponent (moving the stolen resources / generator
+   * copies), and buffer an `outgoing`/`incoming` event pair per theft for the
+   * next broadcast.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
@@ -524,19 +525,23 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
-        for (const { resource, amount } of moved) {
+        for (const result of moved) {
+          // The same theft, described once per side: `direction` is the only
+          // field that differs between the attacker's and the victim's copy.
+          const what =
+            result.kind === 'resource'
+              ? { kind: result.kind, resource: result.resource, amount: result.amount }
+              : { kind: result.kind, generator: result.generator, count: result.count }
           attacker.attackEvents.push({
             attack: pending.attack,
             direction: 'outgoing',
-            resource,
-            amount,
+            ...what,
             t: gameSec,
           })
           victim.attackEvents.push({
             attack: pending.attack,
             direction: 'incoming',
-            resource,
-            amount,
+            ...what,
             t: gameSec,
           })
         }

@@ -52,4 +52,4 @@ function apply(p: RelativeModifierParams, state: Readonly<PlayerState>): Modifie
   return { stage: p.stage, field: p.field, value }
 }
 
-export const relativeModifier: EffectDef<RelativeModifierParams> = { schema, apply }
+export const relativeModifier: EffectDef<RelativeModifierParams> = { schema, apply, dynamic: true }

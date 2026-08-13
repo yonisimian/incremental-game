@@ -85,8 +85,9 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
  * `:rate` variant per resource (per-second production) and the non-resource
- * intel keys (peak CPS, purchases), and `stealResource`'s `resource` from the
- * tree's resource keys. `relativeModifier`'s `field`/`source` come from the
+ * intel keys (peak CPS, purchases), `stealResource`'s `resource` from the
+ * tree's resource keys, and `stealGenerator`'s `generator` from its generators.
+ * `relativeModifier`'s `field`/`source` come from the
  * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
  * narrower enemy-debuff catalog (resource rates only — generator/click targets
@@ -132,6 +133,9 @@ export function effectFieldOptions(
   }
   if (effectType === 'stealResource' && fieldKey === 'resource') {
     return tree.resources
+  }
+  if (effectType === 'stealGenerator' && fieldKey === 'generator') {
+    return tree.generators.map((g) => g.id)
   }
   if (effectType === 'unlockPact' && fieldKey === 'pact') {
     return tree.pacts.map((p) => p.id)
@@ -340,7 +344,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     label: 'Unlocks',
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
-  { label: 'Offense', types: ['stealResource'] },
+  { label: 'Offense', types: ['stealResource', 'stealGenerator'] },
 ]
 
 /**

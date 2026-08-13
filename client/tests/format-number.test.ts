@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import {
+  formatDecimal,
   formatMultiplier,
   formatNumber,
   formatNumberAs,
@@ -167,6 +168,57 @@ describe('decimal separator', () => {
   })
 })
 
+describe('formatDecimal', () => {
+  it('keeps decimals in the notations that floor sub-1000 values', () => {
+    for (const notation of ['scientific', 'engineering'] as const) {
+      setNotation(notation)
+      expect(formatNumber(0.5, 1)).toBe('0') // what it fixes
+      expect(formatDecimal(0.5, 1)).toBe('0.5')
+    }
+    setNotation('name') // name notation already honours decimals — unchanged
+    expect(formatDecimal(0.5, 1)).toBe('0.5')
+  })
+
+  it('honours maxDecimals and trims trailing zeros', () => {
+    expect(formatDecimal(2.456, 1)).toBe('2.5')
+    expect(formatDecimal(2.456, 2)).toBe('2.46')
+    expect(formatDecimal(2, 2)).toBe('2')
+  })
+
+  it('defers to the configured notation at 1000 and above', () => {
+    setNotation('name')
+    expect(formatDecimal(1500, 1)).toBe('1.5K')
+  })
+})
+
+describe('formatMultiplier', () => {
+  // Every notation floors sub-1000 values, which would render every bonus as a
+  // flat "1" — the reason multipliers bypass notation entirely down there.
+  it('keeps the fractional part that notation would floor away', () => {
+    for (const notation of ['scientific', 'engineering', 'name'] as const) {
+      setNotation(notation)
+      expect(formatMultiplier(1.25)).toBe('1.25')
+      expect(formatMultiplier(1.4285714)).toBe('1.43')
+    }
+  })
+
+  it('trims trailing zeros so a whole multiplier reads as one', () => {
+    expect(formatMultiplier(3)).toBe('3')
+    expect(formatMultiplier(1.5)).toBe('1.5')
+    expect(formatMultiplier(1.001)).toBe('1')
+  })
+
+  it('honours the decimal-separator preference', () => {
+    setDecimalSeparator('comma')
+    expect(formatMultiplier(1.25)).toBe('1,25')
+  })
+
+  it('falls back to the configured notation once large', () => {
+    setNotation('scientific')
+    expect(formatMultiplier(12345)).toBe('1.23e4')
+  })
+})
+
 describe('formatNumberAs — explicit notation/separator (settings preview)', () => {
   // The settings modal formats one sample value across every notation so the
   // examples and preview always agree; lock that behavior here.
@@ -270,33 +322,5 @@ describe('legacy settings write-back', () => {
     await import('../src/ui/format-number.js')
 
     expect(setItem).not.toHaveBeenCalled()
-  })
-})
-
-describe('formatMultiplier', () => {
-  // Every notation floors sub-1000 values, which would render every bonus as a
-  // flat "1" — the reason multipliers bypass notation entirely down there.
-  it('keeps the fractional part that notation would floor away', () => {
-    for (const notation of ['scientific', 'engineering', 'name'] as const) {
-      setNotation(notation)
-      expect(formatMultiplier(1.25)).toBe('1.25')
-      expect(formatMultiplier(1.4285714)).toBe('1.43')
-    }
-  })
-
-  it('trims trailing zeros so a whole multiplier reads as one', () => {
-    expect(formatMultiplier(3)).toBe('3')
-    expect(formatMultiplier(1.5)).toBe('1.5')
-    expect(formatMultiplier(1.001)).toBe('1')
-  })
-
-  it('honours the decimal-separator preference', () => {
-    setDecimalSeparator('comma')
-    expect(formatMultiplier(1.25)).toBe('1,25')
-  })
-
-  it('falls back to the configured notation once large', () => {
-    setNotation('scientific')
-    expect(formatMultiplier(12345)).toBe('1.23e4')
   })
 })

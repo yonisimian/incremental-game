@@ -169,16 +169,24 @@ export function formatNumber(value: number, decimals = 0): string {
 }
 
 /**
- * Format a multiplier (`×1.25`, `×3`) — the fractional part is the whole point,
- * so this bypasses notation entirely below 1000, where every notation floors to
- * an integer and would render every bonus as a flat "1". Two decimals, trailing
- * zeros trimmed; large multipliers fall back to the configured notation.
+ * Format a small value without losing its fractional part.
+ *
+ * Every notation floors below 1000 (abbreviation only kicks in above it), which
+ * is right for stockpiles but wrong for the numbers whose decimals *are* the
+ * information — multipliers, per-unit rates. This keeps up to `maxDecimals`
+ * places (trailing zeros trimmed) under 1000 and defers to the configured
+ * notation above it.
  */
-export function formatMultiplier(value: number): string {
+export function formatDecimal(value: number, maxDecimals = 2): string {
   if (!isFinite(value)) return String(value)
   if (Math.abs(value) >= 1000) return formatNumber(value)
-  const text = value.toFixed(2).replace(/\.?0+$/, '')
+  const text = value.toFixed(maxDecimals).replace(/\.?0+$/, '')
   return applyDecimalSeparator(text, current.decimalSeparator)
+}
+
+/** Format a multiplier (`1.25`, `3`) — {@link formatDecimal} at two places. */
+export function formatMultiplier(value: number): string {
+  return formatDecimal(value, 2)
 }
 
 /**

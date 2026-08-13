@@ -9,6 +9,10 @@ import {
   dueAttacks,
   resolveAttackStrike,
 } from '../src/attacks.js'
+import { collectModifiers } from '../src/modes/index.js'
+import { computePassiveRates } from '../src/modifiers/pipeline.js'
+import { getGeneratorCost, isGeneratorUnlocked } from '../src/generators.js'
+import { generatorBlockReason } from '../src/purchase-validation.js'
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -24,6 +28,18 @@ const STEAL_ATTACK: AttackDefinition = {
 const FLAT_STEAL_ATTACK: AttackDefinition = {
   ...STEAL_ATTACK,
   effects: [{ type: 'stealResource', resource: 'r0', amount: 200 }],
+}
+
+/** Steals half the victim's copies of `g0` (floored). */
+const GEN_STEAL_ATTACK: AttackDefinition = {
+  ...STEAL_ATTACK,
+  effects: [{ type: 'stealGenerator', generator: 'g0', fraction: 0.5 }],
+}
+
+/** The same generator steal, authored as a flat number of copies. */
+const FLAT_GEN_STEAL_ATTACK: AttackDefinition = {
+  ...STEAL_ATTACK,
+  effects: [{ type: 'stealGenerator', generator: 'g0', count: 3 }],
 }
 
 const PASSIVE_ATTACK: AttackDefinition = {
@@ -63,7 +79,13 @@ function makeMode(): ModeDefinition {
     highlightEnabled: false,
     initialResources: { r0: 0 },
     initialMeta: {},
-    generators: [],
+    generators: [
+      {
+        id: 'g0',
+        cost: { r0: { baseCost: 100, scaleType: 'exponential', scaleFactor: 1.5 } },
+        production: { resource: 'r0', rate: 2 },
+      },
+    ],
     attacks: [STEAL_ATTACK, PASSIVE_ATTACK, PLACEHOLDER_ATTACK],
     pacts: [],
     flavors: [
@@ -78,7 +100,7 @@ function makeMode(): ModeDefinition {
           { id: 'unlock-a0', name: 'Unlock A0', icon: '⚙️', description: 'unlock a0' },
           { id: 'unlock-a2', name: 'Unlock A2', icon: '⚙️', description: 'unlock a2' },
         ],
-        generators: [],
+        generators: [{ id: 'g0', name: 'Gen', icon: '🏭' }],
         attacks: [
           { id: 'a0', name: 'Steal', icon: '🪓', description: 'steal' },
           { id: 'a1', name: 'Debuff', icon: '💥', description: 'debuff' },
@@ -215,7 +237,7 @@ describe('resolveAttackStrike', () => {
     const results = resolveAttackStrike(attacker, victim, STEAL_ATTACK, mode)
     expect(victim.resources.r0).toBe(450)
     expect(attacker.resources.r0).toBe(150)
-    expect(results).toEqual([{ resource: 'r0', amount: 50 }])
+    expect(results).toEqual([{ kind: 'resource', resource: 'r0', amount: 50 }])
   })
 
   it('does not credit the attacker score', () => {
@@ -241,7 +263,7 @@ describe('resolveAttackStrike', () => {
     const results = resolveAttackStrike(attacker, victim, FLAT_STEAL_ATTACK, mode)
     expect(victim.resources.r0).toBe(300)
     expect(attacker.resources.r0).toBe(300)
-    expect(results).toEqual([{ resource: 'r0', amount: 200 }])
+    expect(results).toEqual([{ kind: 'resource', resource: 'r0', amount: 200 }])
   })
 
   it('caps a flat steal at what the victim holds', () => {
@@ -251,7 +273,7 @@ describe('resolveAttackStrike', () => {
     const results = resolveAttackStrike(attacker, victim, FLAT_STEAL_ATTACK, mode)
     expect(victim.resources.r0).toBe(0)
     expect(attacker.resources.r0).toBe(50)
-    expect(results).toEqual([{ resource: 'r0', amount: 50 }])
+    expect(results).toEqual([{ kind: 'resource', resource: 'r0', amount: 50 }])
   })
 
   it('does not credit the attacker score for a flat steal either', () => {
@@ -272,5 +294,107 @@ describe('resolveAttackStrike', () => {
     }
     expect(() => resolveAttackStrike(attacker, victim, bothAttack, mode)).toThrow()
     expect(victim.resources.r0).toBe(5000)
+  })
+})
+
+// ─── resolveAttackStrike: generator theft ────────────────────────────
+
+describe('resolveAttackStrike — stealGenerator', () => {
+  it('moves a floored share of the victim copies to the attacker', () => {
+    const mode = makeMode()
+    const attacker = makeState({ generators: { g0: 1 } })
+    const victim = makeState({ generators: { g0: 5 } })
+    const results = resolveAttackStrike(attacker, victim, GEN_STEAL_ATTACK, mode)
+    expect(victim.generators.g0).toBe(3)
+    expect(attacker.generators.g0).toBe(3)
+    expect(results).toEqual([{ kind: 'generator', generator: 'g0', count: 2 }])
+  })
+
+  it('steals nothing when a share rounds down to zero copies', () => {
+    const mode = makeMode()
+    const attacker = makeState({ generators: {} })
+    const victim = makeState({ generators: { g0: 1 } })
+    expect(resolveAttackStrike(attacker, victim, GEN_STEAL_ATTACK, mode)).toEqual([])
+    expect(victim.generators.g0).toBe(1)
+    expect(attacker.generators.g0).toBeUndefined()
+  })
+
+  it('steals nothing when the victim owns none', () => {
+    const mode = makeMode()
+    const attacker = makeState({ generators: {} })
+    const victim = makeState({ generators: {} })
+    expect(resolveAttackStrike(attacker, victim, FLAT_GEN_STEAL_ATTACK, mode)).toEqual([])
+    expect(attacker.generators.g0).toBeUndefined()
+  })
+
+  it('caps a flat steal at what the victim owns', () => {
+    const mode = makeMode()
+    const attacker = makeState({ generators: {} })
+    const victim = makeState({ generators: { g0: 2 } })
+    const results = resolveAttackStrike(attacker, victim, FLAT_GEN_STEAL_ATTACK, mode)
+    expect(victim.generators.g0).toBe(0)
+    expect(attacker.generators.g0).toBe(2)
+    expect(results).toEqual([{ kind: 'generator', generator: 'g0', count: 2 }])
+  })
+
+  it('never credits score or resources — only copies move', () => {
+    const mode = makeMode()
+    const attacker = makeState({ score: 100, resources: { r0: 10 }, generators: {} })
+    const victim = makeState({ generators: { g0: 4 } })
+    resolveAttackStrike(attacker, victim, FLAT_GEN_STEAL_ATTACK, mode)
+    expect(attacker.score).toBe(100)
+    expect(attacker.resources.r0).toBe(10)
+  })
+
+  it('shifts both cost curves: the victim pays less next, the attacker more', () => {
+    const mode = makeMode()
+    const def = mode.generators[0]
+    const attacker = makeState({ generators: { g0: 1 } })
+    const victim = makeState({ generators: { g0: 5 } })
+    const attackerCostBefore = getGeneratorCost(def, attacker.generators.g0)
+    const victimCostBefore = getGeneratorCost(def, victim.generators.g0)
+    resolveAttackStrike(attacker, victim, GEN_STEAL_ATTACK, mode)
+    expect(getGeneratorCost(def, attacker.generators.g0)).toBeGreaterThan(attackerCostBefore)
+    expect(getGeneratorCost(def, victim.generators.g0)).toBeLessThan(victimCostBefore)
+  })
+
+  it('produces for the attacker even though they never unlocked it', () => {
+    // The generator is gated by an upgrade the attacker doesn't own, so buying is
+    // barred — but stolen copies still feed the pipeline (owned counts, not gates).
+    const base = makeMode()
+    const mode: ModeDefinition = {
+      ...base,
+      upgrades: [
+        ...base.upgrades,
+        {
+          id: 'unlock-g0',
+          cost: { r0: { baseCost: 0 } },
+          purchaseLimit: 1,
+          effects: [{ type: 'generatorUnlock', generator: 'g0' }],
+        },
+      ],
+    }
+    const attacker = makeState({ generators: {} })
+    const victim = makeState({ generators: { g0: 4 } })
+
+    resolveAttackStrike(attacker, victim, FLAT_GEN_STEAL_ATTACK, mode)
+
+    expect(attacker.generators.g0).toBe(3)
+    expect(isGeneratorUnlocked(attacker, mode.generators[0], mode)).toBe(false)
+    expect(generatorBlockReason(attacker, 'g0', mode)).toBe('locked')
+    // 3 stolen copies × rate 2 = +6 r0/s from a generator they can't buy.
+    expect(computePassiveRates(collectModifiers(attacker, mode), mode.resources).r0).toBe(6)
+  })
+
+  it('rejects a generator steal that authors both a fraction and a count', () => {
+    const mode = makeMode()
+    const attacker = makeState({ generators: {} })
+    const victim = makeState({ generators: { g0: 4 } })
+    const bothAttack: AttackDefinition = {
+      ...STEAL_ATTACK,
+      effects: [{ type: 'stealGenerator', generator: 'g0', fraction: 0.5, count: 3 }],
+    }
+    expect(() => resolveAttackStrike(attacker, victim, bothAttack, mode)).toThrow()
+    expect(victim.generators.g0).toBe(4)
   })
 })

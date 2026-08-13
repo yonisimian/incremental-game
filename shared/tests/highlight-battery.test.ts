@@ -535,7 +535,7 @@ describe('computeRateBreakdown with a battery', () => {
     state.generators.g0 = 2
 
     const bd = computeRateBreakdown(state, mode).r0
-    expect(bd.base + bd.generators + bd.upgrades).toBeCloseTo(bd.total)
+    expect(bd.base + bd.generators).toBeCloseTo(bd.total)
     expect(bd.total).toBeCloseTo(
       computePassiveRates(collectModifiers(state, mode), mode.resources).r0,
     )

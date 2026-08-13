@@ -2237,14 +2237,59 @@ body {
 .data-panel {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.6rem;
   padding: 0.25rem;
 }
 
+/* ─── Collapsible sections ────────────────────────────────────────── */
+
 .data-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.data-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  font-family: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.data-section-head:hover {
+  background: var(--bg);
+}
+
+.data-section-body {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  padding: 0 0.9rem 0.7rem;
+}
+
+.data-section.collapsed > .data-section-body,
+.data-gen-group.collapsed > .data-gen-list {
+  display: none;
+}
+
+.data-caret {
+  display: inline-block;
+  font-size: 0.65em;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.data-section.collapsed .data-section-head .data-caret,
+.data-gen-group.collapsed .data-caret {
+  transform: rotate(-90deg);
 }
 
 .data-section-title {
@@ -2256,25 +2301,18 @@ body {
   color: var(--text-dim);
 }
 
-.data-resource {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+.data-source-toggle {
+  width: 100%;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
-.data-resource-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.data-resource-name {
-  font-weight: 600;
+.data-source-toggle:hover .data-source-label {
+  color: var(--text);
 }
 
 .data-resource-rate {
@@ -2312,10 +2350,6 @@ body {
   background: var(--accent);
 }
 
-.data-bar-upg {
-  background: var(--gold);
-}
-
 .data-source-row {
   display: flex;
   align-items: center;
@@ -2350,10 +2384,6 @@ body {
   background: var(--accent);
 }
 
-.data-swatch-upg {
-  background: var(--gold);
-}
-
 .data-gen-list {
   display: flex;
   flex-direction: column;
@@ -2363,12 +2393,27 @@ body {
   border-left: 2px solid var(--border);
 }
 
+.data-gen-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .data-gen-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+/* The parts behind the rate: authored base, additive bonus, multipliers. */
+.data-gen-detail {
+  font-family: monospace;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  opacity: 0.75;
 }
 
 .data-gen-name {
@@ -2380,6 +2425,34 @@ body {
 .data-gen-rate {
   font-family: monospace;
   white-space: nowrap;
+}
+
+.data-bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.data-bonus-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.data-bonus-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Multi-target bonuses (Pyramid hits every generator) wrap rather than clip. */
+.data-bonus-value {
+  font-family: monospace;
+  color: var(--gold);
+  text-align: right;
 }
 
 .data-stat-grid {
