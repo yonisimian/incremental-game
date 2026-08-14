@@ -2116,6 +2116,10 @@
             {
               "type": "unlockAttack",
               "attack": "a4"
+            },
+            {
+              "type": "panelUnlock",
+              "panel": "generators"
             }
           ],
           "offset": {
@@ -2135,6 +2139,10 @@
             {
               "type": "unlockAttack",
               "attack": "a5"
+            },
+            {
+              "type": "panelUnlock",
+              "panel": "generators"
             }
           ],
           "offset": {
