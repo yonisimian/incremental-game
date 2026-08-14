@@ -7,7 +7,6 @@
  */
 
 import {
-  getModeDefinition,
   getPrerequisiteUpgradeIds,
   getCostCurrency,
   getUpgradeCostTotal,
@@ -17,7 +16,7 @@ import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/share
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface StrategyAction {
+interface StrategyAction {
   type: 'buy' | 'set_highlight'
   upgradeId?: string
   highlight?: string
@@ -33,9 +32,8 @@ export interface Strategy {
 const buy = (upgradeId: string): StrategyAction => ({ type: 'buy', upgradeId })
 const hl = (h: string): StrategyAction => ({ type: 'set_highlight', highlight: h })
 
-// ─── Upgrade abbreviations (for chart markers & table display) ──────
-
-export const UPGRADE_ABBR: Record<string, string> = {
+/** Short upgrade labels used to name generated strategies. */
+const UPGRADE_ABBR: Record<string, string> = {
   uh: 'FT', // Focus Training
   u1: 'HL', // Heavy Logging
   u5: 'RT', // Royal Throne (trophy)
@@ -209,7 +207,3 @@ function buildActions(ordered: UpgradeDefinition[], modeDef: ModeDefinition): St
 
   return actions
 }
-
-// ─── Exported Strategies ─────────────────────────────────────────────
-
-export const IDLER_STRATEGIES: readonly Strategy[] = generateStrategies(getModeDefinition('idler'))

@@ -9,9 +9,26 @@
 import type { DevMessage, LiveSnapshot } from '../dev-recorder.js'
 import { DEV_CHANNEL } from '../dev-recorder.js'
 import type { PlayerAction } from '@game/shared'
-import type { TickSnapshot, SimResult } from './simulate.js'
 
 // ─── Types ─────────────────────────────────────────────────────
+
+/** A single per-tick snapshot used for charting. */
+interface TickSnapshot {
+  tick: number
+  timeSec: number
+  score: number
+  resources: Record<string, number>
+  incomePerSec: Record<string, number>
+  event: string // "buy:u0" or ""
+}
+
+/** Charting-friendly result shape (score/resource series over time). */
+interface SimResult {
+  name: string
+  snapshots: TickSnapshot[]
+  finalScore: number
+  purchaseLog: { id: string; timeSec: number }[]
+}
 
 /** @public */
 export type LiveStatus = 'waiting' | 'recording' | 'ended'
