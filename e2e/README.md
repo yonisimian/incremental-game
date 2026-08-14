@@ -18,14 +18,14 @@ pnpm --dir e2e exec playwright install --with-deps chromium firefox webkit
 | `pnpm test:e2e:extended` | Accelerated long-clock Chromium tests           |
 | `pnpm test:e2e:debug`    | Chromium Playwright UI mode                     |
 
-The harness builds `@game/shared`, the client in Vite's `e2e` mode, and the server. It starts the server on `127.0.0.1:10001` and Vite preview on `127.0.0.1:4173`; existing processes on either port cause a deliberate failure.
+The harness builds `@game/shared`, the client in Vite's `e2e` mode, and the server. Each Playwright worker boots its own game server on an OS-assigned port and points its pages at that server, so workers run in parallel without sharing matchmaking state. A single stateless Vite preview is shared on `127.0.0.1:4173`; an existing process on that port causes a deliberate failure.
 
 ## Suite policy
 
 - Wait for visible or protocol-driven conditions; do not add arbitrary sleeps.
 - Prefer roles and accessible names, then stable domain attributes.
 - Prove authoritative actions through another browser or a server-owned transition.
-- Keep one worker because matchmaking and rooms are process-global.
+- Each worker owns an isolated server, so the suite runs workers in parallel.
 - Unexpected page errors, console errors, and failed requests fail teardown.
 - Ordinary suites use production timing. Extended tests set server-only
   `GAME_TIME_SCALE=20`, preserving game-time durations while shortening wall-clock waits.

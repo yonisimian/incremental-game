@@ -105,10 +105,14 @@ test('INPUT-05 focused room input keeps game hotkeys out', async ({ players }) =
   await input.focus()
   await input.fill('42')
   await input.press('ArrowUp')
+  // The increment proves keystrokes reach the input; assert it before typing the
+  // hotkey, since Firefox clears a number input when an invalid char arrives.
+  await expect(input).toHaveValue('43')
   await input.press('p')
 
+  // The game hotkey stayed suppressed: still on the room screen, focus unmoved.
   await expect(player.page.locator('.room-screen')).toBeVisible()
-  await expect(input).toHaveValue('43')
+  await expect(input).toBeFocused()
 })
 
 test('INPUT-06 Tab prevents focus wandering while cycling highlight', async ({ players }) => {

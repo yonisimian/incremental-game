@@ -2,11 +2,16 @@ import { test, expect } from './fixtures/test.js'
 import { startRoomMatch, waitForEnded } from './fixtures/journeys.js'
 import { WireObserver } from './fixtures/wire-observer.js'
 
-test('NET-01 failed health probe shows waking then reconnects', async ({ players }) => {
+test('NET-01 failed health probe shows waking then reconnects', async ({ players, gameServer }) => {
   const player = await players.create('HealthFault')
   let failures = 0
-  player.allowDiagnostics(/ERR_FAILED|aborted/iu)
-  await player.page.route('http://127.0.0.1:10001/', async (route) => {
+  // The aborted probe surfaces differently per engine: Chromium reports
+  // ERR_FAILED, Firefox an NS_ERROR_FAILURE plus a cross-origin console error,
+  // and WebKit a "Blocked by Web Inspector" request failure.
+  player.allowDiagnostics(
+    /ERR_FAILED|aborted|NS_ERROR_FAILURE|Cross-Origin Request Blocked|Blocked by Web Inspector/iu,
+  )
+  await player.page.route(gameServer.httpUrl, async (route) => {
     if (failures++ === 0) await route.abort('failed')
     else await route.continue()
   })
@@ -18,10 +23,13 @@ test('NET-01 failed health probe shows waking then reconnects', async ({ players
   })
 })
 
-test('NET-02 invalid tree reaches load-error and Retry recovers', async ({ players }) => {
+test('NET-02 invalid tree reaches load-error and Retry recovers', async ({
+  players,
+  gameServer,
+}) => {
   const player = await players.create('TreeFault')
   let invalid = true
-  await player.page.route('http://127.0.0.1:10001/trees/idler.json', async (route) => {
+  await player.page.route(`${gameServer.httpUrl}trees/idler.json`, async (route) => {
     if (invalid) {
       await route.fulfill({
         status: 200,

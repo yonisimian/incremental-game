@@ -14,6 +14,7 @@
     "test": "pnpm -r test",
     "test:coverage": "pnpm --filter @game/shared exec vitest run --coverage && pnpm --filter server exec vitest run --coverage && pnpm --filter client exec vitest run --coverage",
     "test:e2e": "pnpm build:e2e && pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=chromium --project=firefox --project=webkit --project=mobile-chromium && pnpm --dir e2e run test:extended",
+    "test:e2e:fast": "pnpm build:e2e && pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=chromium",
     "test:e2e:desktop": "pnpm build:e2e && pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=chromium --project=firefox --project=webkit",
     "test:e2e:extended": "pnpm build:e2e && pnpm --dir e2e run test:extended",
     "test:e2e:mobile": "pnpm build:e2e && pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=mobile-chromium",

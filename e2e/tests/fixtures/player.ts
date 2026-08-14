@@ -30,10 +30,16 @@ export class GamePlayer {
   static async create(
     browser: Browser,
     projectName: string,
+    wsUrl: string,
     requestedName?: string,
   ): Promise<GamePlayer> {
     const name = requestedName ?? `E2E-${nextPlayer++}`
     const context = await browser.newContext(contextOptions(projectName))
+    // Point this worker's pages at its own server; the bundle prefers this
+    // runtime value over the build-time default (see client network layer).
+    await context.addInitScript((url) => {
+      ;(window as unknown as { __E2E_WS_URL__?: string }).__E2E_WS_URL__ = url
+    }, wsUrl)
     const page = await context.newPage()
     return new GamePlayer(context, page, name)
   }

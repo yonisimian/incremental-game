@@ -147,8 +147,8 @@ test('BOT-01 bot request works from quick-match waiting', async ({ players }) =>
 test('BOT-02 bot request preserves exact room settings', async ({ players }) => {
   const player = await players.create('RoomBot')
   await player.open()
-  await startBotMatch(player, { type: 'target-score', target: 10 })
+  await startBotMatch(player, { type: 'target-score', target: 500 })
 
-  await expect(player.page.locator('#player-bar-score')).toContainText('/ 10')
+  await expect(player.page.locator('#player-bar-score')).toContainText('/ 500')
   await expect(player.page.locator('#pause-btn')).toBeVisible()
 })

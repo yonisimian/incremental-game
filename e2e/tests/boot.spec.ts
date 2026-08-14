@@ -30,10 +30,10 @@ test('BOOT-03 configured countdown transitions both players into play', async ({
   await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
 })
 
-test('BOOT-04 server serves canonical tree bytes and headers', async ({ players }) => {
+test('BOOT-04 server serves canonical tree bytes and headers', async ({ players, gameServer }) => {
   const player = await players.create('Tree')
   await player.open()
-  const response = await player.page.request.get('http://127.0.0.1:10001/trees/idler.json')
+  const response = await player.page.request.get(`${gameServer.httpUrl}trees/idler.json`)
 
   expect(response.status()).toBe(200)
   expect(response.headers()['content-type']).toContain('application/json')

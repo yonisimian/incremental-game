@@ -52,6 +52,9 @@ test('EXT-02 repeated rematches do not duplicate lifecycle work', async ({ playe
     await first.page.locator('#rematch-btn').click()
     await second.page.locator('#rematch-btn').click()
     await Promise.all([waitForPlaying(first), waitForPlaying(second)])
-    await expect(first.page.locator('#player-bar-score')).toContainText('0 / 10')
+    // Fresh round: the score reset to a single digit against the same `/ 10`
+    // goal. Asserting the exact transient `0` would race base production, which
+    // starts climbing the score on the first tick.
+    await expect(first.page.locator('#player-bar-score')).toHaveText(/^[0-9] \/ 10$/u)
   }
 })

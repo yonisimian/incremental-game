@@ -95,11 +95,24 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
   await unlockClicking(actor.page)
 
-  const before = displayedNumber(await ownScore(actor.page).textContent())
-  const button = actor.page.locator('#click-btn-r0')
-  for (let i = 0; i < 25; i += 1) await button.dispatchEvent('click')
-  const optimistic = displayedNumber(await ownScore(actor.page).textContent())
-  expect(optimistic - before).toBeGreaterThanOrEqual(25)
+  // Burst 25 clicks and read the optimistic score in a single in-page pass. The
+  // client credits each click synchronously, so doing it atomically prevents a
+  // server reconciliation broadcast from interleaving between the clicks and the
+  // read and shaving the optimistic total.
+  const optimisticGain = await actor.page.evaluate(() => {
+    const read = () => {
+      const el = document.querySelector('#player-score, #player-bar-score')
+      return Number((el?.textContent ?? '').replace(/[^\d.]/gu, '')) || 0
+    }
+    const before = read()
+    for (let i = 0; i < 25; i += 1) {
+      document
+        .querySelector('#click-btn-r0')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+    return read() - before
+  })
+  expect(optimisticGain).toBeGreaterThanOrEqual(25)
 
   await expect
     .poll(async () => ({

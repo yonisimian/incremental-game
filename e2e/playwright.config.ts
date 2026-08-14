@@ -8,8 +8,15 @@ const CI = Boolean(process.env.CI)
 export default defineConfig({
   testDir: './tests',
   outputDir: './test-results',
-  fullyParallel: false,
-  workers: 1,
+  // Distribute individual tests (not whole files) across workers so one long
+  // spec file can't pin a worker and stretch the tail. Each test still runs
+  // alone on its worker, so the worker-scoped `gameServer` stays single-tenant.
+  fullyParallel: true,
+  // Each worker drives a real browser (two contexts for two-player tests) plus
+  // its own game server. On a 14-thread box, 4 workers keeps the heaviest
+  // engine (WebKit) fed; going higher oversubscribes the CPU and starves those
+  // browsers into spurious timeouts without shortening total wall-clock.
+  workers: process.env.CI ? '50%' : 4,
   retries: CI ? 1 : 0,
   failOnFlakyTests: CI,
   forbidOnly: CI,
@@ -24,29 +31,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  webServer: [
-    {
-      command: 'node server/dist/main.js',
-      cwd: ROOT,
-      env: { ...process.env, HOST: '127.0.0.1', PORT: '10001' },
-      url: 'http://127.0.0.1:10001/',
-      timeout: 20_000,
-      reuseExistingServer: false,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
-    },
-    {
-      command: 'pnpm --filter client exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
-      cwd: ROOT,
-      url: 'http://127.0.0.1:4173/',
-      timeout: 20_000,
-      reuseExistingServer: false,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
-    },
-  ],
+  // Only the stateless Vite preview is shared across workers; each worker boots
+  // its own game server on an ephemeral port via the `gameServer` fixture.
+  webServer: {
+    command: 'pnpm --filter client exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
+    cwd: ROOT,
+    url: 'http://127.0.0.1:4173/',
+    timeout: 20_000,
+    reuseExistingServer: false,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
+  },
   projects: [
     {
       name: 'chromium',

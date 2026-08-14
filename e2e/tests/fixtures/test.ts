@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test'
 import type { Browser, TestInfo } from '@playwright/test'
 import { GamePlayer } from './player.js'
+import { startServer, type GameServer } from './server.js'
 
 class PlayerPool {
   private readonly created: { player: GamePlayer; ownsContext: boolean }[] = []
@@ -8,10 +9,11 @@ class PlayerPool {
   constructor(
     private readonly browser: Browser,
     private readonly projectName: string,
+    private readonly wsUrl: string,
   ) {}
 
   async create(name?: string): Promise<GamePlayer> {
-    const player = await GamePlayer.create(this.browser, this.projectName, name)
+    const player = await GamePlayer.create(this.browser, this.projectName, this.wsUrl, name)
     this.created.push({ player, ownsContext: true })
     return player
   }
@@ -39,9 +41,26 @@ interface Fixtures {
   readonly players: PlayerPool
 }
 
-export const test = base.extend<Fixtures>({
-  players: async ({ browser }, use, testInfo) => {
-    const pool = new PlayerPool(browser, testInfo.project.name)
+interface WorkerFixtures {
+  /** An isolated game server owned by this worker (own port, own state). */
+  readonly gameServer: GameServer
+}
+
+export const test = base.extend<Fixtures, WorkerFixtures>({
+  gameServer: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright requires the object pattern
+    async ({}, use) => {
+      const server = await startServer()
+      try {
+        await use(server)
+      } finally {
+        await server.close()
+      }
+    },
+    { scope: 'worker' },
+  ],
+  players: async ({ browser, gameServer }, use, testInfo) => {
+    const pool = new PlayerPool(browser, testInfo.project.name, gameServer.wsUrl)
     try {
       await use(pool)
     } finally {

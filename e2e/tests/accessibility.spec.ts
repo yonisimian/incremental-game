@@ -58,6 +58,7 @@ test('A11Y-01 major player screens have no serious or critical axe violations @c
 
 test('A11Y-02 waiting, countdown, and load-error states pass axe @chromium-only', async ({
   players,
+  gameServer,
 }) => {
   const waiting = await players.create('A11y-Wait')
   await waiting.open()
@@ -76,7 +77,7 @@ test('A11Y-02 waiting, countdown, and load-error states pass axe @chromium-only'
 
   const loadError = await players.create('A11y-Error')
   loadError.allowDiagnostics(/Failed to load resource.*500/iu)
-  await loadError.page.route('http://127.0.0.1:10001/trees/idler.json', async (route) => {
+  await loadError.page.route(`${gameServer.httpUrl}trees/idler.json`, async (route) => {
     await route.fulfill({ status: 500, body: 'broken' })
   })
   await loadError.page.goto('/')

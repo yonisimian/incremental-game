@@ -7,6 +7,7 @@ import {
   waitForPlaying,
 } from './fixtures/journeys.js'
 import { expectStable } from './fixtures/assertions.js'
+import { WireObserver } from './fixtures/wire-observer.js'
 
 test('LIFE-01 bot pause freezes and resume re-anchors timer and resources', async ({ players }) => {
   const player = await players.create('Pause')
@@ -54,13 +55,18 @@ test('LIFE-03 two-player rematch preserves settings with fresh state', async ({ 
   await expect(first.page.locator('.waiting-screen')).toBeVisible()
   await second.page.locator('#rematch-btn').click()
   await Promise.all([waitForPlaying(first), waitForPlaying(second)])
-  await expect(first.page.locator('#player-bar-score')).toContainText('0 / 10')
-  await expect(second.page.locator('#player-bar-score')).toContainText('0 / 10')
+  // Fresh state with settings preserved: the score reset to a single digit
+  // (below the target it had just reached to win) against the same `/ 10` goal.
+  // Asserting the exact transient `0` would race base production, which starts
+  // climbing the score on the first tick.
+  await expect(first.page.locator('#player-bar-score')).toHaveText(/^[0-9] \/ 10$/u)
+  await expect(second.page.locator('#player-bar-score')).toHaveText(/^[0-9] \/ 10$/u)
 })
 
 test('LIFE-04 bot request works from rematch waiting', async ({ players }) => {
   const first = await players.create('RematchBot-A')
   const second = await players.create('RematchBot-B')
+  const wire = new WireObserver(first.page)
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'target-score', target: 10 })
   await finishTargetMatch(first)
@@ -68,9 +74,15 @@ test('LIFE-04 bot request works from rematch waiting', async ({ players }) => {
 
   await first.page.locator('#rematch-btn').click()
   await first.page.locator('#bot-btn').click()
-  await waitForPlaying(first)
-  await expect(first.page.locator('.playing-screen')).toContainText('Bot')
-  await expect(first.page.locator('#player-bar-score')).toContainText('/ 10')
+  // The tiny inherited target can complete before the playing screen paints, so
+  // confirm the bot match started from the rematch-waiting flow at the wire.
+  await expect
+    .poll(
+      () =>
+        (wire.received('ROUND_START').at(-1) as { opponentName?: string } | undefined)
+          ?.opponentName,
+    )
+    .toBe('Bot')
 })
 
 test('LIFE-05 quit during countdown and play yields correct terminal states', async ({
