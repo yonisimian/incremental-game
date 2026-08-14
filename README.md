@@ -26,30 +26,35 @@ The client runs at `http://localhost:5173` and connects to the dev server on por
 shared/   @game/shared — types, game config, mode definitions, modifiers
 server/   Game server — WebSocket, matchmaking, match logic, bot AI
 client/   Browser client — vanilla DOM UI, optimistic state, VFX
+e2e/      Playwright — production browser/server integration tests
 docs/     Design documents and references
 ```
 
 ## Scripts
 
-| Command              | Description                                    |
-| -------------------- | ---------------------------------------------- |
-| **Development**      |                                                |
-| `pnpm dev`           | Start client + server in dev mode              |
-| `pnpm dev:client`    | Start client only                              |
-| `pnpm dev:server`    | Start server only                              |
-| **Build & Test**     |                                                |
-| `pnpm build`         | Production build (all packages)                |
-| `pnpm test`          | Run all tests                                  |
-| `pnpm test:coverage` | Run tests with coverage report                 |
-| `pnpm typecheck`     | Type checking across all packages              |
-| **Code Quality**     |                                                |
-| `pnpm lint`          | ESLint                                         |
-| `pnpm lint:md`       | Markdown lint                                  |
-| `pnpm lint:exports`  | Knip — unused exports                          |
-| `pnpm format`        | Prettier (write)                               |
-| `pnpm format:check`  | Prettier (check only)                          |
-| **Dev Panel**        |                                                |
-| `/dev.html`          | Balance analysis panel (run `pnpm dev:client`) |
+| Command                  | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| **Development**          |                                                |
+| `pnpm dev`               | Start client + server in dev mode              |
+| `pnpm dev:client`        | Start client only                              |
+| `pnpm dev:server`        | Start server only                              |
+| **Build & Test**         |                                                |
+| `pnpm build`             | Production build (all packages)                |
+| `pnpm test`              | Run all tests                                  |
+| `pnpm test:coverage`     | Run tests with coverage report                 |
+| `pnpm test:e2e`          | Run all Playwright projects                    |
+| `pnpm test:e2e:desktop`  | Run ordinary desktop browser projects          |
+| `pnpm test:e2e:mobile`   | Run mobile Chromium tests                      |
+| `pnpm test:e2e:extended` | Run accelerated long-clock/capacity tests      |
+| `pnpm typecheck`         | Type checking across all packages              |
+| **Code Quality**         |                                                |
+| `pnpm lint`              | ESLint                                         |
+| `pnpm lint:md`           | Markdown lint                                  |
+| `pnpm lint:exports`      | Knip — unused exports                          |
+| `pnpm format`            | Prettier (write)                               |
+| `pnpm format:check`      | Prettier (check only)                          |
+| **Dev Panel**            |                                                |
+| `/dev.html`              | Balance analysis panel (run `pnpm dev:client`) |
 
 ## Documentation
 
@@ -62,7 +67,7 @@ docs/     Design documents and references
 1. **Setup** — clone, `corepack enable`, `pnpm install`. Pre-commit hooks install automatically via `simple-git-hooks`.
 2. **Branching** — development happens on `main` (small team, fast iteration).
 3. **Code quality** — pre-commit runs Prettier, ESLint, and markdownlint automatically. CI runs typecheck + lint + format check + tests on every push.
-4. **Tests** — add tests for any new shared or server logic. Run `pnpm test` before pushing.
+4. **Tests** — add tests at the lowest useful layer. Run `pnpm test`; use the explicit E2E commands for browser/process boundaries. Browser setup is documented in [e2e/README.md](e2e/README.md).
 5. **Commits** — use [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`).
 
 ## License

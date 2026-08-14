@@ -8,6 +8,7 @@ import {
   customizeGoal,
   AVAILABLE_MODES,
 } from '@game/shared'
+import { realTimeDelay } from './runtime-config.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ function startTtlTimer(room: Room): void {
   room.ttlTimer = setTimeout(() => {
     room.onExpire(room)
     destroyRoom(room.code)
-  }, ROOM_TTL_MS)
+  }, realTimeDelay(ROOM_TTL_MS))
 }
 
 /** Cancel the TTL timer (e.g., room became full). */

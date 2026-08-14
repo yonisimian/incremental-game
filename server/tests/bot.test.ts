@@ -299,6 +299,21 @@ describe('Bot', () => {
       expect(genBuys.length).toBeGreaterThan(0)
     })
 
+    it('buys action-system unlocks before depending on their actions', () => {
+      const mode = getModeDefinition('idler')
+      const bot = new IdlerBot(mode)
+      const state = {
+        score: 0,
+        resources: { r0: 50, r1: 20 },
+        generators: {},
+        meta: { highlight: 'r0' as const },
+        upgrades: {},
+        pendingAttacks: [],
+      }
+
+      expect(bot.decide(state)).toContainEqual({ type: 'buy', upgradeId: 'sc-unlock' })
+    })
+
     it('does not buy generators that are still locked', () => {
       const mode = getModeDefinition('idler')
       const bot = new IdlerBot(mode)
@@ -420,6 +435,23 @@ describe('Bot', () => {
       const ends = sentOfType(ws1, 'ROUND_END')
       expect(ends).toHaveLength(1)
       expect(ends[0].reason).toBe('complete')
+    })
+
+    it('real idler bot buys the trophy before the buy-upgrade safety cap', () => {
+      const goal: Goal = {
+        type: 'buy-upgrade',
+        label: '🏆 Race to Buy',
+        safetyCapSec: 600,
+      }
+      const m = createBotMatch('idler', undefined, goal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      vi.advanceTimersByTime(goal.safetyCapSec * 1000)
+
+      const ends = sentOfType(ws1, 'ROUND_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0].reason).toBe('complete')
+      expect(ends[0].winner).toBe('opponent')
     })
   })
 })

@@ -17,5 +17,11 @@
     // Ordered lists broken by code blocks lose continuity — allow explicit numbering
     "MD029": false,
   },
-  "ignores": ["**/node_modules", "**/dist", "**/CHANGELOG.md"],
+  "ignores": [
+    "**/node_modules",
+    "**/dist",
+    "**/CHANGELOG.md",
+    "e2e/playwright-report/**",
+    "e2e/test-results/**",
+  ],
 }

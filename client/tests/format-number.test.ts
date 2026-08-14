@@ -21,6 +21,11 @@ describe('formatNumber — scientific notation', () => {
     expect(formatNumber(500)).toBe('500')
   })
 
+  it('respects requested decimals below 1000', () => {
+    expect(formatNumber(0.9, 1)).toBe('0.9')
+    expect(formatNumber(12.34, 2)).toBe('12.34')
+  })
+
   it('formats large numbers in scientific notation', () => {
     expect(formatNumber(100000)).toBe('1e5')
     expect(formatNumber(123456)).toBe('1.23e5')
@@ -111,6 +116,11 @@ describe('formatNumber — engineering notation', () => {
     expect(formatNumber(0)).toBe('0')
   })
 
+  it('respects requested decimals below 1000', () => {
+    expect(formatNumber(0.9, 1)).toBe('0.9')
+    expect(formatNumber(12.34, 2)).toBe('12.34')
+  })
+
   it('uses exponents that are multiples of 3', () => {
     expect(formatNumber(1000)).toBe('1e3')
     expect(formatNumber(12345)).toBe('12.35e3')
@@ -172,7 +182,7 @@ describe('formatDecimal', () => {
   it('keeps decimals in the notations that floor sub-1000 values', () => {
     for (const notation of ['scientific', 'engineering'] as const) {
       setNotation(notation)
-      expect(formatNumber(0.5, 1)).toBe('0') // what it fixes
+      expect(formatNumber(0.5)).toBe('0') // what it fixes
       expect(formatDecimal(0.5, 1)).toBe('0.5')
     }
     setNotation('name') // name notation already honours decimals — unchanged

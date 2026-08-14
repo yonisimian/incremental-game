@@ -79,6 +79,11 @@ export function render(state: Readonly<GameState>): void {
   } else {
     // Update existing screen in-place
     switch (state.screen) {
+      case 'lobby':
+        // Lobby errors arrive without a screen transition, so refresh the
+        // screen to surface the new message and restore its event listeners.
+        renderLobbyScreen()
+        break
       case 'room':
         updateRoomScreen(state)
         break

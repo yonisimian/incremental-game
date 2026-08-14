@@ -35,6 +35,7 @@ const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string }[] = 
 // ─── State ───────────────────────────────────────────────────────────
 
 let overlayEl: HTMLElement | null = null
+let openingFrame: number | null = null
 
 // ─── Render ──────────────────────────────────────────────────────────
 
@@ -102,7 +103,10 @@ export function openSettings(): void {
   overlayEl = document.getElementById('settings-overlay')!
 
   // Animate in
-  requestAnimationFrame(() => overlayEl?.classList.add('visible'))
+  openingFrame = requestAnimationFrame(() => {
+    openingFrame = null
+    overlayEl?.classList.add('visible')
+  })
 
   // Bind events
   document.getElementById('settings-close')!.addEventListener('click', closeSettings)
@@ -130,11 +134,24 @@ export function openSettings(): void {
 
 function closeSettings(): void {
   if (!overlayEl) return
-  overlayEl.classList.remove('visible')
-  overlayEl.addEventListener('transitionend', () => {
-    overlayEl?.remove()
-    overlayEl = null
-  })
+  if (openingFrame !== null) {
+    cancelAnimationFrame(openingFrame)
+    openingFrame = null
+  }
+  const closingEl = overlayEl
+  let removalTimer: number | null = null
+  const remove = (): void => {
+    if (removalTimer !== null) clearTimeout(removalTimer)
+    closingEl.remove()
+    if (overlayEl === closingEl) overlayEl = null
+  }
+  if (closingEl.classList.contains('visible')) {
+    closingEl.addEventListener('transitionend', remove, { once: true })
+    closingEl.classList.remove('visible')
+    removalTimer = window.setTimeout(remove, 250)
+  } else {
+    remove()
+  }
   document.removeEventListener('keydown', handleEscape)
 }
 

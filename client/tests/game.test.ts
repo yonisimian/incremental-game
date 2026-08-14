@@ -178,6 +178,15 @@ describe('game.ts', () => {
   // ── ROUND_START → countdown ──────────────────────────────────────
 
   describe('ROUND_START', () => {
+    it('resolves a pending room join when a full room starts directly', () => {
+      const resolved = vi.fn()
+      game.setRoomJoinResolvedCallback(resolved)
+
+      game.handleServerMessage(makeRoundStart())
+
+      expect(resolved).toHaveBeenCalledOnce()
+    })
+
     it('transitions to countdown screen', () => {
       game.handleServerMessage(makeRoundStart())
       expect(game.getState().screen).toBe('countdown')

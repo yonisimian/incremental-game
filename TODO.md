@@ -49,7 +49,7 @@
 ### Generators
 
 - [ ] Visual feedback on generator purchase
-- [ ] "Buy Max" button for generators (possibly unlocked via an upgrade)
+- [x] "Buy Max" button for generators
 - [ ] Bot: teach bot to buy generators
 - [x] Unit tests for generator cost/purchase logic
 
@@ -165,9 +165,9 @@
 
 ## Testing
 
-- [ ] Integration tests: keyboard hotkeys (Escape quit/back, Ctrl+N panels, Space click, Tab highlight)
-- [ ] E2E tests (Playwright): full match flow — lobby → queue → match → quit/end → lobby
-- [ ] E2E tests (Playwright): panel switching via hotkeys in a live match
+- [x] Integration tests: keyboard hotkeys (Escape quit/back, Ctrl+N panels, Space click, Tab highlight)
+- [x] E2E tests (Playwright): full match flow — lobby → queue → match → quit/end → lobby
+- [x] E2E tests (Playwright): panel switching via hotkeys in a live match
 
 ## Infrastructure
 

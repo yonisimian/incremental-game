@@ -56,6 +56,7 @@ import {
   isValidAttackActivation,
 } from './validation.js'
 import type { BotStrategy } from './bot.js'
+import { elapsedGameSeconds, realTimeDelay } from './runtime-config.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -341,7 +342,7 @@ export class Match {
     // Anchor the round end to a monotonic timestamp so the displayed timer can
     // never drift away from the authoritative round-end check, and so a system
     // wall-clock step can't make it jump.
-    this.endAtMs = performance.now() + this.timeLeftSec * 1000
+    this.endAtMs = performance.now() + realTimeDelay(this.timeLeftSec * 1000)
 
     // Tick: compute passive income, run bot, update timer, and end the round when
     // its time expires. Deriving the round end from the same `endAtMs` anchor that
@@ -351,7 +352,7 @@ export class Match {
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
+      this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
 
       if (this.timeLeftSec <= 0) {
         this.endRound(this.timeExpiredReason)
@@ -373,12 +374,12 @@ export class Match {
       }
 
       this.checkTargetScoreReached()
-    }, TICK_INTERVAL_MS)
+    }, realTimeDelay(TICK_INTERVAL_MS))
 
     // Broadcast authoritative state to both clients
     this.broadcastTimer = setInterval(() => {
       this.broadcastState()
-    }, BROADCAST_INTERVAL_MS)
+    }, realTimeDelay(BROADCAST_INTERVAL_MS))
   }
 
   /**
@@ -461,7 +462,7 @@ export class Match {
         if (!this.modeDef.clicksEnabled) continue
         // Track timestamp for accurate peakCps stat (bot skips isValidClick rate-limiting)
         const now = Date.now()
-        const cutoff = now - 1000
+        const cutoff = now - realTimeDelay(1000)
         while (
           botPlayer.recentClickTimestamps.length > 0 &&
           botPlayer.recentClickTimestamps[0] < cutoff
@@ -557,7 +558,7 @@ export class Match {
     this.paused = true
     // Freeze the remaining time from the monotonic anchor. The tick stops
     // advancing the clock (and ending the round) while paused.
-    this.timeLeftSec = Math.max(0, (this.endAtMs - performance.now()) / 1000)
+    this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
     this.broadcastState()
   }
 
@@ -569,7 +570,7 @@ export class Match {
       return
     }
     // Re-anchor the round end to the remaining time; the tick resumes ending it.
-    this.endAtMs = performance.now() + this.timeLeftSec * 1000
+    this.endAtMs = performance.now() + realTimeDelay(this.timeLeftSec * 1000)
     this.broadcastState()
   }
 

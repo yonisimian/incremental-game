@@ -1,0 +1,141 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  chromium:
+    name: Chromium ordinary + accessibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - run: pnpm build:e2e
+      - run: pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=chromium
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-chromium
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  mobile:
+    name: Mobile Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - run: pnpm build:e2e
+      - run: pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=mobile-chromium
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-mobile
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  firefox:
+    name: Firefox ordinary
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir e2e exec playwright install --with-deps firefox
+      - run: pnpm build:e2e
+      - run: pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=firefox
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-firefox
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  webkit:
+    name: WebKit ordinary
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir e2e exec playwright install --with-deps webkit
+      - run: pnpm build:e2e
+      - run: pnpm --dir e2e exec playwright test --config=playwright.config.ts --project=webkit
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-webkit
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
+
+  extended:
+    name: Chromium extended
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - run: pnpm build:e2e
+      - run: pnpm --dir e2e run test:extended
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-extended
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
