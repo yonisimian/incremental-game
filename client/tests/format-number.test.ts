@@ -182,7 +182,7 @@ describe('formatDecimal', () => {
   it('keeps decimals in the notations that floor sub-1000 values', () => {
     for (const notation of ['scientific', 'engineering'] as const) {
       setNotation(notation)
-      expect(formatNumber(0.5, 1)).toBe('0') // what it fixes
+      expect(formatNumber(0.5)).toBe('0') // what it fixes
       expect(formatDecimal(0.5, 1)).toBe('0.5')
     }
     setNotation('name') // name notation already honours decimals — unchanged
