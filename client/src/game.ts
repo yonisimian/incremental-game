@@ -231,8 +231,10 @@ export function setStateChangeHandler(handler: StateChangeHandler): void {
 }
 
 /**
- * Register a callback fired when a room join resolves (success or error).
- * Used by main.ts to clear the ?room= URL param after the server responds.
+ * Register a callback fired once a join attempt resolves, by any path: a
+ * `ROOM_JOINED`, a room error, or the `ROUND_START` of a direct quick match
+ * that never emits a room message. Used by main.ts to clear the ?room= URL
+ * param after the server responds.
  */
 export function setRoomJoinResolvedCallback(cb: () => void): void {
   onRoomJoinResolved = cb

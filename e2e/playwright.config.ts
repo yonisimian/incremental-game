@@ -13,9 +13,10 @@ export default defineConfig({
   // alone on its worker, so the worker-scoped `gameServer` stays single-tenant.
   fullyParallel: true,
   // Each worker drives a real browser (two contexts for two-player tests) plus
-  // its own game server. On a 14-thread box, 4 workers keeps the heaviest
-  // engine (WebKit) fed; going higher oversubscribes the CPU and starves those
-  // browsers into spurious timeouts without shortening total wall-clock.
+  // its own game server. Locally, 4 workers keeps the heaviest engine (WebKit)
+  // fed without oversubscribing the CPU into spurious timeouts. In CI each
+  // browser runs as its own single-project job, so half the runner's cores is
+  // the safe default there.
   workers: process.env.CI ? '50%' : 4,
   retries: CI ? 1 : 0,
   failOnFlakyTests: CI,
