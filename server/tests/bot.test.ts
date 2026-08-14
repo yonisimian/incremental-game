@@ -308,6 +308,7 @@ describe('Bot', () => {
         generators: {},
         meta: { highlight: 'r0' as const },
         upgrades: {},
+        pendingAttacks: [],
       }
 
       expect(bot.decide(state)).toContainEqual({ type: 'buy', upgradeId: 'sc-unlock' })
