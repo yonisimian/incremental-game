@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { getModeDefinition, isPrerequisiteSatisfied } from '@game/shared'
 import type { PlayerState } from '@game/shared'
-import { IDLER_STRATEGIES, generateStrategies } from '../src/dev/strategies.js'
+import { generateStrategies } from '../src/dev/strategies.js'
 import { stubMode } from './_stub-mode.js'
 
 const modeDef = getModeDefinition('idler')
 const timedUpgrades = modeDef.upgrades.filter((u) => !u.goalType)
+const IDLER_STRATEGIES = generateStrategies(modeDef)
 
 describe('IDLER_STRATEGIES — auto-generated', () => {
   it('includes baseline strategies (no upgrades)', () => {
