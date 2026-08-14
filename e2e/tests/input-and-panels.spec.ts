@@ -7,6 +7,7 @@ import {
   startRoomMatch,
   unlockClicking,
 } from './fixtures/journeys.js'
+import { expectUnchanged } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
 
 test('INPUT-01 Ctrl panel navigation skips locks and maintains ARIA', async ({ players }) => {
@@ -33,12 +34,14 @@ test('INPUT-02 repeat and modifier guards do not emit extra click actions', asyn
   await startRoomMatch(actor, observerPlayer, { type: 'timed', durationSec: 35 })
   await unlockClicking(actor.page)
 
+  await actor.page.locator('.playing-top').click()
+  const sentBefore = wire.sent('ACTION_BATCH').length
   await actor.page.keyboard.press('Space')
-  await expect.poll(() => wire.sent('ACTION_BATCH').length).toBeGreaterThan(0)
   const actionCount = (): number =>
-    wire
-      .sent('ACTION_BATCH')
-      .flatMap((message) => (message as { actions?: unknown[] }).actions ?? []).length
+    (wire.sent('ACTION_BATCH').slice(sentBefore) as { actions?: { type?: string }[] }[])
+      .flatMap((message) => message.actions ?? [])
+      .filter((action) => action.type === 'click').length
+  await expect.poll(actionCount).toBe(1)
   const baseline = actionCount()
 
   await actor.page.evaluate(() => {
@@ -52,7 +55,9 @@ test('INPUT-02 repeat and modifier guards do not emit extra click actions', asyn
       new KeyboardEvent('keydown', { bubbles: true, key: 'x', metaKey: true }),
     )
   })
-  await expect.poll(actionCount).toBe(baseline)
+  // Observe beyond the 100 ms batching interval so a wrongly queued action
+  // cannot pass merely because it has not flushed to the wire yet.
+  await expectUnchanged(actionCount, baseline, 350, 25)
 })
 
 test('INPUT-03 C, P, F6, and Escape execute their context-specific behavior', async ({

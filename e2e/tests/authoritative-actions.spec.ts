@@ -10,20 +10,68 @@ import {
 import { displayedNumber } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
 
+interface ObservedActionBatch {
+  readonly seq: number
+  readonly actions: {
+    readonly type?: string
+    readonly generatorId?: string
+    readonly highlight?: string | null
+    readonly resource?: string
+    readonly upgradeId?: string
+  }[]
+}
+
+interface ObservedStateUpdate {
+  readonly ackSeq: number
+  readonly player: {
+    readonly score: number
+    readonly generators: Record<string, number>
+    readonly upgrades: Record<string, number>
+    readonly meta: Record<string, unknown>
+  }
+}
+
+function acknowledgedState(wire: WireObserver, seq: number): ObservedStateUpdate | undefined {
+  const updates = wire.received('STATE_UPDATE') as ObservedStateUpdate[]
+  for (let index = updates.length - 1; index >= 0; index -= 1) {
+    if (updates[index].ackSeq >= seq) return updates[index]
+  }
+  return undefined
+}
+
 test('ACT-01 optimistic purchase and click survive authoritative acknowledgement', async ({
   players,
 }) => {
   const actor = await players.create('Action-A')
   const observer = await players.create('Action-B')
+  const wire = new WireObserver(actor.page)
   await Promise.all([actor.open(), observer.open()])
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
 
   const before = displayedNumber(await ownScore(actor.page).textContent())
   await unlockClicking(actor.page)
+  const sentBefore = wire.sent('ACTION_BATCH').length
   await actor.page.locator('#click-btn-r0').click()
   const optimistic = displayedNumber(await ownScore(actor.page).textContent())
   expect(optimistic).toBeGreaterThan(before)
 
+  let clickSeq: number | undefined
+  await expect
+    .poll(() => {
+      const batch = (wire.sent('ACTION_BATCH') as ObservedActionBatch[])
+        .slice(sentBefore)
+        .find((message) => message.actions.some((action) => action.type === 'click'))
+      clickSeq = batch?.seq
+      return clickSeq
+    })
+    .toEqual(expect.any(Number))
+  await expect
+    .poll(() => acknowledgedState(wire, clickSeq!)?.player.meta.peakCps ?? 0)
+    .toBeGreaterThan(0)
+  const acknowledgedScore = acknowledgedState(wire, clickSeq!)!.player.score
+  await expect
+    .poll(async () => displayedNumber(await ownScore(actor.page).textContent()))
+    .toBeGreaterThanOrEqual(acknowledgedScore)
   await expect
     .poll(async () => displayedNumber(await opponentScore(observer.page).textContent()))
     .toBeGreaterThan(before)
@@ -37,18 +85,20 @@ test('ACT-02 pointer, Space, and Z preserve the selected action resource', async
   await startRoomMatch(actor, observerPlayer, { type: 'timed', durationSec: 35 })
   await unlockClicking(actor.page)
 
+  const sentBefore = wire.sent('ACTION_BATCH').length
   await actor.page.locator('#click-btn-r0').click()
   await actor.page.keyboard.press('z')
   await actor.page.keyboard.press('Space')
 
   await expect
     .poll(() =>
-      wire
-        .sent('ACTION_BATCH')
-        .flatMap((message) => (message as { actions?: { resource?: string }[] }).actions ?? [])
+      (wire.sent('ACTION_BATCH') as ObservedActionBatch[])
+        .slice(sentBefore)
+        .flatMap((message) => message.actions)
+        .filter((action) => action.type === 'click')
         .map((action) => action.resource),
     )
-    .toEqual(expect.arrayContaining(['r0', 'r1']))
+    .toEqual(['r0', 'r1'])
 })
 
 test('ACT-03 generator Buy 1 and Buy Max reconcile to authoritative counts', async ({
@@ -56,6 +106,7 @@ test('ACT-03 generator Buy 1 and Buy Max reconcile to authoritative counts', asy
 }) => {
   const actor = await players.create('Generator-A')
   const observer = await players.create('Generator-B')
+  const wire = new WireObserver(actor.page)
   await Promise.all([actor.open(), observer.open()])
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
   await buyUpgrade(actor.page, 'g1-g2')
@@ -66,24 +117,60 @@ test('ACT-03 generator Buy 1 and Buy Max reconcile to authoritative counts', asy
   await expect(card.locator('.generator-count')).toHaveText('×1')
   const buyMax = card.locator('[data-action="buy-max"]')
   await expect(buyMax).toBeEnabled({ timeout: 15_000 })
+  const sentBefore = wire.sent('ACTION_BATCH').length
   await buyMax.click()
+
+  let buyMaxSeq: number | undefined
   await expect
-    .poll(async () => displayedNumber(await card.locator('.generator-count').textContent()))
+    .poll(() => {
+      const batch = (wire.sent('ACTION_BATCH') as ObservedActionBatch[])
+        .slice(sentBefore)
+        .find((message) =>
+          message.actions.some(
+            (action) => action.type === 'buy_generator' && action.generatorId === 'g1',
+          ),
+        )
+      buyMaxSeq = batch?.seq
+      return buyMaxSeq
+    })
+    .toEqual(expect.any(Number))
+  await expect
+    .poll(() => acknowledgedState(wire, buyMaxSeq!)?.player.generators.g1 ?? 0)
     .toBeGreaterThan(1)
+  const authoritativeCount = acknowledgedState(wire, buyMaxSeq!)!.player.generators.g1
+  await expect(card.locator('.generator-count')).toHaveText(`×${authoritativeCount}`)
 })
 
 test('ACT-04 Tab highlight action persists after a server broadcast', async ({ players }) => {
   const actor = await players.create('Highlight-A')
   const observer = await players.create('Highlight-B')
+  const wire = new WireObserver(actor.page)
   await Promise.all([actor.open(), observer.open()])
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
   await buyUpgrade(actor.page, 'sh-unlock')
   await openPanel(actor.page, 0)
 
   await actor.page.locator('.playing-top').click()
+  const sentBefore = wire.sent('ACTION_BATCH').length
   await actor.page.keyboard.press('Tab')
   await expect(actor.page.locator('#card-r1')).toHaveClass(/highlighted/u)
-  await expect(actor.page.locator('#card-r1')).toHaveClass(/highlighted/u, { timeout: 2_000 })
+
+  let highlightSeq: number | undefined
+  await expect
+    .poll(() => {
+      const batch = (wire.sent('ACTION_BATCH') as ObservedActionBatch[])
+        .slice(sentBefore)
+        .find((message) =>
+          message.actions.some(
+            (action) => action.type === 'set_highlight' && action.highlight === 'r1',
+          ),
+        )
+      highlightSeq = batch?.seq
+      return highlightSeq
+    })
+    .toEqual(expect.any(Number))
+  await expect.poll(() => acknowledgedState(wire, highlightSeq!)?.player.meta.highlight).toBe('r1')
+  await expect(actor.page.locator('#card-r1')).toHaveClass(/highlighted/u)
 })
 
 test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', async ({
@@ -91,6 +178,7 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
 }) => {
   const actor = await players.create('Limit-A')
   const observer = await players.create('Limit-B')
+  const wire = new WireObserver(actor.page)
   await Promise.all([actor.open(), observer.open()])
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
   await unlockClicking(actor.page)
@@ -99,6 +187,7 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
   // client credits each click synchronously, so doing it atomically prevents a
   // server reconciliation broadcast from interleaving between the clicks and the
   // read and shaving the optimistic total.
+  const sentBefore = wire.sent('ACTION_BATCH').length
   const optimisticGain = await actor.page.evaluate(() => {
     const read = () => {
       const el = document.querySelector('#player-score, #player-bar-score')
@@ -114,12 +203,17 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
   })
   expect(optimisticGain).toBeGreaterThanOrEqual(25)
 
+  let clickSeq: number | undefined
   await expect
-    .poll(async () => ({
-      actor: displayedNumber(await ownScore(actor.page).textContent()),
-      observed: displayedNumber(await opponentScore(observer.page).textContent()),
-    }))
-    .toEqual(expect.objectContaining({ actor: expect.any(Number), observed: expect.any(Number) }))
+    .poll(() => {
+      const batch = (wire.sent('ACTION_BATCH') as ObservedActionBatch[])
+        .slice(sentBefore)
+        .find((message) => message.actions.filter((action) => action.type === 'click').length >= 25)
+      clickSeq = batch?.seq
+      return clickSeq
+    })
+    .toEqual(expect.any(Number))
+  await expect.poll(() => acknowledgedState(wire, clickSeq!)?.player.meta.peakCps).toBe(20)
   await expect
     .poll(async () => {
       const own = displayedNumber(await ownScore(actor.page).textContent())
@@ -132,10 +226,19 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
 test('ACT-06 choice ownership blocks its sibling in the real dialog', async ({ players }) => {
   const actor = await players.create('Choice-A')
   const observer = await players.create('Choice-B')
+  const wire = new WireObserver(actor.page)
   await Promise.all([actor.open(), observer.open()])
   await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
   await unlockClicking(actor.page)
   await buyUpgrade(actor.page, 'sc-clicking')
+  await expect
+    .poll(
+      () =>
+        (wire.received('STATE_UPDATE') as ObservedStateUpdate[]).at(-1)?.player.upgrades[
+          'sc-clicking'
+        ] ?? 0,
+    )
+    .toBeGreaterThan(0)
 
   await openPanel(actor.page, 1)
   await actor.page.locator('[data-upgrade="sc-production"]').click()

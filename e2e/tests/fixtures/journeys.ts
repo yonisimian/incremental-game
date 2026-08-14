@@ -64,7 +64,12 @@ export async function startBotMatch(player: GamePlayer, goal: GoalSetup): Promis
 export async function openPanel(page: Page, index: number): Promise<void> {
   const tab = page.locator(`#tab-${index}`)
   await expect(tab).not.toHaveAttribute('aria-disabled', 'true')
-  await tab.click()
+  // State broadcasts can replace the tab DOM while WebKit is waiting for click
+  // stability. Invoke the current button directly; panel-specific tests assert
+  // the resulting selection, while pointer behavior is covered separately.
+  await tab.evaluate((element) => {
+    ;(element as HTMLButtonElement).click()
+  })
   await expect(tab).toHaveAttribute('aria-selected', 'true')
 }
 

@@ -1,6 +1,38 @@
 import { test, expect } from './fixtures/test.js'
 import { buyUpgrade, openPanel, startRoomMatch, waitForEnded } from './fixtures/journeys.js'
+import { expectUnchanged } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
+
+interface ObservedStateUpdate {
+  readonly tick: number
+  readonly player: { readonly upgrades: Record<string, number> }
+  readonly opponent: {
+    readonly resources: Record<string, number>
+    readonly rates: Record<string, number>
+    readonly peakCps?: number
+    readonly purchases?: { readonly t: number; readonly kind?: string; readonly id?: string }[]
+  }
+}
+
+function stateUpdates(wire: WireObserver): ObservedStateUpdate[] {
+  return wire.received('STATE_UPDATE') as ObservedStateUpdate[]
+}
+
+function latestState(wire: WireObserver): ObservedStateUpdate | undefined {
+  return stateUpdates(wire).at(-1)
+}
+
+async function waitForOwnedUpgrade(
+  wire: WireObserver,
+  upgradeId: string,
+): Promise<ObservedStateUpdate> {
+  await expect.poll(() => latestState(wire)?.player.upgrades[upgradeId] ?? 0).toBeGreaterThan(0)
+  return latestState(wire)!
+}
+
+async function waitForTickAfter(wire: WireObserver, tick: number): Promise<void> {
+  await expect.poll(() => latestState(wire)?.tick ?? -1).toBeGreaterThan(tick)
+}
 
 test('SYS-01 free Attack and Relations branches unlock their rendered cards', async ({
   players,
@@ -28,19 +60,29 @@ test('SYS-02 espionage reveals only purchased resource, rate, and CPS tiers', as
 }) => {
   const spy = await players.create('Spy-A')
   const target = await players.create('Spy-B')
+  const spyWire = new WireObserver(spy.page)
+  const targetWire = new WireObserver(target.page)
   await Promise.all([spy.open(), target.open()])
   await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
 
   await buyUpgrade(spy.page, 'e-se-mr')
+  await waitForOwnedUpgrade(spyWire, 'e-se-mr')
+  await expect.poll(() => latestState(spyWire)?.opponent.resources.r0).toEqual(expect.any(Number))
+  expect(latestState(spyWire)?.opponent.resources).not.toHaveProperty('r1')
   await openPanel(spy.page, 5)
   await expect(spy.page.locator('.espionage-table')).toContainText('Wood')
   await expect(spy.page.locator('.espionage-table')).not.toContainText('Ale')
 
   await buyUpgrade(spy.page, 'e-se-mr-ps')
   await buyUpgrade(spy.page, 'e-se-cps')
+  await waitForOwnedUpgrade(spyWire, 'e-se-cps')
   await buyUpgrade(target.page, 'sc-unlock')
+  await waitForOwnedUpgrade(targetWire, 'sc-unlock')
   await openPanel(target.page, 0)
   for (let i = 0; i < 3; i += 1) await target.page.locator('#click-btn-r0').click()
+  await expect.poll(() => latestState(targetWire)?.player.upgrades['sc-unlock'] ?? 0).toBe(1)
+  await expect.poll(() => latestState(spyWire)?.opponent.rates.r0).toEqual(expect.any(Number))
+  await expect.poll(() => latestState(spyWire)?.opponent.peakCps ?? 0).toBeGreaterThan(0)
   await openPanel(spy.page, 5)
   await expect(spy.page.getByText('Max CPS')).toBeVisible()
   await expect(spy.page.locator('.espionage-table').first()).toContainText('/s')
@@ -51,6 +93,7 @@ test('SYS-03 purchase feed is non-retroactive and sends each later purchase once
 }) => {
   const spy = await players.create('Feed-A')
   const target = await players.create('Feed-B')
+  const spyWire = new WireObserver(spy.page)
   await Promise.all([spy.open(), target.open()])
   await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
 
@@ -58,6 +101,8 @@ test('SYS-03 purchase feed is non-retroactive and sends each later purchase once
   await buyUpgrade(spy.page, 'e-se-mr')
   await buyUpgrade(spy.page, 'e-se-mr-ps')
   await buyUpgrade(spy.page, 'e-se-p')
+  const feedEnabled = await waitForOwnedUpgrade(spyWire, 'e-se-p')
+  await waitForTickAfter(spyWire, feedEnabled.tick)
   await openPanel(spy.page, 5)
   await expect(spy.page.getByText('No purchases observed yet.')).toBeVisible()
 
@@ -65,7 +110,7 @@ test('SYS-03 purchase feed is non-retroactive and sends each later purchase once
   await openPanel(spy.page, 5)
   await expect(spy.page.locator('.espionage-feed-item')).toHaveCount(1)
   await expect(spy.page.locator('.espionage-feed-item')).toContainText('made a purchase')
-  await expect(spy.page.locator('.espionage-feed-item')).toHaveCount(1, { timeout: 1_500 })
+  await expectUnchanged(() => spy.page.locator('.espionage-feed-item').count(), 1, 1_500, 100)
 })
 
 test('SYS-04 wire redaction progresses from generic to kind and concrete ID', async ({
@@ -73,27 +118,53 @@ test('SYS-04 wire redaction progresses from generic to kind and concrete ID', as
 }) => {
   const spy = await players.create('WireSpy-A')
   const target = await players.create('WireSpy-B')
-  const wire = new WireObserver(spy.page)
+  const spyWire = new WireObserver(spy.page)
+  const targetWire = new WireObserver(target.page)
   await Promise.all([spy.open(), target.open()])
   await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
   await buyUpgrade(spy.page, 'e-se-mr')
   await buyUpgrade(spy.page, 'e-se-mr-ps')
-  await buyUpgrade(spy.page, 'e-se-p')
   await buyUpgrade(target.page, 'a-unlock')
+  await waitForOwnedUpgrade(targetWire, 'a-unlock')
 
-  const opponentPayloads = (): string =>
-    JSON.stringify(
-      wire.received('STATE_UPDATE').map((message) => (message as { opponent: unknown }).opponent),
-    )
-  await expect.poll(opponentPayloads).not.toContain('a-unlock')
+  const feedStart = stateUpdates(spyWire).length
+  await buyUpgrade(spy.page, 'e-se-p')
+  const feedEnabled = await waitForOwnedUpgrade(spyWire, 'e-se-p')
+  await waitForTickAfter(spyWire, feedEnabled.tick)
+
+  const purchasesSince = (index: number) =>
+    stateUpdates(spyWire)
+      .slice(index)
+      .flatMap((message) => message.opponent.purchases ?? [])
+  expect(JSON.stringify(purchasesSince(feedStart))).not.toContain('a-unlock')
+
+  const genericStart = stateUpdates(spyWire).length
+  await buyUpgrade(target.page, 'node')
+  const genericPurchase = await waitForOwnedUpgrade(targetWire, 'node')
+  await waitForTickAfter(spyWire, genericPurchase.tick)
+  const genericEvents = purchasesSince(genericStart)
+  expect(genericEvents).toHaveLength(1)
+  expect(genericEvents[0]).toEqual({ t: expect.any(Number) })
+
   await buyUpgrade(spy.page, 'e-p-ug')
+  await waitForOwnedUpgrade(spyWire, 'e-p-ug')
+  const kindStart = stateUpdates(spyWire).length
   await buyUpgrade(target.page, 'ir-unlock')
-  await expect.poll(opponentPayloads).toContain('"kind":"upgrade"')
-  await expect.poll(opponentPayloads).not.toContain('ir-unlock')
+  const kindPurchase = await waitForOwnedUpgrade(targetWire, 'ir-unlock')
+  await waitForTickAfter(spyWire, kindPurchase.tick)
+  const kindEvents = purchasesSince(kindStart)
+  expect(kindEvents).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'upgrade' })]))
+  expect(kindEvents.every((event) => event.id === undefined)).toBe(true)
 
   await buyUpgrade(spy.page, 'e-p-u')
+  await waitForOwnedUpgrade(spyWire, 'e-p-u')
+  const idStart = stateUpdates(spyWire).length
   await buyUpgrade(target.page, 'e-se-mr')
-  await expect.poll(opponentPayloads).toContain('e-se-mr')
+  const idPurchase = await waitForOwnedUpgrade(targetWire, 'e-se-mr')
+  await waitForTickAfter(spyWire, idPurchase.tick)
+  expect(purchasesSince(idStart)).toEqual(
+    expect.arrayContaining([expect.objectContaining({ kind: 'upgrade', id: 'e-se-mr' })]),
+  )
 })
 
 test('SYS-05 passive attack debuff reaches victim header and Data panel', async ({ players }) => {
