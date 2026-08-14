@@ -430,14 +430,14 @@ export interface GeneratorRow {
 type EffectRefMut = { type: string } & Record<string, unknown>
 
 /**
- * Every effect ref in the tree, mutable in place: the mode-level `tree.effects`,
- * every upgrade's `effects`, **and** every attack's `effects`. All three are
- * validated by the runtime, so a cascade that misses any location would let an
- * export fail (e.g. an attack's `enemyProductionModifier.field` left dangling
- * after a resource rename).
+ * Every effect ref in the tree, mutable in place: the mode-level
+ * `tree.startingEffects`, every upgrade's `effects`, **and** every attack's
+ * `effects`. All three are validated by the runtime, so a cascade that misses any
+ * location would let an export fail (e.g. an attack's
+ * `enemyProductionModifier.field` left dangling after a resource rename).
  */
 function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
-  for (const ref of tree.effects ?? []) yield ref
+  for (const ref of tree.startingEffects) yield ref
   for (const { node } of walkPositioned(tree)) {
     for (const ref of node.effects ?? []) yield ref
   }
@@ -497,9 +497,9 @@ export function addResource(tree: TreeFile): string {
 /**
  * The human-readable references that pin resource `key` in place (and thus block
  * deletion): the only-resource and score-resource invariants, generator cost +
- * production, the `highlight` meta, native modifier fields, upgrade costs, and
- * effect refs. Owned data that cascades on delete (initial amount, flavor
- * entries) is deliberately excluded.
+ * production, the `highlight` meta, upgrade costs, and effect refs (mode-level,
+ * per-upgrade, and per-attack). Owned data that cascades on delete (initial
+ * amount, flavor entries) is deliberately excluded.
  */
 export function resourceReferences(tree: TreeFile, key: string): string[] {
   const refs: string[] = []
@@ -510,7 +510,6 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
     if (g.production.resource === key) refs.push(`generator '${g.id}' production`)
   }
   if (highlightKey(tree) === key) refs.push('the highlight meta')
-  if (tree.nativeModifiers.some((m) => m.field === key)) refs.push('a native modifier')
   for (const { node } of walkPositioned(tree)) {
     if (key in node.cost) refs.push(`upgrade '${node.id}' cost`)
   }
@@ -541,8 +540,7 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
 /**
  * Rename resource `oldKey → newKey`, rewriting every reference so the tree stays
  * loadable: the resource list, score resource, initial amounts, the `highlight`
- * meta, native-modifier fields (resource keys only — never the `clickIncome`
- * special), generator cost + production, upgrade cost record
+ * meta, generator cost + production, upgrade cost record
  * keys, attack prepare-cost record keys, effect refs (the `resource:`-prefixed
  * `relativeModifier` source, the bare `field` target of
  * `relativeModifier`/`baseModifier`/`enemyProductionModifier`, the `resource` of
@@ -564,9 +562,6 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
     Reflect.deleteProperty(tree.initialResources, oldKey)
   }
   if (highlightKey(tree) === oldKey) tree.initialMeta.highlight = newKey
-  for (const m of tree.nativeModifiers) {
-    if (m.field === oldKey) m.field = newKey
-  }
   for (const g of tree.generators) {
     if (oldKey in g.cost) {
       g.cost = Object.fromEntries(

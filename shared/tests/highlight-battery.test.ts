@@ -31,7 +31,6 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
     scoreResource: 'r0',
     upgrades,
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: true,
     initialResources: {},
@@ -402,8 +401,10 @@ describe('the battery factor in the pipeline', () => {
   function producingMode(extra: UpgradeDefinition[] = []): ModeDefinition {
     return makeMode({
       upgrades: [unlockUpgrade('shb', 'highlightBattery'), ...extra],
-      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-      nativeModifiers: [{ stage: 'additive', field: 'b0', value: 10 }],
+      effects: [
+        { type: 'highlightMultiplier', multiplier: 2 },
+        { type: 'baseModifier', stage: 'additive', field: 'b0', value: 10 },
+      ],
     })
   }
   const rate = (state: PlayerState, mode: ModeDefinition): number =>
@@ -425,10 +426,10 @@ describe('the battery factor in the pipeline', () => {
     const mode = makeMode({
       resources: ['r0', 'r1'],
       upgrades: [unlockUpgrade('shb', 'highlightBattery')],
-      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-      nativeModifiers: [
-        { stage: 'additive', field: 'b0', value: 10 },
-        { stage: 'additive', field: 'b1', value: 10 },
+      effects: [
+        { type: 'highlightMultiplier', multiplier: 2 },
+        { type: 'baseModifier', stage: 'additive', field: 'b0', value: 10 },
+        { type: 'baseModifier', stage: 'additive', field: 'b1', value: 10 },
       ],
       flavors: [
         {
@@ -508,8 +509,10 @@ describe('computeRateBreakdown with a battery', () => {
         unlockUpgrade('shb', 'highlightBattery'),
         makeUpgrade('u', [{ type: 'baseModifier', stage: 'additive', field: 'b0', value: 5 }]),
       ],
-      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-      nativeModifiers: [{ stage: 'additive', field: 'b0', value: 10 }],
+      effects: [
+        { type: 'highlightMultiplier', multiplier: 2 },
+        { type: 'baseModifier', stage: 'additive', field: 'b0', value: 10 },
+      ],
       generators: [
         { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 3 } },
       ],

@@ -41,11 +41,12 @@ import type { BaseModifierOutput, EffectHost, EffectOutput } from '../effects/in
 import {
   allAttackIds,
   allPactIds,
-  anyOwned,
-  attackGateUpgrades,
+  attackGate,
+  enemyDataGate,
+  isGranted,
   isHighlightActive,
-  pactGateUpgrades,
-  panelGateUpgrades,
+  pactGate,
+  panelGate,
 } from '../unlock-gates.js'
 
 // ─── Validation ──────────────────────────────────────────────────────
@@ -251,19 +252,18 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkRelativeModifier(`upgrade '${u.id}'`, ref)
   }
 
-  // `nativeModifiers` and `baseModifier` effects name a production `field` the
-  // generic schema only checks is a string. Validate it against the same target
-  // catalog as `relativeModifier` (which now includes each resource's base
-  // producer `bK` alongside its global `rK`, generator ids, and the two
-  // specials) so an authored typo — or a base/global mix-up like `b9` — refuses
-  // to boot instead of landing on a dead field the pipeline silently ignores.
+  // `baseModifier` effects name a production `field` the generic schema only
+  // checks is a string. Validate it against the same target catalog as
+  // `relativeModifier` (which now includes each resource's base producer `bK`
+  // alongside its global `rK`, generator ids, and the two specials) so an
+  // authored typo — or a base/global mix-up like `b9` — refuses to boot instead
+  // of landing on a dead field the pipeline silently ignores.
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
         `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
       )
   }
-  for (const m of def.nativeModifiers) checkProductionField('native modifier', m.field)
   const checkBaseModifier = (where: string, ref: EffectRef): void => {
     if (ref.type === 'baseModifier') checkProductionField(`${where} baseModifier`, ref.field)
   }
@@ -599,36 +599,37 @@ export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeD
 }
 
 /**
- * Whether a UI panel is currently accessible for this player. A panel is gated
- * by any upgrade carrying a `panelUnlock` effect naming it: locked until one
- * such upgrade is owned. Panels that no upgrade unlocks are always available.
- * (See `unlock-gates` for the reverse index this and the other unlock gates
- * share — `isPanelUnlocked` runs every frame via the tab-lock refresh, so the
- * check is an O(gates-for-this-panel) ownership lookup, not a full tree scan.)
+ * Whether a UI panel is currently accessible for this player. A panel is gated by
+ * any `panelUnlock` effect naming it: locked until that grant is in force (an
+ * owned upgrade, or the mode's starting effects, which grant for the whole round).
+ * Panels nothing unlocks are always available. (See `unlock-gates` for the reverse
+ * index this and the other unlock gates share — `isPanelUnlocked` runs every frame
+ * via the tab-lock refresh, so the check is an O(grants-for-this-panel) lookup,
+ * not a full tree scan.)
  */
 export function isPanelUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   panelId: string,
 ): boolean {
-  const gates = panelGateUpgrades(mode, panelId)
-  if (!gates) return true // no upgrade gates this panel → always available
-  return anyOwned(state, gates)
+  const gate = panelGate(mode, panelId)
+  if (!gate) return true // nothing gates this panel → always available
+  return isGranted(state, gate)
 }
 
 /**
- * Whether an attack is available to this player. Granted by any owned upgrade
- * carrying an `unlockAttack` effect naming it. Unlike `isPanelUnlocked`, an
- * attack no upgrade unlocks is *hidden* by default (attacks only appear once
- * unlocked). The attack itself has no behavior yet — this gates its appearance
- * in the attack panel.
+ * Whether an attack is available to this player. Granted by an `unlockAttack`
+ * effect naming it — an owned upgrade's, or one of the mode's starting effects.
+ * Unlike `isPanelUnlocked`, an attack nothing unlocks is *hidden* by default
+ * (attacks only appear once unlocked). The attack itself has no behavior yet —
+ * this gates its appearance in the attack panel.
  */
 export function isAttackUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   attackId: string,
 ): boolean {
-  return anyOwned(state, attackGateUpgrades(mode, attackId))
+  return isGranted(state, attackGate(mode, attackId))
 }
 
 /** The attack ids this player has unlocked, in mode declaration order. */
@@ -637,18 +638,18 @@ export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefiniti
 }
 
 /**
- * Whether a pact is available to this player. Granted by any owned upgrade
- * carrying an `unlockPact` effect naming it. Unlike `isPanelUnlocked`, a pact no
- * upgrade unlocks is *hidden* by default (pacts only appear once unlocked). The
- * pact itself has no behavior yet — this gates its appearance in the
- * international relationship panel.
+ * Whether a pact is available to this player. Granted by an `unlockPact` effect
+ * naming it — an owned upgrade's, or one of the mode's starting effects. Unlike
+ * `isPanelUnlocked`, a pact nothing unlocks is *hidden* by default (pacts only
+ * appear once unlocked). The pact itself has no behavior yet — this gates its
+ * appearance in the international relationship panel.
  */
 export function isPactUnlocked(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   pactId: string,
 ): boolean {
-  return anyOwned(state, pactGateUpgrades(mode, pactId))
+  return isGranted(state, pactGate(mode, pactId))
 }
 
 /** The pact ids this player has unlocked, in mode declaration order. */
@@ -657,59 +658,19 @@ export function unlockedPacts(state: Readonly<PlayerState>, mode: ModeDefinition
 }
 
 /**
- * Per-mode reverse index: enemy-data key → ids of the upgrades whose
- * `accessEnemyData` effect grants it. Mirrors {@link getPanelGateIndex}: derived
- * topology, cached in a `WeakMap` keyed by the mode, so `hasEnemyDataAccess`
- * stays an O(grants-for-this-key) ownership check on the espionage refresh path.
- */
-const enemyDataGateIndex = new WeakMap<ModeDefinition, ReadonlyMap<string, readonly string[]>>()
-
-/**
- * Build (or return the cached) enemy-data gate index for a mode.
- * `accessEnemyData` is state-independent — it echoes its authored key — so a
- * throwaway initial state is enough to read which key each effect names.
- */
-function getEnemyDataGateIndex(mode: ModeDefinition): ReadonlyMap<string, readonly string[]> {
-  const cached = enemyDataGateIndex.get(mode)
-  if (cached) return cached
-
-  const index = new Map<string, string[]>()
-  const probe = createInitialState(mode)
-  for (const upgrade of mode.upgrades) {
-    for (const ref of upgrade.effects ?? []) {
-      if (ref.type !== 'accessEnemyData') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
-        if (!('kind' in out) || out.kind !== 'enemyDataAccess') continue
-        const grants = index.get(out.data)
-        if (grants) {
-          if (!grants.includes(upgrade.id)) grants.push(upgrade.id)
-        } else {
-          index.set(out.data, [upgrade.id])
-        }
-      }
-    }
-  }
-
-  enemyDataGateIndex.set(mode, index)
-  return index
-}
-
-/**
  * Whether the viewing player may see a slice of opponent intel (e.g.
- * `'resources'`) in the espionage panel. Granted by any owned upgrade carrying
- * an `accessEnemyData` effect naming that key. Unlike `isPanelUnlocked`, an
- * ungranted key is *hidden* by default (a key no upgrade grants is never
- * visible). `state` is the *viewer's* own state — the spy unlocks visibility
- * into the opponent.
+ * `'resources'`) in the espionage panel. Granted by an `accessEnemyData` effect
+ * naming that key — an owned upgrade's, or one of the mode's starting effects.
+ * Unlike `isPanelUnlocked`, an ungranted key is *hidden* by default (a key nothing
+ * grants is never visible). `state` is the *viewer's* own state — the spy unlocks
+ * visibility into the opponent.
  */
 export function hasEnemyDataAccess(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   dataKey: string,
 ): boolean {
-  const grants = getEnemyDataGateIndex(mode).get(dataKey)
-  if (!grants) return false // no upgrade grants this key → never visible
-  return grants.some((id) => (state.upgrades[id] ?? 0) > 0)
+  return isGranted(state, enemyDataGate(mode, dataKey))
 }
 
 // ─── Modifier Collection ─────────────────────────────────────────────
@@ -729,7 +690,7 @@ interface CollectedModifiers {
 }
 
 /**
- * Run the modifier pass: native + owned upgrades + state-derived effects, with
+ * Run the modifier pass: mode-level effects + owned upgrades, with
  * generator-targeted modifiers held back in their own accumulators rather than
  * folded into resource rates. Shared by {@link collectModifiers} (which folds
  * them) and {@link collectGeneratorOutputs} (which reports them).
@@ -740,10 +701,6 @@ function collectRawModifiers(
 ): CollectedModifiers {
   const modifiers: Modifier[] = []
 
-  // Native modifiers (base income rates for this mode)
-  modifiers.push(...mode.nativeModifiers)
-
-  // Upgrade modifiers
   const generatorIds = new Set(mode.generators.map((g) => g.id))
   const generatorModifiers = new Map<string, { additive: number; multiplicative: number }>()
   for (const gen of mode.generators) {
@@ -866,7 +823,7 @@ function generatorOutput(
 }
 
 /**
- * Collect all active modifiers for a player: native + owned upgrades + state-derived.
+ * Collect all active modifiers for a player: mode-level effects + owned upgrades.
  * This is the bridge between game domain types and the pure pipeline.
  *
  * Generator-targeted bonuses are folded here: each owned generator contributes
@@ -918,7 +875,7 @@ export interface ResourceRateBreakdown {
   /** Authoritative per-second rate (matches `computePassiveRates`). */
   total: number
   /**
-   * The base producer: native modifiers + mode-level effects, *including* every
+   * The base producer: the mode's starting effects, *including* every
    * upgrade boost applied to them. Upgrades are not a bucket of their own — a
    * base-boosting upgrade shows up here, a generator-boosting one in
    * `generators`.

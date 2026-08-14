@@ -1,27 +1,17 @@
 import { z } from 'zod'
 
-import { MODIFIER_STAGES } from '../modifiers/types.js'
-import { guardModifierValue } from '../modifiers/value-guard.js'
 import type { PrerequisiteExpression } from '../types.js'
 
 /**
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 3
+export const CURRENT_TREE_VERSION = 4
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
 /** A position is the offset from a node's layout parent (roots: from the origin). */
 const PositionSchema = z.strictObject({ x: z.number(), y: z.number() })
-
-const ModifierSchema = z
-  .strictObject({
-    stage: z.enum(MODIFIER_STAGES),
-    field: z.string(),
-    value: z.number(),
-  })
-  .superRefine(guardModifierValue('bonus', 'modifier'))
 
 /**
  * A single currency's cost: `base` (level-0 price) plus optional per-level
@@ -214,8 +204,15 @@ export const TreeFileSchema = z.strictObject({
   highlightEnabled: z.boolean(),
   initialResources: z.record(z.string(), z.number()),
   initialMeta: z.record(z.string(), z.unknown()),
-  nativeModifiers: z.array(ModifierSchema),
-  effects: z.array(EffectRefSchema).optional(),
+  /**
+   * Mode-level effects: the bonuses every player starts the round with, plus any
+   * state-derived effect that applies unconditionally. This is the *only*
+   * mode-wide production channel — a flat starting rate is authored here as a
+   * `baseModifier` ref, which `collectRawModifiers` applies exactly once (no
+   * owning upgrade, so no owned-count compounding). Optional in the file
+   * (defaults to none).
+   */
+  startingEffects: z.array(EffectRefSchema).default([]),
   generators: z.array(GeneratorSchema),
   /** Attacks available in this mode. Optional in the file (defaults to none). */
   attacks: z.array(AttackSchema).default([]),
