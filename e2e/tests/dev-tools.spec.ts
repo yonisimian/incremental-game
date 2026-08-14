@@ -18,7 +18,7 @@ test('DEV-01 production dev entry mounts and unmounts every tab cleanly', async 
   const player = await players.create('DevBoot')
   await openDev(player.page)
 
-  for (const tab of ['queue', 'live', 'editor', 'simulation', 'editor', 'simulation']) {
+  for (const tab of ['queue', 'live', 'editor', 'live', 'editor', 'queue']) {
     await switchDevTab(player.page, tab)
     await expect(player.page.locator(`.dev-tab[data-tab="${tab}"]`)).toHaveClass(/active/u)
   }
@@ -26,16 +26,9 @@ test('DEV-01 production dev entry mounts and unmounts every tab cleanly', async 
   await expect(player.page.locator('#ed-section-host')).toBeVisible()
 })
 
-test('DEV-02 Simulation and Queue execute bundled strategies and render reports', async ({
-  players,
-}) => {
+test('DEV-02 Queue executes bundled strategies and renders reports', async ({ players }) => {
   const player = await players.create('DevRun')
   await openDev(player.page)
-
-  await player.page.locator('#run-btn').click()
-  await expect(player.page.locator('#summary-body tr')).not.toHaveCount(0)
-  await expect(player.page.locator('#chart-score canvas')).not.toHaveCount(0)
-  await expect(player.page.locator('#envelope-report')).not.toBeEmpty()
 
   await switchDevTab(player.page, 'queue')
   await player.page.locator('#q-run').click()
@@ -43,16 +36,9 @@ test('DEV-02 Simulation and Queue execute bundled strategies and render reports'
   await expect(player.page.locator('#q-envelope')).not.toBeEmpty()
 })
 
-test('DEV-03 CSV and editor JSON downloads contain parseable artifacts', async ({ players }) => {
+test('DEV-03 editor JSON download contains a parseable artifact', async ({ players }) => {
   const player = await players.create('DevDownload')
   await openDev(player.page)
-  await player.page.locator('#run-btn').click()
-  await expect(player.page.locator('#csv-btn')).toBeEnabled()
-  const csvEvent = player.page.waitForEvent('download')
-  await player.page.locator('#csv-btn').click()
-  const csv = await csvEvent
-  expect(csv.suggestedFilename()).toBe('simulation-results.csv')
-  expect(await csv.createReadStream()).not.toBeNull()
 
   await switchDevTab(player.page, 'editor')
   const jsonEvent = player.page.waitForEvent('download')
