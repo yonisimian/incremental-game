@@ -1,6 +1,6 @@
 # 32 — A DOM test suite for the client
 
-## Status: Phases 1–2 complete (infra + toasts). Phase 3 is a fast follow.
+## Status: Phases 1–3 complete (infra + toasts + rest of VFX). Phase 4 deferred
 
 ---
 
@@ -155,11 +155,11 @@ Dismissals are advanced with Vitest fake timers.
 
 - `installWaapiShim()` / `flushAnimations()` — added **only if** the Phase-1
   spike shows happy-dom + fake timers can't finish removals deterministically.
-- `stubLayout(px)` — happy-dom returns `0` for `offsetHeight`, which is fine for
-  the structural toast tests (the collapse keyframe is `0px → 0px`; the
-  assertion is "slot gone", not a pixel value). The first genuine need is
-  Phase 3 (`bumpScore` / click-popup read `getBoundingClientRect`), so it lands
-  **with Phase 3**, not before.
+- `stubLayout(px)` — happy-dom returns `0` for `offsetHeight`/`getBoundingClientRect`,
+  which turned out fine for the structural toast **and** VFX tests: the collapse
+  keyframe is `0px → 0px` and no VFX assertion checks a coordinate, so Phase 3
+  shipped **without** it. It stays deferred until a test genuinely needs a real
+  pixel value.
 
 ### Phasing (each phase is a separate, shippable commit)
 
@@ -167,7 +167,7 @@ Dismissals are advanced with Vitest fake timers.
 | -------- | ------------------------------------------------------------------------------------------------ | -------- |
 | **1** ✅ | Infra: add `happy-dom` dev dep, minimal `dom-harness.ts`, spike proving `animate` + fake timers  | unblocks |
 | **2** ✅ | **Toasts** — the feature we just built, currently 0% covered                                     | **high** |
-| **3**    | Rest of `vfx/index.ts` — click popup, combo counter, `shakeScreen`, `flashPurchase`, `bumpScore` | medium   |
+| **3** ✅ | Rest of `vfx/index.ts` — click popup, combo counter, `shakeScreen`, `flashPurchase`, `bumpScore` | medium   |
 | **4**    | _(optional, flag first)_ UI wiring — `screens.ts`/`playing.ts`/`end.ts` event listeners          | low–med  |
 
 Phases 1–2 are the committed scope of this plan. 3 is a fast follow. **4 is
