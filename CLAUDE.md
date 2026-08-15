@@ -26,6 +26,8 @@ pnpm lint                # eslint (also: lint:fix, lint:md, lint:css, lint:expor
 pnpm format              # prettier write (format:check for CI)
 ```
 
+The client has a **DOM test tier**: files named `*.dom.test.ts` opt into happy-dom with `// @vitest-environment happy-dom` on line 1 and run under the normal `pnpm --filter client test`. Pick a tier with the "lowest tier that can fail truthfully" rule — see [.github/instructions/testing.instructions.md](.github/instructions/testing.instructions.md).
+
 `pre-push` hook runs `typecheck && format:check && lint && lint:css` — run these before pushing or the push fails. Commits use [conventional commits](https://www.conventionalcommits.org/) and land directly on `main`.
 
 ## The shared-build dependency (most common gotcha)
