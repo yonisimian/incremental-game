@@ -88,6 +88,16 @@ it stays **contingent**. Lead with the 30-minute spike; let it decide. The tests
 assert the same end state either way, so the environment choice doesn't leak into
 the test bodies.
 
+**Spike outcome (Phase 1):** happy-dom `^20.11.2` ships **no** `Element.animate`
+(`el.animate is not a function`), so the default path can't run at all — the
+contingent shim is **required, not optional**. The harness installs a minimal
+`installAnimateShim()` that replaces `Element.prototype.animate` with a fake whose
+`onfinish` fires via `setTimeout(duration)`. Because the toast dismiss is _also_ a
+`setTimeout`, a single `vi.advanceTimersByTime()` drives both the dismiss timer and
+the exit animation to completion — no bespoke `flushAnimations()` needed. Spike
+(`client/tests/toast-spike.dom.test.ts`) proves the end state (0 slots after
+advance) deterministically.
+
 Why happy-dom over jsdom: lighter, faster, no native deps, and the repo's
 earlier friction was specifically an install failure — happy-dom sidesteps it.
 (jsdom would also work; happy-dom is the lower-cost default.)
