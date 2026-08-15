@@ -1513,9 +1513,17 @@ body {
   z-index: 10;
 }
 
+/* Clipping wrapper around each toast: its height is animated on enter/exit so
+   the banner slides up and out of view while flow packs the rest of the stack.
+   The gap between toasts lives here as padding so it collapses with the slot. */
+.toast-slot {
+  overflow: hidden;
+  padding-bottom: 0.4rem;
+  box-sizing: border-box;
+}
+
 .toast {
   padding: 0.35rem 0.7rem;
-  margin-bottom: 0.4rem;
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.8rem;

@@ -4,7 +4,8 @@
  * A standalone overlay mechanism (not tied to the click/combo/shockwave VFX):
  * toasts stack downward from the top of the panel region, tint by severity, and
  * fade out. Purely cosmetic, no state. GPU-accelerated via the Web Animations
- * API; the dismiss uses a FLIP transform so the stack glides rather than jumps.
+ * API; on dismiss each toast's clipping slot collapses its height, so document
+ * flow slides the rest of the stack up together.
  */
 
 import { hasDom, getLayer } from './shared.js'
@@ -23,6 +24,10 @@ export interface ToastOptions {
 const TOAST_DEFAULT_MS = 2500
 /** Soft cap on visible toasts — a flurry evicts the oldest instead of walling the screen. */
 const TOAST_MAX_VISIBLE = 4
+/** Entrance slide/expand duration. */
+const TOAST_ENTER_MS = 180
+/** Exit fade/collapse duration. */
+const TOAST_EXIT_MS = 260
 
 /**
  * The overlay toasts append to: the play screen's `#toast-layer` (positioned over
@@ -38,65 +43,70 @@ function toastLayer(): HTMLElement {
  * the panel region and fade out; purely cosmetic, no state. `variant` tints the
  * border/text. The visible stack is soft-capped at {@link TOAST_MAX_VISIBLE}: a
  * spawn past the cap evicts the oldest first.
+ *
+ * Each toast lives in a clipping slot (`.toast-slot`, `overflow: hidden`) whose
+ * height animates. On exit the slot collapses to zero and normal document flow
+ * slides every toast below it up together — smooth group motion with no
+ * per-element bookkeeping, and no content squish since the toast keeps its full
+ * size inside the shrinking slot.
  */
 export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOptions): void {
   if (!hasDom()) return
   const layer = toastLayer()
 
   // Evict oldest until under the cap so a burst can't build a wall of banners.
-  while (layer.querySelectorAll('.toast').length >= TOAST_MAX_VISIBLE) {
-    const oldest = layer.querySelector<HTMLElement>('.toast')
+  while (layer.querySelectorAll('.toast-slot').length >= TOAST_MAX_VISIBLE) {
+    const oldest = layer.querySelector<HTMLElement>('.toast-slot')
     if (!oldest) break
     removeToast(oldest)
   }
 
+  const slot = document.createElement('div')
+  slot.className = 'toast-slot'
   const el = document.createElement('div')
   el.className = `toast toast--${variant}`
   el.textContent = opts?.icon ? `${opts.icon} ${text}` : text
-  layer.appendChild(el)
+  slot.appendChild(el)
+  layer.appendChild(slot)
 
+  // Entrance: fade/slide the banner in. The slot takes its natural height
+  // immediately; the toasts below simply appear in place.
   el.animate(
     [
-      { transform: 'translateY(-12px)', opacity: 0 },
-      { transform: 'translateY(0)', opacity: 1, offset: 0.12 },
-      { transform: 'translateY(0)', opacity: 1, offset: 0.82 },
-      { transform: 'translateY(-8px)', opacity: 0 },
+      { opacity: 0, transform: 'translateY(-6px)' },
+      { opacity: 1, transform: 'translateY(0)' },
     ],
-    { duration: opts?.durationMs ?? TOAST_DEFAULT_MS, easing: 'ease-out', fill: 'forwards' },
-  ).onfinish = () => {
-    removeToast(el)
-  }
+    { duration: TOAST_ENTER_MS, easing: 'ease-out' },
+  )
+
+  setTimeout(() => {
+    removeToast(slot)
+  }, opts?.durationMs ?? TOAST_DEFAULT_MS)
 }
 
 /**
- * Remove a toast and glide the ones below it up into place with a FLIP
- * (First-Last-Invert-Play) transform, so the stack slides smoothly instead of
- * snapping when a banner leaves the flex column.
+ * Dismiss a toast: fade/slide the banner out and collapse its slot to zero
+ * height. Flow reclaims the space, so every toast below slides up in unison.
+ * Idempotent — the cap-eviction and the auto-dismiss timer can both target the
+ * same slot, so the first call wins and later calls are no-ops.
  */
-function removeToast(el: HTMLElement): void {
-  const layer = el.parentElement
-  if (!layer) {
-    el.remove()
-    return
-  }
+function removeToast(slot: HTMLElement): void {
+  if (slot.dataset.removing) return
+  slot.dataset.removing = 'true'
 
-  // First: record each toast's position before the layout changes.
-  const survivors = Array.from(layer.querySelectorAll<HTMLElement>('.toast')).filter(
-    (t) => t !== el,
+  const el = slot.firstElementChild as HTMLElement | null
+  el?.animate(
+    [
+      { opacity: 1, transform: 'translateY(0)' },
+      { opacity: 0, transform: 'translateY(-8px)' },
+    ],
+    { duration: TOAST_EXIT_MS, easing: 'ease-in', fill: 'forwards' },
   )
-  const beforeTop = new Map<HTMLElement, number>()
-  for (const t of survivors) beforeTop.set(t, t.offsetTop)
-
-  el.remove()
-
-  // Last + Invert + Play: start each survivor at its old offset and animate the
-  // delta back to zero, so nothing ever jumps to its new position.
-  for (const t of survivors) {
-    const delta = (beforeTop.get(t) ?? 0) - t.offsetTop
-    if (delta === 0) continue
-    t.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], {
-      duration: 750,
-      easing: 'ease-out',
-    })
+  slot.animate([{ height: `${slot.offsetHeight}px` }, { height: '0px' }], {
+    duration: TOAST_EXIT_MS,
+    easing: 'ease-in',
+    fill: 'forwards',
+  }).onfinish = () => {
+    slot.remove()
   }
 }
