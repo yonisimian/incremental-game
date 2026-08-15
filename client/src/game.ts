@@ -845,8 +845,15 @@ function showAttackEvents(
     const name = getAttackName(flavor, ev.attack)
     const icon = getAttackIcon(flavor, ev.attack)
     if (ev.kind === 'none') {
-      // Attacker-only: the strike fired but the victim had nothing to take.
-      spawnToast(`${icon} ${name}: nothing to steal`, 'info')
+      // A strike that moved nothing. Outgoing: your attack found nothing to
+      // take (info). Incoming: the opponent tried to raid you but you had
+      // nothing — valuable intel about their intentions (warning), no shake
+      // since you lost nothing.
+      if (ev.direction === 'outgoing') {
+        spawnToast(`${icon} ${name}: nothing to steal`, 'info')
+      } else {
+        spawnToast(`${icon} ${name}: attack repelled`, 'warning')
+      }
       continue
     }
     // A resource theft reads as a quantity ("50 🪵"); a generator theft as a

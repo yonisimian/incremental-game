@@ -528,11 +528,18 @@ export class Match {
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
         if (moved.length === 0) {
           // The strike landed but moved nothing (the victim owned none of the
-          // target). Tell the attacker anyway so a fired attack always yields
-          // feedback; the victim lost nothing, so gets no event.
+          // target). Report it to both sides: the attacker gets feedback that
+          // the attack fired, and the victim learns an attempt was made even
+          // though nothing was lost.
           attacker.attackEvents.push({
             attack: pending.attack,
             direction: 'outgoing',
+            kind: 'none',
+            t: gameSec,
+          })
+          victim.attackEvents.push({
+            attack: pending.attack,
+            direction: 'incoming',
             kind: 'none',
             t: gameSec,
           })

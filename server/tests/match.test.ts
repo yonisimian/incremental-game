@@ -1215,7 +1215,7 @@ describe('Match', () => {
       )
     })
 
-    it('tells the attacker (only) when a strike steals nothing', () => {
+    it('tells both sides when a strike steals nothing', () => {
       const m = enterPlaying()
       // Unlock the panel + Poach Sawmill (a5); its prepare cost is 10 r1.
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
@@ -1231,9 +1231,11 @@ describe('Match', () => {
       expect(outgoing).toContainEqual(
         expect.objectContaining({ attack: 'a5', direction: 'outgoing', kind: 'none' }),
       )
-      // The victim lost nothing, so learns nothing of the failed attempt.
+      // The victim also learns an attempt was made against it, though it lost nothing.
       const incoming = sentOfType(ws2, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
-      expect(incoming.some((e) => e.attack === 'a5')).toBe(false)
+      expect(incoming).toContainEqual(
+        expect.objectContaining({ attack: 'a5', direction: 'incoming', kind: 'none' }),
+      )
     })
 
     it('rejects an activation the player cannot afford', () => {
