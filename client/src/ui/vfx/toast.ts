@@ -55,8 +55,11 @@ export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOpti
   const layer = toastLayer()
 
   // Evict oldest until under the cap so a burst can't build a wall of banners.
-  while (layer.querySelectorAll('.toast-slot').length >= TOAST_MAX_VISIBLE) {
-    const oldest = layer.querySelector<HTMLElement>('.toast-slot')
+  // Match only slots not already collapsing: removeToast defers the actual
+  // node removal to an animation callback, so a removing slot lingers in the
+  // DOM — counting it would spin this loop forever (it can never be re-removed).
+  while (layer.querySelectorAll('.toast-slot:not([data-removing])').length >= TOAST_MAX_VISIBLE) {
+    const oldest = layer.querySelector<HTMLElement>('.toast-slot:not([data-removing])')
     if (!oldest) break
     removeToast(oldest)
   }
