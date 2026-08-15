@@ -31,6 +31,8 @@ textarea {
   --success: #4ade80;
   --danger: #f87171;
   --gold: #fbbf24;
+  --info: #60a5fa;
+  --warning: #fb923c;
 
   font-family:
     'Inter',
@@ -987,8 +989,20 @@ body {
 
 /* Panel Container */
 
+/* Positioned wrapper that lets the toast overlay sit in front of the panel
+   container without covering the whole play screen. Occupies the grid's 1fr
+   row; the panel container fills it and toasts float on top. */
+.panel-region {
+  grid-row: 2;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .panel-container {
   width: 100%;
+  flex: 1;
   min-height: 0;
   padding: 0.75rem 0;
   overflow-y: auto;
@@ -997,7 +1011,6 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  grid-row: 2;
 }
 
 /* Play panel content wrapper: stacks the selector + click cards, preserving the
@@ -1486,38 +1499,55 @@ body {
   color: var(--text-muted, var(--text));
 }
 
-/* ─── Attack strike toasts ─── */
-.vfx-attack-toasts {
+/* ─── Notification toasts ─── */
+.toast-layer {
   position: absolute;
-  top: 12%;
-  left: 50%;
-  transform: translateX(-50%);
+  inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  /* Must not swallow clicks/taps meant for the panel beneath. */
   pointer-events: none;
+  overflow: hidden;
+  z-index: 10;
 }
 
-.vfx-attack-toast {
-  padding: 0.5rem 1rem;
+/* Clipping wrapper around each toast: its height is animated on enter/exit so
+   the banner slides up and out of view while flow packs the rest of the stack.
+   The gap between toasts lives here as padding so it collapses with the slot. */
+.toast-slot {
+  overflow: hidden;
+  padding-bottom: 0.4rem;
+  box-sizing: border-box;
+}
+
+.toast {
+  padding: 0.35rem 0.7rem;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   white-space: nowrap;
-  background: rgba(0, 0, 0, 0.78);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--toast-hue, var(--accent));
+  color: var(--toast-hue, var(--text));
+  background: color-mix(in srgb, var(--toast-hue, var(--accent)) 18%, rgba(15, 23, 42, 0.92));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.vfx-attack-toast--incoming {
-  border-color: var(--danger);
-  color: var(--danger);
+.toast--info {
+  --toast-hue: var(--info);
 }
 
-.vfx-attack-toast--outgoing {
-  border-color: var(--gold);
-  color: var(--gold);
+.toast--success {
+  --toast-hue: var(--success);
+}
+
+.toast--warning {
+  --toast-hue: var(--warning);
+}
+
+.toast--danger {
+  --toast-hue: var(--danger);
 }
 
 .pact-content {

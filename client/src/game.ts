@@ -71,7 +71,7 @@ import {
   shakeScreen,
   resetCombo,
   shockwave,
-  spawnAttackToast,
+  spawnToast,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
@@ -844,6 +844,18 @@ function showAttackEvents(
   for (const ev of events) {
     const name = getAttackName(flavor, ev.attack)
     const icon = getAttackIcon(flavor, ev.attack)
+    if (ev.kind === 'none') {
+      // A strike that moved nothing. Outgoing: your attack found nothing to
+      // take (info). Incoming: the opponent tried to raid you but you had
+      // nothing — valuable intel about their intentions (warning), no shake
+      // since you lost nothing.
+      if (ev.direction === 'outgoing') {
+        spawnToast(`${icon} ${name}: nothing to steal`, 'info')
+      } else {
+        spawnToast(`${icon} ${name}: attack repelled`, 'warning')
+      }
+      continue
+    }
     // A resource theft reads as a quantity ("50 🪵"); a generator theft as a
     // count of copies ("×2 🪚 Sawmill"), since the loss is production, not stock.
     const what =
@@ -851,9 +863,9 @@ function showAttackEvents(
         ? `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
         : `×${ev.count} ${getGeneratorIcon(flavor, ev.generator)} ${getGeneratorName(flavor, ev.generator)}`
     if (ev.direction === 'outgoing') {
-      spawnAttackToast(`${icon} ${name}: stole ${what}`, 'outgoing')
+      spawnToast(`${icon} ${name}: stole ${what}`, 'success')
     } else {
-      spawnAttackToast(`${icon} ${name}: lost ${what}`, 'incoming')
+      spawnToast(`${icon} ${name}: lost ${what}`, 'danger')
       shakeScreen('medium')
     }
   }

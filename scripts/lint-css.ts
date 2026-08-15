@@ -28,6 +28,11 @@ const IGNORED_UNUSED = new Set([
   // Classes injected from dynamic server/shared state values
   'draw', // end.winner value
   'gold', // resource className from shared data
+  // Toast variant classes built as `toast--${variant}` in spawnToast
+  'toast--info',
+  'toast--success',
+  'toast--warning',
+  'toast--danger',
 ])
 
 const IGNORED_PHANTOM = new Set([

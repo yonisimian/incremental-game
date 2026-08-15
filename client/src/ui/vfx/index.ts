@@ -12,6 +12,9 @@ export { shakeScreen } from './shared.js'
 // Re-export the shockwave effect
 export { shockwave } from './shockwave.js'
 
+// Re-export the toast overlay
+export { spawnToast } from './toast.js'
+
 /**
  * Resolve the click button to anchor an effect to: the one with `anchorId` if
  * present, otherwise the first click card (covers score-milestone effects that
@@ -150,46 +153,6 @@ export function flashPurchase(upgradeId: string): void {
       [{ color: 'var(--gold)' }, { color: 'var(--danger)', offset: 0.3 }, { color: 'var(--gold)' }],
       { duration: 400, easing: 'ease-out' },
     )
-  }
-}
-
-// ─── Attack Toast ────────────────────────────────────────────────────
-
-/**
- * Transient banner announcing a landed attack strike. Toasts stack downward from
- * the top-center of the screen and fade out; purely cosmetic, no state. `variant`
- * tints the border/text (danger for `incoming`, gold for `outgoing`).
- */
-export function spawnAttackToast(text: string, variant: 'incoming' | 'outgoing'): void {
-  if (!hasDom()) return
-  let stack = document.getElementById('vfx-attack-toasts')
-  if (!stack) {
-    stack = document.createElement('div')
-    stack.id = 'vfx-attack-toasts'
-    stack.className = 'vfx-attack-toasts'
-    getLayer().appendChild(stack)
-  }
-
-  const el = document.createElement('div')
-  el.className = 'vfx-attack-toast'
-  if (variant === 'incoming') {
-    el.classList.add('vfx-attack-toast--incoming')
-  } else {
-    el.classList.add('vfx-attack-toast--outgoing')
-  }
-  el.textContent = text
-  stack.appendChild(el)
-
-  el.animate(
-    [
-      { transform: 'translateY(-12px)', opacity: 0 },
-      { transform: 'translateY(0)', opacity: 1, offset: 0.12 },
-      { transform: 'translateY(0)', opacity: 1, offset: 0.82 },
-      { transform: 'translateY(-8px)', opacity: 0 },
-    ],
-    { duration: 2200, easing: 'ease-out', fill: 'forwards' },
-  ).onfinish = () => {
-    el.remove()
   }
 }
 
