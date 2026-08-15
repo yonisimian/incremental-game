@@ -71,7 +71,7 @@ import {
   shakeScreen,
   resetCombo,
   shockwave,
-  spawnAttackToast,
+  spawnToast,
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
@@ -851,9 +851,9 @@ function showAttackEvents(
         ? `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
         : `×${ev.count} ${getGeneratorIcon(flavor, ev.generator)} ${getGeneratorName(flavor, ev.generator)}`
     if (ev.direction === 'outgoing') {
-      spawnAttackToast(`${icon} ${name}: stole ${what}`, 'outgoing')
+      spawnToast(`${icon} ${name}: stole ${what}`, 'success')
     } else {
-      spawnAttackToast(`${icon} ${name}: lost ${what}`, 'incoming')
+      spawnToast(`${icon} ${name}: lost ${what}`, 'danger')
       shakeScreen('medium')
     }
   }

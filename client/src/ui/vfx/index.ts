@@ -153,32 +153,51 @@ export function flashPurchase(upgradeId: string): void {
   }
 }
 
-// ─── Attack Toast ────────────────────────────────────────────────────
+// ─── Toasts ──────────────────────────────────────────────────────────
+
+/** Severity of a toast — tints the border/text. */
+export type ToastVariant = 'info' | 'success' | 'warning' | 'danger'
+
+/** Optional per-toast overrides. */
+export interface ToastOptions {
+  /** Leading icon (emoji), prepended to the text. */
+  icon?: string
+  /** Auto-dismiss delay in ms. Defaults to {@link TOAST_DEFAULT_MS}. */
+  durationMs?: number
+}
+
+const TOAST_DEFAULT_MS = 2500
+/** Soft cap on visible toasts — a flurry evicts the oldest instead of walling the screen. */
+const TOAST_MAX_VISIBLE = 4
 
 /**
- * Transient banner announcing a landed attack strike. Toasts stack downward from
- * the top-center of the screen and fade out; purely cosmetic, no state. `variant`
- * tints the border/text (danger for `incoming`, gold for `outgoing`).
+ * The overlay toasts append to: the play screen's `#toast-layer` (positioned over
+ * the panel container) when present, else the global VFX layer as a fallback for
+ * tests and non-play screens.
  */
-export function spawnAttackToast(text: string, variant: 'incoming' | 'outgoing'): void {
+function toastLayer(): HTMLElement {
+  return document.getElementById('toast-layer') ?? getLayer()
+}
+
+/**
+ * Transient banner announcing a game event. Toasts stack downward from the top of
+ * the panel region and fade out; purely cosmetic, no state. `variant` tints the
+ * border/text. The visible stack is soft-capped at {@link TOAST_MAX_VISIBLE}: a
+ * spawn past the cap evicts the oldest first.
+ */
+export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOptions): void {
   if (!hasDom()) return
-  let stack = document.getElementById('vfx-attack-toasts')
-  if (!stack) {
-    stack = document.createElement('div')
-    stack.id = 'vfx-attack-toasts'
-    stack.className = 'vfx-attack-toasts'
-    getLayer().appendChild(stack)
+  const layer = toastLayer()
+
+  // Evict oldest until under the cap so a burst can't build a wall of banners.
+  while (layer.querySelectorAll('.toast').length >= TOAST_MAX_VISIBLE) {
+    layer.querySelector('.toast')?.remove()
   }
 
   const el = document.createElement('div')
-  el.className = 'vfx-attack-toast'
-  if (variant === 'incoming') {
-    el.classList.add('vfx-attack-toast--incoming')
-  } else {
-    el.classList.add('vfx-attack-toast--outgoing')
-  }
-  el.textContent = text
-  stack.appendChild(el)
+  el.className = `toast toast--${variant}`
+  el.textContent = opts?.icon ? `${opts.icon} ${text}` : text
+  layer.appendChild(el)
 
   el.animate(
     [
@@ -187,7 +206,7 @@ export function spawnAttackToast(text: string, variant: 'incoming' | 'outgoing')
       { transform: 'translateY(0)', opacity: 1, offset: 0.82 },
       { transform: 'translateY(-8px)', opacity: 0 },
     ],
-    { duration: 2200, easing: 'ease-out', fill: 'forwards' },
+    { duration: opts?.durationMs ?? TOAST_DEFAULT_MS, easing: 'ease-out', fill: 'forwards' },
   ).onfinish = () => {
     el.remove()
   }
