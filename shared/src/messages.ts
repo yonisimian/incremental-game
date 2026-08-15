@@ -112,9 +112,11 @@ export interface PurchaseEvent {
  * your attacks struck the opponent, `incoming` = the opponent's attack struck
  * you. The client resolves `attack` → name / icon from the mode flavor (the
  * server never sends display strings) and shows a toast; `kind` says what moved
- * so the toast can read "Stole 50 🪵" or "Stole ×2 🪚".
+ * so the toast can read "Stole 50 🪵" or "Stole ×2 🪚". A strike that moved
+ * nothing (the victim owned none of the target) is reported to the *attacker
+ * only* as a `none` event, so a fired attack always yields feedback.
  */
-export type AttackEvent = ResourceAttackEvent | GeneratorAttackEvent
+export type AttackEvent = ResourceAttackEvent | GeneratorAttackEvent | MissedAttackEvent
 
 /** Fields every strike event carries, whatever it moved. */
 interface AttackEventBase {
@@ -142,6 +144,16 @@ export interface GeneratorAttackEvent extends AttackEventBase {
   generator: string
   /** How many copies the strike moved. */
   count: number
+}
+
+/**
+ * A strike that landed but moved nothing — the victim held none of the target
+ * resource or generator. Emitted to the *attacker only* (`direction: 'outgoing'`)
+ * so activating an attack always produces feedback; the victim lost nothing, so
+ * gets no event (and learns nothing of the failed attempt).
+ */
+export interface MissedAttackEvent extends AttackEventBase {
+  kind: 'none'
 }
 
 /**

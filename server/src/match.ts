@@ -526,6 +526,18 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        if (moved.length === 0) {
+          // The strike landed but moved nothing (the victim owned none of the
+          // target). Tell the attacker anyway so a fired attack always yields
+          // feedback; the victim lost nothing, so gets no event.
+          attacker.attackEvents.push({
+            attack: pending.attack,
+            direction: 'outgoing',
+            kind: 'none',
+            t: gameSec,
+          })
+          continue
+        }
         for (const result of moved) {
           // The same theft, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.

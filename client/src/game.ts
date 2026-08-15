@@ -844,6 +844,11 @@ function showAttackEvents(
   for (const ev of events) {
     const name = getAttackName(flavor, ev.attack)
     const icon = getAttackIcon(flavor, ev.attack)
+    if (ev.kind === 'none') {
+      // Attacker-only: the strike fired but the victim had nothing to take.
+      spawnToast(`${icon} ${name}: nothing to steal`, 'info')
+      continue
+    }
     // A resource theft reads as a quantity ("50 🪵"); a generator theft as a
     // count of copies ("×2 🪚 Sawmill"), since the loss is production, not stock.
     const what =

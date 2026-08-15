@@ -1169,6 +1169,11 @@ describe('Match', () => {
         (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a0',
       ),
     )!
+    const a5Upgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a5',
+      ),
+    )!
 
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
@@ -1208,6 +1213,27 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
       )
+    })
+
+    it('tells the attacker (only) when a strike steals nothing', () => {
+      const m = enterPlaying()
+      // Unlock the panel + Poach Sawmill (a5); its prepare cost is 10 r1.
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a5Upgrade.id, 2))
+      m.grantResourcesForTest('p1', { r1: 100 })
+      // p2 owns no Sawmills (g2), so the poach can move nothing.
+
+      m.handleMessage('p1', activateMsg('a5', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + 3000)
+
+      // The attacker is told the strike landed but moved nothing.
+      const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(outgoing).toContainEqual(
+        expect.objectContaining({ attack: 'a5', direction: 'outgoing', kind: 'none' }),
+      )
+      // The victim lost nothing, so learns nothing of the failed attempt.
+      const incoming = sentOfType(ws2, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(incoming.some((e) => e.attack === 'a5')).toBe(false)
     })
 
     it('rejects an activation the player cannot afford', () => {
