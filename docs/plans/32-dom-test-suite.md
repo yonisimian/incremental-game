@@ -1,6 +1,6 @@
 # 32 — A DOM test suite for the client
 
-## Status: Draft
+## Status: Phases 1–2 complete (infra + toasts). Phase 3 is a fast follow.
 
 ---
 
@@ -163,12 +163,12 @@ Dismissals are advanced with Vitest fake timers.
 
 ### Phasing (each phase is a separate, shippable commit)
 
-| Phase | Scope                                                                                            | Value    |
-| ----- | ------------------------------------------------------------------------------------------------ | -------- |
-| **1** | Infra: add `happy-dom` dev dep, minimal `dom-harness.ts`, spike proving `animate` + fake timers  | unblocks |
-| **2** | **Toasts** — the feature we just built, currently 0% covered                                     | **high** |
-| **3** | Rest of `vfx/index.ts` — click popup, combo counter, `shakeScreen`, `flashPurchase`, `bumpScore` | medium   |
-| **4** | _(optional, flag first)_ UI wiring — `screens.ts`/`playing.ts`/`end.ts` event listeners          | low–med  |
+| Phase    | Scope                                                                                            | Value    |
+| -------- | ------------------------------------------------------------------------------------------------ | -------- |
+| **1** ✅ | Infra: add `happy-dom` dev dep, minimal `dom-harness.ts`, spike proving `animate` + fake timers  | unblocks |
+| **2** ✅ | **Toasts** — the feature we just built, currently 0% covered                                     | **high** |
+| **3**    | Rest of `vfx/index.ts` — click popup, combo counter, `shakeScreen`, `flashPurchase`, `bumpScore` | medium   |
+| **4**    | _(optional, flag first)_ UI wiring — `screens.ts`/`playing.ts`/`end.ts` event listeners          | low–med  |
 
 Phases 1–2 are the committed scope of this plan. 3 is a fast follow. **4 is
 explicitly deferred** and may not be worth it — see §5. `dev/**` (queue-sim,
