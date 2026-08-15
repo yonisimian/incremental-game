@@ -108,6 +108,38 @@ function migrateV2toV3(json: unknown): unknown {
 }
 
 /**
+ * V3 → V4: the mode-level `nativeModifiers` array and the mode-level `effects`
+ * array collapse into one `startingEffects` array.
+ *
+ * A native modifier was only ever a flat production bonus applied once to every
+ * player — exactly what a mode-level `baseModifier` effect already does (see
+ * `collectRawModifiers`, which applies mode-level effects with an owned count of
+ * 1) — so each `{stage, field, value}` becomes a `baseModifier` ref. Folding it
+ * into the effects channel also means it now passes through the registry's param
+ * validation and routes generator-targeted fields correctly, neither of which
+ * the raw-`Modifier` path did.
+ *
+ * Existing `effects` are kept ahead of the migrated modifiers (matching v1→v2).
+ * Order is cosmetic: additive and multiplicative modifiers accumulate into
+ * separate per-layer totals, so the pipeline's result is order-independent.
+ */
+function migrateV3toV4(json: unknown): unknown {
+  const { nativeModifiers, effects, ...rest } = json as Record<string, unknown>
+  const mods: unknown[] = Array.isArray(nativeModifiers) ? nativeModifiers : []
+  const existing: unknown[] = Array.isArray(effects) ? effects : []
+  const startingEffects = [
+    ...existing,
+    ...mods.map((m) => {
+      const mod = m as Record<string, unknown>
+      return { type: 'baseModifier', stage: mod.stage, field: mod.field, value: mod.value }
+    }),
+  ]
+  const out: Record<string, unknown> = { ...rest, version: 4 }
+  if (startingEffects.length > 0) out.startingEffects = startingEffects
+  return out
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -120,6 +152,7 @@ function migrateTreeFile(json: unknown): unknown {
   let raw = json
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
   if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
+  if ((raw as { version?: unknown } | null)?.version === 3) raw = migrateV3toV4(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(
@@ -166,15 +199,17 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     highlightEnabled: tree.highlightEnabled,
     initialResources: tree.initialResources,
     initialMeta: tree.initialMeta,
-    nativeModifiers: tree.nativeModifiers,
     generators: tree.generators,
     attacks: tree.attacks,
     pacts: tree.pacts,
     goals: tree.goals,
     flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
-    // Optional fields are assigned only when present so the result stays minimal.
-    ...(tree.effects !== undefined ? { effects: tree.effects } : {}),
+    // The file's `startingEffects` are the runtime mode-level `effects` — one
+    // channel under two names because the runtime field sits alongside each
+    // upgrade's and attack's `effects`. Assigned only when non-empty so the
+    // result stays minimal.
+    ...(tree.startingEffects.length > 0 ? { effects: tree.startingEffects } : {}),
   }
   validateModeDefinition(tree.id, def)
   return def

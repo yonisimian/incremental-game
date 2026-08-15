@@ -5,7 +5,7 @@ import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 // are registered whenever cost factors are collected.
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
 import { isFlatCost, scaledCost } from './cost.js'
-import { anyOwned, generatorGateUpgrades } from './unlock-gates.js'
+import { generatorGate, isGranted } from './unlock-gates.js'
 import { GENERATOR_SELL_REFUND_RATE } from './game-config.js'
 
 /** The single currency a generator is paid in (generators are single-currency). */
@@ -208,17 +208,18 @@ export function canAffordGenerator(
 
 /**
  * Is this generator available to the player yet? A generator is gated by any
- * upgrade carrying a `generatorUnlock` effect naming it: locked until one such
- * upgrade is owned. A generator that no upgrade unlocks is always available.
+ * `generatorUnlock` effect naming it: locked until that grant is in force (an
+ * owned upgrade, or the mode's starting effects, which grant for the whole round).
+ * A generator nothing unlocks is always available.
  */
 export function isGeneratorUnlocked(
   state: Readonly<PlayerState>,
   gen: GeneratorDefinition,
   mode: ModeDefinition,
 ): boolean {
-  const gates = generatorGateUpgrades(mode, gen.id)
-  if (!gates) return true // no upgrade gates this generator → always available
-  return anyOwned(state, gates)
+  const gate = generatorGate(mode, gen.id)
+  if (!gate) return true // nothing gates this generator → always available
+  return isGranted(state, gate)
 }
 
 /** Deduct cost and increment owned count for a generator. */

@@ -21,14 +21,16 @@ import { createResourcesView } from './views/resources.js'
 import { createGeneratorsView } from './views/generators.js'
 import { createAttacksView } from './views/attacks.js'
 import { createEnvelopesView } from './views/envelopes.js'
+import { createStartingEffectsView } from './views/starting-effects.js'
 
-type Section = 'resources' | 'generators' | 'attacks' | 'envelopes' | 'tree'
+type Section = 'resources' | 'generators' | 'attacks' | 'envelopes' | 'starting-effects' | 'tree'
 
 const SECTIONS: readonly { id: Section; label: string }[] = [
   { id: 'resources', label: '💎 Resources' },
   { id: 'generators', label: '🏭 Generators' },
   { id: 'attacks', label: '💥 Attacks' },
   { id: 'envelopes', label: '🎯 Envelopes' },
+  { id: 'starting-effects', label: '⚙️ Starting Effects' },
   { id: 'tree', label: '🌳 Upgrade Tree' },
 ]
 
@@ -37,6 +39,7 @@ const VIEW_FACTORIES: Record<Section, () => EditorView> = {
   generators: createGeneratorsView,
   attacks: createAttacksView,
   envelopes: createEnvelopesView,
+  'starting-effects': createStartingEffectsView,
   tree: createTreeView,
 }
 

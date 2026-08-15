@@ -9,7 +9,7 @@ import type { ModeDefinition, UpgradeDefinition } from '@game/shared'
  * must NOT couple to the real idler tree, which is large and still evolving.
  *
  * Economy (mirrors the historical idler stub):
- *   - base 1 r0/s + 1 r1/s (from the real mode's nativeModifiers)
+ *   - base 1 r0/s + 1 r1/s (from the real mode's starting effects)
  *   - uh:  cost 5 r0,  one-shot, ×2 highlight multiplier (unlocks highlight)
  *   - uh2: cost 10 r0, one-shot, ×1.5 highlight multiplier, requires uh
  *   - u1:  cost 25 r0, one-shot, +5 r0/s additive
@@ -53,7 +53,7 @@ export const stubUpgrades: UpgradeDefinition[] = [
 /**
  * The real idler mode definition with its upgrade tree replaced by
  * `stubUpgrades` (where `uh` carries the highlight-unlock effect). All other
- * mechanics (resources, native income, goals, tick wiring) come from the real mode.
+ * mechanics (resources, starting income, goals, tick wiring) come from the real mode.
  *
  * Starting funds are pinned to zero: these tests validate engine mechanics
  * against a stable economy and must not couple to the real tree's seed funds,

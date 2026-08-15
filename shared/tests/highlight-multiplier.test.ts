@@ -22,7 +22,6 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
     scoreResource: 'r0',
     upgrades,
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: true,
     initialResources: {},
@@ -124,8 +123,10 @@ describe('getHighlightMultiplier', () => {
 
 describe('highlightMultiplier in the pipeline', () => {
   const mode = makeMode({
-    effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-    nativeModifiers: [{ stage: 'additive', field: 'b0', value: 5 }],
+    effects: [
+      { type: 'highlightMultiplier', multiplier: 2 },
+      { type: 'baseModifier', stage: 'additive', field: 'b0', value: 5 },
+    ],
   })
   const rates = (highlight: string | null): Record<string, number> =>
     computePassiveRates(collectModifiers(makeState({ meta: { highlight } }), mode), mode.resources)

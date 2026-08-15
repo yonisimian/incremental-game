@@ -117,7 +117,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 │ resources: ['r0', 'r1'] │        │ themeClass: 'medieval'   │
 │ upgrades: [u0..u5]      │◄──────►│ resources: [{key:'r0',   │
 │ generators: [g0..g3]    │        │   name:'Wood', icon:'🪵'}]│
-│ nativeModifiers: [...]  │        │ upgrades: [{id:'u0',     │
+│ effects: [...]          │        │ upgrades: [{id:'u0',     │
 │ highlightEnabled: true   │        │   name:'Sharpened Axes'}]│
 └─────────────────────────┘        └──────────────────────────┘
          ▲ shared (server + client)        ▲ client only (rendering)
@@ -737,7 +737,7 @@ All systems funnel through a single computation pipeline. This is the critical a
 ```text
 base income
   │
-  ├─► native bonuses (mode)      CPS intensity, mode-specific modifiers
+  ├─► starting effects (mode)    CPS intensity, mode-specific modifiers
   │
   ├─► tiers (additive)           +N per second per tier owned
   │
