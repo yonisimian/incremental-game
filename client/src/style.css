@@ -1505,9 +1505,9 @@ body {
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding-top: 0.75rem;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.75rem;
   /* Must not swallow clicks/taps meant for the panel beneath. */
   pointer-events: none;
   overflow: hidden;
@@ -1515,34 +1515,31 @@ body {
 }
 
 .toast {
-  padding: 0.5rem 1rem;
+  padding: 0.35rem 0.7rem;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   white-space: nowrap;
-  background: rgba(0, 0, 0, 0.78);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--toast-hue, var(--accent));
+  color: var(--toast-hue, var(--text));
+  background: color-mix(in srgb, var(--toast-hue, var(--accent)) 18%, rgba(15, 23, 42, 0.92));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .toast--info {
-  border-color: var(--info);
-  color: var(--info);
+  --toast-hue: var(--info);
 }
 
 .toast--success {
-  border-color: var(--success);
-  color: var(--success);
+  --toast-hue: var(--success);
 }
 
 .toast--warning {
-  border-color: var(--warning);
-  color: var(--warning);
+  --toast-hue: var(--warning);
 }
 
 .toast--danger {
-  border-color: var(--danger);
-  color: var(--danger);
+  --toast-hue: var(--danger);
 }
 
 .pact-content {
