@@ -8,9 +8,14 @@ import {
   collectModifiers,
   createInitialState,
   getModeDefinition,
+  hasEnemyDataAccess,
   isAttackUnlocked,
+  isClickUnlocked,
   isDynamicEffect,
+  isGeneratorUnlocked,
+  isHighlightBatteryActive,
   isPactUnlocked,
+  isPanelUnlocked,
   listEffectTypes,
   registerEffect,
   resolveEffect,
@@ -394,7 +399,7 @@ describe('collectModifiers effect wiring', () => {
     // A mode-level effect is ungated by upgrade ownership — it always runs.
     const def: ModeDefinition = {
       ...base,
-      effects: [{ type: 'highlightMultiplier', multiplier: 5 }],
+      effects: [...(base.effects ?? []), { type: 'highlightMultiplier', multiplier: 5 }],
     }
     const state = createInitialState(def)
     state.meta.highlight = 'r0'
@@ -411,7 +416,10 @@ describe('collectModifiers effect wiring', () => {
     // applies with an implicit count of 1 (`owned ?? 1`) rather than being dropped.
     const def: ModeDefinition = {
       ...base,
-      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 7 }],
+      effects: [
+        ...(base.effects ?? []),
+        { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 7 },
+      ],
     }
     const state = createInitialState(def)
     expect(collectModifiers(state, def)).toContainEqual({
@@ -615,7 +623,10 @@ describe('generatorCost effect', () => {
     const gen = base.generators[0].id
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'generatorCost', generator: gen, costFactor: 0.5 }],
+      effects: [
+        ...(base.effects ?? []),
+        { type: 'generatorCost', generator: gen, costFactor: 0.5 },
+      ],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -634,7 +645,7 @@ describe('panelUnlock effect', () => {
     const base = getModeDefinition('idler')
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'panelUnlock', panel: 'generators' }],
+      effects: [...(base.effects ?? []), { type: 'panelUnlock', panel: 'generators' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -653,7 +664,7 @@ describe('generatorUnlock effect', () => {
     const base = getModeDefinition('idler')
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'generatorUnlock', generator: 'g1' }],
+      effects: [...(base.effects ?? []), { type: 'generatorUnlock', generator: 'g1' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -672,7 +683,7 @@ describe('systemUnlock effect', () => {
     const base = getModeDefinition('idler')
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'systemUnlock', system: 'highlight' }],
+      effects: [...(base.effects ?? []), { type: 'systemUnlock', system: 'highlight' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -710,7 +721,7 @@ describe('unlockAttack effect', () => {
     const base = getModeDefinition('idler')
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'unlockAttack', attack: 'a0' }],
+      effects: [...(base.effects ?? []), { type: 'unlockAttack', attack: 'a0' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -759,7 +770,7 @@ describe('unlockPact effect', () => {
     const base = getModeDefinition('idler')
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'unlockPact', pact: 'p0' }],
+      effects: [...(base.effects ?? []), { type: 'unlockPact', pact: 'p0' }],
     }
     const state = createInitialState(withEffect)
     expect(collectModifiers(state, withEffect)).toEqual(collectModifiers(state, base))
@@ -784,6 +795,117 @@ describe('unlockPact effect', () => {
   })
 })
 
+// ─── Unlock gates granted by the mode's starting effects ─────────────
+//
+// The unlock family is legal on both hosts (`DEFAULT_EFFECT_HOSTS`), so an unlock
+// authored in a tree's `startingEffects` must actually grant — with no owning
+// upgrade, it grants unconditionally for the whole round. Each case below pairs
+// the grant with the un-granted baseline, so it can only pass because the
+// mode-level effect was read (not because the gate defaults open).
+
+describe('unlock gates granted by mode-level starting effects', () => {
+  /**
+   * Idler with its own `startingEffects` cleared: the un-granted baseline. Its
+   * upgrade gates are kept (they're what makes each gate start closed), but the
+   * mode-level list is emptied so these tests assert the mechanism rather than
+   * whatever the evolving tree happens to author there.
+   */
+  function baseline(): ModeDefinition {
+    return { ...getModeDefinition('idler'), effects: [] }
+  }
+
+  /** The baseline plus `refs` as its mode-level starting effects. */
+  function withStarting(...refs: EffectRef[]): ModeDefinition {
+    return { ...baseline(), effects: refs }
+  }
+
+  it('panelUnlock opens a panel an upgrade otherwise gates', () => {
+    const base = baseline()
+    // The idler tree gates the generators panel behind an upgrade, so an empty
+    // state must not see it — this is the case a mode-level grant has to change.
+    expect(isPanelUnlocked(createInitialState(base), base, 'generators')).toBe(false)
+
+    const mode = withStarting({ type: 'panelUnlock', panel: 'generators' })
+    expect(isPanelUnlocked(createInitialState(mode), mode, 'generators')).toBe(true)
+  })
+
+  it('generatorUnlock opens a generator an upgrade otherwise gates', () => {
+    const base = baseline()
+    const gated = base.generators.find(
+      (g) => !isGeneratorUnlocked(createInitialState(base), g, base),
+    )
+    expect(gated).toBeDefined()
+
+    const mode = withStarting({ type: 'generatorUnlock', generator: gated!.id })
+    const unlocked = mode.generators.find((g) => g.id === gated!.id)!
+    expect(isGeneratorUnlocked(createInitialState(mode), unlocked, mode)).toBe(true)
+  })
+
+  it('systemUnlock activates click, which an upgrade otherwise gates', () => {
+    const base = baseline()
+    expect(isClickUnlocked(createInitialState(base), base)).toBe(false)
+
+    const mode = withStarting({ type: 'systemUnlock', system: 'click' })
+    expect(isClickUnlocked(createInitialState(mode), mode)).toBe(true)
+  })
+
+  it('systemUnlock activates the highlight battery, which is hidden by default', () => {
+    // The battery is the inverse default (no grant → hidden), and it implies an
+    // active highlight, so the mode has to grant both.
+    const base = baseline()
+    expect(isHighlightBatteryActive(createInitialState(base), base)).toBe(false)
+
+    const mode = withStarting(
+      { type: 'systemUnlock', system: 'highlight' },
+      { type: 'systemUnlock', system: 'highlightBattery' },
+    )
+    expect(isHighlightBatteryActive(createInitialState(mode), mode)).toBe(true)
+  })
+
+  it('unlockAttack grants an attack and lists it as unlocked', () => {
+    const base = baseline()
+    expect(isAttackUnlocked(createInitialState(base), base, 'a0')).toBe(false)
+
+    const mode = withStarting({ type: 'unlockAttack', attack: 'a0' })
+    const state = createInitialState(mode)
+    expect(isAttackUnlocked(state, mode, 'a0')).toBe(true)
+    expect(unlockedAttacks(state, mode)).toContain('a0')
+  })
+
+  it('unlockPact grants a pact and lists it as unlocked', () => {
+    const base = baseline()
+    expect(isPactUnlocked(createInitialState(base), base, 'p0')).toBe(false)
+
+    const mode = withStarting({ type: 'unlockPact', pact: 'p0' })
+    const state = createInitialState(mode)
+    expect(isPactUnlocked(state, mode, 'p0')).toBe(true)
+    expect(unlockedPacts(state, mode)).toContain('p0')
+  })
+
+  it('accessEnemyData grants an intel key that is hidden by default', () => {
+    const base = baseline()
+    expect(hasEnemyDataAccess(createInitialState(base), base, 'peakCps')).toBe(false)
+
+    const mode = withStarting({ type: 'accessEnemyData', data: 'peakCps' })
+    expect(hasEnemyDataAccess(createInitialState(mode), mode, 'peakCps')).toBe(true)
+  })
+
+  it('grants for the whole round — ownership never revokes a mode-level unlock', () => {
+    const mode = withStarting({ type: 'panelUnlock', panel: 'generators' })
+    const state = createInitialState(mode)
+    // Nothing owned, everything owned: a grant with no owner is unconditional.
+    expect(isPanelUnlocked(state, mode, 'generators')).toBe(true)
+    for (const u of mode.upgrades) state.upgrades[u.id] = 1
+    expect(isPanelUnlocked(state, mode, 'generators')).toBe(true)
+  })
+
+  it('leaves an unrelated gate of the same effect type closed', () => {
+    // A mode-level grant must open only the key it names.
+    const mode = withStarting({ type: 'panelUnlock', panel: 'somewhere-else' })
+    expect(isPanelUnlocked(createInitialState(mode), mode, 'generators')).toBe(false)
+  })
+})
+
 // ─── Multi-modifier array routing through collectModifiers ───────────
 
 describe('collectModifiers routes multi-modifier effects', () => {
@@ -797,7 +919,7 @@ describe('collectModifiers routes multi-modifier effects', () => {
 
     const withEffect: ModeDefinition = {
       ...base,
-      effects: [{ type: 'lowerTierBoost', perUnit: 1 }],
+      effects: [...(base.effects ?? []), { type: 'lowerTierBoost', perUnit: 1 }],
     }
     const boosted = createInitialState(withEffect)
     boosted.generators[g0] = 1
@@ -1055,7 +1177,7 @@ describe('relativeModifier mode validation', () => {
   })
 })
 
-// ─── production-field validation (nativeModifiers + baseModifier) ─────
+// ─── production-field validation (baseModifier) ───────────────────────
 
 describe('production field mode validation', () => {
   function withUpgrade(effect: EffectRef): ModeDefinition {
@@ -1100,15 +1222,18 @@ describe('production field mode validation', () => {
     }).toThrow(/baseModifier targets unknown production field 'nope'/u)
   })
 
-  it('throws on a native modifier targeting an unknown field', () => {
+  it('throws on a mode-level baseModifier targeting an unknown field', () => {
     const base = getModeDefinition('idler')
     const def: ModeDefinition = {
       ...base,
-      nativeModifiers: [...base.nativeModifiers, { stage: 'additive', field: 'b9', value: 1 }],
+      effects: [
+        ...(base.effects ?? []),
+        { type: 'baseModifier', stage: 'additive', field: 'b9', value: 1 },
+      ],
     }
     expect(() => {
       validateModeDefinition('idler', def)
-    }).toThrow(/native modifier targets unknown production field 'b9'/u)
+    }).toThrow(/mode-level baseModifier targets unknown production field 'b9'/u)
   })
 
   it('throws when a generator id collides with the base-producer namespace', () => {

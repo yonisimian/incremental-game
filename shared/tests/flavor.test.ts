@@ -81,7 +81,6 @@ function makeValidDef(overrides?: Partial<ModeDefinition>): ModeDefinition {
     scoreResource: 'r0',
     upgrades: [{ id: 'u0', cost: { r0: { baseCost: 10 } }, purchaseLimit: 1 }],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: true,
     highlightEnabled: false,
     initialResources: { r0: 0 },

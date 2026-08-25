@@ -74,7 +74,6 @@ function makeMode(): ModeDefinition {
     scoreResource: 'r0',
     upgrades: [UNLOCK_A0, UNLOCK_A2],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: false,
     initialResources: { r0: 0 },

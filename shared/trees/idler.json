@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "id": "idler",
   "resources": [
     "r0",
@@ -15,13 +15,15 @@
   "initialMeta": {
     "highlight": "r0"
   },
-  "nativeModifiers": [
+  "startingEffects": [
     {
+      "type": "baseModifier",
       "stage": "additive",
       "field": "b0",
       "value": 1
     },
     {
+      "type": "baseModifier",
       "stage": "additive",
       "field": "b1",
       "value": 1

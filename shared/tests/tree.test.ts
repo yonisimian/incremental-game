@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CURRENT_TREE_VERSION,
+  collectModifiers,
+  computePassiveRates,
   getModeDefinition,
   parseTree,
   parseTreeFile,
   serializeTree,
   toModeDefinition,
 } from '../src/index.js'
-import type { TreeFile } from '../src/index.js'
+import type { PlayerState, TreeFile } from '../src/index.js'
 import idlerTreeFile from '../trees/idler.json' with { type: 'json' }
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -32,8 +34,7 @@ function minimalTree(): TreeFile {
     highlightEnabled: false,
     initialResources: { r0: 0 },
     initialMeta: {},
-    nativeModifiers: [],
-    effects: [],
+    startingEffects: [],
     generators: [],
     attacks: [],
     pacts: [],
@@ -195,6 +196,54 @@ describe('tree codec — versioning', () => {
     const parsed = parseTreeFile(v2)
     expect(parsed.upgrades[0].cost).toEqual({ r0: { baseCost: 10 } })
   })
+
+  it('migrates v3 nativeModifiers into startingEffects, after existing effects', () => {
+    const { startingEffects: _dropped, ...base } = minimalTree()
+    const v3: unknown = {
+      ...base,
+      version: 3,
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+      nativeModifiers: [
+        { stage: 'additive', field: 'r0', value: 1 },
+        { stage: 'multiplicative', field: 'r0', value: 2 },
+      ],
+    }
+    const parsed = parseTreeFile(v3)
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    expect(parsed.startingEffects).toEqual([
+      { type: 'highlightMultiplier', multiplier: 2 },
+      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 },
+      { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 },
+    ])
+    expect('nativeModifiers' in parsed).toBe(false)
+    expect('effects' in parsed).toBe(false)
+  })
+
+  it('migrates a v3 tree with neither nativeModifiers nor effects to empty startingEffects', () => {
+    const { startingEffects: _dropped, ...base } = minimalTree()
+    const parsed = parseTreeFile({ ...base, version: 3 })
+    expect(parsed.startingEffects).toEqual([])
+  })
+
+  it('preserves the rate a v3 nativeModifier produced after migrating it', () => {
+    const { startingEffects: _dropped, ...base } = minimalTree()
+    const v3: unknown = {
+      ...base,
+      id: 'v3-parity',
+      version: 3,
+      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 3 }],
+    }
+    const def = toModeDefinition(parseTreeFile(v3))
+    const state: PlayerState = {
+      score: 0,
+      resources: { r0: 0 },
+      upgrades: {},
+      generators: {},
+      pendingAttacks: [],
+      meta: {},
+    }
+    expect(computePassiveRates(collectModifiers(state, def), def.resources).r0).toBe(3)
+  })
 })
 
 // ─── Structural + semantic validation failures ───────────────────────
@@ -261,22 +310,25 @@ describe('tree codec — validation failures', () => {
     expect(() => parseTreeFile(tree)).toThrow(/scaleFactor/u)
   })
 
-  it('rejects a multiplicative nativeModifier that is a no-op or self-penalty', () => {
+  // The file schema keeps effect params verbatim (see `EffectRefSchema`), so a
+  // starting effect's value guard is enforced by the registry when the tree is
+  // assembled — `toModeDefinition`, not `parseTreeFile`.
+  it('rejects a multiplicative starting baseModifier that is a no-op or self-penalty', () => {
     for (const value of [1, 0.5]) {
       const tree = minimalTree()
-      tree.nativeModifiers = [{ stage: 'multiplicative', field: 'r0', value }]
-      expect(() => parseTreeFile(tree)).toThrow(/value/u)
+      tree.startingEffects = [{ type: 'baseModifier', stage: 'multiplicative', field: 'r0', value }]
+      expect(() => toModeDefinition(tree)).toThrow(/value/u)
     }
   })
 
-  it('rejects a non-positive additive nativeModifier but accepts a positive one', () => {
+  it('rejects a non-positive additive starting baseModifier but accepts a positive one', () => {
     const bad = minimalTree()
-    bad.nativeModifiers = [{ stage: 'additive', field: 'r0', value: -1 }]
-    expect(() => parseTreeFile(bad)).toThrow(/value/u)
+    bad.startingEffects = [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: -1 }]
+    expect(() => toModeDefinition(bad)).toThrow(/value/u)
 
     const good = minimalTree()
-    good.nativeModifiers = [{ stage: 'additive', field: 'r0', value: 0.5 }]
-    expect(() => parseTreeFile(good)).not.toThrow()
+    good.startingEffects = [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 0.5 }]
+    expect(() => toModeDefinition(good)).not.toThrow()
   })
 
   it('rejects a cost entry with scaleFactor but no scaleType (must co-occur)', () => {

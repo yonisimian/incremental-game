@@ -28,9 +28,9 @@ function makeMode(): ModeDefinition {
     scoreResource: 'r0',
     upgrades,
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [
-      { stage: 'additive', field: 'r0', value: 2 }, // 2 r0/sec passive
-      { stage: 'additive', field: 'clickIncome', value: 1 }, // 1 r0/click
+    effects: [
+      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 2 }, // 2 r0/sec passive
+      { type: 'baseModifier', stage: 'additive', field: 'clickIncome', value: 1 }, // 1 r0/click
     ],
     clicksEnabled: true,
     highlightEnabled: true,

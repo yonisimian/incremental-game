@@ -604,6 +604,36 @@ describe('resources', () => {
     expect(tree.resources).toContain(score)
   })
 
+  // `startingEffects` is the mode-level effect list, so the same cascades that
+  // cover per-upgrade and per-attack effects must reach it — otherwise editing a
+  // resource leaves a starting effect pointing at a key the runtime rejects.
+  it('renameResource rewrites a startingEffects baseModifier field', () => {
+    const tree = idler()
+    tree.startingEffects = [
+      ...tree.startingEffects,
+      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 },
+    ]
+    expect(renameResource(tree, 'r0', 'gold')).toBe(true)
+    expect(tree.startingEffects).toContainEqual({
+      type: 'baseModifier',
+      stage: 'additive',
+      field: 'gold',
+      value: 1,
+    })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('resource removal is blocked by a startingEffects baseModifier field', () => {
+    const tree = idler()
+    const key = addResource(tree)
+    tree.startingEffects = [
+      ...tree.startingEffects,
+      { type: 'baseModifier', stage: 'additive', field: key, value: 1 },
+    ]
+    expect(resourceReferences(tree, key)).toContain('a baseModifier field')
+    expect(removeResource(tree, key).ok).toBe(false)
+  })
+
   it('removeResource drops an unreferenced resource and stays loadable', () => {
     const tree = idler()
     const key = addResource(tree)

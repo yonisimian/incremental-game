@@ -67,7 +67,6 @@ function makeMode(generators: GeneratorDefinition[]): ModeDefinition {
     scoreResource: 'r0',
     upgrades: [],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: false,
     initialResources: { r0: 0 },

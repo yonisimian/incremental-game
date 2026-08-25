@@ -22,7 +22,6 @@ function makeMode(): ModeDefinition {
       { id: 'u1', cost: { r0: { baseCost: 20 } }, purchaseLimit: 1 },
     ],
     goals: [{ type: 'timed', label: '⏱', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: true,
     highlightEnabled: true,
     initialResources: { r0: 0, r1: 0 },

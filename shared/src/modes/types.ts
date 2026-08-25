@@ -1,4 +1,3 @@
-import type { Modifier } from '../modifiers/types.js'
 import type {
   AttackDefinition,
   EffectRef,
@@ -104,8 +103,6 @@ export interface ModeDefinition {
   readonly upgrades: readonly UpgradeDefinition[]
   /** Available win conditions for this mode. */
   readonly goals: readonly Goal[]
-  /** Base modifiers applied to every player in this mode (e.g., base income rates). */
-  readonly nativeModifiers: readonly Modifier[]
   /** Whether manual clicks are allowed. */
   readonly clicksEnabled: boolean
   /** Whether the mode supports highlight cycling (Tab key, set_highlight action). */
@@ -121,9 +118,11 @@ export interface ModeDefinition {
   /** Pacts available in this mode (may be empty). No behavior yet — unlock-gated. */
   readonly pacts: readonly PactDefinition[]
   /**
-   * Declarative, state-derived effects applied to every player in this mode.
-   * Each ref names a registered effect plus its params (see `shared/src/effects`).
-   * Replaces the old `collectDynamic` closure with pure, serializable data.
+   * Declarative effects applied to every player in this mode — the bonuses a
+   * round starts with (a flat base rate is a `baseModifier` ref here, applied
+   * once since no upgrade owns it) plus any state-derived effect that applies
+   * unconditionally. Each ref names a registered effect plus its params (see
+   * `shared/src/effects`). Authored as the tree file's `startingEffects`.
    */
   readonly effects?: readonly EffectRef[]
   /**

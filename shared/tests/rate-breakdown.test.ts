@@ -33,7 +33,6 @@ function makeMode(overrides?: Partial<ModeDefinition>): ModeDefinition {
     scoreResource: resources[0],
     upgrades,
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
-    nativeModifiers: [],
     clicksEnabled: false,
     highlightEnabled: false,
     initialResources: {},
@@ -79,9 +78,9 @@ function truthRate(state: PlayerState, mode: ModeDefinition, resource: string): 
 // ─── Tests ───────────────────────────────────────────────────────────
 
 describe('computeRateBreakdown', () => {
-  it('attributes native modifiers to base', () => {
+  it('attributes the mode’s starting effects to base', () => {
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 2 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 2 }],
     })
     const bd = computeRateBreakdown(makeState(), mode).r0
     expect(bd.total).toBe(2)
@@ -138,7 +137,7 @@ describe('computeRateBreakdown', () => {
       effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1.5 }],
     }
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 1 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
       generators: [makeGen('g0', 'r0', 2)],
       upgrades: [upgrade],
     })
@@ -147,7 +146,7 @@ describe('computeRateBreakdown', () => {
     expect(bd.base + bd.generators).toBeCloseTo(bd.total)
     expect(bd.total).toBeCloseTo(truthRate(state, mode, 'r0'))
     // The upgrade boosts the base producer, so its contribution lands in `base`:
-    // native 1 + 2 × 1.5 = 4.
+    // starting 1 + 2 × 1.5 = 4.
     expect(bd.base).toBeCloseTo(4)
   })
 
@@ -155,24 +154,24 @@ describe('computeRateBreakdown', () => {
     // A ×2 multiplicative on the resource scales every additive source; each
     // bucket must reflect its share of the multiplied total.
     const mode = makeMode({
-      nativeModifiers: [
-        { stage: 'additive', field: 'r0', value: 1 },
-        { stage: 'multiplicative', field: 'r0', value: 2 },
+      effects: [
+        { type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 },
+        { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 },
       ],
       generators: [makeGen('g0', 'r0', 3)],
     })
     const state = makeState({ generators: { g0: 2 } })
     const bd = computeRateBreakdown(state, mode).r0
-    // total = (native 1 + gen 6) * 2 = 14
+    // total = (starting 1 + gen 6) * 2 = 14
     expect(bd.total).toBeCloseTo(14)
-    expect(bd.base).toBeCloseTo(2) // native 1 * 2
+    expect(bd.base).toBeCloseTo(2) // starting 1 * 2
     expect(bd.generators).toBeCloseTo(12) // gen 6 * 2
     expect(bd.base + bd.generators).toBeCloseTo(bd.total)
   })
 
   it('folds debuffs into the total', () => {
     const mode = makeMode({
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 10 }],
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 10 }],
     })
     const debuffs: Modifier[] = [{ stage: 'multiplicative', field: 'r0', value: 0.5 }]
     const bd = computeRateBreakdown(makeState(), mode, debuffs).r0
