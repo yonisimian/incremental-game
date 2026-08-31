@@ -306,17 +306,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // `field` — the opponent-pipeline target. It's a mode-specific string the
   // generic schema only checks is present, so validate it against the
   // *enemy-debuff* target catalog — a subset of `relativeModifier`'s (resource
-  // rates only). Generator-id and `clickIncome` targets are rejected here because
-  // the debuff merges into the opponent's pipeline after generator output is
-  // folded and only on the passive path, so they'd silently do nothing (see
-  // `enemyDebuffTargetsFor`).
+  // rates plus `clickIncome`). Generator-id targets are rejected here because the
+  // debuff merges into the opponent's pipeline after generator output is folded,
+  // so they'd silently do nothing (see `enemyDebuffTargetsFor`).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
       if (ref.type !== 'enemyProductionModifier') continue
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates can be debuffed)`,
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates and 'clickIncome' can be debuffed)`,
         )
     }
   }

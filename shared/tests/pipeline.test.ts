@@ -155,6 +155,24 @@ describe('computeClickIncome', () => {
     ]
     expect(computeClickIncome(mods)).toBe(Number.MAX_VALUE)
   })
+
+  it('scales click income by a multiplicative debuff appended last', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'clickIncome', value: 4 },
+      { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+      // An enemy `clickIncome` debuff — merged after the clicker's own modifiers.
+      { stage: 'multiplicative', field: 'clickIncome', value: 0.5 },
+    ]
+    expect(computeClickIncome(mods)).toBe(4) // (4 * 2) * 0.5
+  })
+
+  it('floors click income at 0 when an additive debuff overshoots', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'clickIncome', value: 3 },
+      { stage: 'additive', field: 'clickIncome', value: -10 },
+    ]
+    expect(computeClickIncome(mods)).toBe(0)
+  })
 })
 
 // ─── computePassiveRates ─────────────────────────────────────────────

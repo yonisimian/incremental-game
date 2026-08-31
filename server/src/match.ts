@@ -601,7 +601,13 @@ export class Match {
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
     player.state.meta.peakCps = player.stats.peakCps
 
-    const modifiers = collectModifiers(player.state, this.modeDef)
+    // The clicker's own modifiers plus the offensive debuffs the opponent's
+    // unlocked passive attacks inflict — appended last so a `clickIncome` debuff
+    // scales the finished figure, matching `applyPassiveIncome`.
+    const modifiers = [
+      ...collectModifiers(player.state, this.modeDef),
+      ...collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
+    ]
     const income = computeClickIncome(modifiers)
 
     // Credit the requested resource (defaults to score); only the score resource

@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal } from '@game/shared'
+import type { Goal, ModeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   getAttackPrepareCost,
   getModeDefinition,
+  registerMode,
+  validateModeDefinition,
 } from '@game/shared'
 import { Match } from '../src/match.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
@@ -329,6 +331,61 @@ describe('Match', () => {
         value: 0.9,
       })
       expect(latestUpdate(ws1).debuffs).toEqual([])
+    })
+
+    it("applies an enemy clickIncome debuff to the victim's click credit", () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder in the tree — giving it a
+      // ×0.5 *click* debuff (and nothing else) leaves both players' passive
+      // production identical, so the only asymmetry left is click income.
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'clickIncome',
+                    value: 0.5,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Both unlock clicking (sc-unlock — +1 clickIncome, no passive change);
+        // only p1 unlocks a3, and an attacker never debuffs itself.
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.grantResourcesForTest('p2', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // Snapshot before clicking: no timers advance between here and the
+        // clicks, so no passive income lands in between.
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p1', clickMsg(4))
+        m.handleMessage('p2', clickMsg(2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        // Passive income over the interval is equal, so the whole difference is
+        // the click: the attacker earns 1, the victim the debuffed 0.5.
+        expect(gain1 - gain2).toBeCloseTo(0.5, 6)
+      } finally {
+        registerMode('idler', base)
+      }
     })
 
     it('sends no debuffs when neither player has an unlocked passive attack', () => {

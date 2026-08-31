@@ -111,9 +111,18 @@ export function creditResource(
 
 // ─── Convenience Functions ───────────────────────────────────────────
 
-/** Compute the income from a single click. */
+/**
+ * Compute the income from a single click.
+ *
+ * Floored at `0`: an offensive `clickIncome` debuff (`enemyProductionModifier`)
+ * can be authored `additive` with a negative value, which could otherwise drive
+ * the total below zero. `creditResource` already ignores a non-positive amount,
+ * so nothing was ever *drained* by a click — the floor is what keeps the figure
+ * the UI and the sim read equal to the credit actually applied. A no-op for
+ * bonus-only modifier sets, where the total can't go negative.
+ */
 export function computeClickIncome(modifiers: readonly Modifier[]): number {
-  return saturateRate(computeIncome(modifiers).clickIncome)
+  return Math.max(0, saturateRate(computeIncome(modifiers).clickIncome))
 }
 
 /**
