@@ -90,8 +90,8 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * `relativeModifier`'s `field`/`source` come from the
  * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
- * narrower enemy-debuff catalog (resource rates only — generator/click targets
- * don't apply to a debuff).
+ * narrower enemy-debuff catalog (resource rates plus click income — generator
+ * targets don't apply to a debuff).
  *
  * Exported for testing: every id-referencing param should resolve to a picker,
  * so free text can never author a key the boot-time validator would reject.

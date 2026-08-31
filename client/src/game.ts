@@ -875,7 +875,10 @@ function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
   const modeDef = getModeDefinition(mode)
-  const modifiers = collectModifiers(player, modeDef)
+  // Merge in the debuffs the opponent's passive attacks inflict (sent by the
+  // server) so a predicted click pays what the server will credit — the same
+  // reason the header folds them into the passive rate.
+  const modifiers = [...collectModifiers(player, modeDef), ...state.debuffs]
   return pipelineClickIncome(modifiers)
 }
 

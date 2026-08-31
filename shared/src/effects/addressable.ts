@@ -98,15 +98,19 @@ export function addressableTargets(mode: ModeDefinition): AddressableField[] {
  * attack) may feed on the opponent. Deliberately a **subset** of {@link
  * addressableTargetsFor}: the debuffs are merged into the opponent's pipeline
  * *after* `collectModifiers` has already folded generator output into resource
- * rates and only on the passive-income path — so generator-id and `clickIncome`
- * would silently do nothing. Only per-second resource rates actually apply,
- * so those are the only targets offered and validated.
+ * rates, so a generator-id target would silently do nothing. The two tracks a
+ * debuff *can* reach are per-second resource rates (merged on the passive-income
+ * path) and `clickIncome` (merged when a click is credited, see the server's
+ * `applyClick`), so those are the only targets offered and validated.
  */
 export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): AddressableField[] {
-  return resourceKeys.map((key) => ({ key, label: `${key} (rate)` }))
+  return [
+    { key: 'clickIncome', label: 'Click income' },
+    ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
+  ]
 }
 
-/** Offensive-debuff target keys for this mode (resource rates). */
+/** Offensive-debuff target keys for this mode (click income + resource rates). */
 export function enemyDebuffTargets(mode: ModeDefinition): AddressableField[] {
   return enemyDebuffTargetsFor(mode.resources)
 }

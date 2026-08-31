@@ -499,9 +499,12 @@ function updateNumbers(state: Readonly<GameState>): void {
     if (section) section.style.display = rows === '' ? 'none' : ''
   }
 
-  // Clicking (per-click income excludes debuffs, matching the credit applied on click).
+  // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
-    const clickIncome = computeClickIncome(collectModifiers(state.player, modeDef))
+    const clickIncome = computeClickIncome([
+      ...collectModifiers(state.player, modeDef),
+      ...state.debuffs,
+    ])
     setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
     setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
     setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
