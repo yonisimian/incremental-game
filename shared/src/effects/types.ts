@@ -204,6 +204,38 @@ export interface BatteryBandOutput {
 }
 
 /**
+ * A raise to a time clock's accrual rate, emitted by the `timeFactorBoost`
+ * effect while the owning upgrade is held.
+ *
+ * Consumed by `collectTimeFactorBoosts` / `timeBonusFraction`, which own both the
+ * level-by-level dating (each level accrues only from *its own* purchase onward,
+ * unless a {@link TimeRetroactiveOutput} is in play) and the pairing with the
+ * clock's own start. Carries no production weight on its own — the clock's
+ * `timeScaledModifier` is what reaches the pipeline — so every other consumer
+ * ignores it.
+ */
+export interface TimeFactorBoostOutput {
+  readonly kind: 'timeFactorBoost'
+  /** Id of the upgrade whose purchase starts the clock this boost feeds. */
+  readonly clock: string
+  /** Added to the clock's accrual rate, per minute, per owned level. */
+  readonly perMinute: number
+}
+
+/**
+ * Makes a time clock's {@link TimeFactorBoostOutput}s retroactive while the
+ * owning upgrade is held: every boost counts from the clock's *start* rather than
+ * from the level's own purchase, so time already elapsed is repriced at the
+ * current rate. Consumed by `isTimeBonusRetroactive`; carries no production
+ * weight of its own.
+ */
+export interface TimeRetroactiveOutput {
+  readonly kind: 'timeRetroactive'
+  /** Id of the upgrade whose purchase starts the affected clock. */
+  readonly clock: string
+}
+
+/**
  * An instantaneous transfer of *generator copies* from the victim to the
  * attacker, emitted by the `stealGenerator` effect on an active attack. The
  * generator-side twin of {@link ResourceStealOutput}, resolved at the same
@@ -244,12 +276,14 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
- * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, or one of the
- * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}).
+ * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, one of the
+ * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), or
+ * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
+ * TimeRetroactiveOutput}).
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
- * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike`); every
- * consumer ignores the outputs it doesn't own.
+ * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike` /
+ * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -266,6 +300,8 @@ export type EffectOutput =
   | BatteryStatOutput
   | BatteryBandOutput
   | GeneratorStealOutput
+  | TimeFactorBoostOutput
+  | TimeRetroactiveOutput
 
 /**
  * Where an effect ref may be authored. Each host is read by different code and

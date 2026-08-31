@@ -75,6 +75,9 @@ describe('effect registry', () => {
       'stealGenerator',
       'stealResource',
       'systemUnlock',
+      'timeFactorBoost',
+      'timeRetroactive',
+      'timeScaledModifier',
       'unlockAttack',
       'unlockPact',
     ])
@@ -92,6 +95,7 @@ describe('effect registry', () => {
       'dominantGenerator',
       'lowerTierBoost',
       'relativeModifier',
+      'timeScaledModifier',
     ])
   })
 })
