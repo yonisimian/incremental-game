@@ -13,6 +13,7 @@ import {
   isClickUnlocked,
   isHighlightActive,
   hasEnemyDataAccess,
+  readPurchaseTimes,
 } from '../src/index.js'
 import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
 
@@ -439,21 +440,23 @@ describe('applyPurchase', () => {
   })
 })
 
-// ─── Purchase timestamps (state.meta.purchasedAt) ────────────────────
+// ─── Purchase timestamps (state.meta.purchaseTimes) ──────────────────
 
-describe('purchase timestamps (state.meta.purchasedAt)', () => {
-  it('applyPurchase records purchasedAt in state.meta', () => {
+describe('purchase timestamps (state.meta.purchaseTimes)', () => {
+  it('applyPurchase dates a purchase in state.meta', () => {
     const def = getModeDefinition('idler')
     const state = createInitialState(def)
     state.resources.r0 = 300
     state.meta.gameSec = 5
     applyPurchase(state, 'sc-af-cp', def) // costs 25 r0
     expect(state.upgrades['sc-af-cp']).toBe(1)
-    const purchasedAt = state.meta.purchasedAt as Record<string, number>
-    expect(purchasedAt['sc-af-cp']).toBe(5)
+    expect(readPurchaseTimes(state, 'sc-af-cp')).toEqual([5])
   })
 
-  it('repeated purchase does not overwrite purchasedAt', () => {
+  // An ordinary repeatable upgrade keeps only its first buy: no time clock reads
+  // it, so appending an entry per purchase would grow the broadcast state for
+  // nothing.
+  it('repeated purchase does not overwrite the first timestamp', () => {
     const unlimitedUpgrade: UpgradeDefinition = {
       id: 'uRepeat',
       cost: { r0: { baseCost: 10 } },
@@ -469,8 +472,23 @@ describe('purchase timestamps (state.meta.purchasedAt)', () => {
     applyPurchase(state, 'uRepeat', customDef) // first buy at gameSec=2
     state.meta.gameSec = 10
     applyPurchase(state, 'uRepeat', customDef) // second buy at gameSec=10
-    const purchasedAt = state.meta.purchasedAt as Record<string, number>
-    expect(purchasedAt.uRepeat).toBe(2) // still original timestamp
+    expect(readPurchaseTimes(state, 'uRepeat')).toEqual([2]) // still original timestamp
     expect(state.upgrades.uRepeat).toBe(2)
+  })
+
+  // The exception: an upgrade a time clock prices level-by-level keeps them all.
+  it('dates every level of a clocked upgrade', () => {
+    const def = getModeDefinition('idler')
+    const state = createInitialState(def)
+    state.resources.r0 = 10_000
+    state.resources.r1 = 10_000
+    state.meta.gameSec = 3
+    applyPurchase(state, 'ae-mf-ar-time', def)
+    state.meta.gameSec = 8
+    applyPurchase(state, 'ae-atf', def)
+    state.meta.gameSec = 20
+    applyPurchase(state, 'ae-atf', def)
+    expect(readPurchaseTimes(state, 'ae-mf-ar-time')).toEqual([3])
+    expect(readPurchaseTimes(state, 'ae-atf')).toEqual([8, 20])
   })
 })
