@@ -18,9 +18,11 @@ import {
   computeClickIncome,
   computeRateBreakdown,
   getHighlightMultiplier,
+  highlightDebuffFactor,
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
+  resolveEnemyDebuffs,
   getModeDefinition,
   getModeFlavor,
   getGeneratorIcon,
@@ -418,6 +420,10 @@ function renderSkeleton(
             <span class="data-stat-label">Multiplier</span>
             <span class="data-stat-value" id="data-hl-mult">—</span>
           </div>
+          <div class="data-stat" id="data-hl-debuff-row" hidden>
+            <span class="data-stat-label">⚔️ Enemy debuff</span>
+            <span class="data-stat-value data-debuff" id="data-hl-debuff">—</span>
+          </div>
         </div>
         ${battery}
         <p class="data-subhead">Time highlighted</p>
@@ -466,8 +472,12 @@ function updateNumbers(state: Readonly<GameState>): void {
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
 
+  // Incoming debuffs, resolved once against this player — every figure below that
+  // folds them in reads from here (see `resolveEnemyDebuffs`).
+  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player)
+
   // Production + source breakdown (debuffs folded in so totals match the header).
-  const breakdown = computeRateBreakdown(state.player, modeDef, state.debuffs)
+  const breakdown = computeRateBreakdown(state.player, modeDef, debuffs)
   const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
@@ -501,10 +511,7 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
-    const clickIncome = computeClickIncome([
-      ...collectModifiers(state.player, modeDef),
-      ...state.debuffs,
-    ])
+    const clickIncome = computeClickIncome([...collectModifiers(state.player, modeDef), ...debuffs])
     setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
     setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
     setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
@@ -525,8 +532,21 @@ function updateNumbers(state: Readonly<GameState>): void {
         ? 'Released'
         : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
-    const mult = getHighlightMultiplier(state.player, modeDef)
+    // The multiplier reads *debuffed*, so it matches the production it actually
+    // buys. Applied only while a resource is held: released, the factor lands
+    // nowhere and so does the debuff, and `getHighlightMultiplier` already
+    // reports a neutral ×1.
+    const debuffFactor = highlightDebuffFactor(state.debuffs)
+    const held = current !== null
+    const mult = getHighlightMultiplier(state.player, modeDef) * (held ? debuffFactor : 1)
     setText('data-hl-mult', `×${formatMultiplier(mult)}`)
+    // Shown only while highlighted — the enemy-data panel carries the standing
+    // warning, this row explains the number sitting directly above it.
+    const debuffRow = document.getElementById('data-hl-debuff-row')
+    if (debuffRow) debuffRow.hidden = !held || debuffFactor === 1
+    if (held && debuffFactor !== 1) {
+      setText('data-hl-debuff', `×${formatMultiplier(debuffFactor)}`)
+    }
     updateBattery(state, modeDef)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)

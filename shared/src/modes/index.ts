@@ -34,7 +34,9 @@ import {
   addressableSources,
   addressableTargets,
   enemyDebuffTargets,
+  HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
+  RESERVED_TARGET_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
 import type { BaseModifierOutput, EffectHost, EffectOutput } from '../effects/index.js'
@@ -302,11 +304,19 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     )
   }
 
+  // A reserved target names something that isn't a resource, so a mode declaring
+  // a resource by that name would make an authored target ambiguous — the same
+  // reasoning as the intel-key collision above.
+  for (const reserved of RESERVED_TARGET_KEYS) {
+    if (resourceKeys.has(reserved))
+      throw new Error(`[${id}] resource key '${reserved}' collides with a reserved modifier target`)
+  }
+
   // `enemyProductionModifier` effects (carried by passive attacks) name a
   // `field` — the opponent-pipeline target. It's a mode-specific string the
   // generic schema only checks is present, so validate it against the
-  // *enemy-debuff* target catalog — a subset of `relativeModifier`'s (resource
-  // rates plus `clickIncome`). Generator-id targets are rejected here because the
+  // *enemy-debuff* target catalog (resource rates, `clickIncome`, and the virtual
+  // highlight-factor target). Generator-id targets are rejected here because the
   // debuff merges into the opponent's pipeline after generator output is folded,
   // so they'd silently do nothing (see `enemyDebuffTargetsFor`).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
@@ -315,7 +325,14 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (ref.type !== 'enemyProductionModifier') continue
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates and 'clickIncome' can be debuffed)`,
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be debuffed)`,
+        )
+      // The highlight factor is a *multiplier*, and `resolveEnemyDebuffs`
+      // deliberately never reads the composite — so an additive debuff on it has
+      // nothing to subtract from and would be silently mistranslated as a scale.
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] attack '${attack.id}' enemyProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
         )
     }
   }
@@ -1027,6 +1044,10 @@ export function collectDynamicBonuses(
  * (no owned-count compounding — an attack is unlocked or it isn't). The
  * attacker's state is passed to `applyEffect` so future state-relative debuffs
  * can read it; today's effects are state-independent.
+ *
+ * Debuffs come out **as authored**, which can include the virtual
+ * {@link HIGHLIGHT_FACTOR_TARGET} field. Run them through
+ * {@link resolveEnemyDebuffs} before handing them to the pipeline.
  */
 export function collectEnemyDebuffs(
   attacker: Readonly<PlayerState>,
@@ -1044,6 +1065,68 @@ export function collectEnemyDebuffs(
     }
   }
   return debuffs
+}
+
+/**
+ * Resolve authored enemy debuffs against the player they land on, turning them
+ * into modifiers the production pipeline can consume.
+ *
+ * Real pipeline targets pass through untouched. A {@link
+ * HIGHLIGHT_FACTOR_TARGET} entry names no field, so the pipeline would silently
+ * drop it; it becomes an equivalent multiplicative modifier on whichever
+ * resource `victim` is currently highlighting.
+ *
+ * That substitution is exact, not an approximation: the highlight factor is one
+ * term in the highlighted resource's product, so scaling the factor and scaling
+ * that resource's rate are the same arithmetic. Neither the victim's own
+ * highlight multipliers nor the battery's share is read here — a 10% debuff
+ * against a base ×5 with the battery at ×2 lands as 4.5 × 2 = 9, which is what
+ * 10 × 0.9 already gives. (This is why only `multiplicative` is a legal stage for
+ * the target: subtracting from the factor *would* require reading the composite,
+ * and `validateModeDefinition` rejects that authoring.)
+ *
+ * A released highlight drops the entry — nothing for the factor to apply to, so
+ * the debuff doesn't pay. Releasing therefore dodges it, at the cost of the
+ * entire highlight bonus.
+ *
+ * Called wherever debuffs enter a pipeline, on **both** sides: each resolves
+ * against the victim state it already holds, so the client stays exact across a
+ * mid-tick highlight switch. The wire deliberately carries the *unresolved* form
+ * — once translated to a resource, a highlight debuff is indistinguishable from
+ * a plain rate debuff, and the victim's UI could no longer report it.
+ */
+export function resolveEnemyDebuffs(
+  debuffs: readonly Modifier[],
+  victim: Readonly<PlayerState>,
+): Modifier[] {
+  const highlight = readHighlight(victim)
+  const resolved: Modifier[] = []
+  for (const debuff of debuffs) {
+    if (debuff.field !== HIGHLIGHT_FACTOR_TARGET) {
+      resolved.push(debuff)
+      continue
+    }
+    if (highlight === null) continue
+    resolved.push({ stage: debuff.stage, field: highlight, value: debuff.value })
+  }
+  return resolved
+}
+
+/**
+ * The combined factor that incoming {@link HIGHLIGHT_FACTOR_TARGET} debuffs
+ * apply to this player's highlight, or `1` when none do.
+ *
+ * For reporting, not for income — {@link resolveEnemyDebuffs} owns the pipeline
+ * path. Deliberately independent of whether a highlight is currently held, so
+ * the UI can warn about the threat while it isn't paying (a player who has
+ * released still needs to know holding is worth less than the tree claims).
+ */
+export function highlightDebuffFactor(debuffs: readonly Modifier[]): number {
+  let factor = 1
+  for (const debuff of debuffs) {
+    if (debuff.field === HIGHLIGHT_FACTOR_TARGET) factor *= debuff.value
+  }
+  return factor
 }
 
 // ─── Purchase ────────────────────────────────────────────────────────

@@ -1323,6 +1323,15 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+/* Standing warning about an incoming enemy debuff — not researched intel, so it
+   reads as an alert rather than a table row. */
+.espionage-warning {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--danger);
+}
+
 .espionage-table {
   width: 100%;
   border-collapse: collapse;
@@ -2518,4 +2527,10 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--text);
+}
+
+/* A stat value that reports something working against the player (an incoming
+   enemy debuff), so it doesn't read as one of their own bonuses. */
+.data-debuff {
+  color: var(--danger);
 }

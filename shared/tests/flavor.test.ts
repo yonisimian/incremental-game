@@ -429,6 +429,80 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
+  it('accepts a multiplicative enemyProductionModifier targeting the highlight factor', () => {
+    const base = makeValidDef({
+      highlightEnabled: true,
+      initialMeta: { highlight: null },
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              field: 'highlightFactor',
+              value: 0.9,
+            },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Dim', icon: '🌫️', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  // The highlight factor is a multiplier and `resolveEnemyDebuffs` never reads
+  // the composite, so an additive debuff has nothing to subtract from.
+  it('throws when a highlight-factor debuff is authored additive', () => {
+    const base = makeValidDef({
+      highlightEnabled: true,
+      initialMeta: { highlight: null },
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            {
+              type: 'enemyProductionModifier',
+              stage: 'additive',
+              field: 'highlightFactor',
+              value: -2,
+            },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Dim', icon: '🌫️', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/only 'multiplicative' is supported/)
+  })
+
+  it('throws when a resource key collides with a reserved modifier target', () => {
+    const def = withFlavor(
+      makeValidDef({
+        resources: ['r0', 'highlightFactor'],
+        initialResources: { r0: 0, highlightFactor: 0 },
+      }),
+      {
+        resources: [
+          { key: 'r0', displayName: 'Res', icon: '🔵' },
+          { key: 'highlightFactor', displayName: 'Sneaky', icon: '🕳️' },
+        ],
+      },
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/collides with a reserved modifier target/)
+  })
+
   // A *declared* generator, so the rejection is about the field not being a
   // debuff target (a debuff merges in after generator output is folded) rather
   // than about an unknown id.
