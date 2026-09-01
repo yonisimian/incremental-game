@@ -7,6 +7,10 @@ import {
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
+  computePassiveRates,
+  resolveEnemyDebuffs,
+  highlightDebuffFactor,
+  HIGHLIGHT_FACTOR_TARGET,
   applyPurchase,
   normalizeUpgrades,
   isPanelUnlocked,
@@ -14,7 +18,13 @@ import {
   isHighlightActive,
   hasEnemyDataAccess,
 } from '../src/index.js'
-import type { Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '../src/index.js'
+import type {
+  Goal,
+  Modifier,
+  ModeDefinition,
+  PlayerState,
+  UpgradeDefinition,
+} from '../src/index.js'
 
 // ─── getModeDefinition ───────────────────────────────────────────────
 
@@ -353,6 +363,94 @@ describe('collectEnemyDebuffs', () => {
     const state = createInitialState(def)
     state.upgrades[attackGate(def, 'a3').id] = 1
     expect(collectEnemyDebuffs(state, def)).toEqual([])
+  })
+})
+
+// ─── resolveEnemyDebuffs / highlightDebuffFactor ─────────────────────
+
+describe('resolveEnemyDebuffs', () => {
+  const HL_DEBUFF: Modifier = {
+    stage: 'multiplicative',
+    field: HIGHLIGHT_FACTOR_TARGET,
+    value: 0.9,
+  }
+  const RATE_DEBUFF: Modifier = { stage: 'multiplicative', field: 'r0', value: 0.8 }
+
+  /** A victim holding `highlight` (or nothing when `null`). */
+  function victim(def: ModeDefinition, highlight: string | null): PlayerState {
+    const state = createInitialState(def)
+    state.meta.highlight = highlight
+    return state
+  }
+
+  it('passes real pipeline targets through untouched', () => {
+    const def = getModeDefinition('idler')
+    expect(resolveEnemyDebuffs([RATE_DEBUFF], victim(def, 'r1'))).toEqual([RATE_DEBUFF])
+  })
+
+  it('retargets a highlight-factor debuff onto the resource the victim holds', () => {
+    const def = getModeDefinition('idler')
+    expect(resolveEnemyDebuffs([HL_DEBUFF], victim(def, 'r1'))).toEqual([
+      { stage: 'multiplicative', field: 'r1', value: 0.9 },
+    ])
+    // It follows the selection rather than naming a fixed resource.
+    expect(resolveEnemyDebuffs([HL_DEBUFF], victim(def, 'r0'))).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 0.9 },
+    ])
+  })
+
+  it('drops a highlight-factor debuff while the victim has released', () => {
+    const def = getModeDefinition('idler')
+    // Releasing dodges it — there is no resource for the factor to apply to.
+    expect(resolveEnemyDebuffs([HL_DEBUFF], victim(def, null))).toEqual([])
+    // ...without dropping the debuffs that don't depend on a highlight.
+    expect(resolveEnemyDebuffs([HL_DEBUFF, RATE_DEBUFF], victim(def, null))).toEqual([RATE_DEBUFF])
+  })
+
+  // The substitution is exact: the highlight factor is one term in the
+  // highlighted resource's product, so debuffing the factor 10% and debuffing
+  // that resource's rate 10% are the same number — which is what lets the
+  // resolver ignore both the victim's own multipliers and the battery.
+  it('lands the same rate as scaling the highlighted resource directly', () => {
+    const def = getModeDefinition('idler')
+    const state = victim(def, 'r0')
+    const own = collectModifiers(state, def)
+    const viaFactor = computePassiveRates(
+      [...own, ...resolveEnemyDebuffs([HL_DEBUFF], state)],
+      def.resources,
+    )
+    const viaRate = computePassiveRates(
+      [...own, { stage: 'multiplicative', field: 'r0', value: 0.9 }],
+      def.resources,
+    )
+    expect(viaFactor.r0).toBeCloseTo(viaRate.r0, 9)
+    expect(viaFactor.r1).toBeCloseTo(viaRate.r1, 9)
+  })
+})
+
+describe('highlightDebuffFactor', () => {
+  it('returns 1 when no highlight debuff is present', () => {
+    expect(highlightDebuffFactor([])).toBe(1)
+    expect(highlightDebuffFactor([{ stage: 'multiplicative', field: 'r0', value: 0.5 }])).toBe(1)
+  })
+
+  it('compounds every highlight debuff', () => {
+    expect(
+      highlightDebuffFactor([
+        { stage: 'multiplicative', field: HIGHLIGHT_FACTOR_TARGET, value: 0.9 },
+        { stage: 'multiplicative', field: 'r0', value: 0.5 },
+        { stage: 'multiplicative', field: HIGHLIGHT_FACTOR_TARGET, value: 0.5 },
+      ]),
+    ).toBeCloseTo(0.45, 9)
+  })
+
+  // For reporting, so it must not depend on a highlight being held — that's what
+  // lets the UI warn a released player that holding is worth less than advertised.
+  it('reports the factor regardless of whether a highlight is held', () => {
+    const debuffs: Modifier[] = [
+      { stage: 'multiplicative', field: HIGHLIGHT_FACTOR_TARGET, value: 0.9 },
+    ]
+    expect(highlightDebuffFactor(debuffs)).toBeCloseTo(0.9, 9)
   })
 })
 

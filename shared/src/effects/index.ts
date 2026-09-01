@@ -107,6 +107,8 @@ export {
   addressableTargetsFor,
   enemyDebuffTargets,
   enemyDebuffTargetsFor,
+  HIGHLIGHT_FACTOR_TARGET,
   listAddressableFields,
   readSourceValue,
+  RESERVED_TARGET_KEYS,
 } from './addressable.js'

@@ -333,6 +333,64 @@ describe('Match', () => {
       expect(latestUpdate(ws1).debuffs).toEqual([])
     })
 
+    it('sends a highlight-factor debuff unresolved, and lands it on the held resource', () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder — give it a ×0.9 debuff on the
+      // *highlight factor* (the virtual target, not a resource).
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'highlightFactor',
+                    value: 0.9,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Both buy sh-unlock (×2 on the highlighted resource) out of their 50
+        // starting r0, and both open holding r0 (`initialMeta`), so their
+        // production is identical apart from the debuff. Only p1 unlocks a3.
+        m.handleMessage('p1', buyMsg('sh-unlock', 1))
+        m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // The wire carries the *virtual* target, not a resource: once translated
+        // it would be indistinguishable from a plain r0 debuff, and p2's UI could
+        // no longer report it as a highlight debuff.
+        expect(latestUpdate(ws2).debuffs).toContainEqual({
+          stage: 'multiplicative',
+          field: 'highlightFactor',
+          value: 0.9,
+        })
+        expect(latestUpdate(ws1).debuffs).toEqual([])
+
+        // ...and the income it actually applies lands on the held resource.
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        expect(gain1).toBeGreaterThan(0)
+        expect(gain2 / gain1).toBeCloseTo(0.9, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it("applies an enemy clickIncome debuff to the victim's click credit", () => {
       const base = getModeDefinition('idler')
       // `a3` is an effect-less passive placeholder in the tree — giving it a

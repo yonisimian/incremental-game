@@ -11,6 +11,7 @@ import {
   enemyDebuffTargetsFor,
   getModeDefinition,
   hasEnemyDataAccess,
+  HIGHLIGHT_FACTOR_TARGET,
   isAttackUnlocked,
   isClickUnlocked,
   isDynamicEffect,
@@ -1327,20 +1328,26 @@ describe('addressable-field catalog', () => {
     ])
   })
 
-  // The enemy-debuff catalog is a strict subset: the two tracks a debuff can
-  // actually reach are click income and per-second resource rates. Generator and
-  // base-producer targets are absent — a debuff merges in after generator output
-  // has been folded into rates.
-  it('builds enemy-debuff target keys from click income and resource rates only', () => {
+  it('builds enemy-debuff target keys from click income, the highlight factor, and rates', () => {
     expect(enemyDebuffTargetsFor(['r0', 'r1'])).toEqual([
       { key: 'clickIncome', label: 'Click income' },
+      { key: HIGHLIGHT_FACTOR_TARGET, label: 'Highlight factor' },
       { key: 'r0', label: 'r0 (rate)' },
       { key: 'r1', label: 'r1 (rate)' },
     ])
+  })
+
+  // The two catalogs overlap rather than nest. Generator and base-producer
+  // targets are debuffable by nothing (a debuff merges in after generator output
+  // has been folded into rates); the highlight factor is debuff-only, since it
+  // names no pipeline field at all and is resolved against the victim instead.
+  it('overlaps the full catalog everywhere except the virtual highlight target', () => {
     const full = addressableTargetsFor(['r0', 'r1'], ['g0'])
     for (const target of enemyDebuffTargetsFor(['r0', 'r1'])) {
-      expect(full).toContainEqual(target)
+      if (target.key === HIGHLIGHT_FACTOR_TARGET) expect(full).not.toContainEqual(target)
+      else expect(full).toContainEqual(target)
     }
+    expect(full.map((f) => f.key)).not.toContain(HIGHLIGHT_FACTOR_TARGET)
   })
 
   it('the mode-level helpers delegate to the primitive ones', () => {

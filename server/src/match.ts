@@ -11,6 +11,7 @@ import {
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
+  resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
@@ -493,10 +494,12 @@ export class Match {
     // charge (see `advanceHighlightBattery`).
     advanceHighlightBattery(player.state, this.modeDef, tickSec)
     // The defender's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict (e.g. a -10% wood-production attack).
+    // unlocked passive attacks inflict (e.g. a -10% wood-production attack),
+    // resolved against the defender — a highlight-factor debuff lands on whichever
+    // resource they're holding right now.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...collectEnemyDebuffs(opponent.state, this.modeDef),
+      ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, this.modeDef), player.state),
     ]
     applyPassiveTick(
       player.state,
@@ -606,7 +609,10 @@ export class Match {
     // scales the finished figure, matching `applyPassiveIncome`.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
+        player.state,
+      ),
     ]
     const income = computeClickIncome(modifiers)
 
@@ -676,6 +682,10 @@ export class Match {
     // Offensive debuffs each player's unlocked passive attacks inflict on the
     // other, sent so the victim's client can render its true (debuffed) rate —
     // matching the same debuffs `applyPassiveIncome` applies to real income.
+    // Sent **unresolved** (see `resolveEnemyDebuffs`): the victim's client
+    // resolves them against its own state, which both keeps it exact across a
+    // mid-tick highlight switch and lets its UI tell a highlight-factor debuff
+    // apart from a plain rate debuff in order to report it.
     const p1Debuffs = collectEnemyDebuffs(p1.state, this.modeDef)
     const p2Debuffs = collectEnemyDebuffs(p2.state, this.modeDef)
 
@@ -745,8 +755,12 @@ export class Match {
       if (hasEnemyDataAccess(viewer.state, mode, rateKey)) {
         // Include the debuffs the *viewer* inflicts on the opponent so the spied
         // rate matches the opponent's real production, not an undebuffed figure.
+        // Resolved against the opponent — they're the victim here.
         rates ??= computePassiveRates(
-          [...collectModifiers(opponent.state, mode), ...viewerDebuffs],
+          [
+            ...collectModifiers(opponent.state, mode),
+            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state),
+          ],
           mode.resources,
         )
         view.rates[key] = rates[key] ?? 0
