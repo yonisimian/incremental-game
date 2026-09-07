@@ -17,7 +17,7 @@
  * scope for now (they can be added here without touching the effect).
  */
 
-import type { PlayerState } from '../types.js'
+import type { CostScope, PlayerState } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
 
 /** Namespace prefix for a resource-stockpile source (e.g. `resource:r0`). */
@@ -135,6 +135,66 @@ export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): Addressa
 /** Offensive-debuff target keys for this mode (click income + highlight + rates). */
 export function enemyDebuffTargets(mode: ModeDefinition): AddressableField[] {
   return enemyDebuffTargetsFor(mode.resources)
+}
+
+/** Target naming *every* upgrade the victim might buy. */
+export const ALL_UPGRADES_TARGET = 'upgrades'
+/** Target naming *every* generator the victim might buy. */
+export const ALL_GENERATORS_TARGET = 'generators'
+/** Namespace prefix for a single-upgrade cost target (e.g. `upgrade:u3`). */
+const UPGRADE_TARGET_PREFIX = 'upgrade:'
+/** Namespace prefix for a single-generator cost target (e.g. `generator:g1`). */
+const GENERATOR_TARGET_PREFIX = 'generator:'
+
+/**
+ * Target keys an *offensive* `enemyCostModifier` (carried by a passive attack)
+ * may inflate on the opponent: the two whole-scope targets plus one namespaced
+ * key per upgrade and generator.
+ *
+ * A single namespaced key rather than a `scope` + `id` pair, following
+ * `accessEnemyData`'s `data` and `relativeModifier`'s `source`: it makes an
+ * inconsistent pair (scope `upgrade`, a generator's id) *unrepresentable*, so
+ * the `/dev.html` picker can't author something the boot-time validator would
+ * reject. {@link parseEnemyCostTarget} turns a key back into the structural form
+ * the price paths consume.
+ */
+export function enemyCostTargetsFor(
+  upgradeIds: readonly string[],
+  generatorIds: readonly string[],
+): AddressableField[] {
+  return [
+    { key: ALL_UPGRADES_TARGET, label: 'All upgrades' },
+    { key: ALL_GENERATORS_TARGET, label: 'All generators' },
+    ...upgradeIds.map((id) => ({ key: `${UPGRADE_TARGET_PREFIX}${id}`, label: `${id} (upgrade)` })),
+    ...generatorIds.map((id) => ({
+      key: `${GENERATOR_TARGET_PREFIX}${id}`,
+      label: `${id} (generator)`,
+    })),
+  ]
+}
+
+/** Offensive cost-inflation target keys for this mode. */
+export function enemyCostTargets(mode: ModeDefinition): AddressableField[] {
+  return enemyCostTargetsFor(
+    mode.upgrades.map((u) => u.id),
+    mode.generators.map((g) => g.id),
+  )
+}
+
+/**
+ * Split an authored cost target into the scope it hits and (for a single-entity
+ * target) the id. Returns `null` for an unrecognized key, so `apply` stays inert
+ * on a bad ref even though `validateModeDefinition` already rejects one at boot
+ * — the same contract as {@link readSourceValue}.
+ */
+export function parseEnemyCostTarget(target: string): { scope: CostScope; id?: string } | null {
+  if (target === ALL_UPGRADES_TARGET) return { scope: 'upgrade' }
+  if (target === ALL_GENERATORS_TARGET) return { scope: 'generator' }
+  if (target.startsWith(UPGRADE_TARGET_PREFIX))
+    return { scope: 'upgrade', id: target.slice(UPGRADE_TARGET_PREFIX.length) }
+  if (target.startsWith(GENERATOR_TARGET_PREFIX))
+    return { scope: 'generator', id: target.slice(GENERATOR_TARGET_PREFIX.length) }
+  return null
 }
 
 /** The combined source/target catalog for a mode. */

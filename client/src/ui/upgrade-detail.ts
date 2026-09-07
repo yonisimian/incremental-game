@@ -10,10 +10,9 @@ import {
   isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
-  getUpgradeNextCost,
   type UpgradeDefinition,
 } from '@game/shared'
-import { canAfford, formatCostLabel, isUnlocked, escapeAttr } from './helpers.js'
+import { canAfford, formatUpgradeCost, isUnlocked, escapeAttr } from './helpers.js'
 
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
@@ -53,9 +52,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
 
-  const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-  const nextCost = getUpgradeNextCost(u, owned)
-  const costLabel = maxed ? 'Maxed' : `${formatCostLabel(nextCost, flavor)}${countLabel}`
+  const costLabel = formatUpgradeCost(state, u, flavor)
 
   const levelLabel =
     u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0 ? `${owned}/${u.purchaseLimit}` : ''

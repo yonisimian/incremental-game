@@ -170,8 +170,46 @@ export interface PlayerState {
   generators: Record<string, number>
   /** Active attacks that have been paid for and are waiting out their preparation. */
   pendingAttacks: PendingAttack[]
+  /**
+   * Cost inflation the opponent's unlocked passive attacks currently inflict on
+   * this player, stamped by the server (see `collectEnemyCostFactors`). Absent
+   * when none is active, which is the default.
+   *
+   * Every price the player is quoted or charged reads this — via
+   * `incomingCostFactors` — so the client's optimistic purchase and the server's
+   * validation are computed from the same numbers. Like `pendingAttacks` (and
+   * unlike `meta`) it is an engine-level, wire-stable field reasoned about during
+   * reconciliation, which is why it lives here rather than in mode metadata.
+   *
+   * Affects only *future* purchases: already-owned levels and copies are
+   * untouched, and a refund is deliberately priced without it (see
+   * `getGeneratorSellRefund`).
+   */
+  incomingCostFactors?: EnemyCostFactor[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
+}
+
+/** Which kind of priced entity a cost factor applies to. */
+export type CostScope = 'upgrade' | 'generator'
+
+/**
+ * One cost inflation inflicted by an opponent's passive attack, resolved from an
+ * `enemyCostModifier` effect's authored target into the structural form the
+ * price paths consume.
+ *
+ * `id` absent means every entity of that `scope` — "all upgrades cost 25% more";
+ * present names a single upgrade or generator. At least one of the two factors
+ * is set (the effect schema enforces it); an omitted one is neutral.
+ */
+export interface EnemyCostFactor {
+  readonly scope: CostScope
+  /** A specific upgrade/generator id, or absent for every entity of the scope. */
+  readonly id?: string
+  /** Multiplies the base cost (e.g. `1.25` = 25% dearer). */
+  readonly costFactor?: number
+  /** Multiplies the growth portion of the cost curve. */
+  readonly scalingFactor?: number
 }
 
 /**

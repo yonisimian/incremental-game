@@ -2,6 +2,7 @@ import type { Modifier } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
 import type {
   EffectRef,
+  EnemyCostFactor,
   GameMode,
   GeneratorDefinition,
   Goal,
@@ -15,7 +16,7 @@ import { recordPurchaseTime } from '../game-clock.js'
 import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
-import { getUpgradeNextCost } from '../upgrade-costs.js'
+import { getUpgradeNextCost, upgradeCostFactors } from '../upgrade-costs.js'
 import {
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
@@ -35,6 +36,7 @@ import {
 import {
   addressableSources,
   addressableTargets,
+  enemyCostTargets,
   enemyDebuffTargets,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
@@ -356,6 +358,23 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
         throw new Error(
           `[${id}] attack '${attack.id}' enemyProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+    }
+  }
+
+  // `enemyCostModifier` effects name a `target` — a whole scope (`upgrades` /
+  // `generators`) or one entity (`upgrade:<id>` / `generator:<id>`). Like the
+  // debuff `field` above it's a mode-specific string the generic schema only
+  // checks is present, so validate it against the enemy-cost catalog: a typo (or
+  // an id that no longer exists) would otherwise author an attack that silently
+  // does nothing.
+  const costTargetKeys = new Set(enemyCostTargets(def).map((f) => f.key))
+  for (const attack of def.attacks) {
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'enemyCostModifier') continue
+      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+        throw new Error(
+          `[${id}] attack '${attack.id}' enemyCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
         )
     }
   }
@@ -1091,6 +1110,43 @@ export function collectEnemyDebuffs(
 }
 
 /**
+ * Collect the *offensive cost inflation* a player's unlocked passive attacks
+ * inflict on the **opponent** — the cost-path twin of {@link
+ * collectEnemyDebuffs}, gathered from `attacker` and applied to the other
+ * player's prices.
+ *
+ * Only `passive` attacks contribute, and each `enemyCost`-emitting effect
+ * contributes verbatim (no owned-count compounding — an attack is unlocked or it
+ * isn't). The result is stamped onto the victim's
+ * {@link PlayerState.incomingCostFactors} by the server, which is where every
+ * price path reads it from; unlike a production debuff there is nothing to
+ * resolve against the victim afterwards, so no `resolve*` step is needed.
+ */
+export function collectEnemyCostFactors(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): EnemyCostFactor[] {
+  const factors: EnemyCostFactor[] = []
+  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
+  for (const attackId of unlockedAttacks(attacker, mode)) {
+    const attack = attackById.get(attackId)
+    if (attack?.kind !== 'passive') continue
+    for (const ref of attack.effects ?? []) {
+      for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
+        if (!('kind' in out) || out.kind !== 'enemyCost') continue
+        factors.push({
+          scope: out.scope,
+          ...(out.id !== undefined ? { id: out.id } : {}),
+          ...(out.costFactor !== undefined ? { costFactor: out.costFactor } : {}),
+          ...(out.scalingFactor !== undefined ? { scalingFactor: out.scalingFactor } : {}),
+        })
+      }
+    }
+  }
+  return factors
+}
+
+/**
  * Resolve authored enemy debuffs against the player they land on, turning them
  * into modifiers the production pipeline can consume.
  *
@@ -1168,8 +1224,10 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   const owned = state.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return
 
-  // Deduct each currency in the cost map
-  const cost = getUpgradeNextCost(def, owned)
+  // Deduct each currency in the cost map, at the price the player is actually
+  // quoted (enemy cost inflation included — the same factors `purchaseBlockReason`
+  // checked affordability against).
+  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, upgradeId))
   for (const [currency, amount] of Object.entries(cost)) {
     state.resources[currency] = (state.resources[currency] ?? 0) - amount
   }
