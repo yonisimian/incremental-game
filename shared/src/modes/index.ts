@@ -11,6 +11,8 @@ import type {
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { readHighlight } from '../highlight.js'
 import { batteryFactor } from '../highlight-battery.js'
+import { recordPurchaseTime } from '../game-clock.js'
+import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost } from '../upgrade-costs.js'
@@ -275,6 +277,27 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   }
   for (const a of def.attacks) {
     for (const ref of a.effects ?? []) checkBaseModifier(`attack '${a.id}'`, ref)
+  }
+
+  // Time-clock effects (`timeScaledModifier` / `timeFactorBoost` /
+  // `timeRetroactive`) all name a `clock` — the upgrade whose purchase starts the
+  // timer. It's an upgrade id the generic schema only checks is a string, and a
+  // typo would leave the clock permanently unstarted (a payout that never
+  // activates, a boost nobody reads), so validate it against the tree. The
+  // payout's `field` goes through the same production catalog as `baseModifier`.
+  const upgradeIds = new Set(def.upgrades.map((u) => u.id))
+  const checkTimeEffect = (where: string, ref: EffectRef): void => {
+    if (!isTimeEffectType(ref.type)) return
+    if (typeof ref.clock === 'string' && !upgradeIds.has(ref.clock))
+      throw new Error(
+        `[${id}] ${where} ${ref.type} effect references unknown clock upgrade '${ref.clock}'`,
+      )
+    if (ref.type === 'timeScaledModifier')
+      checkProductionField(`${where} timeScaledModifier`, ref.field)
+  }
+  for (const ref of def.effects ?? []) checkTimeEffect('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkTimeEffect(`upgrade '${u.id}'`, ref)
   }
 
   // Effect placement. Each host is read by different code and keeps different
@@ -1154,12 +1177,11 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   // Grant upgrade
   state.upgrades[upgradeId] = owned + 1
 
-  // Record purchase time on first buy
-  if (owned === 0) {
-    const purchasedAt = (state.meta.purchasedAt as Record<string, number> | undefined) ?? {}
-    purchasedAt[upgradeId] = (state.meta.gameSec as number | undefined) ?? 0
-    state.meta.purchasedAt = purchasedAt
-  }
+  // Date the purchase. Every level is kept for the upgrades a time clock reads
+  // (`timedUpgradeIds`), whose levels are priced individually; everything else
+  // keeps just its first buy, so a cheap unlimited upgrade can't grow the
+  // broadcast state one entry per click.
+  recordPurchaseTime(state, upgradeId, timedUpgradeIds(mode).has(upgradeId))
 }
 
 /**
