@@ -2,7 +2,7 @@ import type { GameState } from '../game.js'
 import {
   canAfford,
   escapeAttr,
-  formatCostLabel,
+  formatUpgradeCost,
   isUnlocked,
   formatTime,
   formatScore,
@@ -17,8 +17,6 @@ import {
   getUpgradeIcon,
   isChoiceGroupAvailable,
   isMaxed,
-  isUnlimited,
-  getUpgradeNextCost,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -174,9 +172,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       else if (choiceBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-      const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed ? 'Maxed' : `${formatCostLabel(nextCost, flavor)}${countLabel}`
+      const costLabel = formatUpgradeCost(state, u, flavor)
       const name = getUpgradeName(flavor, u.id)
       const icon = getUpgradeIcon(flavor, u.id)
       // Accessible label / hover title: name + current cost (or Maxed).

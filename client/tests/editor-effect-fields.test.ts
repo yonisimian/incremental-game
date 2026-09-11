@@ -59,7 +59,7 @@ describe('effect hosts', () => {
 
   // What the editor's "+ effect" picker offers per section (see EffectsHost).
   it('offers only offensive effects on attacks, and only on the matching kind', () => {
-    expect(typesFor('passiveAttack')).toEqual(['enemyProductionModifier'])
+    expect(typesFor('passiveAttack')).toEqual(['enemyCostModifier', 'enemyProductionModifier'])
     expect(typesFor('activeAttack')).toEqual(['stealGenerator', 'stealResource'])
   })
 

@@ -36,6 +36,7 @@ import {
   isChoiceGroupAvailable,
   isCostAffordable,
   getUpgradeNextCost,
+  upgradeCostFactors,
   applyPurchase,
   isClickUnlocked,
   readHighlight,
@@ -492,8 +493,10 @@ export function doBuy(upgradeId: string): void {
 
   if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
 
-  // Every currency in the cost map must be affordable
-  if (!isCostAffordable(state.player.resources, getUpgradeNextCost(def, owned))) return
+  // Every currency in the cost map must be affordable, at the price the server
+  // will charge — enemy cost inflation included.
+  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state.player, upgradeId))
+  if (!isCostAffordable(state.player.resources, cost)) return
 
   applyPurchase(state.player, upgradeId, modeDef)
 
@@ -722,7 +725,11 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           const owned = reconciled.upgrades[action.upgradeId] ?? 0
           if (isMaxed(def, owned)) break
           if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
-          const cost = getUpgradeNextCost(def, owned)
+          const cost = getUpgradeNextCost(
+            def,
+            owned,
+            upgradeCostFactors(reconciled, action.upgradeId),
+          )
           if (!isCostAffordable(reconciled.resources, cost)) break
           for (const [currency, amount] of Object.entries(cost)) {
             reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
@@ -894,6 +901,10 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
     pendingAttacks: [...s.pendingAttacks],
+    // Carried through reconciliation: a re-applied optimistic purchase must be
+    // priced with the same inflation the server charged (entries are readonly,
+    // so the shallow copy is enough).
+    ...(s.incomingCostFactors ? { incomingCostFactors: [...s.incomingCostFactors] } : {}),
     meta: structuredClone(s.meta),
   }
 }

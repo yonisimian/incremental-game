@@ -10,6 +10,7 @@
 import {
   addressableSourcesFor,
   addressableTargetsFor,
+  enemyCostTargetsFor,
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
@@ -93,8 +94,10 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
  * narrower enemy-debuff catalog (resource rates plus click income and highlight
- * factor — generator targets don't apply to a debuff); and every time-clock
- * effect's `clock` picks from the tree's own node ids.
+ * factor — generator targets don't apply to a debuff); `enemyCostModifier`'s
+ * `target` uses the enemy-cost catalog (a whole scope, or one upgrade /
+ * generator by namespaced key); and every time-clock effect's `clock` picks from
+ * the tree's own node ids.
  *
  * Exported for testing: every id-referencing param should resolve to a picker,
  * so free text can never author a key the boot-time validator would reject.
@@ -115,6 +118,12 @@ export function effectFieldOptions(
   }
   if (effectType === 'enemyProductionModifier' && fieldKey === 'field') {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
+  }
+  if (effectType === 'enemyCostModifier' && fieldKey === 'target') {
+    return enemyCostTargetsFor(
+      collectIds(tree),
+      tree.generators.map((g) => g.id),
+    ).map((f) => ({ value: f.key, label: f.label }))
   }
   if (
     (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&
@@ -356,7 +365,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     label: 'Unlocks',
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
-  { label: 'Offense', types: ['stealResource', 'stealGenerator'] },
+  { label: 'Offense', types: ['stealResource', 'stealGenerator', 'enemyCostModifier'] },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

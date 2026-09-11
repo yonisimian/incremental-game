@@ -5,6 +5,7 @@ import { batteryBand } from './seed/battery-band.js'
 import { batteryStat } from './seed/battery-stat.js'
 import { baseModifier } from './seed/base-modifier.js'
 import { dominantGenerator } from './seed/dominant-generator.js'
+import { enemyCostModifier } from './seed/enemy-cost-modifier.js'
 import { enemyProductionModifier } from './seed/enemy-production-modifier.js'
 import { generatorCost } from './seed/generator-cost.js'
 import { generatorUnlock } from './seed/generator-unlock.js'
@@ -38,6 +39,7 @@ registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
 registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
+registerEffect('enemyCostModifier', enemyCostModifier)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
 registerEffect('timeScaledModifier', timeScaledModifier)
@@ -58,6 +60,7 @@ export type {
   PactUnlockOutput,
   EnemyDataAccessOutput,
   EnemyModifierOutput,
+  EnemyCostOutput,
   ResourceStealOutput,
   GeneratorStealOutput,
   TimeFactorBoostOutput,
@@ -108,6 +111,7 @@ export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
+export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { StealResourceParams } from './seed/steal-resource.js'
 export type { StealGeneratorParams } from './seed/steal-generator.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
@@ -116,10 +120,15 @@ export {
   addressableSourcesFor,
   addressableTargets,
   addressableTargetsFor,
+  ALL_GENERATORS_TARGET,
+  ALL_UPGRADES_TARGET,
+  enemyCostTargets,
+  enemyCostTargetsFor,
   enemyDebuffTargets,
   enemyDebuffTargetsFor,
   HIGHLIGHT_FACTOR_TARGET,
   listAddressableFields,
+  parseEnemyCostTarget,
   readSourceValue,
   RESERVED_TARGET_KEYS,
 } from './addressable.js'

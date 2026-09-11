@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { PlayerState } from '../types.js'
+import type { CostScope, PlayerState } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -133,6 +133,35 @@ export interface EnemyModifierOutput {
   readonly kind: 'enemyModifier'
   /** The modifier to apply to the opponent's production pipeline. */
   readonly modifier: Modifier
+}
+
+/**
+ * An *offensive* cost inflation: the opponent's upgrades or generators get more
+ * expensive while the owning passive attack is unlocked. Emitted by the
+ * `enemyCostModifier` effect and consumed by `collectEnemyCostFactors`, which —
+ * like `collectEnemyDebuffs` — gathers it from a player's unlocked passive
+ * attacks and hands it to the *other* player.
+ *
+ * Deliberately **not** an {@link EnemyModifierOutput}: a price is not a
+ * production-pipeline field, so a `Modifier` carrying it would either be dropped
+ * by `collectModifiers` or silently debuff production instead. The distinct
+ * `kind` is the routing tag that keeps it on the cost paths.
+ *
+ * Attacks the *economy* rather than the income curve: it doesn't slow what the
+ * victim earns, it raises what they must earn. Only future purchases are
+ * affected — nothing already owned is repriced (see
+ * {@link PlayerState.incomingCostFactors}).
+ */
+export interface EnemyCostOutput {
+  readonly kind: 'enemyCost'
+  /** Which kind of priced entity is inflated. */
+  readonly scope: CostScope
+  /** A specific upgrade/generator id, or absent for every entity of the scope. */
+  readonly id?: string
+  /** Multiplies the victim's base cost (e.g. `1.25` = 25% dearer). */
+  readonly costFactor?: number
+  /** Multiplies the growth portion of the victim's cost curve. */
+  readonly scalingFactor?: number
 }
 
 /**
@@ -276,14 +305,16 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * {@link BaseModifierOutput}, a {@link GeneratorCostOutput}, one of the unlock
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
- * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, one of the
+ * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
+ * {@link EnemyCostOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), or
  * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
  * TimeRetroactiveOutput}).
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
- * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `resolveAttackStrike` /
- * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
+ * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
+ * `resolveAttackStrike` / `timeBonusFraction`); every consumer ignores the
+ * outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -296,6 +327,7 @@ export type EffectOutput =
   | PactUnlockOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput
+  | EnemyCostOutput
   | ResourceStealOutput
   | BatteryStatOutput
   | BatteryBandOutput

@@ -7,6 +7,8 @@ import {
   ROUND_DURATION_SEC,
   getAttackPrepareCost,
   getModeDefinition,
+  getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
   registerMode,
   validateModeDefinition,
 } from '@game/shared'
@@ -444,6 +446,64 @@ describe('Match', () => {
       } finally {
         registerMode('idler', base)
       }
+    })
+
+    it('inflates the victim’s upgrade prices and rejects a buy at the authored price', () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder — give it a ×100 inflation on
+      // every upgrade, big enough that the victim's whole balance can't cover a
+      // price it could otherwise afford outright.
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 }],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Only p1 unlocks a3 — an attacker never inflates its own prices.
+        m.handleMessage('p1', buyMsg('a-unlock', 1))
+        m.handleMessage('p1', buyMsg('node-4', 2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // The victim's own state carries the inflation, which is where every
+        // price path (its client's prediction included) reads it from.
+        expect(latestUpdate(ws2).player.incomingCostFactors).toEqual([
+          { scope: 'upgrade', costFactor: 100 },
+        ])
+        expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+
+        const def = patched.upgrades.find((u) => u.id === 'sh-unlock')!
+        const price = getUpgradeNextCost(def, 0, NEUTRAL_COST_FACTORS).r0
+        // p2 holds more than the authored price and still can't buy: validation
+        // charges the inflated one.
+        m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.resources.r0).toBeGreaterThanOrEqual(price)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock'] ?? 0).toBe(0)
+
+        // With the inflated price covered, the same buy goes through.
+        m.grantResourcesForTest('p2', { r0: price * 100 })
+        m.handleMessage('p2', buyMsg('sh-unlock', 2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('sends no cost inflation when neither player has an unlocked passive attack', () => {
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+      expect(latestUpdate(ws2).player.incomingCostFactors).toBeUndefined()
     })
 
     it('sends no debuffs when neither player has an unlocked passive attack', () => {
