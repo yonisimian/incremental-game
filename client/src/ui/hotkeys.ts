@@ -14,6 +14,7 @@ import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
 import {
   getModeDefinition,
   getUpgradeCostTotal,
+  upgradeCostFactors,
   isClickUnlocked,
   isHighlightActive,
   readHighlight,
@@ -130,8 +131,16 @@ export function initHotkeys(): void {
         .filter((u) => canBuy(state, u))
         .sort(
           (a, b) =>
-            getUpgradeCostTotal(a, state.player.upgrades[a.id] ?? 0) -
-            getUpgradeCostTotal(b, state.player.upgrades[b.id] ?? 0),
+            getUpgradeCostTotal(
+              a,
+              state.player.upgrades[a.id] ?? 0,
+              upgradeCostFactors(state.player, a.id),
+            ) -
+            getUpgradeCostTotal(
+              b,
+              state.player.upgrades[b.id] ?? 0,
+              upgradeCostFactors(state.player, b.id),
+            ),
         )
       for (const u of buyable) doBuy(u.id)
       return

@@ -555,6 +555,87 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/'enemyProductionModifier' effect, which only applies on a passive attack/)
   })
 
+  it('throws when an enemyCostModifier names an unknown cost target', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'enemyCostModifier', target: 'upgrade:nope', costFactor: 1.5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Tariff', icon: '💸', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/unknown cost target 'upgrade:nope'/)
+  })
+
+  // The scope and the id can't disagree — a single namespaced key makes that
+  // unrepresentable — but a generator id under the upgrade prefix still has to
+  // be caught, since each prefix is checked against its own catalog.
+  it('throws when an enemyCostModifier names an id from the other scope', () => {
+    const base = makeValidDef({
+      generators: [
+        { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'enemyCostModifier', target: 'upgrade:g0', costFactor: 1.5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      generators: [{ id: 'g0', name: 'Gen', icon: '⚙️' }],
+      attacks: [{ id: 'a0', name: 'Tariff', icon: '💸', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/unknown cost target 'upgrade:g0'/)
+  })
+
+  it('accepts an enemyCostModifier naming a declared upgrade', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'enemyCostModifier', target: 'upgrade:u0', costFactor: 1.5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Tariff', icon: '💸', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when an enemyCostModifier is carried by a non-passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'active',
+          prepareCost: { r0: { baseCost: 10 } },
+          prepareTimeSec: 1,
+          effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.5 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Tariff', icon: '💸', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/'enemyCostModifier' effect, which only applies on a passive attack/)
+  })
+
   it('throws when a stealResource is carried by a passive attack', () => {
     const base = makeValidDef({
       attacks: [

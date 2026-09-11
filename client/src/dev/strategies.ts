@@ -10,6 +10,7 @@ import {
   getPrerequisiteUpgradeIds,
   getCostCurrency,
   getUpgradeCostTotal,
+  NEUTRAL_COST_FACTORS,
   isPrerequisiteSatisfied,
 } from '@game/shared'
 import type { ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
@@ -172,7 +173,12 @@ function topoSort(
   }
 
   // Sort by cost to get deterministic ordering for same-depth nodes
-  const sorted = [...subset].sort((a, b) => getUpgradeCostTotal(a, 0) - getUpgradeCostTotal(b, 0))
+  // Single-player planning: there is no opponent, so no cost inflation applies.
+  const sorted = [...subset].sort(
+    (a, b) =>
+      getUpgradeCostTotal(a, 0, NEUTRAL_COST_FACTORS) -
+      getUpgradeCostTotal(b, 0, NEUTRAL_COST_FACTORS),
+  )
   for (const u of sorted) {
     if (!visit(u)) return null
   }
