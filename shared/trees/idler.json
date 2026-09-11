@@ -174,6 +174,64 @@
           "count": 1
         }
       ]
+    },
+    {
+      "id": "less-click-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-highlight-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "highlightFactor",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-click-power-add",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": -2
+        }
+      ]
+    },
+    {
+      "id": "a8",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyCostModifier",
+          "target": "generator:g3",
+          "costFactor": 5
+        }
+      ]
+    },
+    {
+      "id": "a9",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyCostModifier",
+          "target": "upgrades",
+          "scalingFactor": 20
+        }
+      ]
     }
   ],
   "pacts": [
@@ -663,6 +721,12 @@
           "name": "pact-node-4",
           "icon": "🤝",
           "description": ""
+        },
+        {
+          "id": "node-7",
+          "name": "node-7",
+          "icon": "❓",
+          "description": ""
         }
       ],
       "generators": [
@@ -723,6 +787,36 @@
           "name": "Poach Sawmill",
           "icon": "🏗️",
           "description": "Steal one of the enemy's Sawmills, even one you haven't unlocked yourself. (does not affect score)"
+        },
+        {
+          "id": "less-click-power",
+          "name": "Less Click Power",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "less-highlight-power",
+          "name": "Less highlight power",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "less-click-power-add",
+          "name": "Less Click Power Add",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a8",
+          "name": "a8",
+          "icon": "💥",
+          "description": ""
+        },
+        {
+          "id": "a9",
+          "name": "a9",
+          "icon": "💥",
+          "description": ""
         }
       ],
       "pacts": [
@@ -1826,6 +1920,12 @@
                 "type": "upgrade",
                 "id": "sh-unlock"
               },
+              "effects": [
+                {
+                  "type": "systemUnlock",
+                  "system": "highlightBattery"
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1845,10 +1945,6 @@
                     "type": "upgrade",
                     "id": "shb-unlock"
                   },
-                  "offset": {
-                    "x": 96,
-                    "y": 96
-                  },
                   "effects": [
                     {
                       "type": "batteryStat",
@@ -1856,7 +1952,11 @@
                       "op": "add",
                       "value": 0.25
                     }
-                  ]
+                  ],
+                  "offset": {
+                    "x": 96,
+                    "y": 96
+                  }
                 },
                 {
                   "id": "shb-mc",
@@ -1872,6 +1972,14 @@
                     "type": "upgrade",
                     "id": "shb-unlock"
                   },
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "maxCharge",
+                      "op": "add",
+                      "value": 5
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -1891,6 +1999,14 @@
                         "type": "upgrade",
                         "id": "shb-mc"
                       },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "chargeRate",
+                          "op": "add",
+                          "value": 0.5
+                        }
+                      ],
                       "offset": {
                         "x": 48,
                         "y": 96
@@ -1909,10 +2025,6 @@
                             "type": "upgrade",
                             "id": "shb-mf-cs"
                           },
-                          "offset": {
-                            "x": 0,
-                            "y": 96
-                          },
                           "effects": [
                             {
                               "type": "batteryBand",
@@ -1920,15 +2032,11 @@
                               "threshold": 0.25,
                               "bonus": 0.5
                             }
-                          ]
-                        }
-                      ],
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "chargeRate",
-                          "op": "add",
-                          "value": 0.5
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
                         }
                       ]
                     },
@@ -1946,6 +2054,14 @@
                         "type": "upgrade",
                         "id": "shb-mc"
                       },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "drainRate",
+                          "op": "mult",
+                          "value": 0.9
+                        }
+                      ],
                       "offset": {
                         "x": -48,
                         "y": 96
@@ -1964,10 +2080,6 @@
                             "type": "upgrade",
                             "id": "shb-mf-ds"
                           },
-                          "offset": {
-                            "x": 0,
-                            "y": 96
-                          },
                           "effects": [
                             {
                               "type": "batteryBand",
@@ -1975,33 +2087,15 @@
                               "threshold": 0.75,
                               "bonus": 0.5
                             }
-                          ]
-                        }
-                      ],
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "drainRate",
-                          "op": "mult",
-                          "value": 0.9
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
                         }
                       ]
                     }
-                  ],
-                  "effects": [
-                    {
-                      "type": "batteryStat",
-                      "stat": "maxCharge",
-                      "op": "add",
-                      "value": 5
-                    }
                   ]
-                }
-              ],
-              "effects": [
-                {
-                  "type": "systemUnlock",
-                  "system": "highlightBattery"
                 }
               ]
             }
@@ -2182,6 +2276,41 @@
             "x": -48,
             "y": 288
           }
+        },
+        {
+          "id": "node-7",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-highlight-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power-add"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "a8"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "a9"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 384
+          }
         }
       ]
     },
@@ -2197,7 +2326,7 @@
       ],
       "offset": {
         "x": 1176,
-        "y": 528
+        "y": 936
       },
       "children": [
         {
