@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isEffectAllowedOn, listEffectTypes, parseTreeFile, resolveEffect } from '@game/shared'
+import {
+  ATTACK_STATS,
+  isEffectAllowedOn,
+  listEffectTypes,
+  parseTreeFile,
+  resolveEffect,
+} from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import { cloneTree } from '../src/dev/editor/model.js'
 import { effectFieldOptions } from '../src/dev/editor/effects-editor.js'
@@ -17,6 +23,33 @@ describe('effectFieldOptions', () => {
     const tree = idler()
     tree.resources.push('r7')
     expect(effectFieldOptions(tree, 'stealResource', 'resource')).toContain('r7')
+  })
+
+  it('offers the tree’s attacks for an attackStat attack', () => {
+    const tree = idler()
+    expect(effectFieldOptions(tree, 'attackStat', 'attack')).toEqual(tree.attacks.map((a) => a.id))
+  })
+
+  // A passive attack is never activated, so `prepareCost`/`prepareTime` mean
+  // nothing on it — and `validateModeDefinition` refuses to boot on the pairing.
+  // Narrowing the picker is what keeps the author from authoring it at all.
+  it('narrows the attackStat stat picker to what the named attack can use', () => {
+    const tree = idler()
+    const active = tree.attacks.find((a) => a.kind === 'active')!
+    const passive = tree.attacks.find((a) => a.kind === 'passive')!
+
+    expect(effectFieldOptions(tree, 'attackStat', 'stat', { attack: active.id })).toEqual([
+      ...ATTACK_STATS,
+    ])
+    expect(effectFieldOptions(tree, 'attackStat', 'stat', { attack: passive.id })).toEqual([
+      'power',
+    ])
+  })
+
+  it('offers every stat when the attackStat names no attack (it buffs all of them)', () => {
+    const tree = idler()
+    expect(effectFieldOptions(tree, 'attackStat', 'stat')).toEqual([...ATTACK_STATS])
+    expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
   it('leaves an unmapped effect/field pair as free text', () => {
@@ -68,6 +101,9 @@ describe('effect hosts', () => {
     expect(upgrade).toEqual(typesFor('mode'))
     expect(upgrade).toContain('baseModifier')
     expect(upgrade).toContain('panelUnlock')
+    // An attack *stat* is granted by an upgrade, not carried by the attack.
+    expect(upgrade).toContain('attackStat')
+    expect(typesFor('activeAttack')).not.toContain('attackStat')
     expect(upgrade).not.toContain('stealResource')
     expect(upgrade).not.toContain('enemyProductionModifier')
   })

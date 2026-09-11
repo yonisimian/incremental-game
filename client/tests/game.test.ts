@@ -4,6 +4,7 @@ import {
   COUNTDOWN_SEC,
   getAvailableUpgrades,
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -399,7 +400,10 @@ describe('game.ts', () => {
     )!
 
     /** a0's authored Wood prepare cost, read from the tree rather than pinned here. */
-    const woodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+    const woodCost = getAttackPrepareCost(
+      idlerDef.attacks.find((a) => a.id === 'a0')!,
+      NEUTRAL_ATTACK_PARAMS,
+    ).r0
     /** Wood held by an armed player: the cost over again, so a strike leaves a remainder. */
     const armedWood = woodCost * 2
 

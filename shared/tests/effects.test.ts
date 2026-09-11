@@ -63,6 +63,7 @@ describe('effect registry', () => {
   it('lists registered effect types sorted', () => {
     expect(listEffectTypes()).toEqual([
       'accessEnemyData',
+      'attackStat',
       'balancedGenerators',
       'baseModifier',
       'batteryBand',
@@ -805,6 +806,91 @@ describe('unlockAttack effect', () => {
   it('reports an attack no upgrade names as locked', () => {
     const mode = getModeDefinition('idler')
     expect(isAttackUnlocked(createInitialState(mode), mode, 'nope')).toBe(false)
+  })
+})
+
+// ─── attackStat param validation ─────────────────────────────────────
+
+describe('attackStat params', () => {
+  const mode = getModeDefinition('idler')
+  const state = createInitialState(mode)
+
+  it('echoes the authored adjustment, attack included', () => {
+    expect(
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 })
+  })
+
+  it('omits the attack key entirely when none is authored', () => {
+    expect(
+      applyEffect({ type: 'attackStat', stat: 'power', op: 'add', value: 1 }, state, mode),
+    ).toEqual({ kind: 'attackStat', stat: 'power', op: 'add', value: 1 })
+  })
+
+  it('rejects an unknown stat', () => {
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'nope', op: 'add', value: 1 }, state, mode),
+    ).toThrow()
+  })
+
+  it('rejects a stat that has no consumer yet (duration awaits plan 37)', () => {
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'duration', op: 'mult', value: 2 }, state, mode),
+    ).toThrow()
+  })
+
+  it('rejects an unknown op', () => {
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'power', op: 'divide', value: 2 }, state, mode),
+    ).toThrow()
+  })
+
+  // `offset` is the absolute op — seconds, on the one stat measured in them.
+  it('accepts an offset on prepareTime', () => {
+    expect(
+      applyEffect(
+        { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 })
+  })
+
+  it('rejects an offset on a stat with no single unit', () => {
+    // `power` has no unit (fraction / amount / count / debuff distance) and
+    // `prepareCost` has one per currency, so neither can take a flat shift.
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'power', op: 'offset', value: 1 }, state, mode),
+    ).toThrow(/does not apply to stat 'power'/u)
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', stat: 'prepareCost', op: 'offset', value: -100 },
+        state,
+        mode,
+      ),
+    ).toThrow(/does not apply to stat 'prepareCost'/u)
+  })
+
+  it('rejects a non-numeric value', () => {
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'power', op: 'mult', value: 'lots' }, state, mode),
+    ).toThrow()
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const withEffect: ModeDefinition = {
+      ...mode,
+      effects: [
+        ...(mode.effects ?? []),
+        { type: 'attackStat', stat: 'power', op: 'mult', value: 2 },
+      ],
+    }
+    const fresh = createInitialState(withEffect)
+    expect(collectModifiers(fresh, withEffect)).toEqual(collectModifiers(fresh, mode))
   })
 })
 

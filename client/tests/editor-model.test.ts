@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   parseBalanceFile,
   parseTreeFile,
   toModeDefinition,
@@ -853,7 +854,7 @@ describe('attacks', () => {
     ])
     // Both currencies survive the codec round-trip into a runnable mode.
     const attack = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
-    expect(getAttackPrepareCost(attack)).toEqual({ r0: seedCost, r1: 250 })
+    expect(getAttackPrepareCost(attack, NEUTRAL_ATTACK_PARAMS)).toEqual({ r0: seedCost, r1: 250 })
   })
 
   it('editing one currency leaves the attack’s other currencies untouched', () => {

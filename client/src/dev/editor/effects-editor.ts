@@ -10,6 +10,9 @@
 import {
   addressableSourcesFor,
   addressableTargetsFor,
+  ATTACK_STATS,
+  attackStatOpsFor,
+  attackStatsFor,
   enemyCostTargetsFor,
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
@@ -19,6 +22,8 @@ import {
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
+  type AttackStat,
+  type AttackStatOp,
   type EffectHost,
   type TreeFile,
 } from '@game/shared'
@@ -30,7 +35,9 @@ import {
   matchVariant,
   type EffectFormSpec,
   type FieldSpec,
+  type VariantSpec,
 } from './effect-schema.js'
+import { describeEffectRef } from './effect-preview.js'
 import { collectIds } from './model.js'
 import { ALL_PANELS } from '../../ui/mode-ui.js'
 import { el } from './views/dom.js'
@@ -86,6 +93,7 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * text input. The effect schema (`z.string()`) carries no enum, so id-referencing
  * fields are mapped here — a UI-only concern: `generatorCost`'s `generator` picks
  * from the tree's generators, `panelUnlock`'s `panel` from the known panels, and
+ * `unlockAttack`'s and `attackStat`'s `attack` from the tree's attacks, and
  * `accessEnemyData`'s `data` from the tree's resource keys (stockpile) plus a
  * `:rate` variant per resource (per-second production) and the non-resource
  * intel keys (peak CPS, purchases), `stealResource`'s `resource` from the
@@ -99,6 +107,12 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * generator by namespaced key); and every time-clock effect's `clock` picks from
  * the tree's own node ids.
  *
+ * A few option sets depend on a *sibling* param, which is what `params` (the
+ * ref's current params, minus `type`) is for: `attackStat`'s `stat` drops
+ * `prepareCost`/`prepareTime` once `attack` names a passive attack, since a
+ * passive attack is never activated and has neither. See
+ * {@link OPTION_SOURCE_FIELDS} for how the form re-resolves after such an edit.
+ *
  * Exported for testing: every id-referencing param should resolve to a picker,
  * so free text can never author a key the boot-time validator would reject.
  */
@@ -106,7 +120,33 @@ export function effectFieldOptions(
   tree: TreeFile,
   effectType: string,
   fieldKey: string,
+  params?: Readonly<Record<string, unknown>>,
 ): readonly EffectFieldOption[] | undefined {
+  if (effectType === 'attackStat' && fieldKey === 'op') {
+    // Which ops the chosen stat accepts (the schema rejects the rest at load),
+    // labelled so the *relative* ops can't be misread as the stat's own unit —
+    // `add: 5` on prepareTime is a ×6 multiplier, not five seconds.
+    return attackStatOpsFor(attackStatOf(params)).map((op) => ({
+      value: op,
+      label: ATTACK_STAT_OP_LABELS[op],
+    }))
+  }
+  if (effectType === 'batteryStat' && fieldKey === 'op') {
+    // The battery's `add` *is* in the stat's own unit (it shifts
+    // `BATTERY_DEFAULTS`), so it needs no qualifier — only `mult` is spelled out.
+    return [
+      { value: 'add', label: 'add' },
+      { value: 'mult', label: 'multiply' },
+    ]
+  }
+  if (effectType === 'attackStat' && fieldKey === 'stat') {
+    // The attack's own kind decides which stats mean anything on it; an
+    // `attack`-less ref buffs every attack, so it keeps the full list.
+    const target = params?.attack
+    const attack =
+      typeof target === 'string' ? tree.attacks.find((a) => a.id === target) : undefined
+    return [...attackStatsFor(attack?.kind ?? 'active')]
+  }
   if (effectType === 'relativeModifier' && fieldKey === 'source') {
     return addressableSourcesFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
@@ -140,7 +180,7 @@ export function effectFieldOptions(
   if (effectType === 'accessEnemyData' && fieldKey === 'data') {
     return [...tree.resources.flatMap((key) => enemyDataKeysFor(key)), ...NON_RESOURCE_INTEL_KEYS]
   }
-  if (effectType === 'unlockAttack' && fieldKey === 'attack') {
+  if ((effectType === 'unlockAttack' || effectType === 'attackStat') && fieldKey === 'attack') {
     return tree.attacks.map((a) => a.id)
   }
   if (effectType === 'stealResource' && fieldKey === 'resource') {
@@ -173,13 +213,92 @@ export function effectFieldOptions(
   return undefined
 }
 
+/** How each `attackStat` operator is titled in the form. */
+const ATTACK_STAT_OP_LABELS: Readonly<Record<AttackStatOp, string>> = {
+  add: '+ to multiplier',
+  mult: '× multiplier',
+  offset: 'offset (seconds)',
+}
+
+/** The `attackStat` stat a ref's params name, defaulting to the first one. */
+function attackStatOf(params?: Readonly<Record<string, unknown>>): AttackStat {
+  const stat = params?.stat
+  const known: readonly string[] = ATTACK_STATS
+  return typeof stat === 'string' && known.includes(stat) ? (stat as AttackStat) : ATTACK_STATS[0]
+}
+
+/**
+ * Per effect type, the params whose value *narrows another param's* option set —
+ * so editing one must re-resolve the rest of the block.
+ *
+ * `attackStat` is the only case today: once `attack` names a passive attack, the
+ * stats an active attack alone can use (`prepareCost`, `prepareTime`) leave the
+ * `stat` picker, and a stat already selected has to go with them — otherwise the
+ * form would keep writing a combination `validateModeDefinition` refuses to boot
+ * on, which the author only discovers as a startup error.
+ */
+const OPTION_SOURCE_FIELDS: Record<string, readonly string[]> = {
+  // A chain, resolved in schema order: `attack` narrows `stat` (a passive attack
+  // has no prepare cost or delay), and `stat` in turn narrows `op` (only
+  // `prepareTime` has a unit an `offset` can shift). `repairOptionValues` walks
+  // the fields in that same order, so one edit can cascade through both.
+  attackStat: ['attack', 'stat'],
+}
+
+/** The stored value of a picker option. */
+function optionValue(option: EffectFieldOption): string {
+  return typeof option === 'string' ? option : option.value
+}
+
+/**
+ * Display names for param keys whose schema spelling reads worse than the thing
+ * it names. Presentation only — the stored key is untouched.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  op: 'operator',
+}
+
+/** How a param is titled in the form. */
+function fieldLabel(spec: FieldSpec): string {
+  const name = FIELD_LABELS[spec.key] ?? spec.key
+  return spec.optional ? `${name} (optional)` : name
+}
+
+/**
+ * Re-resolve every option-bearing field of `values` and snap any value the
+ * narrowed options no longer offer to the first one they do.
+ *
+ * Only called after an {@link OPTION_SOURCE_FIELDS} edit, so it can't touch the
+ * "unrecognized value preserved as its own option" path that a since-removed id
+ * relies on during ordinary editing.
+ */
+function repairOptionValues(
+  tree: TreeFile,
+  effectType: string,
+  variant: VariantSpec,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...values }
+  for (const spec of variant.fields) {
+    if (spec.kind !== 'string') continue
+    const options = effectFieldOptions(tree, effectType, spec.key, next)
+    if (!options || options.length === 0) continue
+    const current = next[spec.key]
+    if (typeof current !== 'string') continue
+    if (!options.some((option) => optionValue(option) === current)) {
+      next[spec.key] = optionValue(options[0])
+    }
+  }
+  return next
+}
+
 function buildEffectField(
   spec: FieldSpec,
   current: unknown,
   onChange: () => void,
   options?: readonly EffectFieldOption[],
 ): { row: HTMLElement; read: () => unknown } {
-  const label = spec.optional ? `${spec.key} (optional)` : spec.key
+  const label = fieldLabel(spec)
   if (spec.kind === 'boolean') {
     const input = el('input', 'ed-input ed-effect-check')
     input.type = 'checkbox'
@@ -199,20 +318,29 @@ function buildEffectField(
     const selectOptions = rawOptions.map((o) =>
       typeof o === 'string' ? { value: o, label: o } : o,
     )
+    // An *optional* picker needs a way back to "unset" — for `attackStat`'s
+    // `attack` that's the "every attack" authoring, and without a blank entry the
+    // browser would pre-select the first id and the next edit to any sibling
+    // field would silently persist it.
+    if (spec.optional) selectOptions.unshift({ value: '', label: '(unset)' })
     const select = el('select', 'ed-input')
     const value = typeof current === 'string' ? current : ''
     if (value !== '' && !selectOptions.some((o) => o.value === value)) {
       const opt = el('option', undefined, `${value} (unknown)`)
       opt.value = value
-      opt.selected = true
       select.append(opt)
     }
     for (const { value: optValue, label: optLabel } of selectOptions) {
       const opt = el('option', undefined, optLabel)
       opt.value = optValue
-      if (optValue === value) opt.selected = true
       select.append(opt)
     }
+    // Select by assigning the *select's* value once every option is in place,
+    // rather than flagging an option as `selected` before insertion — browsers
+    // honor a pre-insertion flag, happy-dom does not, and this says what it means
+    // either way. An absent value leaves the browser's own default (the first
+    // option), exactly as before.
+    if (value !== '') select.value = value
     select.addEventListener('change', onChange)
     return {
       row: field(label, select),
@@ -270,8 +398,17 @@ function buildEffectBlock(
   let variant = matchVariant(spec, params)
   const fieldsWrap = el('div', 'ed-fields')
   const error = el('p', 'ed-error')
+  // What the authored params actually resolve to, for the refs whose numbers are
+  // two abstractions from the outcome (see `describeEffectRef`). Empty for every
+  // other effect, so the row simply collapses.
+  const preview = el('p', 'ed-hint ed-effect-preview')
+
+  const renderPreview = (values: Record<string, unknown>): void => {
+    preview.textContent = describeEffectRef(host.tree, { type: ref.type, ...values }) ?? ''
+  }
 
   const writeFrom = (values: Record<string, unknown>, silent = false): void => {
+    renderPreview(values)
     const result = schema.safeParse(values)
     if (!result.success) {
       error.textContent = silent ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
@@ -294,20 +431,31 @@ function buildEffectBlock(
       }
       return out
     }
+    const sources = OPTION_SOURCE_FIELDS[ref.type] ?? []
     for (const fieldSpec of variant.fields) {
       const { row, read } = buildEffectField(
         fieldSpec,
         params[fieldSpec.key],
         () => {
+          // A field the block's *other* option sets depend on (`attackStat`'s
+          // `attack`): re-resolve them and rebuild, so a choice the new options
+          // no longer offer can't stay selected and reach the tree file.
+          if (sources.includes(fieldSpec.key)) {
+            params = repairOptionValues(host.tree, ref.type, variant, collect())
+            writeFrom(params)
+            buildFields()
+            return
+          }
           writeFrom(collect())
         },
-        effectFieldOptions(host.tree, ref.type, fieldSpec.key),
+        effectFieldOptions(host.tree, ref.type, fieldSpec.key, params),
       )
       reads.set(fieldSpec.key, read)
       fieldsWrap.append(row)
     }
   }
   buildFields()
+  renderPreview(params)
 
   if (spec.variants.length > 1) {
     const variantSelect = el('select', 'ed-input')
@@ -331,7 +479,7 @@ function buildEffectBlock(
     block.append(field('Shape', variantSelect))
   }
 
-  block.append(fieldsWrap, error)
+  block.append(fieldsWrap, preview, error)
   return block
 }
 
@@ -365,7 +513,10 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     label: 'Unlocks',
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
-  { label: 'Offense', types: ['stealResource', 'stealGenerator', 'enemyCostModifier'] },
+  {
+    label: 'Offense',
+    types: ['stealResource', 'stealGenerator', 'enemyCostModifier', 'attackStat'],
+  },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

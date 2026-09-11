@@ -104,13 +104,21 @@ function gate(attackId: string): UpgradeDefinition {
   }
 }
 
+/** Doubles every attack's magnitude per level — including its inflation. */
+const POWER_UP: UpgradeDefinition = {
+  id: 'u-power',
+  cost: { r0: { baseCost: 0 } },
+  purchaseLimit: 3,
+  effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
+}
+
 const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, ACTIVE_TARIFF]
 
 function makeMode(): ModeDefinition {
   return {
     resources: ['r0'],
     scoreResource: 'r0',
-    upgrades: [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, ...ATTACKS.map((a) => gate(a.id))],
+    upgrades: [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, POWER_UP, ...ATTACKS.map((a) => gate(a.id))],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     clicksEnabled: false,
     highlightEnabled: false,
@@ -127,9 +135,13 @@ function makeMode(): ModeDefinition {
         scoreLabel: 'Score',
         showClickStats: false,
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-        upgrades: [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, ...ATTACKS.map((a) => gate(a.id))].map(
-          (u) => ({ id: u.id, name: u.id, icon: '🔧', description: '' }),
-        ),
+        upgrades: [
+          FLAT_UPGRADE,
+          EXPO_UPGRADE,
+          CHEAPER_G0,
+          POWER_UP,
+          ...ATTACKS.map((a) => gate(a.id)),
+        ].map((u) => ({ id: u.id, name: u.id, icon: '🔧', description: '' })),
         generators: [{ id: 'g0', name: 'Gen', icon: '🏭' }],
         attacks: ATTACKS.map((a) => ({ id: a.id, name: a.id, icon: '💸', description: '' })),
         pacts: [],
@@ -205,6 +217,41 @@ describe('collectEnemyCostFactors', () => {
       { scope: 'upgrade', costFactor: 1.25 },
       { scope: 'generator', id: 'g0', costFactor: 2 },
     ])
+  })
+
+  it('scales the growth portion of a factor by the attacker’s power', () => {
+    const mode = makeMode()
+    const state = attacker('a-upgrades')
+    state.upgrades['u-power'] = 1
+    // 1 + (1.25 - 1) × 2 = 1.5 — *not* 1.25 × 2, which would more than double
+    // the 25% bite the author signed off on.
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(factor.costFactor).toBeCloseTo(1.5)
+  })
+
+  it('scales a scalingFactor the same way', () => {
+    const mode = makeMode()
+    const state = attacker('a-steepen')
+    state.upgrades['u-power'] = 1
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(factor).toEqual({ scope: 'upgrade', id: 'u-expo', scalingFactor: 2 })
+  })
+
+  it('raises the victim’s quoted price through the scaled factor', () => {
+    const mode = makeMode()
+    const plain = victimOf(mode, 'a-upgrades')
+    const buffedAttacker = attacker('a-upgrades')
+    buffedAttacker.upgrades['u-power'] = 1
+    const buffed = makeState({
+      incomingCostFactors: collectEnemyCostFactors(buffedAttacker, mode),
+    })
+    const def = upgradeMap(mode).get('u-flat')!
+    const base = getUpgradeNextCost(def, 0, upgradeCostFactors(makeState(), 'u-flat')).r0
+    const inflated = getUpgradeNextCost(def, 0, upgradeCostFactors(plain, 'u-flat')).r0
+    const doubled = getUpgradeNextCost(def, 0, upgradeCostFactors(buffed, 'u-flat')).r0
+    expect(base).toBe(100)
+    expect(inflated).toBe(125)
+    expect(doubled).toBe(150)
   })
 })
 

@@ -6,6 +6,7 @@ import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   getModeDefinition,
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
@@ -1421,7 +1422,10 @@ describe('Match', () => {
       // income would otherwise cover a cheaply-tuned cost and arm the attack.
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const held = latestUpdate(ws1).player.resources.r0
-      const cost = getAttackPrepareCost(mode.attacks.find((a) => a.id === 'a0')!).r0
+      const cost = getAttackPrepareCost(
+        mode.attacks.find((a) => a.id === 'a0')!,
+        NEUTRAL_ATTACK_PARAMS,
+      ).r0
       m.grantResourcesForTest('p1', { r0: cost - 1 - held })
 
       m.handleMessage('p1', activateMsg('a0', 3))

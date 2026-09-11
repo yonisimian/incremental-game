@@ -12,8 +12,189 @@ import { isCostAffordable } from './upgrade-costs.js'
 import { creditResource } from './modifiers/pipeline.js'
 import { isAttackUnlocked } from './modes/index.js'
 import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
+import { ATTACK_STATS } from './effects/seed/attack-stat.js'
+import type { AttackStat } from './effects/seed/attack-stat.js'
+import type { AttackStatOutput, EffectOutput } from './effects/types.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { AttackDefinition, PendingAttack, PlayerState } from './types.js'
+import type {
+  AttackDefinition,
+  AttackKind,
+  EffectRef,
+  PendingAttack,
+  PlayerState,
+} from './types.js'
+
+// Re-exported from the seed (the schema owns its canonical enum, so the list and
+// the load-time validation can't drift) — mirroring how `highlight-battery`
+// re-exports `BATTERY_STATS`. This module is the sole re-exporter, so the shared
+// barrel has exactly one path to each.
+export { ATTACK_STATS, ATTACK_STAT_OPS, attackStatOpsFor } from './effects/seed/attack-stat.js'
+export type { AttackStat, AttackStatOp } from './effects/seed/attack-stat.js'
+
+// ─── Stat parameters ─────────────────────────────────────────────────
+
+/**
+ * One attack's numbers as **multipliers on its authored values** — `1` meaning
+ * "exactly as authored". Collected from the attacker's owned `attackStat`
+ * upgrades by {@link collectAttackParams}.
+ */
+export interface AttackParams {
+  /** Scales the attack's magnitude (steal sizes, debuff strength). */
+  readonly power: number
+  /** Scales every currency of the prepare cost. */
+  readonly prepareCost: number
+  /** Scales `prepareTimeSec`, the delay before the strike lands. */
+  readonly prepareTime: number
+  /**
+   * Seconds shifted onto the *scaled* prepare delay — the absolute counterpart
+   * of `prepareTime`, collected from `offset` ops. Negative brings the strike
+   * forward; {@link getAttackPrepareTimeSec} owns the floor at zero, since only
+   * it knows the attack's authored delay.
+   */
+  readonly prepareTimeOffsetSec: number
+}
+
+/**
+ * The params an attack has with no `attackStat` upgrade behind it — every value
+ * as authored. For callers with no player state in hand (the dev simulator,
+ * balance metrics, a test asserting the authored figure), mirroring
+ * `NEUTRAL_COST_FACTORS`.
+ */
+export const NEUTRAL_ATTACK_PARAMS: AttackParams = {
+  power: 1,
+  prepareCost: 1,
+  prepareTime: 1,
+  prepareTimeOffsetSec: 0,
+}
+
+/**
+ * The stats only an *active* attack can use. A passive attack is always-on and
+ * never activated — `validateModeDefinition` forbids it from declaring a
+ * `prepareCost` or `prepareTimeSec` at all — so a stat moving either would be
+ * authored dead weight.
+ */
+const ACTIVE_ONLY_ATTACK_STATS: readonly AttackStat[] = ['prepareCost', 'prepareTime']
+
+/**
+ * The `attackStat` stats that mean something on an attack of `kind`.
+ *
+ * The single source of truth for that question, shared by the boot-time
+ * validator and the `/dev.html` form — which narrows its `stat` picker with it,
+ * so the illegal combination can't be authored in the first place rather than
+ * being caught only at load.
+ */
+export function attackStatsFor(kind: AttackKind): readonly AttackStat[] {
+  if (kind === 'active') return ATTACK_STATS
+  return ATTACK_STATS.filter((stat) => !ACTIVE_ONLY_ATTACK_STATS.includes(stat))
+}
+
+/**
+ * Floors each stat is clamped to after collection, so a mis-authored `value` is
+ * merely useless rather than an inversion of the mechanic:
+ *
+ * - `power` — a negative magnitude would make a steal a *gift*.
+ * - `prepareCost` — free is the floor; negative would credit the attacker.
+ * - `prepareTime` — `0` already means "strike on the next tick".
+ */
+const ATTACK_PARAM_FLOORS: Record<AttackStat, number> = {
+  power: 0,
+  prepareCost: 0,
+  prepareTime: 0,
+}
+
+/**
+ * The largest share of a stockpile (or of a generator's copies) a `power`-scaled
+ * steal may ask for. Taking *everything* is the ceiling, so a buffed fraction
+ * saturates here rather than overshooting and relying on the victim-holdings cap
+ * — which would make the upgrade silently worthless past saturation, with no way
+ * for the panel to say so.
+ */
+const MAX_STEAL_FRACTION = 1
+
+/** Whether an effect output is an attack-stat adjustment. */
+function isAttackStatOutput(out: EffectOutput): out is AttackStatOutput {
+  return 'kind' in out && out.kind === 'attackStat'
+}
+
+/**
+ * Collect every owned upgrade's `attackStat` effects into one attack's resolved
+ * {@link AttackParams}.
+ *
+ * The battery's collector, transplanted: each output compounds with the owning
+ * upgrade's owned count the same way the production pipeline does — `add` scales
+ * linearly (`× owned`), `mult` compounds (`** owned`) — and **all adds are
+ * applied before any mult**, per stat, so the result doesn't depend on the order
+ * the tree happens to be authored in. Mode-level refs are collected too (with
+ * `owned = 1`), so a mode can buff attacks without an upgrade.
+ *
+ * An output naming no `attack` applies to every attack; one naming a different
+ * attack is skipped, which is what lets "+20% to all raids" be a single node.
+ */
+export function collectAttackParams(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  attackId: string,
+): AttackParams {
+  // Keyed off ATTACK_STATS so adding a stat means adding a floor, not
+  // remembering to seed three more tables.
+  const adds = {} as Record<AttackStat, number>
+  const mults = {} as Record<AttackStat, number>
+  const offsets = {} as Record<AttackStat, number>
+  for (const stat of ATTACK_STATS) {
+    adds[stat] = 0
+    mults[stat] = 1
+    offsets[stat] = 0
+  }
+
+  const accumulate = (out: AttackStatOutput, owned: number): void => {
+    if (out.attack !== undefined && out.attack !== attackId) return
+    // `offset` is absolute (the stat's own unit) and so never touches the
+    // multiplier; like `add` it scales linearly with the owned count.
+    if (out.op === 'offset') offsets[out.stat] += out.value * owned
+    else if (out.op === 'add') adds[out.stat] += out.value * owned
+    else mults[out.stat] *= out.value ** owned
+  }
+
+  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
+    for (const ref of refs ?? []) {
+      // Skip non-stat effects without running them, matching
+      // `collectBatteryParams`.
+      if (ref.type !== 'attackStat') continue
+      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (isAttackStatOutput(o)) accumulate(o, owned)
+      }
+    }
+  }
+
+  collect(mode.effects, 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) collect(upgrade.effects, owned)
+  }
+
+  const resolved = {} as Record<AttackStat, number>
+  for (const stat of ATTACK_STATS) {
+    // Neutral base of 1: these are multipliers on the authored values.
+    resolved[stat] = Math.max(ATTACK_PARAM_FLOORS[stat], (1 + adds[stat]) * mults[stat])
+  }
+  return { ...resolved, prepareTimeOffsetSec: offsets.prepareTime }
+}
+
+/**
+ * The delay before an activated attack strikes, in game seconds, with the
+ * attacker's stats applied: the authored delay **scaled** by `prepareTime`, then
+ * **shifted** by `prepareTimeOffsetSec`.
+ *
+ * Floored at `0`, which already means "strike on the next tick" — so an offset
+ * deeper than the authored delay makes the strike immediate rather than
+ * scheduling it in the past. The two ops compose in that order so a relative buff
+ * can't quietly undo an absolute one (a ×2 on a 10s attack with a -1s offset is
+ * 19s, not 18s).
+ */
+export function getAttackPrepareTimeSec(def: AttackDefinition, params: AttackParams): number {
+  const scaled = (def.prepareTimeSec ?? 0) * params.prepareTime
+  return Math.max(0, scaled + params.prepareTimeOffsetSec)
+}
 
 /**
  * Why an active attack cannot be activated right now. `unaffordable` is the only
@@ -33,11 +214,25 @@ export type AttackBlockReason =
  * have no cost curve, so each currency is evaluated at level 0 (`scaledCost`
  * returns `baseCost` for a flat entry). An attack with no `prepareCost` yields
  * an empty map (trivially affordable).
+ *
+ * `params.prepareCost` scales every currency. It is required rather than
+ * defaulted for the same reason `getUpgradeNextCost`'s factors are: a price
+ * quoted without the discount in force would disagree with what the server
+ * charges, and requiring it makes the compiler — not a rejected activation —
+ * find the call site that forgot. Pass `collectAttackParams(state, mode, id)`
+ * where a player state is in hand, {@link NEUTRAL_ATTACK_PARAMS} where the
+ * authored figure is what's wanted.
+ *
+ * Kept a pure `(def, params)` function rather than `(def, state, mode)` so a
+ * render loop collects the params once instead of per cost read.
  */
-export function getAttackPrepareCost(def: AttackDefinition): Record<string, number> {
+export function getAttackPrepareCost(
+  def: AttackDefinition,
+  params: AttackParams,
+): Record<string, number> {
   const cost: Record<string, number> = {}
   for (const [currency, entry] of Object.entries(def.prepareCost ?? {})) {
-    cost[currency] = scaledCost(entry, 0)
+    cost[currency] = scaledCost(entry, 0) * params.prepareCost
   }
   return cost
 }
@@ -58,7 +253,8 @@ export function attackBlockReason(
   if (!isAttackUnlocked(state, mode, attackId)) return 'locked'
   if ((def.effects?.length ?? 0) === 0) return 'no-effects'
   if (state.pendingAttacks.some((p) => p.attack === attackId)) return 'already-preparing'
-  if (!isCostAffordable(state.resources, getAttackPrepareCost(def))) return 'unaffordable'
+  const params = collectAttackParams(state, mode, attackId)
+  if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
   return null
 }
 
@@ -80,6 +276,11 @@ export function isValidAttackActivation(
  * pending entry that strikes at `meta.gameSec + prepareTimeSec`. Mutates `state`
  * in place. Callers validate legality first (see `isValidAttackActivation`).
  * Never touches `score` — the prepare cost is spent from stockpile only.
+ *
+ * Both the cost and the delay are scaled by the attacker's `attackStat` upgrades
+ * ({@link collectAttackParams}). The delay is **frozen at activation**: buying a
+ * prepare-time upgrade while a strike is in flight does not pull that strike
+ * forward, since the client predicted a `readyAtSec` the server must agree with.
  */
 export function applyAttackActivation(
   state: PlayerState,
@@ -88,11 +289,15 @@ export function applyAttackActivation(
 ): void {
   const def = mode.attacks.find((a) => a.id === attackId)
   if (!def) return
-  for (const [currency, amount] of Object.entries(getAttackPrepareCost(def))) {
+  const params = collectAttackParams(state, mode, attackId)
+  for (const [currency, amount] of Object.entries(getAttackPrepareCost(def, params))) {
     state.resources[currency] = (state.resources[currency] ?? 0) - amount
   }
   const gameSec = (state.meta.gameSec as number | undefined) ?? 0
-  state.pendingAttacks.push({ attack: attackId, readyAtSec: gameSec + (def.prepareTimeSec ?? 0) })
+  state.pendingAttacks.push({
+    attack: attackId,
+    readyAtSec: gameSec + getAttackPrepareTimeSec(def, params),
+  })
 }
 
 /**
@@ -130,6 +335,10 @@ export interface GeneratorStrikeResult {
  * `victim` to `attacker`. Mutates both states in place and returns what was
  * moved (for event feeds / VFX).
  *
+ * Every magnitude is scaled by the attacker's `power`
+ * ({@link collectAttackParams}) before it is capped against what the victim
+ * actually has; a scaled share saturates at {@link MAX_STEAL_FRACTION}.
+ *
  * - `resourceSteal` — either `fraction × (victim's held amount)` or a flat
  *   `amount`, whichever the effect authored. Capped at what the victim holds, so
  *   a flat steal against an emptier stockpile takes the stockpile rather than
@@ -151,12 +360,16 @@ export function resolveAttackStrike(
   mode: ModeDefinition,
 ): AttackStrikeResult[] {
   const results: AttackStrikeResult[] = []
+  const { power } = collectAttackParams(attacker, mode, def.id)
   for (const ref of def.effects ?? []) {
     for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
       if (!('kind' in out)) continue
       if (out.kind === 'resourceSteal') {
         const held = victim.resources[out.resource] ?? 0
-        const requested = 'amount' in out ? out.amount : held * out.fraction
+        const requested =
+          'amount' in out
+            ? out.amount * power
+            : held * Math.min(MAX_STEAL_FRACTION, out.fraction * power)
         const amount = Math.min(held, Math.max(0, requested))
         if (amount <= 0) continue
         victim.resources[out.resource] = held - amount
@@ -166,7 +379,11 @@ export function resolveAttackStrike(
         const owned = victim.generators[out.generator] ?? 0
         // Floor a share to a whole copy: half of three sawmills is one, and half
         // of one is none (which drops out below rather than moving a fraction).
-        const requested = 'count' in out ? out.count : Math.floor(owned * out.fraction)
+        // A `power`-scaled flat count floors for the same reason.
+        const requested =
+          'count' in out
+            ? Math.floor(out.count * power)
+            : Math.floor(owned * Math.min(MAX_STEAL_FRACTION, out.fraction * power))
         const count = Math.min(owned, Math.max(0, requested))
         if (count <= 0) continue
         victim.generators[out.generator] = owned - count

@@ -12,6 +12,10 @@ import type {
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { readHighlight } from '../highlight.js'
 import { batteryFactor } from '../highlight-battery.js'
+// `attacks.ts` imports `isAttackUnlocked` from here in turn; the cycle is safe
+// because neither module reads the other at load time, only inside functions.
+import { ATTACK_STATS, attackStatsFor, collectAttackParams } from '../attacks.js'
+import { scaleCostFactor, scaleDebuffValue } from '../modifiers/value-guard.js'
 import { recordPurchaseTime } from '../game-clock.js'
 import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
@@ -194,6 +198,36 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
           `[${id}] upgrade '${u.id}' unlockAttack effect references unknown attack '${target}'`,
         )
     }
+  }
+
+  // `attackStat` effects scale an attack's numbers, naming the attack by id (or
+  // omitting it for every attack). Validate the id the same way — a typo would
+  // silently buff nothing — and reject a stat aimed at an attack that has no such
+  // field: `prepareCost`/`prepareTime` are forbidden on a passive attack (see
+  // below), so a stat pointed at one is authored dead weight. A ref naming *no*
+  // attack stays legal whatever its stat: it applies to those attacks that can
+  // use it.
+  const attackKinds = new Map(def.attacks.map((a) => [a.id, a.kind]))
+  const checkAttackStat = (where: string, ref: EffectRef): void => {
+    if (ref.type !== 'attackStat') return
+    const target = ref.attack
+    if (typeof target !== 'string') return
+    if (!attackIds.has(target))
+      throw new Error(`[${id}] ${where} attackStat effect references unknown attack '${target}'`)
+    const kind = attackKinds.get(target)
+    if (kind === undefined || typeof ref.stat !== 'string') return
+    // An unknown stat string is the schema's to reject (`prepareEffect`, below),
+    // not this check's — otherwise a typo reads as a kind mismatch.
+    const known: readonly string[] = ATTACK_STATS
+    const legal: readonly string[] = attackStatsFor(kind)
+    if (known.includes(ref.stat) && !legal.includes(ref.stat))
+      throw new Error(
+        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost and delay)`,
+      )
+  }
+  for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref)
   }
 
   // `unlockPact` effects name a pact by id; validate against the mode's pacts
@@ -1082,10 +1116,15 @@ export function collectDynamicBonuses(
  *
  * Only `passive` attacks contribute — an active attack's effects await a trigger
  * mechanism. Each attack's `enemyModifier`-emitting effects (e.g.
- * `enemyProductionModifier`) become raw {@link Modifier}s, applied verbatim
- * (no owned-count compounding — an attack is unlocked or it isn't). The
- * attacker's state is passed to `applyEffect` so future state-relative debuffs
- * can read it; today's effects are state-independent.
+ * `enemyProductionModifier`) become raw {@link Modifier}s (no owned-count
+ * compounding — an attack is unlocked or it isn't). The attacker's state is
+ * passed to `applyEffect` so state-relative debuffs can read it; today's effects
+ * are state-independent.
+ *
+ * The authored value is scaled by the attacker's `power`
+ * ({@link collectAttackParams}) via {@link scaleDebuffValue} — which moves the
+ * *distance from neutral*, so a stronger debuff means `0.9 → 0.8`, never
+ * `0.9 → 1.8`.
  *
  * Debuffs come out **as authored**, which can include the virtual
  * {@link HIGHLIGHT_FACTOR_TARGET} field. Run them through
@@ -1100,9 +1139,12 @@ export function collectEnemyDebuffs(
   for (const attackId of unlockedAttacks(attacker, mode)) {
     const attack = attackById.get(attackId)
     if (attack?.kind !== 'passive') continue
+    const { power } = collectAttackParams(attacker, mode, attackId)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
-        if ('kind' in out && out.kind === 'enemyModifier') debuffs.push(out.modifier)
+        if (!('kind' in out) || out.kind !== 'enemyModifier') continue
+        const { stage, field, value } = out.modifier
+        debuffs.push({ stage, field, value: scaleDebuffValue(stage, value, power) })
       }
     }
   }
@@ -1116,8 +1158,10 @@ export function collectEnemyDebuffs(
  * player's prices.
  *
  * Only `passive` attacks contribute, and each `enemyCost`-emitting effect
- * contributes verbatim (no owned-count compounding — an attack is unlocked or it
- * isn't). The result is stamped onto the victim's
+ * contributes once (no owned-count compounding — an attack is unlocked or it
+ * isn't), with both factors scaled by the attacker's `power` through
+ * {@link scaleCostFactor}: `1 + (f - 1) × power`, the growth portion again
+ * rather than the whole factor. The result is stamped onto the victim's
  * {@link PlayerState.incomingCostFactors} by the server, which is where every
  * price path reads it from; unlike a production debuff there is nothing to
  * resolve against the victim afterwards, so no `resolve*` step is needed.
@@ -1131,14 +1175,19 @@ export function collectEnemyCostFactors(
   for (const attackId of unlockedAttacks(attacker, mode)) {
     const attack = attackById.get(attackId)
     if (attack?.kind !== 'passive') continue
+    const { power } = collectAttackParams(attacker, mode, attackId)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyCost') continue
         factors.push({
           scope: out.scope,
           ...(out.id !== undefined ? { id: out.id } : {}),
-          ...(out.costFactor !== undefined ? { costFactor: out.costFactor } : {}),
-          ...(out.scalingFactor !== undefined ? { scalingFactor: out.scalingFactor } : {}),
+          ...(out.costFactor !== undefined
+            ? { costFactor: scaleCostFactor(out.costFactor, power) }
+            : {}),
+          ...(out.scalingFactor !== undefined
+            ? { scalingFactor: scaleCostFactor(out.scalingFactor, power) }
+            : {}),
         })
       }
     }
