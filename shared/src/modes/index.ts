@@ -207,27 +207,75 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // below), so a stat pointed at one is authored dead weight. A ref naming *no*
   // attack stays legal whatever its stat: it applies to those attacks that can
   // use it.
-  const attackKinds = new Map(def.attacks.map((a) => [a.id, a.kind]))
-  const checkAttackStat = (where: string, ref: EffectRef): void => {
+  //
+  // The schema (`guardScaledStatValue`) has already judged each value on its
+  // own; what it cannot see is the *context* — how many copies the owning
+  // upgrade sells, and what the named attack actually authors. Every check here
+  // asks one question in that context: does this ref still do something at every
+  // level a player can buy?
+  const attacksById = new Map(def.attacks.map((a) => [a.id, a]))
+  const checkAttackStat = (where: string, ref: EffectRef, purchaseLimit: number): void => {
     if (ref.type !== 'attackStat') return
+    // A negative `add` resolves as `1 + value × owned`, so it reaches `0` at
+    // `1/|value|` copies and is floored (useless) from there on. Rejecting it
+    // when the owning upgrade can be bought that many times is what stops a
+    // track whose last levels are bought and do nothing — `mult`, which decays
+    // asymptotically, is the op for a reduction meant to keep stacking. No
+    // attack is named in this check: it is arithmetic on the ref alone.
+    const value = ref.value
+    if (
+      ref.op === 'add' &&
+      typeof value === 'number' &&
+      value < 0 &&
+      1 + value * purchaseLimit <= 0
+    )
+      throw new Error(
+        `[${id}] ${where} attackStat 'add' of ${value} reaches a zero multiplier at ${Math.ceil(-1 / value)} copies, within the upgrade's purchase limit of ${purchaseLimit} — use 'mult' for a reduction that keeps stacking`,
+      )
+
     const target = ref.attack
     if (typeof target !== 'string') return
-    if (!attackIds.has(target))
+    const attack = attacksById.get(target)
+    if (!attack)
       throw new Error(`[${id}] ${where} attackStat effect references unknown attack '${target}'`)
-    const kind = attackKinds.get(target)
-    if (kind === undefined || typeof ref.stat !== 'string') return
+    if (typeof ref.stat !== 'string') return
     // An unknown stat string is the schema's to reject (`prepareEffect`, below),
     // not this check's — otherwise a typo reads as a kind mismatch.
     const known: readonly string[] = ATTACK_STATS
-    const legal: readonly string[] = attackStatsFor(kind)
-    if (known.includes(ref.stat) && !legal.includes(ref.stat))
+    const legal: readonly string[] = attackStatsFor(attack.kind)
+    if (!known.includes(ref.stat)) return
+    if (!legal.includes(ref.stat))
       throw new Error(
         `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost and delay)`,
       )
+
+    // A stat must have something to move. Both fields are optional on an active
+    // attack (a free attack, an attack that strikes on the next tick), and
+    // scaling a zero cost or a zero delay is arithmetic on nothing — the same
+    // dead weight the kind check above rejects, one level finer. Only checkable
+    // for a ref that names its attack; the all-attacks form is judged against no
+    // single definition.
+    const delaySec = attack.prepareTimeSec ?? 0
+    if (ref.stat === 'prepareTime' && delaySec <= 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'prepareTime' on attack '${target}', which has no prepare delay to move`,
+      )
+    if (ref.stat === 'prepareCost' && Object.keys(attack.prepareCost ?? {}).length === 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'prepareCost' on attack '${target}', which is free to activate`,
+      )
+    // An offset at least as deep as the authored delay floors it to zero at a
+    // single copy, so every later copy is bought and does nothing — the absolute
+    // twin of the `add` check above, and the reason that one needs no attack.
+    const offsetsDelay = ref.stat === 'prepareTime' && ref.op === 'offset'
+    if (offsetsDelay && typeof value === 'number' && value <= -delaySec)
+      throw new Error(
+        `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${delaySec}s delay to 0 at one copy, leaving every later copy inert`,
+      )
   }
-  for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref)
+  for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref, 1)
   for (const u of def.upgrades) {
-    for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref)
+    for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
   // `unlockPact` effects name a pact by id; validate against the mode's pacts

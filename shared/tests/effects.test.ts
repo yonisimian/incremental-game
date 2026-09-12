@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addressableSources,
   addressableSourcesFor,
+  ATTACK_STAT_DIRECTION,
+  ATTACK_STATS,
   addressableTargets,
   addressableTargetsFor,
   applyEffect,
@@ -891,6 +893,87 @@ describe('attackStat params', () => {
     }
     const fresh = createInitialState(withEffect)
     expect(collectModifiers(fresh, withEffect)).toEqual(collectModifiers(fresh, mode))
+  })
+})
+
+// ─── attackStat value direction ──────────────────────────────────────
+//
+// The stat decides which way its value has to move: an upgrade-hosted effect
+// helps the player who bought it (`baseModifier` is guarded the same way), so
+// `power` may only grow and `prepareCost`/`prepareTime` may only shrink. Every
+// op's neutral point is excluded with it, which is what makes an upgrade that
+// buys nothing an error rather than a disappointment.
+
+describe('attackStat value direction', () => {
+  const mode = getModeDefinition('idler')
+  const state = createInitialState(mode)
+
+  const attempt = (stat: string, op: string, value: unknown): (() => unknown) => {
+    return () => applyEffect({ type: 'attackStat', stat, op, value }, state, mode)
+  }
+
+  it('lets an increasing stat only increase', () => {
+    expect(attempt('power', 'mult', 1.5)).not.toThrow()
+    expect(attempt('power', 'add', 0.5)).not.toThrow()
+    expect(attempt('power', 'mult', 0.5)).toThrow(/improved by increasing it/u)
+    expect(attempt('power', 'add', -0.5)).toThrow(/improved by increasing it/u)
+  })
+
+  it('lets a decreasing stat only decrease', () => {
+    expect(attempt('prepareTime', 'mult', 0.5)).not.toThrow()
+    expect(attempt('prepareTime', 'add', -0.5)).not.toThrow()
+    expect(attempt('prepareTime', 'offset', -1)).not.toThrow()
+    expect(attempt('prepareCost', 'mult', 0.5)).not.toThrow()
+    // The self-nerfs: each is authorable arithmetic and each makes your own
+    // attack worse, which is the whole reason the direction is checked.
+    expect(attempt('prepareTime', 'mult', 2)).toThrow(/improved by decreasing it/u)
+    expect(attempt('prepareTime', 'offset', 2)).toThrow(/improved by decreasing it/u)
+    expect(attempt('prepareCost', 'add', 0.5)).toThrow(/improved by decreasing it/u)
+  })
+
+  it('rejects every neutral point — an upgrade must buy something', () => {
+    expect(attempt('power', 'mult', 1)).toThrow(/got 1/u)
+    expect(attempt('power', 'add', 0)).toThrow(/got 0/u)
+    expect(attempt('prepareTime', 'mult', 1)).toThrow(/got 1/u)
+    expect(attempt('prepareTime', 'offset', 0)).toThrow(/got 0/u)
+  })
+
+  it('rejects a mult at or below zero, whichever way the stat moves', () => {
+    // `0` collapses the stat for every owned count and no later upgrade lifts it
+    // back; a negative base flips sign with the parity of the owned count.
+    expect(attempt('power', 'mult', 0)).toThrow()
+    expect(attempt('power', 'mult', -2)).toThrow()
+    expect(attempt('prepareCost', 'mult', 0)).toThrow()
+    expect(attempt('prepareCost', 'mult', -0.5)).toThrow()
+  })
+
+  it('bounds a reducing add at -1, where one copy already zeroes the stat', () => {
+    expect(attempt('prepareCost', 'add', -0.999)).not.toThrow()
+    expect(attempt('prepareCost', 'add', -1)).toThrow(/between -1 and 0/u)
+    expect(attempt('prepareCost', 'add', -1.5)).toThrow(/between -1 and 0/u)
+  })
+
+  it('refuses an implausible magnitude — a slipped exponent compounds', () => {
+    expect(attempt('power', 'mult', 1e6)).not.toThrow()
+    expect(attempt('power', 'mult', 1e7)).toThrow(/implausibly large/u)
+    expect(attempt('power', 'add', 1e200)).toThrow(/implausibly large/u)
+  })
+
+  it('reports the pairing before the value, so the range quoted is the real one', () => {
+    // `offset` is illegal on `power` whatever the number; quoting a range for an
+    // op the stat cannot use would send the author after the wrong field.
+    expect(attempt('power', 'offset', -1)).toThrow(/does not apply to stat 'power'/u)
+  })
+
+  it('covers every stat, so a new one cannot ship without a direction', () => {
+    for (const stat of ATTACK_STATS) {
+      const direction = ATTACK_STAT_DIRECTION[stat]
+      expect(direction).toBeDefined()
+      // The neutral multiplier is rejected for every stat, whichever way it
+      // moves — the cheapest proof that the guard is wired to this stat at all.
+      expect(attempt(stat, 'mult', 1)).toThrow()
+      expect(attempt(stat, 'mult', direction === 'increase' ? 2 : 0.5)).not.toThrow()
+    }
   })
 })
 

@@ -6,7 +6,14 @@ export type {
   ResourceLayers,
 } from './types.js'
 export { MODIFIER_STAGES } from './types.js'
-export { MIN_DEBUFF_FACTOR, scaleCostFactor, scaleDebuffValue } from './value-guard.js'
+export {
+  MAX_SCALED_STAT_VALUE,
+  MIN_DEBUFF_FACTOR,
+  guardScaledStatValue,
+  scaleCostFactor,
+  scaleDebuffValue,
+} from './value-guard.js'
+export type { ScaledStatOp, StatDirection } from './value-guard.js'
 export {
   computeIncome,
   computeClickIncome,

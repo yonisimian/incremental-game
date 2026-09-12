@@ -72,6 +72,17 @@ const TARIFF_G0: AttackDefinition = {
   effects: [{ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 }],
 }
 
+/**
+ * An inflation authored at the neutral point — legal (`costFactor` is bounded
+ * `>= 1`, not `> 1`) and the one authored value whose growth portion is exactly
+ * zero, which is what makes it the `Infinity × 0` case.
+ */
+const NEUTRAL_TARIFF: AttackDefinition = {
+  id: 'a-neutral',
+  kind: 'passive',
+  effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1 }],
+}
+
 /** One upgrade's curve made steeper, base price untouched. */
 const STEEPEN_EXPO: AttackDefinition = {
   id: 'a-steepen',
@@ -112,7 +123,7 @@ const POWER_UP: UpgradeDefinition = {
   effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
 }
 
-const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, ACTIVE_TARIFF]
+const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, ACTIVE_TARIFF, NEUTRAL_TARIFF]
 
 function makeMode(): ModeDefinition {
   return {
@@ -217,6 +228,18 @@ describe('collectEnemyCostFactors', () => {
       { scope: 'upgrade', costFactor: 1.25 },
       { scope: 'generator', id: 'g0', costFactor: 2 },
     ])
+  })
+
+  it('keeps a neutral factor finite against a saturating power', () => {
+    const mode = makeMode()
+    const state = attacker('a-neutral')
+    // `2 ** 2000` overflows to Infinity while it is still being collected, and
+    // `1 + (1 - 1) × Infinity` is NaN — which `Math.max` propagates into every
+    // price the victim reads. The collector's ceiling is what holds this at the
+    // authored 1; no owned count is checked anywhere on this path.
+    state.upgrades['u-power'] = 2000
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(factor.costFactor).toBe(1)
   })
 
   it('scales the growth portion of a factor by the attacker’s power', () => {

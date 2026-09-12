@@ -9,6 +9,7 @@ import {
   getAttackPrepareTimeSec,
   applyAttackActivation,
   dueAttacks,
+  MAX_ATTACK_PARAM,
   NEUTRAL_ATTACK_PARAMS,
   resolveAttackStrike,
 } from '../src/attacks.js'
@@ -109,22 +110,6 @@ const A2_POWER_MULT = statUpgrade('a2-power-mult', {
   value: 5,
 })
 
-/** Halves a0's magnitude — a weakening stat, for the floor/rounding cases. */
-const A0_POWER_HALF = statUpgrade('a0-power-half', {
-  attack: 'a0',
-  stat: 'power',
-  op: 'mult',
-  value: 0.5,
-})
-
-/** A mis-authored ref that would otherwise make a steal a gift. */
-const A0_POWER_NEGATIVE = statUpgrade('a0-power-negative', {
-  attack: 'a0',
-  stat: 'power',
-  op: 'add',
-  value: -5,
-})
-
 /** Halves a0's prepare cost. */
 const A0_CHEAP = statUpgrade('a0-cheap', {
   attack: 'a0',
@@ -133,20 +118,38 @@ const A0_CHEAP = statUpgrade('a0-cheap', {
   value: 0.5,
 })
 
+/**
+ * Two −30%-per-level cost lines. Each is legal alone — three copies leave ×0.1 —
+ * but together their adds cross zero, which is the product no schema guard can
+ * see and the collector's floor must catch.
+ */
+const A0_CHEAP_STEP_A = statUpgrade('a0-cheap-step-a', {
+  attack: 'a0',
+  stat: 'prepareCost',
+  op: 'add',
+  value: -0.3,
+})
+const A0_CHEAP_STEP_B = statUpgrade('a0-cheap-step-b', {
+  attack: 'a0',
+  stat: 'prepareCost',
+  op: 'add',
+  value: -0.3,
+})
+
+/** The largest magnitude the schema accepts, for the ceiling case. */
+const A0_POWER_HUGE = statUpgrade('a0-power-huge', {
+  attack: 'a0',
+  stat: 'power',
+  op: 'mult',
+  value: 1e6,
+})
+
 /** Halves a0's prepare delay. */
 const A0_FAST = statUpgrade('a0-fast', {
   attack: 'a0',
   stat: 'prepareTime',
   op: 'mult',
   value: 0.5,
-})
-
-/** Doubles a0's prepare delay — for pinning the scale-then-shift order. */
-const A0_SLOWER = statUpgrade('a0-slower', {
-  attack: 'a0',
-  stat: 'prepareTime',
-  op: 'mult',
-  value: 2,
 })
 
 /** Takes a literal second off a0's prepare delay, per level. */
@@ -160,13 +163,13 @@ const A0_SOONER = statUpgrade('a0-sooner', {
 const STAT_UPGRADES = [
   A0_POWER_ADD,
   A0_POWER_MULT,
-  A0_POWER_HALF,
   ALL_POWER_MULT,
   A2_POWER_MULT,
-  A0_POWER_NEGATIVE,
+  A0_POWER_HUGE,
   A0_CHEAP,
+  A0_CHEAP_STEP_A,
+  A0_CHEAP_STEP_B,
   A0_FAST,
-  A0_SLOWER,
   A0_SOONER,
 ]
 
@@ -292,9 +295,27 @@ describe('collectAttackParams', () => {
     })
   })
 
-  it('clamps a mis-authored negative at the stat floor, so nothing inverts', () => {
-    const state = withStats({ 'a0-power-negative': 1 })
-    expect(collectAttackParams(state, mode, 'a0').power).toBe(0)
+  it('floors a stacked reduction at zero, so nothing inverts', () => {
+    // Each line is legal on its own (three copies leave ×0.1); together their
+    // adds cross zero. The schema judges one ref at a time, so the floor is the
+    // only thing standing between this and a cost that *credits* the attacker.
+    const state = withStats({ 'a0-cheap-step-a': 3, 'a0-cheap-step-b': 3 })
+    expect(collectAttackParams(state, mode, 'a0').prepareCost).toBe(0)
+  })
+
+  it('caps a compounded overflow at the ceiling, so no param is ever infinite', () => {
+    // The schema caps one value at 1e6; nothing caps the owned count it is
+    // raised to, and `Infinity` is the reading that turns into `NaN` downstream.
+    const state = withStats({ 'a0-power-huge': 60 })
+    expect(collectAttackParams(state, mode, 'a0').power).toBe(MAX_ATTACK_PARAM)
+  })
+
+  it('reads a NaN product as the neutral multiplier, not as a free attack', () => {
+    // Unreachable by purchasing — an infinite owned count with an underflowed
+    // multiplier beside it — but `Infinity × 0` is the one arithmetic that gets
+    // past both bounds, and "as authored" is the only safe reading of it.
+    const state = withStats({ 'a0-cheap-step-a': Infinity, 'a0-cheap': 2000 })
+    expect(collectAttackParams(state, mode, 'a0').prepareCost).toBe(1)
   })
 
   it('collects an offset in seconds, apart from the multiplier', () => {
@@ -330,10 +351,10 @@ describe('getAttackPrepareTimeSec', () => {
     expect(getAttackPrepareTimeSec(STEAL_ATTACK, params({ 'a0-sooner': 2 }))).toBe(1)
   })
 
-  it('scales before it shifts, so a relative buff cannot undo an absolute one', () => {
-    // 3s × 2 = 6s, then -1s = 5s. Shifting first would give 4s.
-    const slowerThenSooner = params({ 'a0-slower': 1, 'a0-sooner': 1 })
-    expect(getAttackPrepareTimeSec(STEAL_ATTACK, slowerThenSooner)).toBe(5)
+  it('scales before it shifts, so the two ops cannot be reordered', () => {
+    // 3s × 0.5 = 1.5s, then -1s = 0.5s. Shifting first would give 1s.
+    const fasterAndSooner = params({ 'a0-fast': 1, 'a0-sooner': 1 })
+    expect(getAttackPrepareTimeSec(STEAL_ATTACK, fasterAndSooner)).toBe(0.5)
   })
 
   it('floors at zero — an oversized offset strikes on the next tick', () => {
@@ -581,12 +602,15 @@ describe('resolveAttackStrike', () => {
     expect(victim.resources.r0).toBe(0)
   })
 
-  it('steals nothing at a power of zero', () => {
+  it('steals nothing from a victim holding nothing', () => {
     const mode = makeMode()
-    const attacker = makeState({ resources: { r0: 0 }, upgrades: { 'a0-power-negative': 1 } })
-    const victim = makeState({ resources: { r0: 500 } })
+    const attacker = makeState({ resources: { r0: 0 } })
+    const victim = makeState({ resources: { r0: 0 } })
+    // The only route to a zero-magnitude strike now that `power` cannot be
+    // authored below 1: an empty stockpile, which yields no result rather than
+    // an entry moving nothing.
     expect(resolveAttackStrike(attacker, victim, STEAL_ATTACK, mode)).toEqual([])
-    expect(victim.resources.r0).toBe(500)
+    expect(attacker.resources.r0).toBe(0)
   })
 
   it('rejects a steal that authors both a fraction and an amount', () => {
@@ -703,12 +727,12 @@ describe('resolveAttackStrike — stealGenerator', () => {
 
   it('still floors a scaled flat count — copies are whole', () => {
     const mode = makeMode()
-    const attacker = makeState({ generators: {}, upgrades: { 'a0-power-half': 1 } })
+    const attacker = makeState({ generators: {}, upgrades: { 'a0-power-add': 1 } })
     const victim = makeState({ generators: { g0: 6 } })
-    // 3 copies × 0.5 = 1.5 → 1.
+    // 3 copies × 1.5 = 4.5 → 4.
     const results = resolveAttackStrike(attacker, victim, FLAT_GEN_STEAL_ATTACK, mode)
-    expect(results).toEqual([{ kind: 'generator', generator: 'g0', count: 1 }])
-    expect(victim.generators.g0).toBe(5)
+    expect(results).toEqual([{ kind: 'generator', generator: 'g0', count: 4 }])
+    expect(victim.generators.g0).toBe(2)
   })
 
   it('rejects a generator steal that authors both a fraction and a count', () => {

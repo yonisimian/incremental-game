@@ -9,7 +9,7 @@ import {
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import { cloneTree } from '../src/dev/editor/model.js'
 import { effectFieldOptions } from '../src/dev/editor/effects-editor.js'
-import { describeEffectSchema } from '../src/dev/editor/effect-schema.js'
+import { defaultParamsForEffect, describeEffectSchema } from '../src/dev/editor/effect-schema.js'
 
 const idler = (): ReturnType<typeof parseTreeFile> => cloneTree(parseTreeFile(idlerTreeFile))
 
@@ -83,6 +83,41 @@ describe('effectFieldOptions', () => {
       }
     }
     expect(freeText).toEqual([])
+  })
+})
+
+// The "+ effect" button writes the seeded defaults into the tree unchecked, so
+// params the effect's own schema rejects become a node that refuses to boot —
+// with nothing said until some field is touched. The candidate ladder in
+// `defaultParamsForEffect` is what keeps a guarded number from landing there.
+describe('default params for a newly added effect', () => {
+  it('seeds every registered effect with params its own schema accepts', () => {
+    const rejected: string[] = []
+    for (const type of listEffectTypes()) {
+      const def = resolveEffect(type)
+      if (!def) continue
+      let spec
+      try {
+        spec = describeEffectSchema(def.schema)
+      } catch {
+        continue // schema shape the form can't render at all — nothing to seed
+      }
+      const params = defaultParamsForEffect(spec, (p) => def.schema.safeParse(p).success)
+      if (!def.schema.safeParse(params).success) rejected.push(type)
+    }
+    expect(rejected).toEqual([])
+  })
+
+  it('leaves 0 in place where the schema is happy with it', () => {
+    // The ladder tries `0` first, so an unguarded number still opens on the
+    // value the form has always shown.
+    const def = resolveEffect('baseModifier')!
+    const spec = describeEffectSchema(def.schema)
+    const params = defaultParamsForEffect(spec, (p) => def.schema.safeParse(p).success)
+    // `baseModifier` guards its value as a bonus, so this one does move — but
+    // only to the first candidate that parses.
+    expect(params.value).toBe(2)
+    expect(def.schema.safeParse({ ...params, value: 0 }).success).toBe(false)
   })
 })
 

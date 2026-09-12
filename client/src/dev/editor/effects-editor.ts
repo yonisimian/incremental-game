@@ -30,7 +30,6 @@ import {
 
 import {
   defaultParamsForEffect,
-  defaultParamsForVariant,
   describeEffectSchema,
   matchVariant,
   type EffectFormSpec,
@@ -292,6 +291,32 @@ function repairOptionValues(
   return next
 }
 
+/**
+ * Mirror a `value` an option repair has just invalidated.
+ *
+ * Snapping a picker can change what the block's number *means*: `attackStat`'s
+ * legal range follows the stat, so re-pointing a ×0.5 discount at `power` — a
+ * stat that may only grow — leaves a number the schema rejects, and the edit
+ * would silently fail to save. Every op has an exact opposite (`mult` inverts,
+ * `add` and `offset` negate), so the mirrored value is the same-sized change the
+ * other way: ×0.5 becomes ×2, -1s becomes +1s.
+ *
+ * Only reached after an {@link OPTION_SOURCE_FIELDS} edit, and only when the
+ * block no longer parses — an authored number is never rewritten while it is
+ * still legal. If the mirror does not parse either (a `0`, whose opposite is
+ * itself), the value stands and the error line says why.
+ */
+function repairGuardedValue(
+  schema: ScalarSchema,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  if (schema.safeParse(values).success) return values
+  const value = values.value
+  if (typeof value !== 'number' || value === 0) return values
+  const mirrored = { ...values, value: values.op === 'mult' ? 1 / value : -value }
+  return schema.safeParse(mirrored).success ? mirrored : values
+}
+
 function buildEffectField(
   spec: FieldSpec,
   current: unknown,
@@ -407,14 +432,19 @@ function buildEffectBlock(
     preview.textContent = describeEffectRef(host.tree, { type: ref.type, ...values }) ?? ''
   }
 
+  /** Report (or clear) the schema's first complaint about `values`. */
+  const showError = (values: Record<string, unknown>): boolean => {
+    const result = schema.safeParse(values)
+    error.textContent = result.success ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
+    return result.success
+  }
+
   const writeFrom = (values: Record<string, unknown>, silent = false): void => {
     renderPreview(values)
-    const result = schema.safeParse(values)
-    if (!result.success) {
-      error.textContent = silent ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
+    if (!showError(values)) {
+      if (silent) error.textContent = ''
       return
     }
-    error.textContent = ''
     host.setEffects(
       host.getEffects().map((r, j) => (j === index ? { type: ref.type, ...values } : r)),
     )
@@ -441,7 +471,10 @@ function buildEffectBlock(
           // `attack`): re-resolve them and rebuild, so a choice the new options
           // no longer offer can't stay selected and reach the tree file.
           if (sources.includes(fieldSpec.key)) {
-            params = repairOptionValues(host.tree, ref.type, variant, collect())
+            params = repairGuardedValue(
+              schema,
+              repairOptionValues(host.tree, ref.type, variant, collect()),
+            )
             writeFrom(params)
             buildFields()
             return
@@ -456,6 +489,11 @@ function buildEffectBlock(
   }
   buildFields()
   renderPreview(params)
+  // Report what the block already holds, rather than waiting for an edit: a ref
+  // the schema rejects — seeded by an older add button, hand-edited, or left
+  // behind by a guard that has since tightened — is one the mode refuses to boot
+  // on, and the author should meet it here rather than at startup.
+  showError(params)
 
   if (spec.variants.length > 1) {
     const variantSelect = el('select', 'ed-input')
@@ -469,7 +507,9 @@ function buildEffectBlock(
       const picked = spec.variants.find((v) => v.index === Number(variantSelect.value))
       if (!picked) return
       variant = picked
-      params = defaultParamsForVariant(picked)
+      // Seeded through the same candidate probe the add button uses, so
+      // switching shape lands on params the variant's own guards accept.
+      params = defaultParamsForEffect({ variants: [picked] }, (p) => schema.safeParse(p).success)
       buildFields()
       // Seeded defaults for a stricter variant (e.g. an empty required id) may
       // not parse yet; persist if valid but don't flash an error before the

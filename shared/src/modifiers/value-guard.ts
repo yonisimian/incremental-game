@@ -77,6 +77,120 @@ export function scaleCostFactor(factor: number, power: number): number {
   return Math.max(1, 1 + (factor - 1) * power)
 }
 
+// ─── Scaled stats ────────────────────────────────────────────────────
+
+/**
+ * Which way a *scaled stat* — one whose ops shape a multiplier on a value some
+ * other definition authored — has to move to help the player who bought it.
+ *
+ * The per-stat analogue of {@link ModifierIntent}, and deliberately not the same
+ * shape: an `intent` is authored per modifier, because one effect can
+ * legitimately grant a bonus (to you) or a debuff (to the enemy). A stat's
+ * helpful direction is instead a property of the *stat* — `power` helps by
+ * growing, `prepareCost` by shrinking — so it belongs in a table beside the
+ * stat's enum, not in a param every ref must remember to set.
+ */
+export type StatDirection = 'increase' | 'decrease'
+
+/**
+ * How a scaled-stat adjustment combines with the authored value: `add` and
+ * `mult` shape the multiplier (neutral at `0` and `1` respectively), `offset`
+ * shifts the stat's own unit (neutral at `0`).
+ *
+ * Declared structurally rather than imported from the effect seeds, which sit
+ * *above* this module and import it.
+ */
+export type ScaledStatOp = 'add' | 'mult' | 'offset'
+
+/** The `stat` + `op` + `value` a scaled-stat guard reads. */
+interface StatOpValue {
+  readonly stat: string
+  readonly op: ScaledStatOp
+  readonly value: number
+}
+
+/**
+ * The largest magnitude a scaled-stat value may carry.
+ *
+ * A typo catch, not a balance bound: `mult` compounds as `value ** owned`, so a
+ * slipped exponent (`1e200` for `1e2`) resolves to `Infinity` and drags `NaN`
+ * into anything that then multiplies it by zero. Nothing authorable comes near
+ * `1e6`. The *guarantee* of a finite parameter belongs to each collector's
+ * clamp, which sees the resolved product; this only refuses the obvious typo
+ * while the author is still looking at it.
+ */
+export const MAX_SCALED_STAT_VALUE = 1e6
+
+/**
+ * Whether `value` moves a stat of `direction` the helpful way, given its `op`.
+ *
+ * Each op's neutral point is excluded, so a no-op (`add: 0`, `mult: 1`,
+ * `offset: 0`) fails as the "wrong direction" it is — an upgrade that buys
+ * nothing. `mult` additionally excludes everything at or below `0`: a `0`
+ * collapses the stat for every owned count and no later upgrade can lift it
+ * back, and a negative base flips sign with the parity of the owned count
+ * (`(-2) ** 1` is `-2`, `(-2) ** 2` is `4`).
+ *
+ * A `decrease` `add` is bounded below at `-1` as well as above at `0`: the
+ * multiplier resolves as `1 + value × owned`, so `-1` already zeroes it at a
+ * single copy and anything beyond that is an inversion the collector's floor
+ * merely hides.
+ */
+function isHelpfulStatValue(direction: StatDirection, op: ScaledStatOp, value: number): boolean {
+  if (op === 'mult') return direction === 'increase' ? value > 1 : value > 0 && value < 1
+  if (op === 'add') return direction === 'increase' ? value > 0 : value > -1 && value < 0
+  return direction === 'increase' ? value > 0 : value < 0
+}
+
+/** Human phrase describing the required range, for the validation message. */
+function statConstraintPhrase(direction: StatDirection, op: ScaledStatOp): string {
+  if (op === 'mult') return direction === 'increase' ? 'be greater than 1' : 'be between 0 and 1'
+  if (op === 'add') return direction === 'increase' ? 'be greater than 0' : 'be between -1 and 0'
+  return direction === 'increase' ? 'be greater than 0' : 'be negative'
+}
+
+/**
+ * Build a zod `superRefine` callback that rejects a scaled-stat `value` pointing
+ * the wrong way for its stat (see {@link isHelpfulStatValue}) or carrying an
+ * implausible magnitude ({@link MAX_SCALED_STAT_VALUE}). `label` names the effect
+ * in the message; `directions` is the effect's own stat → direction table.
+ *
+ * The counterpart of {@link guardModifierValue} for the "upgrades move a
+ * subsystem's parameters" family, and it exists for the same reason: an
+ * upgrade-hosted effect helps the player who bought it, and the schema is the
+ * cheapest place to say so. Applied object-level, so the wrapped schema keeps
+ * its `object` shape for the `/dev.html` form introspection.
+ */
+export function guardScaledStatValue(
+  label: string,
+  directions: Readonly<Record<string, StatDirection>>,
+): (p: StatOpValue, ctx: RefinementIssueSink) => void {
+  return (p, ctx) => {
+    const direction = directions[p.stat] as StatDirection | undefined
+    // An unrecognized stat is the enum's to reject; guarding it here would
+    // report a direction problem for what is really a typo.
+    if (direction === undefined) return
+    const moving = direction === 'increase' ? 'increasing' : 'decreasing'
+    if (!isHelpfulStatValue(direction, p.op, p.value)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `${label} '${p.stat}' is improved by ${moving} it, so an '${p.op}' value must ${statConstraintPhrase(direction, p.op)}; got ${p.value}`,
+        path: ['value'],
+      })
+      return
+    }
+    if (Math.abs(p.value) > MAX_SCALED_STAT_VALUE) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `${label} '${p.stat}' value is implausibly large — an '${p.op}' compounds with the owned count, so |value| must be at most ${MAX_SCALED_STAT_VALUE}; got ${p.value}`,
+        path: ['value'],
+      })
+    }
+  }
+}
+
+// ─── Modifier values ─────────────────────────────────────────────────
+
 /** Human phrase describing the required range, for the validation message. */
 function constraintPhrase(intent: ModifierIntent, stage: ModifierStage): string {
   if (intent === 'bonus') {

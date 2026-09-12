@@ -82,14 +82,17 @@ describe('effects editor — attackStat stat picker', () => {
     attackSelect().dispatchEvent(new Event('change'))
 
     // The picker narrows, and the now-illegal choice is snapped to the only stat
-    // left rather than being persisted as authored.
+    // left rather than being persisted as authored. The value goes with it: a
+    // discount (×0.5) means nothing on a stat that may only grow, so it is
+    // mirrored into the same-sized buff rather than saved as a ref that would
+    // refuse to boot.
     expect(statOptions()).toEqual(['power'])
     expect(saved()).toEqual({
       type: 'attackStat',
       attack: passiveId(tree),
       stat: 'power',
       op: 'mult',
-      value: 0.5,
+      value: 2,
     })
   })
 
@@ -175,12 +178,15 @@ describe('effects editor — attackStat stat picker', () => {
 
     expect(statOptions()).toEqual(['power'])
     expect([...opSelect().options].map((o) => o.value)).toEqual(['add', 'mult'])
+    // Three repairs from the one change event: the stat, the op, and the value —
+    // `-1` was a second off the delay, and a negative add on `power` is a
+    // weakening the schema refuses, so it is mirrored.
     expect(saved()).toEqual({
       type: 'attackStat',
       attack: passiveId(tree),
       stat: 'power',
       op: 'add',
-      value: -1,
+      value: 1,
     })
   })
 

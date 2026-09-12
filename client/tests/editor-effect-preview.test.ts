@@ -52,11 +52,12 @@ describe('describeEffectRef — attackStat', () => {
       attack: def.id,
       stat: 'prepareTime',
       op: 'add',
-      value: 5,
+      value: -0.25,
     })
-    // `add: 5` is ×6, i.e. six times the wait — the whole reason this line exists.
+    // `add: -0.25` is ×0.75, a quarter off the wait — not a quarter of a second,
+    // which is how the number reads until this line resolves it.
     expect(line).toBe(
-      `${def.id} prepare time: ${authored}s → ${authored * 6}s (L1) · ${authored * 11}s (L2)`,
+      `${def.id} prepare time: ${authored}s → ${authored * 0.75}s (L1) · ${authored * 0.5}s (L2)`,
     )
   })
 

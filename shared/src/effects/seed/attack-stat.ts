@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { guardScaledStatValue } from '../../modifiers/value-guard.js'
+import type { StatDirection } from '../../modifiers/value-guard.js'
 import type { AttackStatOutput, EffectDef } from '../types.js'
 
 /**
@@ -53,6 +55,31 @@ export function attackStatOpsFor(stat: AttackStat): readonly AttackStatOp[] {
 }
 
 /**
+ * Which way each stat has to move to help the attacker who bought the upgrade —
+ * hit harder, pay less, wait less.
+ *
+ * Read by {@link guardScaledStatValue}, which turns it into the schema's `value`
+ * rules, so an upgrade that would make your own attack _worse_ fails to load.
+ * That is the standing convention for an upgrade-hosted effect, not a new one:
+ * `baseModifier` is guarded `intent: 'bonus'` and `relativeModifier`'s
+ * `factor > 0` bound is documented on the same grounds. A deliberate trade-off
+ * node ("+50% power, +2s prep") would need an explicit opt-in param that flips
+ * the expected direction for that ref — a hole in the guard would instead make
+ * every sign typo authorable.
+ *
+ * Adding a stat means adding a direction here _and_ a floor in
+ * `ATTACK_PARAM_FLOORS`; both sit next to the enum so neither is forgotten.
+ */
+export const ATTACK_STAT_DIRECTION: Readonly<Record<AttackStat, StatDirection>> = {
+  power: 'increase',
+  prepareCost: 'decrease',
+  prepareTime: 'decrease',
+}
+
+/** The `value` half of the refinement, built once from the direction table. */
+const guardValue = guardScaledStatValue('attackStat', ATTACK_STAT_DIRECTION)
+
+/**
  * Schema for the `attackStat` effect's params.
  *
  * Scales one of an attack's numbers while the owning upgrade is held: how hard it
@@ -84,13 +111,18 @@ export function attackStatOpsFor(stat: AttackStat): readonly AttackStatOp[] {
  * not debuff), split `power` into per-kind enum members — a compatible change,
  * since `power` keeps meaning "all of them".
  *
- * `value` is deliberately unconstrained beyond finiteness (zod rejects `NaN` and
- * the infinities): the meaningful range differs per `stat` and `op` (`mult` of
- * `0.5` is a *good* thing on `prepareTime` and a bad one on `power`), so a single
- * guard here would either be wrong for half the combinations or reject legitimate
- * authoring. `collectAttackParams` clamps the resolved multipliers to their
- * floors and `getAttackPrepareTimeSec` floors the offset delay at zero, so a
- * mis-authored value is inert rather than inverting the mechanic.
+ * `value` is guarded per `stat` *and* `op` (plan 39). The meaningful range does
+ * differ per combination — `mult: 0.5` is a good thing on `prepareTime` and a bad
+ * one on `power` — which is an argument for a direction table, not for leaving
+ * the field open: {@link ATTACK_STAT_DIRECTION} says which way each stat helps
+ * and {@link guardScaledStatValue} turns that into the bounds. Every neutral
+ * point is excluded, so an upgrade that buys nothing (`add: 0`, `mult: 1`,
+ * `offset: 0`) is rejected alongside one that buys the wrong direction.
+ *
+ * The runtime floors stay: `collectAttackParams` clamps the resolved multipliers
+ * and `getAttackPrepareTimeSec` floors the offset delay at zero. With the schema
+ * guard in front of them they are a backstop for what the schema cannot see — a
+ * product of several refs, each individually fine.
  */
 const schema = z
   .strictObject({
@@ -103,12 +135,17 @@ const schema = z
   // Applied object-level (like `guardModifierValue`) so the schema keeps its
   // `object` shape for the editor's form introspection.
   .superRefine((p, ctx) => {
-    if (attackStatOpsFor(p.stat).includes(p.op)) return
-    ctx.addIssue({
-      code: 'custom',
-      message: `op '${p.op}' does not apply to stat '${p.stat}' — an absolute offset needs a single unambiguous unit, which only ${OFFSET_STATS.join(', ')} has`,
-      path: ['op'],
-    })
+    // Pairing first, then the value: a value judged against an op the stat can't
+    // use would report a range the author is not actually being asked for.
+    if (!attackStatOpsFor(p.stat).includes(p.op)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `op '${p.op}' does not apply to stat '${p.stat}' — an absolute offset needs a single unambiguous unit, which only ${OFFSET_STATS.join(', ')} has`,
+        path: ['op'],
+      })
+      return
+    }
+    guardValue(p, ctx)
   })
 
 /** Params for the `attackStat` effect (inferred from its schema). */

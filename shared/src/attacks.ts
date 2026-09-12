@@ -28,7 +28,12 @@ import type {
 // the load-time validation can't drift) — mirroring how `highlight-battery`
 // re-exports `BATTERY_STATS`. This module is the sole re-exporter, so the shared
 // barrel has exactly one path to each.
-export { ATTACK_STATS, ATTACK_STAT_OPS, attackStatOpsFor } from './effects/seed/attack-stat.js'
+export {
+  ATTACK_STATS,
+  ATTACK_STAT_DIRECTION,
+  ATTACK_STAT_OPS,
+  attackStatOpsFor,
+} from './effects/seed/attack-stat.js'
 export type { AttackStat, AttackStatOp } from './effects/seed/attack-stat.js'
 
 // ─── Stat parameters ─────────────────────────────────────────────────
@@ -100,6 +105,38 @@ const ATTACK_PARAM_FLOORS: Record<AttackStat, number> = {
   power: 0,
   prepareCost: 0,
   prepareTime: 0,
+}
+
+/**
+ * Ceiling each stat is clamped to, the floors' counterpart.
+ *
+ * A backstop, not the main defence — the schema's `MAX_SCALED_STAT_VALUE` stops
+ * a single slipped exponent, and the direction guard bounds `prepareCost` and
+ * `prepareTime` to at most their authored values. What neither can see is the
+ * *product* of several refs, each individually plausible, and an `Infinity`
+ * there is not merely a big number: `Infinity × 0` is `NaN`, and a `NaN`
+ * `readyAtSec` never satisfies `dueAttacks`, so the pending entry would outlive
+ * the round and `already-preparing` would block the attack for good.
+ *
+ * `1e9` because every consumer has long saturated by then (a steal at
+ * {@link MAX_STEAL_FRACTION}, a debuff at `MIN_DEBUFF_FACTOR`, a cost at
+ * unaffordable), while `1e9 ×` any authored number stays comfortably finite.
+ */
+export const MAX_ATTACK_PARAM = 1e9
+
+/**
+ * Clamp a resolved stat into `[floor, MAX_ATTACK_PARAM]`, totally — `Math.min`
+ * and `Math.max` propagate `NaN` rather than bounding it, so it needs its own
+ * branch.
+ *
+ * A `NaN` resolves to `1`, the neutral multiplier, rather than to either bound:
+ * these are multipliers on authored values, so "as authored" is the one reading
+ * of a corrupted computation that neither gifts the attacker a free strike (the
+ * floor, on `prepareCost`) nor silently deletes the attack (the ceiling).
+ */
+function clampAttackParam(stat: AttackStat, value: number): number {
+  if (Number.isNaN(value)) return 1
+  return Math.min(MAX_ATTACK_PARAM, Math.max(ATTACK_PARAM_FLOORS[stat], value))
 }
 
 /**
@@ -175,9 +212,17 @@ export function collectAttackParams(
   const resolved = {} as Record<AttackStat, number>
   for (const stat of ATTACK_STATS) {
     // Neutral base of 1: these are multipliers on the authored values.
-    resolved[stat] = Math.max(ATTACK_PARAM_FLOORS[stat], (1 + adds[stat]) * mults[stat])
+    resolved[stat] = clampAttackParam(stat, (1 + adds[stat]) * mults[stat])
   }
-  return { ...resolved, prepareTimeOffsetSec: offsets.prepareTime }
+  // The offset is in seconds, not a multiplier, so it is bounded on both sides
+  // and its corrupted reading is `0` (shift nothing) rather than `1`.
+  const offsetSec = offsets.prepareTime
+  return {
+    ...resolved,
+    prepareTimeOffsetSec: Number.isNaN(offsetSec)
+      ? 0
+      : Math.min(MAX_ATTACK_PARAM, Math.max(-MAX_ATTACK_PARAM, offsetSec)),
+  }
 }
 
 /**
