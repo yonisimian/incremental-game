@@ -730,21 +730,21 @@
         },
         {
           "id": "d-alert",
-          "name": "d-alert",
+          "name": "🛡️ Early warning",
           "icon": "🛡️",
-          "description": "Alert 5 seconds before enemy attacks. (Must be attack at least once to unlock)"
+          "description": "Get warned 5 seconds before an enemy attack lands on you. Unlocks after you have been hit once."
         },
         {
           "id": "d-as",
-          "name": "d-as",
+          "name": "🛡️ Longer warning",
           "icon": "🛡️",
-          "description": "Add one more second to the alert."
+          "description": "+1 second of warning per level."
         },
         {
           "id": "d-aa",
-          "name": "d-aa",
+          "name": "🛡️ Know the attack",
           "icon": "🛡️",
-          "description": "The alert tells which attack incoming."
+          "description": "The warning names the incoming attack."
         },
         {
           "id": "sc-pcps",
@@ -2891,6 +2891,17 @@
           "id": "d-alert",
           "cost": {},
           "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "meta",
+            "key": "attacksSuffered",
+            "min": 1
+          },
+          "effects": [
+            {
+              "type": "attackAlert",
+              "leadSec": 5
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 504
@@ -2899,11 +2910,17 @@
             {
               "id": "d-as",
               "cost": {},
-              "purchaseLimit": 1,
+              "purchaseLimit": 5,
               "prerequisites": {
                 "type": "upgrade",
                 "id": "d-alert"
               },
+              "effects": [
+                {
+                  "type": "attackAlert",
+                  "leadSec": 1
+                }
+              ],
               "offset": {
                 "x": -48,
                 "y": 96
@@ -2917,6 +2934,12 @@
                 "type": "upgrade",
                 "id": "d-alert"
               },
+              "effects": [
+                {
+                  "type": "attackAlert",
+                  "revealAttack": true
+                }
+              ],
               "offset": {
                 "x": 48,
                 "y": 96

@@ -5,8 +5,13 @@ import { describe, expect, it } from 'vitest'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { AttackDefinition, EffectRef, PlayerState, UpgradeDefinition } from '../src/types.js'
 import { NO_ATTACK_ALERT, collectAttackAlert, incomingAttacksWithin } from '../src/attacks.js'
-import { createInitialState, validateModeDefinition } from '../src/modes/index.js'
+import {
+  createInitialState,
+  getModeDefinition,
+  validateModeDefinition,
+} from '../src/modes/index.js'
 import { applyEffect, prepareEffect } from '../src/effects/index.js'
+import { isPrerequisiteSatisfied } from '../src/prerequisites.js'
 
 // ─── Fixtures ────────────────────────────────────────────────────────
 
@@ -171,6 +176,36 @@ describe('incomingAttacksWithin', () => {
     const alert = { leadSec: 100, revealAttack: false }
     expect(incomingAttacksWithin(attacker, 0, alert)).toEqual([soon, later])
     expect(attacker.pendingAttacks).toHaveLength(2)
+  })
+})
+
+// ─── Idler authoring ─────────────────────────────────────────────────
+
+describe('idler early-warning nodes', () => {
+  const idler = getModeDefinition('idler')
+  const byId = new Map(idler.upgrades.map((u) => [u.id, u]))
+
+  it('locks d-alert behind being hit once', () => {
+    expect(byId.get('d-alert')?.prerequisites).toEqual({
+      type: 'meta',
+      key: 'attacksSuffered',
+      min: 1,
+    })
+    const fresh = createInitialState(idler)
+    expect(isPrerequisiteSatisfied(byId.get('d-alert')!.prerequisites, fresh)).toBe(false)
+    fresh.meta.attacksSuffered = 1
+    expect(isPrerequisiteSatisfied(byId.get('d-alert')!.prerequisites, fresh)).toBe(true)
+  })
+
+  it('grants a 5s lead, +1s per d-as level up to five, and a reveal from d-aa', () => {
+    expect(byId.get('d-as')?.purchaseLimit).toBe(5)
+    const state = createInitialState(idler)
+    expect(collectAttackAlert(state, idler)).toBe(NO_ATTACK_ALERT)
+    state.upgrades['d-alert'] = 1
+    expect(collectAttackAlert(state, idler)).toEqual({ leadSec: 5, revealAttack: false })
+    state.upgrades['d-as'] = 5
+    state.upgrades['d-aa'] = 1
+    expect(collectAttackAlert(state, idler)).toEqual({ leadSec: 10, revealAttack: true })
   })
 })
 
