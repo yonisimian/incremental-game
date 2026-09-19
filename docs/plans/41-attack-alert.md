@@ -1,6 +1,46 @@
 # 41 — Attack alert: an early warning before an enemy strike lands
 
-## Status: Draft
+## Status: Implemented (branch `feat/9-attack-alert`)
+
+### As built — departures from the text below
+
+- **The balance note was resolved first, as data.** A preceding commit
+  staggered the active attacks' prepare times — Steal Wood 6s, Poach Sawmill
+  8s, Numb Hands 8s, Steal Woodcutters 10s, Embargo 10s, Termite Swarm 15s
+  (Steal Ale and Fog of War stay at 3s as the cheap, untelegraphed options) —
+  so the 5s base lead is a real telegraph and every `d-as` level buys
+  something. Open question 1 resolved: **`d-as` has five levels** (a 10s
+  maximum lead).
+- **The bot raids from surplus, not from a reserve.** §8's "leave the plan
+  target affordable" rule collapses in practice: while a plan step is
+  unaffordable the reserve always exceeds the wallet, and once it is
+  affordable it is bought the same tick. So the bot fires only **once its plan
+  is exhausted**, from whatever is left after that tick's buys. To make "left
+  after this tick's buys" true, one wallet is now threaded through `decide` —
+  plan buy, generator buys, then the raid — so the bot never emits two actions
+  that are each affordable but not together.
+- **Toast copy** reads `⚠️ Incoming attack in 4.0s` / `⚠️ 🪓 Steal Wood in
+4.0s` (`toFixed(1)`, matching the panel countdowns, not `formatDecimal`); the
+  espionage line reads `⚠️ Enemy attack lands in 4.0s.`
+- **The badge lives in its own module**, `client/src/ui/attack-alert.ts`, with
+  `role="status"`, so it tests at the DOM tier without mocking the game. It
+  anchors on a change of the snapshot's `meta.gameSec` (a local click notifies
+  the UI but moves no clock, so it re-anchors nothing).
+- **The editor checkbox** reads and writes three shapes: a bare gate, `all` of
+  `[upgrades…, gate]`, and `all` of `[any(upgrades…), gate]`; anything else
+  still falls through to the JSON textarea. Its `isHitByAttack` does not
+  compare the key, since the whitelist has one member and ESLint flags the
+  always-true comparison — the comment says where to add it back.
+- **The editor's picker** files `attackAlert` under a new "Defense" group
+  (the effect-groups test requires every registered effect to be grouped).
+- **Server tests** patch the idler with three throwaway alert nodes rather than
+  depend on the authored ones, so stage 4 was green before stage 7 existed.
+
+Full suite green: shared 837, server 172, client 505. `typecheck`, `lint`,
+`lint:css`, `lint:exports`, `format:check`, `check:balance` and
+`lint:instructions` all pass. Main client bundle 30.7 kB raw (budget 60/80).
+
+---
 
 Decisions taken (2026-09-19):
 
@@ -490,8 +530,8 @@ mechanic is unreachable by a player until stage 7.
 
 ## Open questions
 
-1. **How many `d-as` levels?** The plan authors 5 (a 10-second maximum lead).
-   Pick any number; it is one field.
+1. **How many `d-as` levels?** _Resolved: five_ (a 10-second maximum lead).
+   Still one field to change.
 2. **Should the toast fire at all when the badge is always visible?** Kept — the
    badge is small and the toast is what pulls the eye off a panel. Drop it if it
    reads as double-announcing.
