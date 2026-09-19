@@ -854,8 +854,13 @@ describe('attacks', () => {
     value: 0.5,
   }
 
-  it('surfaces no duration on the seed attacks — none opens a window yet', () => {
-    for (const row of listAttacks(idler())) expect(row.durationSec).toBeNull()
+  it('surfaces a duration only on the attacks that author a window', () => {
+    const rows = listAttacks(idler())
+    // The seed steal opens no window; the tree's duration attacks report theirs.
+    expect(rows.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBeNull()
+    expect(rows.find((a) => a.id === 'numb-hands')!.durationSec).toBe(15)
+    expect(rows.find((a) => a.id === 'fog-of-war')!.durationSec).toBe(8)
+    expect(rows.find((a) => a.id === 'termite-swarm')!.durationSec).toBe(67)
   })
 
   it('setAttackDuration turns a steal into a raid the runtime accepts', () => {

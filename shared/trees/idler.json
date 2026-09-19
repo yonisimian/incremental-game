@@ -232,6 +232,66 @@
           "scalingFactor": 20
         }
       ]
+    },
+    {
+      "id": "numb-hands",
+      "kind": "active",
+      "prepareCost": {
+        "r1": {
+          "baseCost": 50
+        }
+      },
+      "prepareTimeSec": 3,
+      "durationSec": 15,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 0.05
+        }
+      ]
+    },
+    {
+      "id": "fog-of-war",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 400
+        }
+      },
+      "prepareTimeSec": 3,
+      "durationSec": 8,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "highlightFactor",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "termite-swarm",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 800
+        },
+        "r1": {
+          "baseCost": 40
+        }
+      },
+      "prepareTimeSec": 5,
+      "durationSec": 67,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "r0",
+          "value": 0.78
+        }
+      ]
     }
   ],
   "pacts": [
@@ -727,6 +787,24 @@
           "name": "node-7",
           "icon": "❓",
           "description": ""
+        },
+        {
+          "id": "unlock-numb-hands",
+          "name": "✋ Numb Hands",
+          "icon": "✋",
+          "description": "Unlock Numb Hands: a 15s click blackout."
+        },
+        {
+          "id": "unlock-fog-of-war",
+          "name": "🌫️ Fog of War",
+          "icon": "🌫️",
+          "description": "Unlock Fog of War: halve their highlight for 8s."
+        },
+        {
+          "id": "unlock-termite-swarm",
+          "name": "🐛 Termite Swarm",
+          "icon": "🐛",
+          "description": "Unlock Termite Swarm: −22% enemy Wood for 67s."
         }
       ],
       "generators": [
@@ -817,6 +895,24 @@
           "name": "a9",
           "icon": "💥",
           "description": ""
+        },
+        {
+          "id": "numb-hands",
+          "name": "Numb Hands",
+          "icon": "✋",
+          "description": "Enemy clicks earn 95% less for 15s."
+        },
+        {
+          "id": "fog-of-war",
+          "name": "Fog of War",
+          "icon": "🌫️",
+          "description": "Halves the enemy's highlight bonus for 8s."
+        },
+        {
+          "id": "termite-swarm",
+          "name": "Termite Swarm",
+          "icon": "🐛",
+          "description": "Enemy Wood production −22% for 67s."
         }
       ],
       "pacts": [
@@ -2310,6 +2406,63 @@
           "offset": {
             "x": -48,
             "y": 384
+          }
+        },
+        {
+          "id": "unlock-numb-hands",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "numb-hands"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 384
+          }
+        },
+        {
+          "id": "unlock-fog-of-war",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "fog-of-war"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 480
+          }
+        },
+        {
+          "id": "unlock-termite-swarm",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "termite-swarm"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 480
           }
         }
       ]
