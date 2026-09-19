@@ -1393,6 +1393,24 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
       )
+
+      // The hit is counted on the victim (for `meta` prerequisites), never the attacker.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
+      expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeUndefined()
+    })
+
+    it('counts every landed strike on the victim', () => {
+      const m = enterPlaying()
+      armAttacker(m)
+      m.grantResourcesForTest('p1', { r0: 10_000 })
+      m.grantResourcesForTest('p2', { r0: 1000 })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      m.handleMessage('p1', activateMsg('a0', 4))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(2)
     })
 
     it('tells both sides when a strike steals nothing', () => {
@@ -1416,6 +1434,8 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a5', direction: 'incoming', kind: 'none' }),
       )
+      // A miss is not a hit: the victim's counter stays unstamped.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBeUndefined()
     })
 
     // ── Duration attacks (plan 37) ─────────────────────────────────

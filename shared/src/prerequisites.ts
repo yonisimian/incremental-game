@@ -20,6 +20,12 @@ export const PREREQUISITE_META_KEYS = ['attacksSuffered'] as const
 export type PrerequisiteMetaKey = (typeof PREREQUISITE_META_KEYS)[number]
 
 /**
+ * The `meta` counter of enemy active strikes that have landed on this player.
+ * Named here so the server's stamp and the tree's gate share one spelling.
+ */
+export const ATTACKS_SUFFERED_META_KEY: PrerequisiteMetaKey = 'attacksSuffered'
+
+/**
  * How each `meta` prerequisite reads in a "Requires …" label — the noun phrase
  * for `min: 1`; `formatPrerequisiteExpression` appends `×N` for a higher bar.
  */

@@ -35,6 +35,7 @@ import {
   ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
   applyHighlightSelection,
+  ATTACKS_SUFFERED_META_KEY,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -601,6 +602,12 @@ export class Match {
           })
           continue
         }
+        // The victim has now been *hit* — count it for the `meta` prerequisites
+        // that unlock defensive nodes (plan 41). A strike that moved nothing is
+        // deliberately not counted (it `continue`d above), nor is a passive
+        // attack, which never passes through here.
+        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
+          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         for (const result of moved) {
           // The same result, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.
