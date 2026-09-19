@@ -14,7 +14,12 @@ import { createInitialState, isAttackUnlocked, unlockedAttacks } from './modes/i
 import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
 import { ATTACK_STATS } from './effects/seed/attack-stat.js'
 import type { AttackStat } from './effects/seed/attack-stat.js'
-import type { AttackSlotsOutput, AttackStatOutput, EffectOutput } from './effects/types.js'
+import type {
+  AttackAlertOutput,
+  AttackSlotsOutput,
+  AttackStatOutput,
+  EffectOutput,
+} from './effects/types.js'
 import type { ModeDefinition } from './modes/types.js'
 import type {
   ActiveDebuff,
@@ -713,4 +718,76 @@ export function hasAttackSlotsFor(
     if (attackSlotsHeld(state, mode, kind) + ids.size > limit) return false
   }
   return true
+}
+
+// ─── Attack alert (plan 41) ──────────────────────────────────────────
+//
+// An early warning of enemy active strikes. Purely a *viewer-side* grant: the
+// server reads it for the victim and projects the attacker's pending strikes
+// due within the lead onto the victim's opponent view. Nothing here touches
+// the attacker's state or the strike itself.
+
+/** Whether an effect output is an attack-alert grant. */
+function isAttackAlertOutput(out: EffectOutput): out is AttackAlertOutput {
+  return 'kind' in out && out.kind === 'attackAlert'
+}
+
+/** A player's resolved early-warning grant (see {@link collectAttackAlert}). */
+export interface AttackAlert {
+  /** Total seconds of warning; `0` when no alert is owned. */
+  readonly leadSec: number
+  /** Whether the warning may name the incoming attack. */
+  readonly revealAttack: boolean
+}
+
+/** The alert a player with no `attackAlert` grant has — no warning at all. */
+export const NO_ATTACK_ALERT: AttackAlert = { leadSec: 0, revealAttack: false }
+
+/**
+ * Collect a player's early-warning grant from every owned `attackAlert`
+ * effect (plus the mode's own): the lead is the additive fold `attackLimit`
+ * applies to slots — `leadSec × owned` per grant — and the reveal is true if
+ * any owned grant says so. A reveal-only grant contributes no lead, and a lead
+ * of `0` means "no alert" however the reveal reads: there is nothing to reveal
+ * on.
+ */
+export function collectAttackAlert(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): AttackAlert {
+  let leadSec = 0
+  let revealAttack = false
+  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
+    for (const ref of refs ?? []) {
+      // Skip non-alert effects without running them, matching `collectAttackParams`.
+      if (ref.type !== 'attackAlert') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+        if (!isAttackAlertOutput(out)) continue
+        leadSec += out.leadSec * owned
+        if (out.revealAttack) revealAttack = true
+      }
+    }
+  }
+  collect(mode.effects, 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) collect(upgrade.effects, owned)
+  }
+  if (leadSec <= 0) return NO_ATTACK_ALERT
+  return { leadSec, revealAttack }
+}
+
+/**
+ * The opponent's pending strikes that fall inside `alert`'s lead at `gameSec`,
+ * in activation order — what the server shows the warned player. Pure. Empty
+ * when the alert grants no lead, so a caller never needs to test that first.
+ * Inclusive at exactly `leadSec` remaining, as `dueAttacks` is at zero.
+ */
+export function incomingAttacksWithin(
+  attacker: Readonly<PlayerState>,
+  gameSec: number,
+  alert: AttackAlert,
+): PendingAttack[] {
+  if (alert.leadSec <= 0) return []
+  return attacker.pendingAttacks.filter((p) => p.readyAtSec - gameSec <= alert.leadSec)
 }

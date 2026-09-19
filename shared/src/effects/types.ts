@@ -129,6 +129,24 @@ export interface AttackSlotsOutput {
 }
 
 /**
+ * Grants an early warning of enemy active strikes while the owning upgrade is
+ * held (or for the whole round when authored on the mode). Emitted by the
+ * `attackAlert` effect (plan 41).
+ *
+ * Consumed by `collectAttackAlert`, which sums `leadSec × owned` across every
+ * grant and ORs `revealAttack`; the server then projects the opponent's pending
+ * strikes due within that lead onto `OpponentView.incomingAttacks`. Carries no
+ * production weight, so the modifier pipeline ignores it.
+ */
+export interface AttackAlertOutput {
+  readonly kind: 'attackAlert'
+  /** Seconds of warning granted, per owned level (`0` for a reveal-only grant). */
+  readonly leadSec: number
+  /** Whether the warning may name the incoming attack. */
+  readonly revealAttack: boolean
+}
+
+/**
  * Marks a pact as unlocked while the owning upgrade is held. Consumed by
  * `isPactUnlocked` (a pact that no owned upgrade names is locked — unlike
  * panels, pacts are hidden by default); carries no production weight, so the
@@ -375,15 +393,15 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
  * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
- * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, or
- * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
- * TimeRetroactiveOutput}).
+ * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, an
+ * {@link AttackAlertOutput}, or one of the time-clock outputs
+ * ({@link TimeFactorBoostOutput}, {@link TimeRetroactiveOutput}).
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
  * `collectEnemyPurchaseLocks` / `resolveAttackStrike` / `collectAttackParams` /
- * `attackLimit` / `timeBonusFraction`); every consumer ignores the outputs it
- * doesn't own.
+ * `attackLimit` / `collectAttackAlert` / `timeBonusFraction`); every consumer
+ * ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -394,6 +412,7 @@ export type EffectOutput =
   | SystemUnlockOutput
   | AttackUnlockOutput
   | AttackSlotsOutput
+  | AttackAlertOutput
   | PactUnlockOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput

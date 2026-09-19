@@ -564,6 +564,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
       'attackSlots',
     ],
   },
+  { label: 'Defense', types: ['attackAlert'] },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

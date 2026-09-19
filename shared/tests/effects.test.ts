@@ -66,6 +66,7 @@ describe('effect registry', () => {
   it('lists registered effect types sorted', () => {
     expect(listEffectTypes()).toEqual([
       'accessEnemyData',
+      'attackAlert',
       'attackSlots',
       'attackStat',
       'balancedGenerators',
