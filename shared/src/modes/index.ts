@@ -3,12 +3,14 @@ import { computePassiveRates } from '../modifiers/pipeline.js'
 import type {
   AttackDefinition,
   AttackKind,
+  CostScope,
   EffectRef,
   EnemyCostFactor,
   GameMode,
   GeneratorDefinition,
   Goal,
   PlayerState,
+  PurchaseLock,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -38,7 +40,9 @@ import {
   isEffectAllowedOn,
   normalizeEffectOutputs,
   prepareEffect,
+  purchaseLockScopesFor,
 } from '../effects/index.js'
+import type { EnemyPurchaseLockParams } from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
@@ -80,7 +84,11 @@ const HOST_LABELS: Record<EffectHost, string> = {
 const DEBUFF_EFFECT_TYPES: ReadonlySet<string> = new Set([
   'enemyProductionModifier',
   'enemyCostModifier',
+  'enemyPurchaseLock',
 ])
+
+/** The debuff effect types as they read in an authoring error message. */
+const DEBUFF_EFFECT_NAMES = [...DEBUFF_EFFECT_TYPES].join(' / ')
 
 /**
  * Validate that a single flavor's display data covers exactly the mode's
@@ -281,6 +289,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (ref.stat === 'duration' && windowSec <= 0)
       throw new Error(
         `[${id}] ${where} attackStat moves 'duration' on attack '${target}', which opens no debuff window`,
+      )
+    // A purchase lock has no magnitude, so `power` has nothing to scale on an
+    // attack whose effects are all locks — `duration` is that attack's lever.
+    // An attack with *any* other effect keeps `power` legal, since a raid that
+    // steals and locks still has a steal to scale.
+    const effects = attack.effects ?? []
+    const lockOnly = effects.length > 0 && effects.every((e) => e.type === 'enemyPurchaseLock')
+    if (ref.stat === 'power' && lockOnly)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'power' on attack '${target}', whose only effects are purchase locks — a lock has no magnitude to scale (use 'duration')`,
       )
     // An offset at least as deep as the authored delay floors it to zero at a
     // single copy, so every later copy is bought and does nothing — the absolute
@@ -567,12 +585,31 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       // programmatically built mode, as the `prepareTimeSec < 0` check does.
       if (hasDebuff && attack.durationSec === undefined)
         throw new Error(
-          `[${id}] active attack '${attack.id}' carries a debuff effect (enemyProductionModifier / enemyCostModifier) but has no durationSec — on an active attack a debuff applies for a window, and without one it would never apply`,
+          `[${id}] active attack '${attack.id}' carries a debuff effect (${DEBUFF_EFFECT_NAMES}) but has no durationSec — on an active attack a debuff applies for a window, and without one it would never apply`,
         )
       if (!hasDebuff && attack.durationSec !== undefined)
         throw new Error(
-          `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only enemyProductionModifier / enemyCostModifier consume a window`,
+          `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only ${DEBUFF_EFFECT_NAMES} consume a window`,
         )
+      // Two locks on one attack whose scopes overlap: the collector dedupes
+      // them, so the second is authored dead weight — the same class of mistake
+      // as a window on an all-steal attack, and the editor should not let it
+      // stand. Judged by the authored `target`, as every check here is.
+      const lockedScopes = new Set<string>()
+      for (const ref of attack.effects ?? []) {
+        if (ref.type !== 'enemyPurchaseLock' || typeof ref.target !== 'string') continue
+        // An unknown target is the schema's to reject (`prepareEffect`, below).
+        if (!['upgrades', 'generators', 'purchases'].includes(ref.target)) continue
+        for (const scope of purchaseLockScopesFor(
+          ref.target as EnemyPurchaseLockParams['target'],
+        )) {
+          if (lockedScopes.has(scope))
+            throw new Error(
+              `[${id}] active attack '${attack.id}' carries two enemyPurchaseLock effects that both lock ${scope}s — one lock per scope is all the window can hold`,
+            )
+          lockedScopes.add(scope)
+        }
+      }
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
         throw new Error(
           `[${id}] active attack '${attack.id}' has a non-positive durationSec (a window no tick could gather)`,
@@ -1308,13 +1345,63 @@ function attacksInForce(attacker: Readonly<PlayerState>, mode: ModeDefinition): 
     const attack = attackById.get(attackId)
     if (attack?.kind === 'passive') inForce.push(attack)
   }
+  for (const { attack } of windowsInForce(attacker, mode)) inForce.push(attack)
+  return inForce
+}
+
+/**
+ * The window pass of {@link attacksInForce} on its own: every **active** attack
+ * with an open debuff window, paired with when that window closes, in the order
+ * the windows were opened. Split out so a collector that needs the expiry (the
+ * purchase lock's victim-side countdown) reads it from the same walk rather
+ * than re-deriving "which windows are open" on its own.
+ */
+function windowsInForce(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): { attack: AttackDefinition; expiresAtSec: number }[] {
+  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
   const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  const open: { attack: AttackDefinition; expiresAtSec: number }[] = []
   for (const window of attacker.activeDebuffs ?? []) {
     if (window.expiresAtSec <= gameSec) continue
     const attack = attackById.get(window.attack)
-    if (attack?.kind === 'active') inForce.push(attack)
+    if (attack?.kind === 'active') open.push({ attack, expiresAtSec: window.expiresAtSec })
   }
-  return inForce
+  return open
+}
+
+/**
+ * Collect the *purchase embargo* a player's attacks currently inflict on the
+ * **opponent** — the third `attacksInForce` consumer, beside
+ * {@link collectEnemyDebuffs} and {@link collectEnemyCostFactors}. Gathered
+ * from `attacker`'s open windows only: `enemyPurchaseLock` is active-only by
+ * host declaration, so the passive pass has nothing to contribute and is
+ * skipped rather than walked for nothing.
+ *
+ * One entry per scope, carrying the latest expiry among the windows locking
+ * it, so two overlapping locks read as one lock that lifts when the last
+ * closes. **No `power` scaling** — a lock has no magnitude. The result is
+ * stamped onto the victim's {@link PlayerState.incomingPurchaseLocks} by the
+ * server, which is where every purchase path reads it from.
+ */
+export function collectEnemyPurchaseLocks(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): PurchaseLock[] {
+  const untilByScope = new Map<CostScope, number>()
+  for (const { attack, expiresAtSec } of windowsInForce(attacker, mode)) {
+    for (const ref of attack.effects ?? []) {
+      for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
+        if (!('kind' in out) || out.kind !== 'enemyPurchaseLock') continue
+        for (const scope of out.scopes) {
+          const until = untilByScope.get(scope)
+          if (until === undefined || expiresAtSec > until) untilByScope.set(scope, expiresAtSec)
+        }
+      }
+    }
+  }
+  return [...untilByScope].map(([scope, untilSec]) => ({ scope, untilSec }))
 }
 
 /**

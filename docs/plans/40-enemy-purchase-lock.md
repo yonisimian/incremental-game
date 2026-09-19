@@ -1,6 +1,45 @@
 # 40 — Enemy purchase lock: a timed embargo on the victim's purchases
 
-## Status: Proposed
+## Status: Implemented (branch `feat/8-stop-buy-option`)
+
+### As built — departures from the text below
+
+- **Open question 1 resolved as (c), not (b).** `incomingPurchaseLocks` is a
+  `PurchaseLock[]` of `{ scope, untilSec }` — one entry per scope, carrying the
+  latest expiry among the windows locking it — rather than a scope list plus a
+  separate `untilSec`. Option (c)'s stated downside (changing a type every
+  consumer reads) does not apply to a brand-new field, and one field is simpler
+  to stamp, clone, and read than two. **Presence blocks; `untilSec` is display
+  only**, so a client whose clock has drifted still agrees with the server on
+  whether a buy goes through (`isPurchaseLocked` / `purchaseLockRemainingSec`
+  in `purchase-validation.ts`).
+- **Open question 2 resolved: yes.** A `power` attackStat aimed at an attack
+  whose effects are all locks is a boot error, mirroring plan 37's `duration`
+  rule; a raid that steals and locks keeps `power` legal.
+- **Open question 3 resolved: `purchases` stays**, and the overlap rule in §6
+  shipped (two locks on one attack whose scopes overlap throw at boot).
+- **The bot needed a guard, not just a note.** `advancePlan` increments its
+  plan index when it _emits_ a buy, so a lock would have made it skip the
+  planned upgrade for good. It now holds the step while `upgrade` is locked;
+  `buyGenerators` skips the tick while `generator` is.
+- **`attacksInForce` gained a sibling, `windowsInForce`**, returning each open
+  window with its expiry. The two existing collectors are untouched; the lock
+  collector reads the expiry from the same walk rather than re-deriving which
+  windows are open.
+- **Client copy.** Tree nodes get a `locked-by-attack` class (danger ring), the
+  detail popup says `Enemy attack — 🔒 Locked N.Ns`, generator buy buttons show
+  `🔒 Locked N.Ns` with Sell live, and the espionage panel's "Enemy Attacks"
+  section gains `🔒 You cannot buy upgrades [or generators] for N.Ns.` (one
+  sentence when both scopes lift together, one line each otherwise). No new
+  toast: the strike emits the existing `debuff` event.
+- **Validator messages derive from `DEBUFF_EFFECT_TYPES`** instead of naming
+  the two original effects, so a fourth member needs no message edit.
+
+Full suite green: shared 814, server 163, client 478. `typecheck`, `lint`,
+`lint:css`, `lint:exports`, `format:check` all pass. Nothing authored on the
+idler tree.
+
+---
 
 Fourth offensive lever, and the first that is a **boolean** rather than a
 number: while it is in force the opponent cannot buy upgrades, generators, or

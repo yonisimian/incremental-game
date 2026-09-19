@@ -189,6 +189,31 @@ describe('Bot', () => {
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
     })
 
+    // Plan 40: the plan advances on *emitting* a buy, so a buy the server would
+    // drop for an enemy purchase lock has to be held back, or the bot steps
+    // past the upgrade for good.
+    it('holds its plan step under an enemy purchase lock and buys once it lifts', () => {
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
+      const state = {
+        score: 0,
+        resources: { r0: 5, r1: 0 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { highlight: 'r0' as const, gameSec: 3 },
+        upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0 },
+        incomingPurchaseLocks: [{ scope: 'upgrade' as const, untilSec: 10 }],
+      }
+      // Affordable, but locked: no buy, and — the point — no plan advance.
+      for (let i = 0; i < 3; i++) {
+        expect(bot.decide(state).filter((a) => a.type === 'buy')).toHaveLength(0)
+      }
+
+      // The stamp clears (the server re-stamps before every bot turn); the
+      // held step is still the first plan target.
+      const { incomingPurchaseLocks: _lifted, ...unlocked } = state
+      expect(bot.decide(unlocked)).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
+    })
+
     it('keeps clicking the score resource after the plan is exhausted', () => {
       const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {

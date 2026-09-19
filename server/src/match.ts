@@ -12,6 +12,7 @@ import {
   collectModifiers,
   collectEnemyDebuffs,
   collectEnemyCostFactors,
+  collectEnemyPurchaseLocks,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -414,8 +415,9 @@ export class Match {
   // ─── Private: action processing ────────────────────────────────────
 
   /**
-   * Stamp each player's incoming cost inflation from the *other* player's
-   * unlocked passive attacks (see `collectEnemyCostFactors`).
+   * Stamp each player's incoming cost inflation and purchase locks from the
+   * *other* player's attacks in force (see `collectEnemyCostFactors` and
+   * `collectEnemyPurchaseLocks`).
    *
    * Every price path — server validation, the client's optimistic purchase, the
    * card the player reads — resolves the factors off `PlayerState`, so this is
@@ -423,16 +425,21 @@ export class Match {
    * judged or shown: before an action batch is validated (actions arrive on
    * message receipt, not on the tick, so a tick-only stamp could validate a
    * purchase against factors up to one tick stale), before the bot's actions,
-   * and before each broadcast.
+   * and before each broadcast. The lock rides the same stamp for the same
+   * reason: a buy must be judged against the windows open *now*.
    */
   private syncCostFactors(): void {
     for (let i = 0; i < this.players.length; i++) {
       const player = this.players[i]
-      const incoming = collectEnemyCostFactors(this.players[1 - i].state, this.modeDef)
+      const opponent = this.players[1 - i].state
+      const incoming = collectEnemyCostFactors(opponent, this.modeDef)
       // Absent rather than empty when nothing is inflicted: the field is optional
       // on the wire, and the common case should carry no payload.
       if (incoming.length > 0) player.state.incomingCostFactors = incoming
       else delete player.state.incomingCostFactors
+      const locks = collectEnemyPurchaseLocks(opponent, this.modeDef)
+      if (locks.length > 0) player.state.incomingPurchaseLocks = locks
+      else delete player.state.incomingPurchaseLocks
     }
   }
 

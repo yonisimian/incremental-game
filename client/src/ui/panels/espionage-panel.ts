@@ -2,6 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { formatTime } from '../helpers.js'
+import { purchaseLockRemainingSec } from '@game/shared'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -88,6 +89,24 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
 }
 
 /**
+ * One line for an enemy purchase lock in force (plan 40), naming what is
+ * embargoed and for how much longer. Both scopes locked with the same expiry
+ * collapse into one sentence; different expiries get one line each, since the
+ * countdowns differ.
+ */
+function describePurchaseLocks(state: Readonly<GameState>): string[] {
+  const upgrades = purchaseLockRemainingSec(state.player, 'upgrade')
+  const generators = purchaseLockRemainingSec(state.player, 'generator')
+  const span = (sec: number) => `${sec.toFixed(1)}s`
+  if (upgrades !== null && generators !== null && upgrades === generators)
+    return [`🔒 You cannot buy upgrades or generators for ${span(upgrades)}.`]
+  const lines: string[] = []
+  if (upgrades !== null) lines.push(`🔒 You cannot buy upgrades for ${span(upgrades)}.`)
+  if (generators !== null) lines.push(`🔒 You cannot buy generators for ${span(generators)}.`)
+  return lines
+}
+
+/**
  * Standing warning about the passive attacks the opponent holds against this
  * player — a weakened highlight factor, inflated prices, or both.
  *
@@ -111,6 +130,7 @@ function renderIncomingDebuffs(state: Readonly<GameState>, flavor: ModeFlavor): 
           `⚔️ Your ✨ highlight factor is reduced by ${formatPercentChange(factor)}% while the enemy holds this attack.`,
         ]
   lines.push(...describeCostInflation(state, flavor))
+  lines.push(...describePurchaseLocks(state))
   if (lines.length === 0) return ''
   const body = lines.map((line) => `<p class="espionage-warning">${line}</p>`).join('')
   return `

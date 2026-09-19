@@ -628,6 +628,72 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/carries effects but has no prepareCost/)
   })
 
+  // ── Purchase lock (plan 40): the third member of the debuff family ──
+
+  it('accepts a lock-only active attack that declares a duration', () => {
+    const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }] })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  // The trap the plan exists to step around: an effect outside the debuff
+  // family would be authorable with no window, land, and silently do nothing.
+  it('throws when a lock rides an active attack with no durationSec', () => {
+    const def = debuffAttackDef({
+      durationSec: undefined,
+      effects: [{ type: 'enemyPurchaseLock', target: 'upgrades' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/carries a debuff effect \(.*enemyPurchaseLock.*\) but has no durationSec/)
+  })
+
+  it('throws for two locks on one attack whose scopes overlap', () => {
+    for (const pair of [
+      ['upgrades', 'upgrades'],
+      ['upgrades', 'purchases'],
+      ['purchases', 'generators'],
+    ]) {
+      const def = debuffAttackDef({
+        effects: pair.map((target) => ({ type: 'enemyPurchaseLock', target })),
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(/two enemyPurchaseLock effects that both lock/)
+    }
+  })
+
+  it('accepts two locks on one attack whose scopes do not overlap', () => {
+    const def = debuffAttackDef({
+      effects: [
+        { type: 'enemyPurchaseLock', target: 'upgrades' },
+        { type: 'enemyPurchaseLock', target: 'generators' },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws for a lock on a passive attack (host declaration)', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'enemyPurchaseLock', target: 'upgrades' }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Embargo', icon: '🔒', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/enemyPurchaseLock/)
+  })
+
   it('throws when an enemyCostModifier names an unknown cost target', () => {
     const base = makeValidDef({
       attacks: [
@@ -919,6 +985,54 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).toThrow(/moves 'duration' on passive attack 'a0'/)
+  })
+
+  // Plan 40: a lock has no magnitude, so `power` has nothing to scale on an
+  // attack whose effects are all locks — `duration` is that attack's lever.
+  it('throws for a power stat aimed at a lock-only attack, and accepts one on a raid', () => {
+    const lockOnly: ModeDefinition['attacks'] = [
+      {
+        id: 'a0',
+        kind: 'active',
+        prepareCost: { r0: { baseCost: 10 } },
+        prepareTimeSec: 1,
+        durationSec: 10,
+        effects: [{ type: 'enemyPurchaseLock', target: 'upgrades' }],
+      },
+    ]
+    const power: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'power',
+      op: 'mult',
+      value: 2,
+    }
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(power, lockOnly))
+    }).toThrow(/moves 'power' on attack 'a0', whose only effects are purchase locks/)
+    // `duration` is the right lever, and stays legal.
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+          lockOnly,
+        ),
+      )
+    }).not.toThrow()
+    // A raid that steals *and* locks still has a steal to scale.
+    const raid: ModeDefinition['attacks'] = [
+      {
+        ...lockOnly[0],
+        effects: [
+          { type: 'stealResource', resource: 'r0', fraction: 0.1 },
+          { type: 'enemyPurchaseLock', target: 'upgrades' },
+        ],
+      },
+    ]
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(power, raid))
+    }).not.toThrow()
   })
 
   it('throws for a duration stat aimed at an active attack with no window', () => {

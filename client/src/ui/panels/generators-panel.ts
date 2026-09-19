@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { INFLATED_COST_MARKER } from '../helpers.js'
+import { INFLATED_COST_MARKER, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -52,6 +52,14 @@ export interface GeneratorCardNums {
    * quoting a price that can't be paid. Defaults to unlocked.
    */
   readonly locked?: boolean
+  /**
+   * An opponent's open attack window is barring every generator purchase
+   * (plan 40). The buy buttons show this label — `🔒 Locked N.Ns` — in place of
+   * the price, since a price the player cannot pay for a few seconds reads as
+   * a bug without the reason. Selling stays live: the lock is on spending.
+   * Absent when no lock is in force.
+   */
+  readonly attackLockLabel?: string
 }
 
 /**
@@ -68,14 +76,24 @@ export function renderGeneratorCardView(
 ): string {
   const { owned, nextCost, affordable, maxAffordable, bulkCost, sellRefund, canSell } = nums
   const locked = nums.locked === true
+  const attackLock = nums.attackLockLabel
   const marker = nums.inflated === true ? ` ${INFLATED_COST_MARKER}` : ''
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
   const costIcon = getResourceIcon(flavor, generatorCostCurrency(def))
   const inert = !affordable && !canSell // Dim when we can't buy and can't sell the card.
+  // The unlock lock wins over the attack lock: the former is the permanent
+  // reason, and a card that cannot be bought at all has nothing to count down.
+  const buyLabel = locked
+    ? '🔒 Locked'
+    : (attackLock ?? `Buy 1 — ${costIcon}${formatNumber(nextCost)}${marker}`)
+  const buyMaxLabel = locked
+    ? '🔒 Locked'
+    : (attackLock ??
+      `Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}`)
   return `
-    <article class="generator-card${inert ? ' too-expensive' : ''}" data-generator="${def.id}">
+    <article class="generator-card${inert ? ' too-expensive' : ''}${attackLock ? ' locked-by-attack' : ''}" data-generator="${def.id}">
       <div class="generator-summary">
         <span class="generator-icon">${getGeneratorIcon(flavor, def.id)}</span>
         <span class="generator-info">
@@ -86,14 +104,10 @@ export function renderGeneratorCardView(
       </div>
       <div class="generator-actions">
         <button class="generator-buy-btn" data-action="buy" ${!affordable ? 'disabled' : ''}>
-          ${locked ? '🔒 Locked' : `Buy 1 — ${costIcon}${formatNumber(nextCost)}${marker}`}
+          ${buyLabel}
         </button>
         <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
-          ${
-            locked
-              ? '🔒 Locked'
-              : `Buy ×${maxAffordable > 1 ? maxAffordable : 0} — ${costIcon}${maxAffordable > 1 ? formatNumber(bulkCost) : '—'}`
-          }
+          ${buyMaxLabel}
         </button>
       </div>
       <div class="generator-actions">
@@ -132,10 +146,12 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const owned = state.player.generators[def.id] ?? 0
       const unlocked = isGeneratorUnlocked(state.player, def, modeDef)
       const nextCost = getGeneratorCost(effectiveDef, owned)
-      const affordable = unlocked && canAffordGenerator(state.player, effectiveDef)
-      const maxAffordable = unlocked
-        ? getMaxAffordableGeneratorCount(state.player, effectiveDef)
-        : 0
+      // Buying is gated exactly as `generatorBlockReason` gates it: unlocked,
+      // no enemy purchase lock, then affordable.
+      const attackLocked = isPurchaseLockedByAttack(state, 'generator')
+      const buyable = unlocked && !attackLocked
+      const affordable = buyable && canAffordGenerator(state.player, effectiveDef)
+      const maxAffordable = buyable ? getMaxAffordableGeneratorCount(state.player, effectiveDef) : 0
       const bulkCost =
         maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
       // Refunds are priced at the player's own factors only (`'sell'`), so the
@@ -159,6 +175,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         inflated,
         locked: !unlocked,
+        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator') } : {}),
       })
     })
     .join('')

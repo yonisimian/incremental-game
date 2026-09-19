@@ -18,6 +18,7 @@ import {
   getUpgradeNextCost,
   isCostAffordable,
   isGeneratorUnlocked,
+  isPurchaseLocked,
   resolveGeneratorDef,
   upgradeCostFactors,
 } from '@game/shared'
@@ -226,6 +227,11 @@ export class IdlerBot implements BotStrategy {
   /** Buy the current plan target when affordable, advancing the plan. */
   private advancePlan(state: Readonly<PlayerState>, actions: BotAction[]): void {
     if (this.planIndex >= this.plan.length) return
+    // The plan advances on *emitting* a buy, not on it landing — so a buy the
+    // server drops for an enemy purchase lock would be skipped for good. Hold
+    // the step until the window closes (the stamp is refreshed before every
+    // bot turn, so this reads the windows open right now).
+    if (isPurchaseLocked(state, 'upgrade')) return
     const next = this.plan[this.planIndex]
     const def = this.upgradeMap.get(next.id)
     if (!def) return
@@ -246,6 +252,9 @@ export class IdlerBot implements BotStrategy {
    * afford; the server re-validates each buy regardless.
    */
   private buyGenerators(state: Readonly<PlayerState>, actions: BotAction[]): void {
+    // Stateless per tick, so a lock costs the bot nothing but the doomed
+    // actions it would otherwise emit; skip them.
+    if (isPurchaseLocked(state, 'generator')) return
     const unlocked = this.generators.filter((g) => isGeneratorUnlocked(state, g, this.modeDef))
     if (unlocked.length === 0) return
 

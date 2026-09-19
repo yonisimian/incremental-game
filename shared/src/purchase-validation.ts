@@ -20,15 +20,49 @@ import { getUpgradeNextCost, isCostAffordable, upgradeCostFactors } from './upgr
 import { canAffordGenerator, isGeneratorUnlocked, resolveGeneratorDef } from './generators.js'
 import { hasAttackSlotsFor } from './attacks.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { PlayerState, UpgradeDefinition } from './types.js'
+import type { CostScope, PlayerState, UpgradeDefinition } from './types.js'
 
-/** Why an upgrade purchase is disallowed. `unaffordable` is the only transient one. */
+/**
+ * Whether an opponent's open attack window currently bars this player from
+ * buying anything of `scope` (plan 40). Reads the server-stamped
+ * {@link PlayerState.incomingPurchaseLocks} by *presence* — not by comparing
+ * `untilSec` against the clock — so a client whose game clock has drifted a
+ * tick still agrees with the server on whether a buy goes through. The lock
+ * lifts when the next stamp omits the scope.
+ */
+export function isPurchaseLocked(state: Readonly<PlayerState>, scope: CostScope): boolean {
+  return state.incomingPurchaseLocks?.some((lock) => lock.scope === scope) ?? false
+}
+
+/**
+ * Seconds until the lock on `scope` lifts, or `null` when none is stamped —
+ * the victim-side countdown, the twin of `activeDebuffRemainingSec` on the
+ * attacker's side. Reads `meta.gameSec` off `state` as every attack-timing path
+ * does, and floors at `0` so a stamp the server has not refreshed yet never
+ * reads as a negative wait.
+ */
+export function purchaseLockRemainingSec(
+  state: Readonly<PlayerState>,
+  scope: CostScope,
+): number | null {
+  const lock = state.incomingPurchaseLocks?.find((l) => l.scope === scope)
+  if (!lock) return null
+  const gameSec = (state.meta.gameSec as number | undefined) ?? 0
+  return Math.max(0, lock.untilSec - gameSec)
+}
+
+/**
+ * Why an upgrade purchase is disallowed. `unaffordable` is the only reason
+ * income can fix; `locked-by-attack` is the only one *time* fixes (the window
+ * closes on its own); every other reason is permanent for the current state.
+ */
 export type PurchaseBlockReason =
   | 'unknown' // no such upgrade
   | 'maxed' // already at purchaseLimit
   | 'prerequisite' // prerequisites not satisfied
   | 'choice-group' // a mutually exclusive sibling was already taken
   | 'attack-slots' // would unlock more attacks of a kind than the player has slots for
+  | 'locked-by-attack' // an opponent's open attack window bars upgrade purchases
   | 'unaffordable' // valid target, cannot pay the next cost yet
 
 /**
@@ -57,6 +91,10 @@ export function purchaseBlockReason(
   // Permanent for the current state (only a slot upgrade can lift it), so it
   // sits with the permanent reasons, ahead of the transient `unaffordable`.
   if (!hasAttackSlotsFor(state, def, mode)) return 'attack-slots'
+  // After the structural reasons, before the transient one: a player who is
+  // locked *and* broke is told they are locked, since that is the thing no
+  // income of theirs can fix right now.
+  if (isPurchaseLocked(state, 'upgrade')) return 'locked-by-attack'
   const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, upgradeId))
   if (!isCostAffordable(state.resources, cost)) return 'unaffordable'
   return null
@@ -65,7 +103,8 @@ export function purchaseBlockReason(
 /**
  * Validate a purchase action. True if the player can afford the upgrade, hasn't
  * hit its purchase limit, satisfies its prerequisites, no mutually exclusive
- * sibling is already owned, and any attack it unlocks fits the player's slots.
+ * sibling is already owned, any attack it unlocks fits the player's slots, and
+ * no enemy purchase lock is in force.
  */
 export function isValidPurchase(
   state: PlayerState,
@@ -76,10 +115,15 @@ export function isValidPurchase(
   return purchaseBlockReason(state, upgradeId, upgradeMap, mode) === null
 }
 
-/** Why a generator purchase is disallowed. `unaffordable` is the only transient one. */
+/**
+ * Why a generator purchase is disallowed. `unaffordable` is the only reason
+ * income fixes and `locked-by-attack` the only one time fixes; the rest are
+ * permanent for the current state.
+ */
 export type GeneratorBlockReason =
   | 'unknown' // no such generator
   | 'locked' // not yet unlocked (no gating upgrade owned)
+  | 'locked-by-attack' // an opponent's open attack window bars generator purchases
   | 'unaffordable' // valid target, cannot pay the next copy yet
 
 /** The reason a generator cannot be purchased right now, or `null` if it can. */
@@ -91,13 +135,15 @@ export function generatorBlockReason(
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return 'unknown'
   if (!isGeneratorUnlocked(state, def, mode)) return 'locked'
+  if (isPurchaseLocked(state, 'generator')) return 'locked-by-attack'
   if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode))) return 'unaffordable'
   return null
 }
 
 /**
- * Validate a generator purchase. True if the generator exists, is unlocked, and
- * the player can afford the next (cost-adjusted) copy.
+ * Validate a generator purchase. True if the generator exists, is unlocked, no
+ * enemy purchase lock is in force, and the player can afford the next
+ * (cost-adjusted) copy.
  */
 export function isValidGeneratorPurchase(
   state: PlayerState,
@@ -107,7 +153,11 @@ export function isValidGeneratorPurchase(
   return generatorBlockReason(state, generatorId, mode) === null
 }
 
-/** Why a generator sale is disallowed. Both reasons are permanent. */
+/**
+ * Why a generator sale is disallowed. Both reasons are permanent. An enemy
+ * purchase lock is deliberately *not* one of them: the lock is on spending, and
+ * barring a sale would let an attack strand a victim who needs to liquidate.
+ */
 export type GeneratorSellBlockReason =
   | 'unknown' // no such generator
   | 'not-owned' // owns zero copies

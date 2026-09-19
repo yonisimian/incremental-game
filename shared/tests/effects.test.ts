@@ -17,6 +17,7 @@ import {
   isAttackUnlocked,
   isClickUnlocked,
   isDynamicEffect,
+  isEffectAllowedOn,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
   isPactUnlocked,
@@ -74,6 +75,7 @@ describe('effect registry', () => {
       'dominantGenerator',
       'enemyCostModifier',
       'enemyProductionModifier',
+      'enemyPurchaseLock',
       'generatorCost',
       'generatorUnlock',
       'highlightMultiplier',
@@ -530,6 +532,46 @@ describe('enemyCostModifier params', () => {
   // inert rather than emit an output naming nothing.
   it('is inert on an unparseable target', () => {
     expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
+  })
+})
+
+// ─── enemyPurchaseLock (plan 40) ─────────────────────────────────────
+
+describe('enemyPurchaseLock params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('maps each target to the scopes it bars', () => {
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrades' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      scopes: ['upgrade'],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generators' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      scopes: ['generator'],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'purchases' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      scopes: ['upgrade', 'generator'],
+    })
+  })
+
+  // A closed enum, unlike `enemyCostModifier`'s catalog string: there is no
+  // per-entity form, so anything else is a typo the schema itself can reject.
+  it('rejects any other target, including a per-entity one', () => {
+    for (const target of ['upgrade:u0', 'generator:g0', 'all', '']) {
+      expect(() => apply({ type: 'enemyPurchaseLock', target })).toThrow()
+    }
+    expect(() => apply({ type: 'enemyPurchaseLock' })).toThrow()
+  })
+
+  it('is authorable on an active attack only', () => {
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'activeAttack')).toBe(true)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'passiveAttack')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'mode')).toBe(false)
   })
 })
 

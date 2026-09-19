@@ -129,10 +129,13 @@ describe('effect hosts', () => {
   it('offers only offensive effects on attacks, steals on active ones only', () => {
     expect(typesFor('passiveAttack')).toEqual(['enemyCostModifier', 'enemyProductionModifier'])
     // The debuff pair rides both kinds: always-on on a passive attack, a timed
-    // window (`durationSec`) on an active one (plan 37).
+    // window (`durationSec`) on an active one (plan 37). The purchase lock
+    // (plan 40) is active-only — a permanent embargo is a loss condition, not a
+    // debuff — so it appears here and nowhere else.
     expect(typesFor('activeAttack')).toEqual([
       'enemyCostModifier',
       'enemyProductionModifier',
+      'enemyPurchaseLock',
       'stealGenerator',
       'stealResource',
     ])
