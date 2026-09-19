@@ -60,6 +60,9 @@ export function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null 
   if (prereq.type === 'upgrade') {
     return { mode: 'all', items: [{ id: prereq.id, minLevel: prereq.minLevel }] }
   }
+  // A `meta` gate (a server-stamped counter) is not an upgrade checklist —
+  // round-trip it through the JSON textarea.
+  if (prereq.type === 'meta') return null
   const flat = prereq.items.every((i) => i.type === 'upgrade')
   if (!flat) return null
   return {
