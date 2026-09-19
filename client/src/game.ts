@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type IncomingAttack,
   type ModeDefinition,
   type Modifier,
   type OpponentView,
@@ -115,6 +116,14 @@ export interface GameState {
    * debuffed income the server actually applies. Reset at the start of each match.
    */
   debuffs: Modifier[]
+  /**
+   * Enemy strikes due to land on this player within their `attackAlert` lead
+   * (plan 41). *Replaced* from each `STATE_UPDATE` (it is state, not a delta —
+   * empty when the snapshot carries none), so an entry vanishes the broadcast
+   * after its strike lands. The header badge and the espionage panel count
+   * down against `player.meta.gameSec`. Reset at the start of each match.
+   */
+  incomingAttacks: IncomingAttack[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -195,6 +204,7 @@ const state: GameState = {
   opponent: emptyOpponentView(),
   opponentPurchaseFeed: [],
   debuffs: [],
+  incomingAttacks: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -630,6 +640,7 @@ export function resetForMatch(): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -676,6 +687,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -710,6 +722,13 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
   state.debuffs = msg.debuffs ?? []
+  // The alert list is state, not a delta: replace it, and toast only the
+  // strikes that were not already in view (the same strike is rebroadcast
+  // every 500ms until it lands).
+  const incoming = msg.opponent.incomingAttacks ?? []
+  const modeDefForAlerts = state.mode ? getModeDefinition(state.mode) : undefined
+  showIncomingAttackWarnings(state.incomingAttacks, incoming, msg.player, modeDefForAlerts)
+  state.incomingAttacks = incoming
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
@@ -909,6 +928,41 @@ function showAttackEvents(
       spawnToast(`${icon} ${name}: lost ${what}`, 'danger')
       shakeScreen('medium')
     }
+  }
+}
+
+/** A warning's identity across broadcasts: the strike's landing time plus what it names. */
+function incomingAttackKey(a: IncomingAttack): string {
+  return `${a.readyAtSec}:${a.attack ?? ''}`
+}
+
+/**
+ * Raise a `warning` toast for each enemy strike that has just come into view —
+ * present in `next` but not in `prev` — so a strike is announced once, not on
+ * every rebroadcast while it counts down. The remaining time is read against
+ * the *snapshot's* `meta.gameSec` (the same clock the attacker's card uses);
+ * the header badge keeps the live countdown. Named when the viewer's alert
+ * reveals the attack, otherwise a generic "Incoming attack".
+ */
+function showIncomingAttackWarnings(
+  prev: readonly IncomingAttack[],
+  next: readonly IncomingAttack[],
+  player: Readonly<PlayerState>,
+  modeDef: ModeDefinition | undefined,
+): void {
+  if (!modeDef || next.length === 0) return
+  const seen = new Set(prev.map(incomingAttackKey))
+  const gameSec = (player.meta.gameSec as number | undefined) ?? 0
+  const flavor = getModeFlavor(modeDef)
+  for (const a of next) {
+    if (seen.has(incomingAttackKey(a))) continue
+    // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
+    // toast reading "4s" beside them would look like a different clock.
+    const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
+    const what = a.attack
+      ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
+      : 'Incoming attack'
+    spawnToast(`⚠️ ${what} in ${inSec}s`, 'warning')
   }
 }
 
