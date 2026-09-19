@@ -30,14 +30,20 @@ One refinement to A3 while implementing: the budget check counts any slots the
 upgrade _itself_ grants, so a node that adds a slot and fills it in one purchase
 ("+1 active slot, unlock Raid") is legal at the cap.
 
-### Follow-up: `node-7` vs the passive cap
+### Idler slot upgrades
+
+Three free nodes under the attack-panel unlock (`a-unlock`) raise the base:
+`slot-active-1` (+1 active), `slot-passive` (+2 passive), and `slot-active-2`
+(+1 active, requires `slot-active-1`) — so the idler's ceiling is 5 active and 6
+passive.
+
+### Note: `node-7` vs the passive cap
 
 The idler's placeholder node `node-7` unlocks **five** passive attacks at once
 (`less-click-power`, `less-highlight-power`, `less-click-power-add`, `a8`, `a9`).
-With a passive base of 4 and no passive slot upgrades authored, it is unbuyable
-for the whole round (all-or-nothing, decision 6). Either raise the passive base to
-5, split the node, or author a passive slot upgrade — an authoring decision, left
-open here rather than changed silently.
+Under the base of 4 it is unbuyable (all-or-nothing, decision 6); with
+`slot-passive` owned it fits only while at most one other passive is held. If it
+is meant to be freely reachable, split it or raise the passive budget.
 
 Reads better after [36 — attack stat upgrades](36-attack-stat-upgrades.md), which
 is what gives a capped player something to spend on: a limit is only interesting

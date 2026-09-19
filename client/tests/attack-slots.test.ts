@@ -44,7 +44,18 @@ const ONE_ACTIVE: ModeDefinition = {
     { type: 'attackSlots', attackKind: 'passive', value: 4 },
   ],
 }
-const UNCAPPED: ModeDefinition = { ...base, effects: uncappedEffects }
+/**
+ * No `attackSlots` anywhere — a kind is capped once *any* grant names it, so the
+ * tree's slot upgrades have to go too, not just the mode-level base.
+ */
+const UNCAPPED: ModeDefinition = {
+  ...base,
+  effects: uncappedEffects,
+  upgrades: base.upgrades.map((u) => ({
+    ...u,
+    effects: u.effects?.filter((e) => e.type !== 'attackSlots'),
+  })),
+}
 
 /** The idler's free unlock node for `attack`. */
 function unlockOf(mode: ModeDefinition, attack: string): string {
