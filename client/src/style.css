@@ -648,6 +648,16 @@ body {
   white-space: nowrap;
 }
 
+.attack-alert-icon {
+  line-height: 1;
+}
+
+.attack-alert-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10em;
+}
+
 .attack-alert-time {
   min-width: 2.6em;
   text-align: right;
