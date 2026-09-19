@@ -519,6 +519,10 @@ export class Match {
         if (!isValidGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)
         this.recordPurchase(botPlayer, 'generator', action.generatorId)
+      } else if (action.type === 'activate_attack') {
+        // The same gate a human's activation passes — the bot gets no shortcut.
+        if (!isValidAttackActivation(botPlayer.state, action.attackId, this.modeDef)) continue
+        applyAttackActivation(botPlayer.state, action.attackId, this.modeDef)
       } else {
         // set_highlight — same validator as processActions, by construction now.
         applyHighlightSelection(botPlayer.state, this.modeDef, action.highlight)
