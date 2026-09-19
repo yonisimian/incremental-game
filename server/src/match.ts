@@ -36,6 +36,8 @@ import {
   isClickUnlocked,
   applyHighlightSelection,
   ATTACKS_SUFFERED_META_KEY,
+  collectAttackAlert,
+  incomingAttacksWithin,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -842,7 +844,36 @@ export class Match {
       this.projectPurchaseFeed(viewer, opponent, view)
     }
 
+    this.projectIncomingAttacks(viewer, opponent, view)
+
     return view
+  }
+
+  /**
+   * Warn `viewer` of the opponent's pending strikes due within the viewer's
+   * `attackAlert` lead (plan 41). Unlike the purchase feed this is *state*, not
+   * a delta: the full list of strikes inside the lead goes out every broadcast
+   * and the client replaces, never accumulates — so no watermark, no per-viewer
+   * bookkeeping. `readyAtSec` is on the attacker's clock, which advances in
+   * lockstep with the viewer's (one tick loop), so the viewer counts down
+   * against its own `meta.gameSec`. The attack id is included only with a
+   * reveal grant. Absent when empty, like every other optional view field.
+   */
+  private projectIncomingAttacks(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    view: OpponentView,
+  ): void {
+    const alert = collectAttackAlert(viewer.state, this.modeDef)
+    if (alert.leadSec <= 0) return
+    const gameSec = (opponent.state.meta.gameSec as number | undefined) ?? 0
+    const soon = incomingAttacksWithin(opponent.state, gameSec, alert)
+    if (soon.length === 0) return
+    view.incomingAttacks = soon.map((p) =>
+      alert.revealAttack
+        ? { readyAtSec: p.readyAtSec, attack: p.attack }
+        : { readyAtSec: p.readyAtSec },
+    )
   }
 
   /**
