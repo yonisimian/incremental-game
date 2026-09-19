@@ -106,7 +106,7 @@
           "baseCost": 1000
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 6,
       "effects": [
         {
           "type": "stealResource",
@@ -159,7 +159,7 @@
           "baseCost": 10
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 10,
       "effects": [
         {
           "type": "stealGenerator",
@@ -176,7 +176,7 @@
           "baseCost": 10
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 8,
       "effects": [
         {
           "type": "stealGenerator",
@@ -251,7 +251,7 @@
           "baseCost": 50
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 8,
       "durationSec": 15,
       "effects": [
         {
@@ -292,7 +292,7 @@
           "baseCost": 40
         }
       },
-      "prepareTimeSec": 5,
+      "prepareTimeSec": 15,
       "durationSec": 67,
       "effects": [
         {
@@ -314,7 +314,7 @@
           "baseCost": 30
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 10,
       "durationSec": 10,
       "effects": [
         {

@@ -1351,6 +1351,10 @@ describe('Match', () => {
       ),
     )!
 
+    /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
+    const prepareMs = (attackId: string): number =>
+      mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
@@ -1377,8 +1381,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
 
-      // Advance past the 3s preparation; the strike lands and drains the pending queue.
-      vi.advanceTimersByTime(3000)
+      // Advance past the preparation; the strike lands and drains the pending queue.
+      vi.advanceTimersByTime(prepareMs('a0'))
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
 
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
@@ -1400,7 +1404,7 @@ describe('Match', () => {
       // p2 owns no Sawmills (g2), so the poach can move nothing.
 
       m.handleMessage('p1', activateMsg('a5', 3))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + 3000)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a5'))
 
       // The attacker is told the strike landed but moved nothing.
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
