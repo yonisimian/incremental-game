@@ -555,7 +555,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
   },
   {
     label: 'Offense',
-    types: ['stealResource', 'stealGenerator', 'enemyCostModifier', 'attackStat'],
+    types: ['stealResource', 'stealGenerator', 'enemyCostModifier', 'attackStat', 'attackSlots'],
   },
   {
     label: 'Time clock',

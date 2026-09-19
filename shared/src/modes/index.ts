@@ -2,6 +2,7 @@ import type { Modifier } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
 import type {
   AttackDefinition,
+  AttackKind,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -295,6 +296,47 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref, 1)
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
+  }
+
+  // `attackSlots` (plan 38): a kind is capped once any grant names it, and the
+  // base budget is whatever the mode's own starting effects grant. Starting
+  // effects can also *unlock* attacks, each of which fills a slot — so a mode
+  // whose starting unlocks of a kind outnumber its base cap would open the round
+  // already over budget, in a state the purchase gate can never repair. Judged
+  // by ref fields, as every check here is: the validator sees refs, not outputs.
+  // A kind no grant names is uncapped and needs no check; capping one kind but
+  // not the other is legal.
+  const startingUnlocks = new Map<AttackKind, Set<string>>()
+  for (const ref of def.effects ?? []) {
+    if (ref.type !== 'unlockAttack' || typeof ref.attack !== 'string') continue
+    const attack = attacksById.get(ref.attack)
+    if (!attack) continue // an unknown attack fills no slot
+    let ids = startingUnlocks.get(attack.kind)
+    if (!ids) {
+      ids = new Set()
+      startingUnlocks.set(attack.kind, ids)
+    }
+    ids.add(ref.attack)
+  }
+  const cappedKinds = new Set<AttackKind>()
+  const baseSlots = new Map<AttackKind, number>()
+  const noteSlotGrant = (ref: EffectRef, fromMode: boolean): void => {
+    if (ref.type !== 'attackSlots') return
+    const kind = ref.attackKind
+    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
+    cappedKinds.add(kind)
+    if (fromMode && typeof ref.value === 'number')
+      baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
+  }
+  for (const ref of def.effects ?? []) noteSlotGrant(ref, true)
+  for (const u of def.upgrades) for (const ref of u.effects ?? []) noteSlotGrant(ref, false)
+  for (const kind of cappedKinds) {
+    const held = startingUnlocks.get(kind)?.size ?? 0
+    const base = baseSlots.get(kind) ?? 0
+    if (held > base)
+      throw new Error(
+        `[${id}] the mode's starting effects unlock ${held} ${kind} attack(s) but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
+      )
   }
 
   // `unlockPact` effects name a pact by id; validate against the mode's pacts

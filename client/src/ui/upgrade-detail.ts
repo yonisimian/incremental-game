@@ -12,7 +12,13 @@ import {
   formatPrerequisiteExpression,
   type UpgradeDefinition,
 } from '@game/shared'
-import { canAfford, formatUpgradeCost, isUnlocked, escapeAttr } from './helpers.js'
+import {
+  canAfford,
+  formatUpgradeCost,
+  isAttackSlotBlocked,
+  isUnlocked,
+  escapeAttr,
+} from './helpers.js'
 
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
@@ -51,16 +57,21 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const affordable = canAfford(state, u)
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
+  const slotBlocked = isAttackSlotBlocked(state, u)
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
   const levelLabel =
     u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0 ? `${owned}/${u.purchaseLimit}` : ''
 
+  // Without a stated reason a slot-blocked node looks affordable and does
+  // nothing on click, which reads as a bug — the same reasoning that marks an
+  // inflated price.
   let lockReason = ''
   if (!unlocked)
     lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
   else if (choiceBlocked) lockReason = 'Another choice in this group has already been selected'
+  else if (slotBlocked) lockReason = 'No attack slots left'
 
   const name = getUpgradeName(flavor, u.id)
   const icon = getUpgradeIcon(flavor, u.id)
@@ -74,7 +85,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
     levelLabel,
     description: getUpgradeDescription(flavor, u.id),
     lockReason,
-    buyable: unlocked && !choiceBlocked && affordable && !maxed,
+    buyable: unlocked && !choiceBlocked && !slotBlocked && affordable && !maxed,
   }
 }
 

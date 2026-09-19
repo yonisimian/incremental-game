@@ -3,6 +3,7 @@ import {
   getModeDefinition,
   getResourceIcon,
   getUpgradeName,
+  hasAttackSlotsFor,
   isChoiceGroupAvailable,
   isCostAffordable,
   isMaxed,
@@ -130,6 +131,17 @@ export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): bo
   return isPrerequisiteSatisfied(u.prerequisites, state.player)
 }
 
+/**
+ * Would buying this upgrade unlock more attacks of a kind than the player has
+ * slots for? The client-side face of `purchaseBlockReason`'s `'attack-slots'`
+ * rule (plan 38); false for an upgrade that unlocks nothing, or in an uncapped
+ * mode.
+ */
+export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+  if (!state.mode) return false
+  return !hasAttackSlotsFor(state.player, u, getModeDefinition(state.mode))
+}
+
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
 export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
   if (!state.mode) return false
@@ -137,6 +149,7 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
   return (
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
+    !isAttackSlotBlocked(state, u) &&
     canAfford(state, u)
   )
 }

@@ -43,6 +43,7 @@ import {
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
+  hasAttackSlotsFor,
   getModeFlavor,
   getAttackName,
   getAttackIcon,
@@ -493,6 +494,10 @@ export function doBuy(upgradeId: string): void {
 
   if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
 
+  // Mirrors the server's `purchaseBlockReason` rule: an unlock that would exceed
+  // the player's attack slots is refused, not predicted.
+  if (!hasAttackSlotsFor(state.player, def, modeDef)) return
+
   // Every currency in the cost map must be affordable, at the price the server
   // will charge — enemy cost inflation included.
   const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state.player, upgradeId))
@@ -725,6 +730,10 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           const owned = reconciled.upgrades[action.upgradeId] ?? 0
           if (isMaxed(def, owned)) break
           if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
+          // Replayed against the *server's* state, so a buy the server will
+          // refuse for want of a slot is dropped here rather than flickering
+          // back until the next snapshot.
+          if (!hasAttackSlotsFor(reconciled, def, modeDef)) break
           const cost = getUpgradeNextCost(
             def,
             owned,

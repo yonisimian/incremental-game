@@ -1,12 +1,43 @@
 # 38 — Attack limit: a budget on how many attacks you can hold
 
-## Status: Proposed — not implemented
+## Status: Implemented — design A (purchase gate)
 
 Third of the three attack-extension plans (36 → 37 → 38), and the most expensive
 of them. Two designs are written up below: a **purchase gate** (recommended,
 small) and an **equip system** (what "limit" usually means in an idle game, and
-roughly five times the work). The recommendation is to ship the purchase gate and
-only revisit the equip system if respec turns out to be the point.
+roughly five times the work). Design A shipped; B stays deferred until playtesting
+says swapping _during_ a round is the interesting decision.
+
+### Decisions taken (2026-09-19)
+
+Resolved against the open questions and the design's defaults before coding:
+
+| #   | Question                               | Decision                                                                                                                                                                                                                           |
+| --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Per-kind or pooled budget              | **Per kind** (`active` / `passive`), as specified.                                                                                                                                                                                 |
+| 2   | Must attack-unlock nodes be pure       | **No.** A node may carry an unlock and a production bonus; at the cap it is blocked whole. No boot rule.                                                                                                                           |
+| 3   | Is a limit of 0 representable          | **Yes, by omission.** A kind is capped once _any_ `attackSlots` effect in the mode names it (mode or upgrade). A mode granting slots only from an upgrade caps the kind at 0 until it is bought. `value` stays a positive integer. |
+| 4   | Slots vs plan-36 power nodes           | No decision now; a `/dev.html` balance question.                                                                                                                                                                                   |
+| 5   | Starting-effect attacks consume a slot | **Yes**, as written; the boot check below guards the authored base.                                                                                                                                                                |
+| 6   | Multi-attack upgrades                  | **All-or-nothing**, as written.                                                                                                                                                                                                    |
+| 7   | How validation reaches the mode        | **Added a `mode` parameter** to `purchaseBlockReason` _and_ its `isValidPurchase` wrapper (the server calls the wrapper).                                                                                                          |
+| 8   | No-`attackSlots` mode                  | **Uncapped** (`Infinity`).                                                                                                                                                                                                         |
+| 9   | Reconcile replay                       | **Also checks slots** — the fourth client parity site the original write-up missed.                                                                                                                                                |
+| 10  | Idler base cap                         | **Authored now**: 3 active, 4 passive, as `startingEffects`.                                                                                                                                                                       |
+| 11  | Slot-blocked node style                | **Reuses `locked`.**                                                                                                                                                                                                               |
+
+One refinement to A3 while implementing: the budget check counts any slots the
+upgrade _itself_ grants, so a node that adds a slot and fills it in one purchase
+("+1 active slot, unlock Raid") is legal at the cap.
+
+### Follow-up: `node-7` vs the passive cap
+
+The idler's placeholder node `node-7` unlocks **five** passive attacks at once
+(`less-click-power`, `less-highlight-power`, `less-click-power-add`, `a8`, `a9`).
+With a passive base of 4 and no passive slot upgrades authored, it is unbuyable
+for the whole round (all-or-nothing, decision 6). Either raise the passive base to
+5, split the node, or author a passive slot upgrade — an authoring decision, left
+open here rather than changed silently.
 
 Reads better after [36 — attack stat upgrades](36-attack-stat-upgrades.md), which
 is what gives a capped player something to spend on: a limit is only interesting

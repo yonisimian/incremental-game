@@ -4,6 +4,8 @@ import { doActivateAttack } from '../../game.js'
 import {
   activeDebuffRemainingSec,
   attackBlockReason,
+  attackLimit,
+  attackSlotsHeld,
   collectAttackParams,
   getAttackDescription,
   getAttackDurationSec,
@@ -19,6 +21,7 @@ import {
 import type {
   AttackBlockReason,
   AttackDefinition,
+  AttackKind,
   AttackParams,
   ModeDefinition,
   ModeFlavor,
@@ -177,10 +180,25 @@ function renderPassiveAttack(
   `
 }
 
-function renderSection(heading: string, items: string): string {
+/**
+ * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
+ * nothing when the mode never caps that kind (plan 38). Reads as a loadout
+ * rather than an inventory: the player can see how many commitments remain.
+ */
+function renderSlots(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  kind: AttackKind,
+): string {
+  const limit = attackLimit(state.player, modeDef, kind)
+  if (!Number.isFinite(limit)) return ''
+  return ` <span class="attack-slots">${attackSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+}
+
+function renderSection(heading: string, slots: string, items: string): string {
   return `
     <section class="attack-section">
-      <h3 class="attack-heading">${heading}</h3>
+      <h3 class="attack-heading">${heading}${slots}</h3>
       <ul class="attack-list">${items}</ul>
     </section>
   `
@@ -201,8 +219,8 @@ function renderAttack(state: Readonly<GameState>): string {
   const activeItems = active.map((id) => renderActiveAttack(state, flavor, modeDef, id)).join('')
   const passiveItems = passive.map((id) => renderPassiveAttack(state, flavor, modeDef, id)).join('')
   return `
-    ${active.length > 0 ? renderSection('Active', activeItems) : ''}
-    ${passive.length > 0 ? renderSection('Passive', passiveItems) : ''}
+    ${active.length > 0 ? renderSection('Active', renderSlots(state, modeDef, 'active'), activeItems) : ''}
+    ${passive.length > 0 ? renderSection('Passive', renderSlots(state, modeDef, 'passive'), passiveItems) : ''}
   `
 }
 

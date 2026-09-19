@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { CostScope, PlayerState } from '../types.js'
+import type { AttackKind, CostScope, PlayerState } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -106,6 +106,26 @@ export interface AttackUnlockOutput {
   readonly kind: 'attackUnlock'
   /** Stable attack id this upgrade reveals. */
   readonly attack: string
+}
+
+/**
+ * Grants attack slots — room to hold attacks of one kind — while the owning
+ * upgrade is held, or for the whole round when authored on the mode. Emitted by
+ * the `attackSlots` effect (plan 38).
+ *
+ * Consumed by `attackLimit`, which sums `value × owned` across every grant for
+ * the kind; `hasAttackSlotsFor` then refuses a purchase that would unlock more
+ * attacks of that kind than the budget allows (`purchaseBlockReason` →
+ * `'attack-slots'`). A kind no `attackSlots` output in the mode names is
+ * *uncapped* — the mechanic is opt-in per mode. Carries no production weight, so
+ * the modifier pipeline ignores it.
+ */
+export interface AttackSlotsOutput {
+  readonly kind: 'attackSlots'
+  /** Which kind of attack this budget covers. */
+  readonly attackKind: AttackKind
+  /** Slots granted, per owned level. */
+  readonly value: number
 }
 
 /**
@@ -329,14 +349,14 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
  * {@link EnemyCostOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
- * {@link AttackStatOutput}, or
+ * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, or
  * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
  * TimeRetroactiveOutput}).
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `resolveAttackStrike` / `collectAttackParams` / `timeBonusFraction`); every
- * consumer ignores the outputs it doesn't own.
+ * `resolveAttackStrike` / `collectAttackParams` / `attackLimit` /
+ * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -346,6 +366,7 @@ export type EffectOutput =
   | GeneratorUnlockOutput
   | SystemUnlockOutput
   | AttackUnlockOutput
+  | AttackSlotsOutput
   | PactUnlockOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput

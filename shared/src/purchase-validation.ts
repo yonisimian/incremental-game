@@ -18,6 +18,7 @@ import { isMaxed } from './modes/index.js'
 import { isPrerequisiteSatisfied } from './prerequisites.js'
 import { getUpgradeNextCost, isCostAffordable, upgradeCostFactors } from './upgrade-costs.js'
 import { canAffordGenerator, isGeneratorUnlocked, resolveGeneratorDef } from './generators.js'
+import { hasAttackSlotsFor } from './attacks.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { PlayerState, UpgradeDefinition } from './types.js'
 
@@ -27,17 +28,24 @@ export type PurchaseBlockReason =
   | 'maxed' // already at purchaseLimit
   | 'prerequisite' // prerequisites not satisfied
   | 'choice-group' // a mutually exclusive sibling was already taken
+  | 'attack-slots' // would unlock more attacks of a kind than the player has slots for
   | 'unaffordable' // valid target, cannot pay the next cost yet
 
 /**
  * The reason an upgrade cannot be purchased right now, or `null` if it can.
  * Checked in cheapest-permanent-first order so the returned reason is the most
  * fundamental one.
+ *
+ * `upgradeMap` is the mode's upgrade lookup, built once by the caller; `mode` is
+ * the definition it was built from, needed by the attack-slot rule (which reads
+ * the mode's attacks and slot grants). Both are passed rather than deriving one
+ * from the other so the hot server path keeps its prebuilt index.
  */
 export function purchaseBlockReason(
   state: PlayerState,
   upgradeId: string,
   upgradeMap: ReadonlyMap<string, UpgradeDefinition>,
+  mode: ModeDefinition,
 ): PurchaseBlockReason | null {
   const def = upgradeMap.get(upgradeId)
   if (!def) return 'unknown'
@@ -46,6 +54,9 @@ export function purchaseBlockReason(
   if (isMaxed(def, owned)) return 'maxed'
   if (!isPrerequisiteSatisfied(def.prerequisites, state)) return 'prerequisite'
   if (!isChoiceGroupAvailable(def, state, Array.from(upgradeMap.values()))) return 'choice-group'
+  // Permanent for the current state (only a slot upgrade can lift it), so it
+  // sits with the permanent reasons, ahead of the transient `unaffordable`.
+  if (!hasAttackSlotsFor(state, def, mode)) return 'attack-slots'
   const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, upgradeId))
   if (!isCostAffordable(state.resources, cost)) return 'unaffordable'
   return null
@@ -53,15 +64,16 @@ export function purchaseBlockReason(
 
 /**
  * Validate a purchase action. True if the player can afford the upgrade, hasn't
- * hit its purchase limit, satisfies its prerequisites, and no mutually exclusive
- * sibling is already owned.
+ * hit its purchase limit, satisfies its prerequisites, no mutually exclusive
+ * sibling is already owned, and any attack it unlocks fits the player's slots.
  */
 export function isValidPurchase(
   state: PlayerState,
   upgradeId: string,
   upgradeMap: ReadonlyMap<string, UpgradeDefinition>,
+  mode: ModeDefinition,
 ): boolean {
-  return purchaseBlockReason(state, upgradeId, upgradeMap) === null
+  return purchaseBlockReason(state, upgradeId, upgradeMap, mode) === null
 }
 
 /** Why a generator purchase is disallowed. `unaffordable` is the only transient one. */

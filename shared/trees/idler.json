@@ -27,6 +27,16 @@
       "stage": "additive",
       "field": "b1",
       "value": 1
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "active",
+      "value": 3
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "passive",
+      "value": 4
     }
   ],
   "generators": [

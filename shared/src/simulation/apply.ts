@@ -68,7 +68,7 @@ export function applySimAction(
       return { status: 'applied' }
     }
     case 'buy': {
-      const reason = purchaseBlockReason(state, action.upgradeId, upgradeMap)
+      const reason = purchaseBlockReason(state, action.upgradeId, upgradeMap, mode)
       if (reason === null) {
         applyPurchase(state, action.upgradeId, mode)
         return { status: 'applied' }
