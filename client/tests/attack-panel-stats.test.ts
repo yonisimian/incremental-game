@@ -204,3 +204,87 @@ describe('attackPanel — attackStat reporting', () => {
     expect(discounted).toContain('attack-cost')
   })
 })
+
+// ─── Debuff windows (plan 37) ────────────────────────────────────────
+
+describe('attackPanel — debuff window status', () => {
+  /** `makeState`, at `gameSec`, with a0's window open until `expiresAtSec`. */
+  function windowState(gameSec: number, expiresAtSec: number): GameState {
+    const state = makeState(a0Cost * 4)
+    state.player.meta.gameSec = gameSec
+    state.player.activeDebuffs = [{ attack: 'a0', expiresAtSec }]
+    return state
+  }
+
+  /** The a0 card alone, so a passive card's markup can't satisfy an assertion. */
+  const a0Card = (html: string): string => {
+    const start = html.indexOf('data-attack="a0"')
+    const end = html.indexOf('</li>', start)
+    return html.slice(start, end)
+  }
+
+  it('shows the remaining window and disables the button while it is open', () => {
+    const card = a0Card(renderHtml(windowState(10, 17.4)))
+    expect(card).toContain('Active for 7.4s')
+    expect(card).toContain('attack-status--active')
+    expect(card).toContain('attack-btn active')
+    expect(card).toContain('disabled')
+    // The window replaces the price, as the preparing countdown does.
+    expect(card).not.toContain('attack-cost')
+    expect(card).not.toContain('Not enough resources')
+  })
+
+  it('goes back to quoting the price once the window has closed', () => {
+    const card = a0Card(renderHtml(windowState(17.4, 17.4)))
+    expect(card).not.toContain('Active for')
+    expect(card).not.toContain('disabled')
+    expect(card).toContain('attack-cost')
+  })
+
+  it('lets the preparing countdown win over an open window from the same attack', () => {
+    // Can't happen in play (an open window blocks activation), but the order
+    // is part of the contract: a pending strike is the more urgent state.
+    const state = windowState(10, 17.4)
+    state.player.pendingAttacks.push({ attack: 'a0', readyAtSec: 12 })
+    const card = a0Card(renderHtml(state))
+    expect(card).toContain('Striking in 2.0s')
+    expect(card).not.toContain('Active for')
+  })
+
+  it('reports a stretched window as resolved seconds on the stat line', () => {
+    // a0 is a steal with no window, so the line stays off until the attack
+    // authors one — patch a duration in and hand the player a duration stat.
+    const patched = {
+      ...modeDef,
+      attacks: modeDef.attacks.map((a) =>
+        a.id === 'a0'
+          ? {
+              ...a,
+              durationSec: 10,
+              effects: [
+                ...(a.effects ?? []),
+                {
+                  type: 'enemyProductionModifier',
+                  stage: 'multiplicative',
+                  field: 'r0',
+                  value: 0.5,
+                },
+              ],
+            }
+          : a,
+      ),
+      upgrades: [
+        ...modeDef.upgrades,
+        statUpgrade('t-longer', { stat: 'duration', op: 'mult', value: 1.5 }),
+      ],
+    }
+    registerMode('idler', patched)
+    try {
+      expect(renderHtml(makeState(a0Cost))).not.toContain('Lasts ')
+      expect(renderHtml(makeState(a0Cost, { 't-longer': 1 }))).toContain('Lasts 15s')
+      expect(renderHtml(makeState(a0Cost, { 't-longer': 2 }))).toContain('Lasts 22.5s')
+    } finally {
+      registerMode('idler', modeDef)
+    }
+  })
+})

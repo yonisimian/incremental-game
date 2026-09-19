@@ -2,9 +2,11 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivateAttack } from '../../game.js'
 import {
+  activeDebuffRemainingSec,
   attackBlockReason,
   collectAttackParams,
   getAttackDescription,
+  getAttackDurationSec,
   getAttackIcon,
   getAttackName,
   getAttackPrepareCost,
@@ -61,7 +63,8 @@ function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackPar
  *
  * The delay is reported as **resolved seconds**, not as a factor: an `offset`
  * stat shifts it in seconds, which no multiplier can express, and the number a
- * player acts on is the wait itself.
+ * player acts on is the wait itself. The debuff window (`durationSec`) is
+ * reported the same way, for the same reason.
  *
  * Only `power` is shown for a **passive** attack. A passive attack is never
  * activated, so it has neither a prepare cost nor a prepare delay
@@ -76,6 +79,10 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
     const authored = def.prepareTimeSec ?? 0
     const resolved = getAttackPrepareTimeSec(def, params)
     if (resolved !== authored) parts.push(`Prep ${formatDecimal(resolved, 1)}s`)
+    if (def.durationSec !== undefined) {
+      const window = getAttackDurationSec(def, params)
+      if (window !== def.durationSec) parts.push(`Lasts ${formatDecimal(window, 1)}s`)
+    }
   }
   if (parts.length === 0) return ''
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
@@ -96,12 +103,18 @@ function blockLabel(reason: AttackBlockReason): string {
       return 'Not enough resources'
     case 'no-effects':
       return 'No effect yet'
+    // `already-active` (and `already-preparing`) are rendered as countdowns by
+    // the caller, which has the remaining seconds in hand.
     default:
       return ''
   }
 }
 
-/** One active-attack card: a clickable button showing cost, state, or countdown. */
+/**
+ * One active-attack card: a clickable button showing cost, state, or countdown.
+ * The status line has four states, checked in lifecycle order — preparing
+ * (strike pending), active (debuff window open), blocked, or the price.
+ */
 function renderActiveAttack(
   state: Readonly<GameState>,
   flavor: ModeFlavor,
@@ -114,16 +127,19 @@ function renderActiveAttack(
   const params = collectAttackParams(state.player, modeDef, id)
   const remaining = pendingRemaining(state, id)
   const preparing = remaining !== null
+  const activeFor = activeDebuffRemainingSec(state.player, id)
   const reason = attackBlockReason(state.player, id, modeDef)
   const disabled = preparing || reason !== null
   const status = preparing
     ? `<span class="attack-status attack-status--preparing">Striking in ${remaining.toFixed(1)}s</span>`
-    : reason
-      ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
-      : renderCost(flavor, def, params)
+    : activeFor !== null
+      ? `<span class="attack-status attack-status--active">Active for ${activeFor.toFixed(1)}s</span>`
+      : reason
+        ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
+        : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${preparing ? ' preparing' : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${preparing ? ' preparing' : activeFor !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}

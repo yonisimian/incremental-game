@@ -29,8 +29,14 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *    their highlight factor, whichever resource they hold (`multiplicative` is
  *    the only legal stage for this target).
  *
- * `collectEnemyDebuffs` gathers these and `resolveEnemyDebuffs` translates the
- * virtual target; the effect itself only describes the debuff.
+ * On an *active* attack the same modifier applies for the attack's
+ * `durationSec` after the strike lands — a debuff window, tracked on the
+ * attacker as `activeDebuffs`. Same vocabulary, an order of magnitude stronger
+ * values, paid for with a prepare cost and delay.
+ *
+ * `collectEnemyDebuffs` gathers these (from unlocked passive attacks and open
+ * windows alike) and `resolveEnemyDebuffs` translates the virtual target; the
+ * effect itself only describes the debuff.
  */
 const schema = z
   .strictObject({
@@ -46,9 +52,10 @@ export type EnemyProductionModifierParams = z.infer<typeof schema>
 /**
  * State-independent: echoes the authored modifier as an
  * {@link EnemyModifierOutput}. Whether it actually applies (the attack is an
- * unlocked passive one held by the *other* player) is decided by
- * `collectEnemyDebuffs`, which owns this output. Unlike `baseModifier` there is
- * no owned-count compounding — an attack is unlocked or it isn't.
+ * unlocked passive one held by the *other* player, or an active one whose
+ * window is open) is decided by `collectEnemyDebuffs`, which owns this output.
+ * Unlike `baseModifier` there is no owned-count compounding — an attack is
+ * unlocked or it isn't.
  */
 function apply(p: EnemyProductionModifierParams): EnemyModifierOutput {
   return { kind: 'enemyModifier', modifier: { stage: p.stage, field: p.field, value: p.value } }
@@ -58,6 +65,7 @@ export const enemyProductionModifier: EffectDef<EnemyProductionModifierParams> =
   schema,
   apply,
   // Only `collectEnemyDebuffs` reads this output, and it walks the *passive*
-  // attacks a player holds — anywhere else the debuff would never be gathered.
-  hosts: ['passiveAttack'],
+  // attacks a player holds plus the debuff windows their *active* attacks have
+  // opened — anywhere else the debuff would never be gathered.
+  hosts: ['passiveAttack', 'activeAttack'],
 }

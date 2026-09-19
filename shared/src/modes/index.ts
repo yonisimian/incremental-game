@@ -1,6 +1,7 @@
 import type { Modifier } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
 import type {
+  AttackDefinition,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -68,6 +69,17 @@ const HOST_LABELS: Record<EffectHost, string> = {
   passiveAttack: 'a passive attack',
   activeAttack: 'an active attack',
 }
+
+/**
+ * The effect types whose outputs the enemy-debuff collectors gather — and so
+ * the ones that, on an active attack, consume its `durationSec` window. The
+ * authoring-side twin of `isDebuffOutput` (which judges the *output*): the
+ * validator sees refs, not outputs, and must not run effects to judge them.
+ */
+const DEBUFF_EFFECT_TYPES: ReadonlySet<string> = new Set([
+  'enemyProductionModifier',
+  'enemyCostModifier',
+])
 
 /**
  * Validate that a single flavor's display data covers exactly the mode's
@@ -264,6 +276,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] ${where} attackStat moves 'prepareCost' on attack '${target}', which is free to activate`,
       )
+    const windowSec = attack.durationSec ?? 0
+    if (ref.stat === 'duration' && windowSec <= 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'duration' on attack '${target}', which opens no debuff window`,
+      )
     // An offset at least as deep as the authored delay floors it to zero at a
     // single copy, so every later copy is bought and does nothing — the absolute
     // twin of the `add` check above, and the reason that one needs no attack.
@@ -272,6 +289,8 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${delaySec}s delay to 0 at one copy, leaving every later copy inert`,
       )
+    // (`duration` is improved by *increasing* it, so its offset is positive by
+    // schema and can never floor the window — no twin check is needed.)
   }
   for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref, 1)
   for (const u of def.upgrades) {
@@ -469,11 +488,19 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   for (const attack of def.attacks) {
     const hasEffects = (attack.effects?.length ?? 0) > 0
     const hasCost = attack.prepareCost !== undefined && Object.keys(attack.prepareCost).length > 0
+    // The effects that consume a debuff window (`durationSec`) on an active
+    // attack. Judged by ref type rather than by running the effect, as the steal
+    // checks below do — the type is what the author wrote.
+    const hasDebuff = (attack.effects ?? []).some((ref) => DEBUFF_EFFECT_TYPES.has(ref.type))
 
     if (attack.kind === 'passive') {
       if (attack.prepareCost !== undefined || attack.prepareTimeSec !== undefined)
         throw new Error(
           `[${id}] passive attack '${attack.id}' declares prepareCost/prepareTimeSec, but passive attacks are always-on and never activated`,
+        )
+      if (attack.durationSec !== undefined)
+        throw new Error(
+          `[${id}] passive attack '${attack.id}' declares durationSec, but a passive attack is always-on — a window is meaningless`,
         )
     } else {
       // active
@@ -489,6 +516,25 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       }
       if (attack.prepareTimeSec !== undefined && attack.prepareTimeSec < 0)
         throw new Error(`[${id}] active attack '${attack.id}' has a negative prepareTimeSec`)
+      // A debuff window is consumed only by the debuff effects, and only they
+      // consume it: a debuff effect with no window would be gathered never (the
+      // attack would silently do nothing — the failure mode the host check
+      // exists to prevent), and a window on an all-steal attack is authored
+      // dead weight the countdown UI would show with nothing in it. The
+      // schema's `.positive()` covers the file path; this covers a
+      // programmatically built mode, as the `prepareTimeSec < 0` check does.
+      if (hasDebuff && attack.durationSec === undefined)
+        throw new Error(
+          `[${id}] active attack '${attack.id}' carries a debuff effect (enemyProductionModifier / enemyCostModifier) but has no durationSec — on an active attack a debuff applies for a window, and without one it would never apply`,
+        )
+      if (!hasDebuff && attack.durationSec !== undefined)
+        throw new Error(
+          `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only enemyProductionModifier / enemyCostModifier consume a window`,
+        )
+      if (attack.durationSec !== undefined && attack.durationSec <= 0)
+        throw new Error(
+          `[${id}] active attack '${attack.id}' has a non-positive durationSec (a window no tick could gather)`,
+        )
       for (const currency of Object.keys(attack.prepareCost ?? {})) {
         if (!resourceKeys.has(currency))
           throw new Error(
@@ -1157,14 +1203,15 @@ export function collectDynamicBonuses(
 }
 
 /**
- * Collect the *offensive* modifiers a player's unlocked passive attacks inflict
- * on the **opponent**. These are gathered from `attacker` but applied to the
- * other player's pipeline (merge them with the defender's own `collectModifiers`
+ * Collect the *offensive* modifiers a player's attacks currently inflict on the
+ * **opponent**. These are gathered from `attacker` but applied to the other
+ * player's pipeline (merge them with the defender's own `collectModifiers`
  * output before running `computePassiveRates` / `applyPassiveTick`).
  *
- * Only `passive` attacks contribute — an active attack's effects await a trigger
- * mechanism. Each attack's `enemyModifier`-emitting effects (e.g.
- * `enemyProductionModifier`) become raw {@link Modifier}s (no owned-count
+ * Two sources, walked by {@link attacksInForce}: every unlocked `passive`
+ * attack (always-on), and every `active` attack whose debuff window is open
+ * (see `resolveAttackStrike`). Each attack's `enemyModifier`-emitting effects
+ * (e.g. `enemyProductionModifier`) become raw {@link Modifier}s (no owned-count
  * compounding — an attack is unlocked or it isn't). The attacker's state is
  * passed to `applyEffect` so state-relative debuffs can read it; today's effects
  * are state-independent.
@@ -1183,11 +1230,8 @@ export function collectEnemyDebuffs(
   mode: ModeDefinition,
 ): Modifier[] {
   const debuffs: Modifier[] = []
-  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
-  for (const attackId of unlockedAttacks(attacker, mode)) {
-    const attack = attackById.get(attackId)
-    if (attack?.kind !== 'passive') continue
-    const { power } = collectAttackParams(attacker, mode, attackId)
+  for (const attack of attacksInForce(attacker, mode)) {
+    const { power } = collectAttackParams(attacker, mode, attack.id)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyModifier') continue
@@ -1200,12 +1244,44 @@ export function collectEnemyDebuffs(
 }
 
 /**
- * Collect the *offensive cost inflation* a player's unlocked passive attacks
- * inflict on the **opponent** — the cost-path twin of {@link
- * collectEnemyDebuffs}, gathered from `attacker` and applied to the other
- * player's prices.
+ * The attacks whose offensive effects `attacker` is inflicting right now, in a
+ * stable order: every unlocked **passive** attack (always-on), then every
+ * **active** attack with an open debuff window, in the order the windows were
+ * opened. The single walk both enemy-debuff collectors share, so "what is in
+ * force" can't be answered differently for production than for prices.
  *
- * Only `passive` attacks contribute, and each `enemyCost`-emitting effect
+ * The window pass deliberately skips the unlock re-check the passive pass makes:
+ * the strike already landed and was paid for, so whether the gating upgrade is
+ * still held is not a question the engine should be able to answer differently
+ * (unlocks are monotonic today, so this is future-proofing, not a behavior
+ * change). Expiry is judged here, at read time, against the attacker's own
+ * `meta.gameSec` — an expired window the server has not swept yet contributes
+ * nothing, which is what makes the sweep hygiene rather than correctness. A
+ * window naming an unknown attack is skipped.
+ */
+function attacksInForce(attacker: Readonly<PlayerState>, mode: ModeDefinition): AttackDefinition[] {
+  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
+  const inForce: AttackDefinition[] = []
+  for (const attackId of unlockedAttacks(attacker, mode)) {
+    const attack = attackById.get(attackId)
+    if (attack?.kind === 'passive') inForce.push(attack)
+  }
+  const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  for (const window of attacker.activeDebuffs ?? []) {
+    if (window.expiresAtSec <= gameSec) continue
+    const attack = attackById.get(window.attack)
+    if (attack?.kind === 'active') inForce.push(attack)
+  }
+  return inForce
+}
+
+/**
+ * Collect the *offensive cost inflation* a player's attacks currently inflict
+ * on the **opponent** — the cost-path twin of {@link collectEnemyDebuffs},
+ * gathered from `attacker` and applied to the other player's prices.
+ *
+ * The same two sources ({@link attacksInForce}: unlocked passive attacks and
+ * open active-attack windows), and each `enemyCost`-emitting effect
  * contributes once (no owned-count compounding — an attack is unlocked or it
  * isn't), with both factors scaled by the attacker's `power` through
  * {@link scaleCostFactor}: `1 + (f - 1) × power`, the growth portion again
@@ -1219,11 +1295,8 @@ export function collectEnemyCostFactors(
   mode: ModeDefinition,
 ): EnemyCostFactor[] {
   const factors: EnemyCostFactor[] = []
-  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
-  for (const attackId of unlockedAttacks(attacker, mode)) {
-    const attack = attackById.get(attackId)
-    if (attack?.kind !== 'passive') continue
-    const { power } = collectAttackParams(attacker, mode, attackId)
+  for (const attack of attacksInForce(attacker, mode)) {
+    const { power } = collectAttackParams(attacker, mode, attack.id)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyCost') continue

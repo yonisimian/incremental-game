@@ -91,17 +91,18 @@ const STEEPEN_EXPO: AttackDefinition = {
 }
 
 /**
- * The same inflation authored on an *active* attack. `validateModeDefinition`
- * rejects this placement (the effect declares `hosts: ['passiveAttack']`), so it
- * can never reach a real mode — it exists to pin the runtime guard in
- * `collectEnemyCostFactors`, which is what would otherwise let an active
- * attack's inflation apply for free, continuously, before it ever strikes.
+ * The same inflation authored on an *active* attack — a duration attack (plan
+ * 37): the inflation applies for `durationSec` after the strike lands, tracked
+ * as a window on the attacker. Merely *unlocking* it must inflict nothing; that
+ * is the runtime guard in `collectEnemyCostFactors` which would otherwise let an
+ * active attack's inflation apply for free, continuously, before it ever strikes.
  */
 const ACTIVE_TARIFF: AttackDefinition = {
   id: 'a-active',
   kind: 'active',
   prepareCost: { r0: { baseCost: 10 } },
   prepareTimeSec: 1,
+  durationSec: 10,
   effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 3 }],
 }
 
@@ -213,9 +214,44 @@ describe('collectEnemyCostFactors', () => {
     ])
   })
 
-  it('ignores an active attack carrying the effect', () => {
+  it('ignores an unlocked active attack whose window is not open', () => {
     const mode = makeMode()
     expect(collectEnemyCostFactors(attacker('a-active'), mode)).toEqual([])
+  })
+
+  it('gathers an active attack’s inflation while its window is open, and not after', () => {
+    const mode = makeMode()
+    // No gating upgrade owned: the strike already landed and was paid for, so
+    // the window pass makes no unlock re-check.
+    const state = makeState({
+      meta: { gameSec: 5 },
+      activeDebuffs: [{ attack: 'a-active', expiresAtSec: 15 }],
+    })
+    expect(collectEnemyCostFactors(state, mode)).toEqual([{ scope: 'upgrade', costFactor: 3 }])
+    state.meta.gameSec = 15
+    expect(collectEnemyCostFactors(state, mode)).toEqual([])
+  })
+
+  it('composes an open window with an unlocked passive attack', () => {
+    const mode = makeMode()
+    const state = attacker('a-upgrades')
+    state.meta.gameSec = 5
+    state.activeDebuffs = [{ attack: 'a-active', expiresAtSec: 15 }]
+    expect(collectEnemyCostFactors(state, mode)).toEqual([
+      { scope: 'upgrade', costFactor: 1.25 },
+      { scope: 'upgrade', costFactor: 3 },
+    ])
+  })
+
+  it('scales a window’s inflation by the attacker’s live power, as it does a passive one', () => {
+    const mode = makeMode()
+    const state = makeState({
+      upgrades: { 'u-power': 1 },
+      meta: { gameSec: 5 },
+      activeDebuffs: [{ attack: 'a-active', expiresAtSec: 15 }],
+    })
+    // 1 + (3 − 1) × 2
+    expect(collectEnemyCostFactors(state, mode)).toEqual([{ scope: 'upgrade', costFactor: 5 }])
   })
 
   it('gathers one entry per unlocked attack, uncompounded by owned count', () => {

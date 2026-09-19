@@ -77,7 +77,7 @@ import {
 } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
-import { formatNumber } from './ui/format-number.js'
+import { formatDecimal, formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -864,6 +864,20 @@ function showAttackEvents(
       }
       continue
     }
+    if (ev.kind === 'debuff') {
+      // A window opened. Outgoing: your debuff is in force (success). Incoming:
+      // your numbers are worse for a while (danger, with the shake) — the
+      // duration is stated here because the victim's debuff rows show *what*
+      // is hitting them but not for how much longer.
+      const span = `${formatDecimal(ev.durationSec, 1)}s`
+      if (ev.direction === 'outgoing') {
+        spawnToast(`${icon} ${name}: enemy debuffed for ${span}`, 'success')
+      } else {
+        spawnToast(`${icon} ${name}: debuffed for ${span}`, 'danger')
+        shakeScreen('medium')
+      }
+      continue
+    }
     // A resource theft reads as a quantity ("50 🪵"); a generator theft as a
     // count of copies ("×2 🪚 Sawmill"), since the loss is production, not stock.
     const what =
@@ -905,6 +919,9 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     // priced with the same inflation the server charged (entries are readonly,
     // so the shallow copy is enough).
     ...(s.incomingCostFactors ? { incomingCostFactors: [...s.incomingCostFactors] } : {}),
+    // Never predicted, only carried: the strike that opens a window lands
+    // server-side, so this arrives like any other reconciled field.
+    ...(s.activeDebuffs ? { activeDebuffs: [...s.activeDebuffs] } : {}),
     meta: structuredClone(s.meta),
   }
 }

@@ -839,10 +839,23 @@ describe('attackStat params', () => {
     ).toThrow()
   })
 
-  it('rejects a stat that has no consumer yet (duration awaits plan 37)', () => {
-    expect(() =>
+  it('accepts the duration stat, factor and offset alike (plan 37)', () => {
+    expect(
       applyEffect({ type: 'attackStat', stat: 'duration', op: 'mult', value: 2 }, state, mode),
-    ).toThrow()
+    ).toEqual({ kind: 'attackStat', attack: undefined, stat: 'duration', op: 'mult', value: 2 })
+    expect(
+      applyEffect({ type: 'attackStat', stat: 'duration', op: 'offset', value: 3 }, state, mode),
+    ).toEqual({ kind: 'attackStat', attack: undefined, stat: 'duration', op: 'offset', value: 3 })
+  })
+
+  it('rejects a duration stat pointing the wrong way — a shorter window helps nobody', () => {
+    for (const ref of [
+      { stat: 'duration', op: 'mult', value: 0.5 },
+      { stat: 'duration', op: 'add', value: -0.2 },
+      { stat: 'duration', op: 'offset', value: -1 },
+    ]) {
+      expect(() => applyEffect({ type: 'attackStat', ...ref }, state, mode)).toThrow(/duration/u)
+    }
   })
 
   it('rejects an unknown op', () => {

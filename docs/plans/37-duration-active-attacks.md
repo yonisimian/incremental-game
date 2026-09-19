@@ -1,11 +1,42 @@
 # 37 — Duration active attacks: a debuff window instead of a one-shot theft
 
-## Status: Proposed — not implemented
+## Status: Implemented (branch `feat/6-duration-active-attacks`)
 
 Second of the three attack-extension plans (36 → 37 → 38). Independent of
 [36 — attack stat upgrades](36-attack-stat-upgrades.md) mechanically, but the two
-are designed to meet: `duration` is already in `ATTACK_STATS` there, and a window
-whose length is upgradeable is the balancing lever this plan needs.
+are designed to meet: a window whose length is upgradeable is the balancing
+lever this plan needs.
+
+### As built — departures from the text below
+
+- **The `duration` attack stat landed here, not in 36.** Plan 36 shipped
+  without it (it had no consumer). It is now in `ATTACK_STATS`, active-only,
+  `increase`-direction, `offset`-capable (seconds), floored at `0`, and consumed
+  by `getAttackDurationSec` when the strike opens the window — the twin of
+  `getAttackPrepareTimeSec`. `AttackParams` grew `duration` and
+  `durationOffsetSec`. A `duration` stat aimed at an attack with no
+  `durationSec` is rejected at boot, like `prepareTime` on a delay-less attack.
+- **Power is read live, not frozen.** Plan 36 made both collectors scale a
+  passive attack's values by the attacker's current `power`; the window pass does
+  the same, so a window and a passive attack are scaled identically. Only the
+  window's _length_ is frozen at the strike.
+- **One shared walk.** Both collectors iterate `attacksInForce(attacker, mode)`
+  — unlocked passive attacks, then open windows — rather than each carrying its
+  own second pass, so "what is in force" cannot diverge between production and
+  prices.
+- **The editor needed a field after all.** The effect picker followed the host
+  declaration for free, but the attack row hard-codes its fields, so `/dev.html`
+  gained a "Debuff duration /s" input (`setAttackDuration`), cleared on a switch
+  to passive alongside the prepare data, and the stat preview resolves
+  `duration` against it.
+- **Sweep placement.** The expiry sweep runs at the top of `resolveDueAttacks`,
+  before that tick's strikes land, and drops the field entirely (absent, not
+  empty) when the last window closes. `endRound` clears it with `pendingAttacks`.
+- **Toast copy.** Outgoing "`⚔️ Name: enemy debuffed for 12s`", incoming
+  "`⚔️ Name: debuffed for 12s`" with the medium shake.
+
+Open question 1 (victim-side countdown) shipped as proposed: without it. Open
+question 2 is now a test (a window survives a pause). Deferred items stand.
 
 ---
 

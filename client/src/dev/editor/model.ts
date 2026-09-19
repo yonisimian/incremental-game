@@ -886,6 +886,13 @@ export interface AttackRow {
   readonly prepareCost: readonly AttackCostRow[]
   /** Seconds between activation and the strike landing (0 when unset). */
   readonly prepareTimeSec: number
+  /**
+   * Seconds the strike's debuff effects stay in force, or `null` when unset —
+   * distinct from `prepareTimeSec`'s `0` default because the validator treats
+   * absence and zero differently here (absent is legal on an all-steal attack;
+   * zero never is).
+   */
+  readonly durationSec: number | null
 }
 
 /** The next free `aN` attack id. */
@@ -912,6 +919,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
         baseCost: entry.baseCost,
       })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
+      durationSec: a.durationSec ?? null,
     }
   })
 }
@@ -988,6 +996,7 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
   if (kind === 'passive') {
     delete attack.prepareCost
     delete attack.prepareTimeSec
+    delete attack.durationSec
   }
 }
 
@@ -1000,6 +1009,21 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
   attack.prepareTimeSec = timeSec
+}
+
+/**
+ * Set how long attack `id`'s debuff effects stay in force after the strike, in
+ * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
+ * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
+ * the boot-time validator rejects a window on a passive attack, on an all-steal
+ * attack, and a non-positive one — so a non-positive value is written as
+ * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ */
+export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  else attack.durationSec = durationSec
 }
 
 /**

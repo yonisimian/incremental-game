@@ -17,6 +17,7 @@ import type { AttackStat } from './effects/seed/attack-stat.js'
 import type { AttackStatOutput, EffectOutput } from './effects/types.js'
 import type { ModeDefinition } from './modes/types.js'
 import type {
+  ActiveDebuff,
   AttackDefinition,
   AttackKind,
   EffectRef,
@@ -57,6 +58,14 @@ export interface AttackParams {
    * it knows the attack's authored delay.
    */
   readonly prepareTimeOffsetSec: number
+  /** Scales `durationSec`, how long the strike's debuff window stays open. */
+  readonly duration: number
+  /**
+   * Seconds shifted onto the *scaled* window — `duration`'s absolute
+   * counterpart, as `prepareTimeOffsetSec` is to `prepareTime`.
+   * {@link getAttackDurationSec} owns the floor at zero.
+   */
+  readonly durationOffsetSec: number
 }
 
 /**
@@ -70,15 +79,17 @@ export const NEUTRAL_ATTACK_PARAMS: AttackParams = {
   prepareCost: 1,
   prepareTime: 1,
   prepareTimeOffsetSec: 0,
+  duration: 1,
+  durationOffsetSec: 0,
 }
 
 /**
  * The stats only an *active* attack can use. A passive attack is always-on and
  * never activated — `validateModeDefinition` forbids it from declaring a
- * `prepareCost` or `prepareTimeSec` at all — so a stat moving either would be
- * authored dead weight.
+ * `prepareCost`, `prepareTimeSec` or `durationSec` at all — so a stat moving any
+ * of them would be authored dead weight.
  */
-const ACTIVE_ONLY_ATTACK_STATS: readonly AttackStat[] = ['prepareCost', 'prepareTime']
+const ACTIVE_ONLY_ATTACK_STATS: readonly AttackStat[] = ['prepareCost', 'prepareTime', 'duration']
 
 /**
  * The `attackStat` stats that mean something on an attack of `kind`.
@@ -100,11 +111,14 @@ export function attackStatsFor(kind: AttackKind): readonly AttackStat[] {
  * - `power` — a negative magnitude would make a steal a *gift*.
  * - `prepareCost` — free is the floor; negative would credit the attacker.
  * - `prepareTime` — `0` already means "strike on the next tick".
+ * - `duration` — a window of no length is gathered by no tick; negative would
+ *   stamp an `expiresAtSec` in the past, which reads the same.
  */
 const ATTACK_PARAM_FLOORS: Record<AttackStat, number> = {
   power: 0,
   prepareCost: 0,
   prepareTime: 0,
+  duration: 0,
 }
 
 /**
@@ -214,15 +228,21 @@ export function collectAttackParams(
     // Neutral base of 1: these are multipliers on the authored values.
     resolved[stat] = clampAttackParam(stat, (1 + adds[stat]) * mults[stat])
   }
-  // The offset is in seconds, not a multiplier, so it is bounded on both sides
-  // and its corrupted reading is `0` (shift nothing) rather than `1`.
-  const offsetSec = offsets.prepareTime
   return {
     ...resolved,
-    prepareTimeOffsetSec: Number.isNaN(offsetSec)
-      ? 0
-      : Math.min(MAX_ATTACK_PARAM, Math.max(-MAX_ATTACK_PARAM, offsetSec)),
+    prepareTimeOffsetSec: clampOffsetSec(offsets.prepareTime),
+    durationOffsetSec: clampOffsetSec(offsets.duration),
   }
+}
+
+/**
+ * Bound a collected `offset` total. It is in seconds, not a multiplier, so it is
+ * bounded on both sides and its corrupted reading is `0` (shift nothing) rather
+ * than `1`.
+ */
+function clampOffsetSec(offsetSec: number): number {
+  if (Number.isNaN(offsetSec)) return 0
+  return Math.min(MAX_ATTACK_PARAM, Math.max(-MAX_ATTACK_PARAM, offsetSec))
 }
 
 /**
@@ -242,6 +262,42 @@ export function getAttackPrepareTimeSec(def: AttackDefinition, params: AttackPar
 }
 
 /**
+ * How long the strike's debuff window stays open, in game seconds, with the
+ * attacker's stats applied — {@link getAttackPrepareTimeSec}'s twin: the
+ * authored `durationSec` **scaled** by `duration`, then **shifted** by
+ * `durationOffsetSec`, floored at `0`. An attack with no `durationSec` opens no
+ * window, whatever its stats say — `0` here, and `resolveAttackStrike` never
+ * pushes a zero-length window.
+ */
+export function getAttackDurationSec(def: AttackDefinition, params: AttackParams): number {
+  if (def.durationSec === undefined) return 0
+  const scaled = def.durationSec * params.duration
+  return Math.max(0, scaled + params.durationOffsetSec)
+}
+
+/**
+ * Seconds left on the debuff window `attackId` is currently inflicting, or
+ * `null` when none is open — the window twin of the panel's `pendingRemaining`.
+ * Reads `meta.gameSec` off `state` as every other attack-timing path does.
+ *
+ * Expired entries the server has not swept yet read as `null`, so a caller
+ * never needs to know about the sweep.
+ */
+export function activeDebuffRemainingSec(
+  state: Readonly<PlayerState>,
+  attackId: string,
+): number | null {
+  const gameSec = (state.meta.gameSec as number | undefined) ?? 0
+  let remaining: number | null = null
+  for (const window of state.activeDebuffs ?? []) {
+    if (window.attack !== attackId) continue
+    const left = window.expiresAtSec - gameSec
+    if (left > 0 && (remaining === null || left > remaining)) remaining = left
+  }
+  return remaining
+}
+
+/**
  * Why an active attack cannot be activated right now. `unaffordable` is the only
  * transient reason (wait for income); every other reason is permanent for the
  * current state.
@@ -252,6 +308,7 @@ export type AttackBlockReason =
   | 'locked' // not yet unlocked (no gating upgrade owned)
   | 'no-effects' // an effect-less placeholder — nothing to activate
   | 'already-preparing' // an activation of this attack is already pending
+  | 'already-active' // this attack's debuff window is still open
   | 'unaffordable' // valid target, cannot pay the prepare cost yet
 
 /**
@@ -298,6 +355,11 @@ export function attackBlockReason(
   if (!isAttackUnlocked(state, mode, attackId)) return 'locked'
   if ((def.effects?.length ?? 0) === 0) return 'no-effects'
   if (state.pendingAttacks.some((p) => p.attack === attackId)) return 'already-preparing'
+  // Blocking (rather than stacking or refreshing) a window that is still open
+  // is the cheap, legible option: no stacking arithmetic, no refresh-vs-extend
+  // decision, and the card shows a countdown instead of a price. *Different*
+  // attacks stack freely — they are separate modifiers in the pipeline.
+  if (activeDebuffRemainingSec(state, attackId) !== null) return 'already-active'
   const params = collectAttackParams(state, mode, attackId)
   if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
   return null
@@ -305,8 +367,8 @@ export function attackBlockReason(
 
 /**
  * Validate an activation. True if the attack exists, is an unlocked active attack
- * carrying effects, isn't already preparing, and the player can pay its prepare
- * cost.
+ * carrying effects, isn't already preparing or inflicting a window, and the
+ * player can pay its prepare cost.
  */
 export function isValidAttackActivation(
   state: Readonly<PlayerState>,
@@ -354,12 +416,13 @@ export function dueAttacks(state: Readonly<PlayerState>, gameSec: number): Pendi
 }
 
 /**
- * What a single strike moved from victim to attacker: `amount` of a resource,
- * or `count` copies of a generator. A union on `kind` rather than one shape with
- * optional fields, so consumers (the event feed, VFX) must branch instead of
- * reading an absent field as `undefined`.
+ * What a single strike did to the victim: moved `amount` of a resource, moved
+ * `count` copies of a generator, or opened a debuff window of `durationSec`. A
+ * union on `kind` rather than one shape with optional fields, so consumers (the
+ * event feed, VFX) must branch instead of reading an absent field as
+ * `undefined`.
  */
-export type AttackStrikeResult = ResourceStrikeResult | GeneratorStrikeResult
+export type AttackStrikeResult = ResourceStrikeResult | GeneratorStrikeResult | DebuffStrikeResult
 
 /** A resource theft: `amount` of `resource` moved. */
 export interface ResourceStrikeResult {
@@ -375,14 +438,39 @@ export interface GeneratorStrikeResult {
   readonly count: number
 }
 
+/** A debuff window opened: the attack's effects apply for `durationSec`. */
+export interface DebuffStrikeResult {
+  readonly kind: 'debuff'
+  readonly durationSec: number
+}
+
 /**
- * Resolve an active attack's strike, moving whatever its steal effects name from
- * `victim` to `attacker`. Mutates both states in place and returns what was
- * moved (for event feeds / VFX).
+ * Whether an effect output is one the enemy-debuff collectors gather — the
+ * outputs that consume an active attack's `durationSec`.
+ */
+export function isDebuffOutput(out: EffectOutput): boolean {
+  return 'kind' in out && (out.kind === 'enemyModifier' || out.kind === 'enemyCost')
+}
+
+/**
+ * Resolve an active attack's strike: move whatever its steal effects name from
+ * `victim` to `attacker`, and open a debuff window if it carries any debuff
+ * effect. Mutates both states in place and returns what happened (for event
+ * feeds / VFX).
  *
- * Every magnitude is scaled by the attacker's `power`
+ * Every steal magnitude is scaled by the attacker's `power`
  * ({@link collectAttackParams}) before it is capped against what the victim
  * actually has; a scaled share saturates at {@link MAX_STEAL_FRACTION}.
+ *
+ * - `enemyModifier` / `enemyCost` — push **one** {@link ActiveDebuff} onto
+ *   `attacker.activeDebuffs` for the whole attack, however many debuff effects
+ *   it carries, expiring at `meta.gameSec + getAttackDurationSec(...)`. The
+ *   effects themselves are not evaluated here — `collectEnemyDebuffs` and
+ *   `collectEnemyCostFactors` gather them from the window every tick, reading
+ *   `power` live, exactly as they do for a passive attack. Nothing is pushed
+ *   when the resolved duration is `0`, since no tick could ever gather it.
+ *   Re-activation while the window is open is refused by `attackBlockReason`,
+ *   so an attack has at most one open window at a time.
  *
  * - `resourceSteal` — either `fraction × (victim's held amount)` or a flat
  *   `amount`, whichever the effect authored. Capped at what the victim holds, so
@@ -405,11 +493,15 @@ export function resolveAttackStrike(
   mode: ModeDefinition,
 ): AttackStrikeResult[] {
   const results: AttackStrikeResult[] = []
-  const { power } = collectAttackParams(attacker, mode, def.id)
+  const params = collectAttackParams(attacker, mode, def.id)
+  const { power } = params
+  let opensWindow = false
   for (const ref of def.effects ?? []) {
     for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
       if (!('kind' in out)) continue
-      if (out.kind === 'resourceSteal') {
+      if (isDebuffOutput(out)) {
+        opensWindow = true
+      } else if (out.kind === 'resourceSteal') {
         const held = victim.resources[out.resource] ?? 0
         const requested =
           'amount' in out
@@ -437,5 +529,24 @@ export function resolveAttackStrike(
       }
     }
   }
+  if (opensWindow) {
+    const durationSec = getAttackDurationSec(def, params)
+    if (durationSec > 0) {
+      const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+      const window: ActiveDebuff = { attack: def.id, expiresAtSec: gameSec + durationSec }
+      attacker.activeDebuffs = [...(attacker.activeDebuffs ?? []), window]
+      results.push({ kind: 'debuff', durationSec })
+    }
+  }
   return results
+}
+
+/**
+ * The debuff windows in `state` that are still open at `gameSec` (strictly
+ * before `expiresAtSec`). Pure — does not mutate `state`. The server's tick uses
+ * it to sweep expired windows; the collectors apply the same test at read time,
+ * which is what makes the sweep hygiene rather than correctness.
+ */
+export function openDebuffWindows(state: Readonly<PlayerState>, gameSec: number): ActiveDebuff[] {
+  return (state.activeDebuffs ?? []).filter((w) => w.expiresAtSec > gameSec)
 }

@@ -1414,6 +1414,187 @@ describe('Match', () => {
       )
     })
 
+    // ── Duration attacks (plan 37) ─────────────────────────────────
+
+    /**
+     * The idler tree with `a3` — its effect-less passive placeholder, unlocked by
+     * `a-unlock → node-4` — re-authored as a duration attack: halve the victim's
+     * r0 and ×100 their upgrade prices for `durationSec` after a 1s strike.
+     */
+    const WINDOW_SEC = 3
+    function withDurationAttack(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                kind: 'active' as const,
+                prepareCost: { r0: { baseCost: 10 } },
+                prepareTimeSec: 1,
+                durationSec: WINDOW_SEC,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'r0',
+                    value: 0.5,
+                  },
+                  { type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 },
+                ],
+              }
+            : a,
+        ),
+      }
+    }
+
+    /** Unlock a3 for p1 with enough Wood to fire it. */
+    function armWindowAttacker(m: Match) {
+      m.handleMessage('p1', buyMsg('a-unlock', 1))
+      m.handleMessage('p1', buyMsg('node-4', 2))
+      m.grantResourcesForTest('p1', { r0: 100 })
+    }
+
+    const debuffEvents = (ws: WebSocket) =>
+      sentOfType(ws, 'STATE_UPDATE')
+        .flatMap((u) => u.attackEvents ?? [])
+        .filter((e) => e.kind === 'debuff')
+
+    it('opens a debuff window on the strike: the victim slows and pays more, then recovers', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+
+        // p2's undisturbed rate over one broadcast interval, as the baseline.
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const b0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const baseline = latestUpdate(ws2).player.resources.r0 - b0
+        expect(baseline).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activateMsg('a3', 3))
+        // Past the 1s preparation and into the window.
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+        expect(latestUpdate(ws1).player.activeDebuffs).toEqual([
+          expect.objectContaining({ attack: 'a3' }),
+        ])
+        // The window is a plain debuff on the wire, and a stamped cost factor.
+        expect(latestUpdate(ws2).debuffs).toContainEqual({
+          stage: 'multiplicative',
+          field: 'r0',
+          value: 0.5,
+        })
+        expect(latestUpdate(ws2).player.incomingCostFactors).toEqual([
+          { scope: 'upgrade', costFactor: 100 },
+        ])
+        expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeDefined()
+
+        // Mid-window, p2 earns half.
+        const d0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const during = latestUpdate(ws2).player.resources.r0 - d0
+        expect(during / baseline).toBeCloseTo(0.5, 6)
+
+        // Past the window: swept, cleared, and back to the baseline rate.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        expect(latestUpdate(ws2).debuffs).toEqual([])
+        expect(latestUpdate(ws2).player.incomingCostFactors).toBeUndefined()
+        const a0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const after = latestUpdate(ws2).player.resources.r0 - a0
+        expect(after / baseline).toBeCloseTo(1, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('reports the window once to each side, and refuses re-activation while it is open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+
+        // One `debuff` event per side, however many debuff effects the attack
+        // carries (two here), and never a `none` — a window is not a miss.
+        expect(debuffEvents(ws1)).toEqual([
+          expect.objectContaining({
+            attack: 'a3',
+            direction: 'outgoing',
+            durationSec: WINDOW_SEC,
+          }),
+        ])
+        expect(debuffEvents(ws2)).toEqual([
+          expect.objectContaining({
+            attack: 'a3',
+            direction: 'incoming',
+            durationSec: WINDOW_SEC,
+          }),
+        ])
+        const all = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+        expect(all.filter((e) => e.kind === 'none')).toEqual([])
+
+        // A second activation while the window is open is rejected outright:
+        // nothing pending, nothing paid.
+        const held = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activateMsg('a3', 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+        expect(latestUpdate(ws1).player.resources.r0).toBeGreaterThanOrEqual(held)
+
+        // Once it closes, the same attack can be fired again.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        m.handleMessage('p1', activateMsg('a3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('freezes an open window while the round is paused', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlayingVsBot()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+        const window = latestUpdate(ws1).player.activeDebuffs?.[0]
+        expect(window).toBeDefined()
+
+        // Paused for far longer than the window: game seconds do not advance,
+        // so it is still open — same `expiresAtSec`, same remaining time.
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(WINDOW_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activeDebuffs).toEqual([window])
+        expect(latestUpdate(ws1).debuffs).toEqual([])
+
+        // And it still closes on game time afterwards.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('rejects an activation the player cannot afford', () => {
       const m = enterPlaying()
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
