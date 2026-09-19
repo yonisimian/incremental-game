@@ -861,6 +861,7 @@ describe('attacks', () => {
     expect(rows.find((a) => a.id === 'numb-hands')!.durationSec).toBe(15)
     expect(rows.find((a) => a.id === 'fog-of-war')!.durationSec).toBe(8)
     expect(rows.find((a) => a.id === 'termite-swarm')!.durationSec).toBe(67)
+    expect(rows.find((a) => a.id === 'embargo')!.durationSec).toBe(10)
   })
 
   it('setAttackDuration turns a steal into a raid the runtime accepts', () => {
