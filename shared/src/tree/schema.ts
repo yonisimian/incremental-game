@@ -100,8 +100,20 @@ const AttackSchema = z.strictObject({
   effects: z.array(EffectRefSchema).optional(),
 })
 
-/** A pact — a stable id plus its kind (no behavior yet). Display data is its flavor. */
-const PactSchema = z.strictObject({ id: z.string(), kind: z.enum(['active', 'passive']) })
+/**
+ * A pact — a stable id, its kind, whether it is `mutual` (the partner benefits
+ * too), and the buff effects it carries. Effects are validated per-effect by the
+ * registry once assembled into a `ModeDefinition` (see `validateModeDefinition`).
+ * The active-only fields (activation cost, duration, cooldown) are not authored
+ * yet — plans 43/44 — so a passive pact declaring one is a schema error here.
+ * Display data is its flavor.
+ */
+const PactSchema = z.strictObject({
+  id: z.string(),
+  kind: z.enum(['active', 'passive']),
+  mutual: z.boolean().optional(),
+  effects: z.array(EffectRefSchema).optional(),
+})
 
 // ─── Flavor schemas ──────────────────────────────────────────────────
 

@@ -1253,6 +1253,50 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/references unknown pact 'p-ghost'/)
   })
 
+  // ── Pact effect placement (plan 42) ───────────────────────────────
+
+  /** A valid def with one pact carrying `effects`, its flavor entry in place. */
+  function defWithPact(pact: ModeDefinition['pacts'][number]): ModeDefinition {
+    return withFlavor(makeValidDef({ pacts: [pact] }), {
+      pacts: [{ id: pact.id, name: 'Treaty', icon: '🤝', description: '' }],
+    })
+  }
+
+  it('rejects a baseModifier on a pact — a pact that ignores the enemy is an upgrade', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(
+      /passive pact 'p0' carries a 'baseModifier' effect, which only applies on the mode \/ an upgrade/,
+    )
+  })
+
+  it('rejects an offensive effect on a pact — those are attack-only by declaration', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'active',
+      effects: [
+        { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(
+      /active pact 'p0' carries a 'enemyProductionModifier' effect, which only applies on a passive attack \/ an active attack/,
+    )
+  })
+
+  it('accepts a mutual pact with no effects (a placeholder that says what it will be)', () => {
+    const def = defWithPact({ id: 'p0', kind: 'passive', mutual: true })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
   it('throws when a generatorCost effect references an unknown generator', () => {
     const def = makeValidDef({
       upgrades: [

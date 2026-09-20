@@ -73,6 +73,8 @@ const HOST_LABELS: Record<EffectHost, string> = {
   upgrade: 'an upgrade',
   passiveAttack: 'a passive attack',
   activeAttack: 'an active attack',
+  passivePact: 'a passive pact',
+  activePact: 'an active pact',
 }
 
 /**
@@ -509,6 +511,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       attack.effects ?? [],
     )
   }
+  // A pact that doesn't involve the enemy is an upgrade: a `baseModifier` here
+  // is a placement error by the effect's own default hosts, and the offensive
+  // effects are attack-only by theirs — one generic check covers both.
+  for (const pact of def.pacts) {
+    checkHost(
+      `${pact.kind} pact '${pact.id}'`,
+      pact.kind === 'passive' ? 'passivePact' : 'activePact',
+      pact.effects ?? [],
+    )
+  }
 
   // A reserved target names something that isn't a resource, so a mode declaring
   // a resource by that name would make an authored target ambiguous — the same
@@ -704,6 +716,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   }
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) prepareEffect(ref)
+  }
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) prepareEffect(ref)
   }
 }
 

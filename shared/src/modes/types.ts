@@ -113,9 +113,9 @@ export interface ModeDefinition {
   readonly initialMeta: Readonly<Record<string, unknown>>
   /** Generator buildings available in this mode (may be empty). */
   readonly generators: readonly GeneratorDefinition[]
-  /** Attacks available in this mode (may be empty). No behavior yet — unlock-gated. */
+  /** Attacks available in this mode (may be empty). Unlock-gated; see `attacks.ts`. */
   readonly attacks: readonly AttackDefinition[]
-  /** Pacts available in this mode (may be empty). No behavior yet — unlock-gated. */
+  /** Pacts available in this mode (may be empty). Unlock-gated; see `pacts.ts`. */
   readonly pacts: readonly PactDefinition[]
   /**
    * Declarative effects applied to every player in this mode — the bonuses a

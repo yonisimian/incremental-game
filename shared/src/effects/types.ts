@@ -445,8 +445,16 @@ export type EffectOutput =
  *   once (`resolveAttackStrike`); the debuff outputs (`enemyModifier`,
  *   `enemyCost`, `enemyPurchaseLock`) open a window of the attack's
  *   `durationSec`, during which their collectors gather them.
+ * - `passivePact` — a passive pact's `effects`: continuous while unlocked, a
+ *   *benefit* drawn from the opponent, and only the pact outputs
+ *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
+ *   `collectPactBonuses` in `pacts.ts`).
+ * - `activePact` — an active pact's `effects`: nothing reads this host yet
+ *   (plan 44); the pact effects declare it so an authored active pact is not a
+ *   placement error while its lifecycle is still being built.
  */
-export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
+export type EffectHost =
+  'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn
