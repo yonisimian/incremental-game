@@ -1226,6 +1226,152 @@ export function setAttackFlavor(
   entry.description = values.description
 }
 
+// ─── Pacts (plan 42) ─────────────────────────────────────────────────
+
+/** Default icon for a new pact, before the author picks one. */
+const DEFAULT_PACT_ICON = '🤝'
+
+/** An editable pact row: mechanics (id, kind, mutual) + primary-flavor display. */
+export interface PactRow {
+  readonly id: string
+  readonly kind: 'active' | 'passive'
+  /** Whether the partner benefits too (default false). */
+  readonly mutual: boolean
+  readonly name: string
+  readonly icon: string
+  readonly description: string
+}
+
+/** The next free `pN` pact id. */
+function uniquePactId(tree: TreeFile): string {
+  const used = new Set(tree.pacts.map((p) => p.id))
+  let n = 0
+  while (used.has(`p${n}`)) n++
+  return `p${n}`
+}
+
+/** Pact rows for the editor (primary flavor joined, in declaration order). */
+export function listPacts(tree: TreeFile): PactRow[] {
+  const flavor = new Map((tree.flavors[0]?.pacts ?? []).map((p) => [p.id, p]))
+  return tree.pacts.map((p) => {
+    const f = flavor.get(p.id)
+    return {
+      id: p.id,
+      kind: p.kind,
+      mutual: p.mutual === true,
+      name: f?.name ?? p.id,
+      icon: f?.icon ?? DEFAULT_PACT_ICON,
+      description: f?.description ?? '',
+    }
+  })
+}
+
+/**
+ * Append a new passive pact with a unique `pN` id and a default flavor entry
+ * in every flavor (the runtime requires matching keys across flavors). Returns
+ * the new id. Passive is the default since it is the only kind with behavior.
+ */
+export function addPact(tree: TreeFile): string {
+  const id = uniquePactId(tree)
+  tree.pacts.push({ id, kind: 'passive' })
+  for (const f of tree.flavors) {
+    f.pacts.push({ id, name: id, icon: DEFAULT_PACT_ICON, description: '' })
+  }
+  return id
+}
+
+/** Human-readable references that block deleting pact `id`: `unlockPact` effects naming it. */
+export function pactReferences(tree: TreeFile, id: string): string[] {
+  const refs: string[] = []
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockPact' && ref.pact === id) refs.push('an unlockPact effect')
+  }
+  return refs
+}
+
+/**
+ * Rename pact `oldId → newId`, rewriting every `unlockPact` reference and each
+ * flavor's pact entry. Fails (no mutation) when the new id is blank, in use, or
+ * the old id is absent.
+ */
+export function renamePact(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || tree.pacts.some((p) => p.id === newId)) return false
+  const pact = tree.pacts.find((p) => p.id === oldId)
+  if (!pact) return false
+
+  pact.id = newId
+  for (const f of tree.flavors) {
+    for (const fp of f.pacts) if (fp.id === oldId) fp.id = newId
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockPact' && ref.pact === oldId) ref.pact = newId
+  }
+  return true
+}
+
+/**
+ * Remove pact `id` and its flavor entries. Blocked when an `unlockPact` effect
+ * still references it (see {@link pactReferences}).
+ */
+export function removePact(tree: TreeFile, id: string): MutationResult {
+  if (!tree.pacts.some((p) => p.id === id)) return { ok: false, reason: `unknown pact '${id}'` }
+  const refs = pactReferences(tree, id)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.pacts = tree.pacts.filter((p) => p.id !== id)
+  for (const f of tree.flavors) {
+    f.pacts = f.pacts.filter((fp) => fp.id !== id)
+  }
+  return { ok: true }
+}
+
+/**
+ * Set pact `id`'s kind. Unknown id is a no-op. Both kinds carry the same
+ * fields today; plan 44 adds the active-only ones (and clears them here on a
+ * switch to passive, as `setAttackKind` does for attacks).
+ */
+export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (pact) pact.kind = kind
+}
+
+/**
+ * Set whether pact `id` is mutual. Written as absent rather than `false` so the
+ * serialized file stays minimal (absent is the default). Unknown id is a no-op.
+ */
+export function setPactMutual(tree: TreeFile, id: string, mutual: boolean): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (mutual) pact.mutual = true
+  else delete pact.mutual
+}
+
+/** The effect refs on pact `id` (empty when none / unknown id). */
+export function pactEffects(tree: TreeFile, id: string): EffectRefMut[] {
+  return tree.pacts.find((p) => p.id === id)?.effects ?? []
+}
+
+/** Replace pact `id`'s effects (clearing the field when empty). Unknown id is a no-op. */
+export function setPactEffects(tree: TreeFile, id: string, effects: EffectRefMut[]): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (effects.length > 0) pact.effects = effects
+  else delete pact.effects
+}
+
+/** Upsert the primary flavor's display data for pact `id`. No-op if absent. */
+export function setPactFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string; description: string },
+): void {
+  const entry = tree.flavors[0]?.pacts.find((p) => p.id === id)
+  if (!entry) return
+  entry.name = values.name
+  entry.icon = values.icon
+  entry.description = values.description
+}
+
 // ─── Envelopes ───────────────────────────────────────────────────────
 
 /** The goal type an envelope paces (its stable per-mode key). */

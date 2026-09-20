@@ -4,6 +4,7 @@ import {
   NEUTRAL_ATTACK_PARAMS,
   parseBalanceFile,
   parseTreeFile,
+  serializeTree,
   toModeDefinition,
   type TreeFile,
   type TreeUpgradeNode,
@@ -55,6 +56,16 @@ import {
   addAttackPrepareCurrency,
   removeAttackPrepareCurrency,
   type AttackCostRow,
+  listPacts,
+  addPact,
+  renamePact,
+  removePact,
+  pactReferences,
+  setPactKind,
+  setPactMutual,
+  pactEffects,
+  setPactEffects,
+  setPactFlavor,
   listEnvelopes,
   addableEnvelopeGoalTypes,
   addEnvelope,
@@ -1160,6 +1171,79 @@ describe('pact effect references', () => {
     removeNode(tree, 'renamed')
     expect(effects()).toHaveLength(1)
     expect(effects()[0].target).toBe('upgrades')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+})
+
+// ─── Pacts (plan 42) ─────────────────────────────────────────────────
+
+describe('pacts', () => {
+  it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {
+    const rows = listPacts(idler())
+    expect(rows.map((r) => r.id)).toEqual(['p0', 'p1', 'p2', 'p3'])
+    const route = rows.find((r) => r.id === 'p3')!
+    expect(route.mutual).toBe(true)
+    expect(route.kind).toBe('passive')
+    expect(route.name).toBe('Trade route')
+    expect(rows.find((r) => r.id === 'p2')!.mutual).toBe(false)
+  })
+
+  it('addPact appends a passive pact with a flavor entry in every flavor, and stays loadable', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    for (const f of tree.flavors) expect(f.pacts.some((p) => p.id === id)).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renamePact cascades unlockPact references and the flavor entry', () => {
+    const tree = idler()
+    expect(pactReferences(tree, 'p3')).toEqual(['an unlockPact effect'])
+    expect(renamePact(tree, 'p3', 'trade')).toBe(true)
+    expect(tree.pacts.some((p) => p.id === 'trade')).toBe(true)
+    expect(findNode(tree, 'pact-node-4')!.effects![0].pact).toBe('trade')
+    expect(tree.flavors[0].pacts.some((p) => p.id === 'trade')).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(renamePact(tree, 'trade', '')).toBe(false)
+    expect(renamePact(tree, 'trade', 'p0')).toBe(false)
+  })
+
+  it('removePact is blocked while an unlockPact names it, and cascades otherwise', () => {
+    const tree = idler()
+    expect(removePact(tree, 'p3')).toMatchObject({ ok: false })
+    const id = addPact(tree)
+    expect(removePact(tree, id)).toEqual({ ok: true })
+    expect(tree.pacts.some((p) => p.id === id)).toBe(false)
+    for (const f of tree.flavors) expect(f.pacts.some((p) => p.id === id)).toBe(false)
+  })
+
+  it('round-trips kind, mutual and effects through the codec', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactMutual(tree, id, true)
+    setPactEffects(tree, id, [
+      { type: 'mirrorCostModifier', target: 'generators', scalingFactor: 0.5 },
+    ])
+    setPactFlavor(tree, id, { name: 'Ceasefire', icon: '🕊️', description: 'd' })
+    const reparsed = parseTreeFile(JSON.parse(serializeTree(tree)))
+    expect(reparsed.pacts.at(-1)).toEqual({
+      id,
+      kind: 'active',
+      mutual: true,
+      effects: [{ type: 'mirrorCostModifier', target: 'generators', scalingFactor: 0.5 }],
+    })
+    expect(listPacts(reparsed).at(-1)).toMatchObject({
+      name: 'Ceasefire',
+      icon: '🕊️',
+      mutual: true,
+    })
+
+    // `mutual: false` and an empty effects list are written as absent.
+    setPactMutual(tree, id, false)
+    setPactEffects(tree, id, [])
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
+    expect(pactEffects(tree, id)).toEqual([])
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

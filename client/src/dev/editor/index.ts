@@ -1,7 +1,8 @@
 /**
  * Editor shell — owns the single working-copy `TreeFile` and the file-level
  * toolbar (import / export / copy / reset / status), and hosts one
- * {@link EditorView} section at a time (resources · generators · upgrade tree).
+ * {@link EditorView} section at a time (resources · generators · attacks · pacts ·
+ * upgrade tree).
  *
  * Sections are mounted lazily on switch and torn down on leave (each owns its
  * own listeners; the tree section's pan/zoom needs a visible host, which the
@@ -20,15 +21,18 @@ import { createTreeView } from './views/tree.js'
 import { createResourcesView } from './views/resources.js'
 import { createGeneratorsView } from './views/generators.js'
 import { createAttacksView } from './views/attacks.js'
+import { createPactsView } from './views/pacts.js'
 import { createEnvelopesView } from './views/envelopes.js'
 import { createStartingEffectsView } from './views/starting-effects.js'
 
-type Section = 'resources' | 'generators' | 'attacks' | 'envelopes' | 'starting-effects' | 'tree'
+type Section =
+  'resources' | 'generators' | 'attacks' | 'pacts' | 'envelopes' | 'starting-effects' | 'tree'
 
 const SECTIONS: readonly { id: Section; label: string }[] = [
   { id: 'resources', label: '💎 Resources' },
   { id: 'generators', label: '🏭 Generators' },
   { id: 'attacks', label: '💥 Attacks' },
+  { id: 'pacts', label: '🤝 Pacts' },
   { id: 'envelopes', label: '🎯 Envelopes' },
   { id: 'starting-effects', label: '⚙️ Starting Effects' },
   { id: 'tree', label: '🌳 Upgrade Tree' },
@@ -38,6 +42,7 @@ const VIEW_FACTORIES: Record<Section, () => EditorView> = {
   resources: createResourcesView,
   generators: createGeneratorsView,
   attacks: createAttacksView,
+  pacts: createPactsView,
   envelopes: createEnvelopesView,
   'starting-effects': createStartingEffectsView,
   tree: createTreeView,

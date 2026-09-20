@@ -52,6 +52,31 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
+  // The pact effects (plan 42) borrow their vocabularies: a mirrored discount
+  // names what the enemy bought from the enemy-cost catalog, a mirrored bonus
+  // reads an enemy stat and lands on a debuff target.
+  it('offers the cost-target catalog for a mirrorCostModifier target', () => {
+    const options = effectFieldOptions(idler(), 'mirrorCostModifier', 'target')!
+    const values = options.map((o) => (typeof o === 'string' ? o : o.value))
+    expect(values).toContain('upgrades')
+    expect(values).toContain('generator:g0')
+    expect(values).toContain('upgrade:be-af-mr')
+  })
+
+  it('offers the enemy-stat catalog for a mirrorStatModifier source and the debuff targets for its field', () => {
+    const tree = idler()
+    const sources = effectFieldOptions(tree, 'mirrorStatModifier', 'source')!.map((o) =>
+      typeof o === 'string' ? o : o.value,
+    )
+    expect(sources).toEqual(
+      expect.arrayContaining(['r0', 'r0:rate', 'peakCps', 'score', 'generator:g0', 'upgrades']),
+    )
+    const fields = effectFieldOptions(tree, 'mirrorStatModifier', 'field')!.map((o) =>
+      typeof o === 'string' ? o : o.value,
+    )
+    expect(fields).toEqual(['clickIncome', 'highlightFactor', ...tree.resources])
+  })
+
   it('leaves an unmapped effect/field pair as free text', () => {
     expect(effectFieldOptions(idler(), 'stealResource', 'fraction')).toBeUndefined()
     expect(effectFieldOptions(idler(), 'highlightMultiplier', 'multiplier')).toBeUndefined()
