@@ -1095,3 +1095,71 @@ describe('envelope model helpers', () => {
     expect(cp.phase).toBe('Renamed')
   })
 })
+
+// ─── Pact effects ride every cascade (plan 42) ───────────────────────
+
+describe('pact effect references', () => {
+  /** The idler's trade route: `mirrorStatModifier` reading `generator:g0`, feeding `r0`. */
+  const route = (tree: TreeFile) => tree.pacts.find((p) => p.id === 'p3')!.effects![0]
+
+  it('renameGenerator rewrites a pact mirror’s namespaced source', () => {
+    const tree = idler()
+    expect(route(tree).source).toBe('generator:g0')
+    expect(renameGenerator(tree, 'g0', 'gmega')).toBe(true)
+    expect(route(tree).source).toBe('generator:gmega')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameResource rewrites a pact mirror’s field, and a :rate source', () => {
+    const tree = idler()
+    tree.pacts
+      .find((p) => p.id === 'p3')!
+      .effects!.push({
+        type: 'mirrorStatModifier',
+        source: 'r0:rate',
+        field: 'r1',
+        stage: 'additive',
+        perUnit: 0.1,
+      })
+    expect(renameResource(tree, 'r0', 'wood')).toBe(true)
+    const [first, second] = tree.pacts.find((p) => p.id === 'p3')!.effects!
+    expect(first.field).toBe('wood')
+    expect(second.source).toBe('wood:rate')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('blocks deleting a generator or resource a pact mirror still names', () => {
+    const tree = idler()
+    expect(removeGenerator(tree, 'g0')).toMatchObject({ ok: false })
+    expect(resourceReferences(tree, 'r0')).toContain('a mirrorStatModifier field')
+  })
+
+  it('renameNode rewrites an upgrade:<id> key on a cost effect or a pact source, and removeNode drops it', () => {
+    const tree = idler()
+    const [target] = collectIds(tree).filter((id) => id !== 'ir-unlock' && id !== 'pact-node-3')
+    tree.pacts
+      .find((p) => p.id === 'p2')!
+      .effects!.push(
+        { type: 'mirrorCostModifier', target: `upgrade:${target}`, costFactor: 0.5 },
+        {
+          type: 'mirrorStatModifier',
+          source: `upgrade:${target}`,
+          field: 'r0',
+          stage: 'additive',
+          perUnit: 1,
+        },
+      )
+    expect(renameNode(tree, target, 'renamed')).toBe(true)
+    const effects = () => tree.pacts.find((p) => p.id === 'p2')!.effects!
+    expect(effects()[1].target).toBe('upgrade:renamed')
+    expect(effects()[2].source).toBe('upgrade:renamed')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Removing the node takes the two refs that named it with it; the
+    // whole-scope research discount stays.
+    removeNode(tree, 'renamed')
+    expect(effects()).toHaveLength(1)
+    expect(effects()[0].target).toBe('upgrades')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+})

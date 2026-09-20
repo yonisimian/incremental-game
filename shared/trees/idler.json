@@ -335,11 +335,29 @@
     },
     {
       "id": "p2",
-      "kind": "passive"
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "mirrorCostModifier",
+          "target": "upgrades",
+          "costFactor": 0.75
+        }
+      ]
     },
     {
       "id": "p3",
-      "kind": "passive"
+      "kind": "passive",
+      "mutual": true,
+      "effects": [
+        {
+          "type": "mirrorStatModifier",
+          "source": "generator:g0",
+          "field": "r0",
+          "stage": "multiplicative",
+          "perUnit": 0.02,
+          "cap": 0.5
+        }
+      ]
     }
   ],
   "goals": [
@@ -990,15 +1008,15 @@
         },
         {
           "id": "p2",
-          "name": "First Passive Pact",
-          "icon": "🤝",
-          "description": ""
+          "name": "Shared research",
+          "icon": "📜",
+          "description": "Upgrades the enemy already owns cost 25% less for you, while they stay ahead."
         },
         {
           "id": "p3",
-          "name": "Second Passive Pact",
-          "icon": "🤝",
-          "description": ""
+          "name": "Trade route",
+          "icon": "🪵",
+          "description": "+2% wood per enemy woodcutter, up to +50%. The enemy gains the same from yours."
         }
       ]
     }

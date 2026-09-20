@@ -154,6 +154,7 @@ export {
   enemyCostTargetsFor,
   enemyDebuffTargets,
   enemyDebuffTargetsFor,
+  entityCostTargetKey,
   HIGHLIGHT_FACTOR_TARGET,
   listAddressableFields,
   parseEnemyCostTarget,

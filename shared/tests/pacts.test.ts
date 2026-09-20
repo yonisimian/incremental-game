@@ -595,3 +595,53 @@ describe('collectPactBonuses', () => {
     ])
   })
 })
+
+// ─── Idler authoring ─────────────────────────────────────────────────
+
+describe('the idler authors Shared research and Trade route', () => {
+  const idler = getModeDefinition('idler')
+  const pact = (id: string) => idler.pacts.find((p) => p.id === id)!
+
+  it('boots with the two passive pacts carrying effects, p3 mutual', () => {
+    expect(pact('p2')).toEqual({
+      id: 'p2',
+      kind: 'passive',
+      effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }],
+    })
+    expect(pact('p3')).toEqual({
+      id: 'p3',
+      kind: 'passive',
+      mutual: true,
+      effects: [
+        {
+          type: 'mirrorStatModifier',
+          source: 'generator:g0',
+          field: 'r0',
+          stage: 'multiplicative',
+          perUnit: 0.02,
+          cap: 0.5,
+        },
+      ],
+    })
+    // The active pair stays a placeholder for plan 44.
+    expect(pact('p0').effects).toBeUndefined()
+    expect(pact('p1').effects).toBeUndefined()
+  })
+
+  it('resolves the trade route to +2% wood per enemy woodcutter, capped at +50%', () => {
+    const sign = idler.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === 'p3'),
+    )!
+    const owner = createInitialState(idler)
+    owner.upgrades[sign.id] = 1
+    const partner = createInitialState(idler)
+    partner.generators.g0 = 10
+    expect(collectPactBonuses(owner, { state: partner, rates: {} }, idler)).toEqual([
+      { pact: 'p3', modifiers: [{ stage: 'multiplicative', field: 'r0', value: 1.2 }] },
+    ])
+    partner.generators.g0 = 100
+    expect(collectPactBonuses(owner, { state: partner, rates: {} }, idler)[0].modifiers).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 1.5 },
+    ])
+  })
+})
