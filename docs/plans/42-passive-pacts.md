@@ -1,6 +1,56 @@
 # 42 — Passive pacts: opponent-derived buffs through a treaty
 
-## Status: Draft (branch `feat/10-passive-pacts`)
+## Status: Implemented (branch `feat/10-passive-pacts`)
+
+### As built — departures from the text below
+
+- **`collectPactBonuses` takes one snapshot, not two.** Every pact in force
+  resolves against the _partner_: an owner-held pact reads the enemy by
+  definition, and a partner-held mutual pact benefits the owner by reading its
+  holder — who is, from the owner's side, the enemy. So the signature is
+  `(owner: PlayerState, partner: PartnerSnapshot, mode)` and the server calls it
+  once per player with the roles swapped. `pactsInForce` lists a pact both
+  players signed **once** — "the enemy gains the same from yours" is one treaty,
+  not a doubled one.
+- **One stamped read.** `cost.ts` folds both stamped lists through a private
+  `foldStampedFactors`, and `stampedCostFactors` composes the enemy inflation
+  with the pact discount; `upgradeCostFactors` and the generator `'buy'` map
+  both go through it, so neither can forget a list.
+- **The price marker points both ways.** A discounted price is marked `⬇`
+  (`DISCOUNTED_COST_MARKER`); an item both inflated and discounted stays `⬆`
+  — the enemy's mark is the one the player needs explained. The generator card
+  carries the marker string (`costMarker`) instead of an `inflated` flag.
+- **`collectRawModifiers` routes a raw modifier by the absence of a `kind`.**
+  `mirrorModifier` is the first kinded output that also carries a `stage`, so
+  the old `'stage' in o` test would have routed a pact rule into the owner's
+  pipeline. Nothing walks pact effects there, but the type no longer allows the
+  mistake.
+- **A resource may not be named `score`** — the enemy-stat key, refused at boot
+  like the intel keys.
+- **The data panel's totals include the pact bonuses**, the click-debuff rows
+  do not (they report what the enemy is _taking_). All client income paths go
+  through one `externalModifiers` seam in `game.ts`.
+- **The toast is in** (open question 4): `🤝 🪵 Trade route signed by the
+enemy`, `info`, on a mutual pact's first appearance in `opponent.pacts`.
+- **The relations panel test is node tier**, not the DOM tier §Tests named:
+  `render` is string markup, per the test-tier rule.
+- **The editor model cascade landed in stage 7, not 8**, because the authored
+  tree stopped loading after any rename in the editor tests: pact effects join
+  `allEffectRefs`, a `mirrorStatModifier`'s resource `source`/`field` follow a
+  resource rename, and the `upgrade:<id>` / `generator:<id>` keys of _both_
+  cost effects and the pact mirror follow generator and node renames (a
+  removed node drops the refs that named it). `entityCostTargetKey` is the new
+  exported inverse of `parseEnemyCostTarget`. The picker group and the three
+  dropdowns landed with their effects in stages 3–4 (the grouping and
+  every-string-param-has-a-picker tests require it).
+- **The bot signs generically** — the unlock node of every passive pact with
+  effects, found through `unlockPact` refs, not the three hard-coded ids.
+- **Open questions 1–3** shipped as proposed: per-entity discount, `:rate`
+  sources kept, `cap` bounds the bonus (the added amount, or the excess over 1).
+
+Full suite green: shared 898, server 182, client 533. `typecheck`, `lint`,
+`lint:css`, `lint:exports`, `format:check`, `check:balance` and
+`lint:instructions` all pass. Main client bundle 30.65 kB raw (budget 60/80).
 
 First of three pact plans. This one ships **passive pacts** end to end —
 mechanic, validation, editor, panel, idler authoring, tests. The two that follow
