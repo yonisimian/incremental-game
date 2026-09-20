@@ -1,4 +1,4 @@
-import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
+import type { CostFactors, CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
   getResourceIcon,
@@ -94,15 +94,30 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
 
 /** Marker appended to a price an opponent's passive attack is inflating. */
 export const INFLATED_COST_MARKER = '⬆'
+/** Marker appended to a price a pact in force is discounting (plan 42). */
+export const DISCOUNTED_COST_MARKER = '⬇'
+
+/**
+ * The marker for a price bent by the factors stamped on the player: up while
+ * anything inflates it, down while it is only discounted, none when it is the
+ * tree's own number. An inflation and a discount on the same item read as
+ * inflated — the enemy's mark is the one the player needs explained.
+ */
+export function costFactorMarker(factors: CostFactors): string {
+  if (isNeutralCostFactors(factors)) return ''
+  return factors.costFactor > 1 || factors.scalingFactor > 1
+    ? INFLATED_COST_MARKER
+    : DISCOUNTED_COST_MARKER
+}
 
 /**
  * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
  * the cost map plus the owned count for an unlimited upgrade.
  *
  * Priced with the factors in force, so it matches what a buy will actually
- * charge, and marked with {@link INFLATED_COST_MARKER} while an opponent is
- * inflating it — otherwise a price above the tree's authored number reads as a
- * bug rather than as an attack.
+ * charge, and marked (see {@link costFactorMarker}) while an opponent is
+ * inflating it or a pact is discounting it — otherwise a price off the tree's
+ * authored number reads as a bug rather than as an attack or a treaty.
  */
 export function formatUpgradeCost(
   state: Readonly<GameState>,
@@ -113,7 +128,8 @@ export function formatUpgradeCost(
   if (isMaxed(u, owned)) return 'Maxed'
   const factors = upgradeCostFactors(state.player, u.id)
   const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-  const marker = isNeutralCostFactors(factors) ? '' : ` ${INFLATED_COST_MARKER}`
+  const mark = costFactorMarker(factors)
+  const marker = mark === '' ? '' : ` ${mark}`
   return `${formatCostLabel(getUpgradeNextCost(u, owned, factors), flavor)}${countLabel}${marker}`
 }
 

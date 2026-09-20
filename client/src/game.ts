@@ -995,6 +995,8 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     // Same reasoning: a replayed buy must be refused under the same lock the
     // server refused it under.
     ...(s.incomingPurchaseLocks ? { incomingPurchaseLocks: [...s.incomingPurchaseLocks] } : {}),
+    // And priced with the same pact discount the server granted (plan 42).
+    ...(s.pactCostFactors ? { pactCostFactors: [...s.pactCostFactors] } : {}),
     // Never predicted, only carried: the strike that opens a window lands
     // server-side, so this arrives like any other reconciled field.
     ...(s.activeDebuffs ? { activeDebuffs: [...s.activeDebuffs] } : {}),

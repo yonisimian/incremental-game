@@ -204,6 +204,31 @@ export interface EnemyCostOutput {
 }
 
 /**
+ * A *mirrored discount*: an entity the opponent already owns more of is cheaper
+ * for the pact's beneficiary. Emitted by the `mirrorCostModifier` effect on a
+ * pact and consumed by `collectPactCostFactors` (see `pacts.ts`), which holds
+ * both players' states and turns the description into concrete per-entity
+ * factors — in force only while `partner.level(X) > owner.level(X)` — that the
+ * server stamps onto {@link PlayerState.pactCostFactors}.
+ *
+ * The friendly twin of {@link EnemyCostOutput}: same shape, factors below `1`
+ * instead of above, and a separate `kind` so neither collector can gather the
+ * other's output. Like every cost output it never reaches the production
+ * pipeline.
+ */
+export interface MirrorCostOutput {
+  readonly kind: 'mirrorCost'
+  /** Which kind of priced entity is discounted. */
+  readonly scope: CostScope
+  /** A specific upgrade/generator id, or absent for every entity of the scope. */
+  readonly id?: string
+  /** Multiplies the beneficiary's base cost (e.g. `0.75` = 25% cheaper). */
+  readonly costFactor?: number
+  /** Multiplies the growth portion of the beneficiary's cost curve. */
+  readonly scalingFactor?: number
+}
+
+/**
  * An *offensive embargo*: the opponent cannot buy the named scopes while the
  * owning active attack's debuff window is open. Emitted by the
  * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
@@ -391,7 +416,8 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
- * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, one of the
+ * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, a pact's
+ * {@link MirrorCostOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
  * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, an
  * {@link AttackAlertOutput}, or one of the time-clock outputs
@@ -399,9 +425,9 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `collectEnemyPurchaseLocks` / `resolveAttackStrike` / `collectAttackParams` /
- * `attackLimit` / `collectAttackAlert` / `timeBonusFraction`); every consumer
- * ignores the outputs it doesn't own.
+ * `collectEnemyPurchaseLocks` / `collectPactCostFactors` / `resolveAttackStrike`
+ * / `collectAttackParams` / `attackLimit` / `collectAttackAlert` /
+ * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -418,6 +444,7 @@ export type EffectOutput =
   | EnemyModifierOutput
   | EnemyCostOutput
   | EnemyPurchaseLockOutput
+  | MirrorCostOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput

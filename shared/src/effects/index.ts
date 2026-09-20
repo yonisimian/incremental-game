@@ -15,6 +15,7 @@ import { generatorCost } from './seed/generator-cost.js'
 import { generatorUnlock } from './seed/generator-unlock.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
+import { mirrorCostModifier } from './seed/mirror-cost-modifier.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { stealGenerator } from './seed/steal-generator.js'
@@ -48,6 +49,7 @@ registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('enemyCostModifier', enemyCostModifier)
 registerEffect('enemyPurchaseLock', enemyPurchaseLock)
+registerEffect('mirrorCostModifier', mirrorCostModifier)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
 registerEffect('timeScaledModifier', timeScaledModifier)
@@ -73,6 +75,7 @@ export type {
   EnemyModifierOutput,
   EnemyCostOutput,
   EnemyPurchaseLockOutput,
+  MirrorCostOutput,
   ResourceStealOutput,
   GeneratorStealOutput,
   TimeFactorBoostOutput,
@@ -132,6 +135,7 @@ export type { EnemyProductionModifierParams } from './seed/enemy-production-modi
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { EnemyPurchaseLockParams } from './seed/enemy-purchase-lock.js'
 export { purchaseLockScopesFor } from './seed/enemy-purchase-lock.js'
+export type { MirrorCostModifierParams } from './seed/mirror-cost-modifier.js'
 export type { StealResourceParams } from './seed/steal-resource.js'
 export type { StealGeneratorParams } from './seed/steal-generator.js'
 export type { AddressableField, AddressableFields } from './addressable.js'

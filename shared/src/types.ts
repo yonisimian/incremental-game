@@ -249,6 +249,20 @@ export interface PlayerState {
    */
   incomingPurchaseLocks?: PurchaseLock[]
   /**
+   * Discounts the pacts in force grant on this player's prices (see
+   * `collectPactCostFactors`), stamped by the server on the same cadence as
+   * `incomingCostFactors` and read by every price path through
+   * `pactCostFactors`. Absent when nothing is in force, which is the default.
+   *
+   * The friendly twin of `incomingCostFactors`: same wire-stable, reconciled
+   * treatment (a replayed optimistic buy is priced as the server priced it),
+   * and the two commute on the same item since both are multiplicative. Always
+   * concrete `{ scope, id }` entries — a whole-scope pact target is expanded at
+   * stamp time to the entities the partner is ahead on — and tagged with the
+   * granting pact so the relations panel can say which treaty is paying.
+   */
+  pactCostFactors?: PactCostFactor[]
+  /**
    * Debuff windows this player's *landed* active attacks are currently
    * inflicting on the opponent (see `resolveAttackStrike`). Absent when none is
    * open, which is the default — the same convention as `incomingCostFactors`.
@@ -316,6 +330,20 @@ export interface EnemyCostFactor {
   readonly costFactor?: number
   /** Multiplies the growth portion of the cost curve. */
   readonly scalingFactor?: number
+}
+
+/**
+ * One discount a pact in force grants on the beneficiary's prices, as stamped on
+ * them (see {@link PlayerState.pactCostFactors}). The same structural form as an
+ * {@link EnemyCostFactor} — the price paths fold both the same way — with the
+ * entity always named (a scope-wide pact target is expanded at stamp time) and
+ * the granting pact recorded for display.
+ */
+export interface PactCostFactor extends EnemyCostFactor {
+  /** The upgrade/generator this discount is in force on. */
+  readonly id: string
+  /** Pact id (matches {@link PactDefinition.id}) this discount comes from. */
+  readonly pact: string
 }
 
 /**

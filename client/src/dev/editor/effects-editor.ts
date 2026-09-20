@@ -103,8 +103,8 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * narrower enemy-debuff catalog (resource rates plus click income and highlight
  * factor — generator targets don't apply to a debuff); `enemyCostModifier`'s
  * `target` uses the enemy-cost catalog (a whole scope, or one upgrade /
- * generator by namespaced key); and every time-clock effect's `clock` picks from
- * the tree's own node ids.
+ * generator by namespaced key), as does `mirrorCostModifier`'s; and every
+ * time-clock effect's `clock` picks from the tree's own node ids.
  *
  * A few option sets depend on a *sibling* param, which is what `params` (the
  * ref's current params, minus `type`) is for: `attackStat`'s `stat` drops
@@ -158,7 +158,12 @@ export function effectFieldOptions(
   if (effectType === 'enemyProductionModifier' && fieldKey === 'field') {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
-  if (effectType === 'enemyCostModifier' && fieldKey === 'target') {
+  // A pact's mirrored discount names what the enemy already bought from the
+  // same catalog an attack inflates — one spelling per concept.
+  if (
+    (effectType === 'enemyCostModifier' || effectType === 'mirrorCostModifier') &&
+    fieldKey === 'target'
+  ) {
     return enemyCostTargetsFor(
       collectIds(tree),
       tree.generators.map((g) => g.id),
@@ -565,6 +570,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     ],
   },
   { label: 'Defense', types: ['attackAlert'] },
+  { label: 'Pacts', types: ['mirrorCostModifier'] },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

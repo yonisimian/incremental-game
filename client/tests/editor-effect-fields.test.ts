@@ -141,6 +141,15 @@ describe('effect hosts', () => {
     ])
   })
 
+  // The pact effects (plan 42) ride both pact kinds: continuous on a passive
+  // pact, and declared on an active one ahead of its reader (plan 44).
+  it('offers only the pact effects on pacts', () => {
+    expect(typesFor('passivePact')).toEqual(['mirrorCostModifier'])
+    expect(typesFor('activePact')).toEqual(typesFor('passivePact'))
+    expect(typesFor('upgrade')).not.toContain('mirrorCostModifier')
+    expect(typesFor('passiveAttack')).not.toContain('mirrorCostModifier')
+  })
+
   it('offers every production effect on upgrades and the mode, and no offensive one', () => {
     const upgrade = typesFor('upgrade')
     expect(upgrade).toEqual(typesFor('mode'))
@@ -161,6 +170,8 @@ describe('effect hosts', () => {
       ...typesFor('upgrade'),
       ...typesFor('passiveAttack'),
       ...typesFor('activeAttack'),
+      ...typesFor('passivePact'),
+      ...typesFor('activePact'),
     ])
     expect([...listEffectTypes()].filter((t) => !reachable.has(t))).toEqual([])
   })

@@ -1905,4 +1905,118 @@ describe('Match', () => {
       expect(player.upgrades[a1Upgrade.id]).toBe(1)
     })
   })
+
+  // ── Passive pacts (plan 42) ────────────────────────────────────────
+
+  describe('passive pacts', () => {
+    const mode = getModeDefinition('idler')
+    /** The (flattened) upgrades that open the relations panel and sign `p2`. */
+    const relationsUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) =>
+          e.type === 'panelUnlock' &&
+          (e as { panel?: string }).panel === 'international-relationship',
+      ),
+    )!
+    const signP2 = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p2'),
+    )!
+
+    /**
+     * The idler with `p2` — its effect-less passive pact — re-authored as a
+     * shared-research treaty: every upgrade the enemy is ahead on at half
+     * price. Patched here so the seam is testable before the tree authors it.
+     */
+    function withResearchPact(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        pacts: base.pacts.map((p) =>
+          p.id === 'p2'
+            ? {
+                ...p,
+                effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.5 }],
+              }
+            : p,
+        ),
+      }
+    }
+
+    /** Sign p2 for `playerId` (both nodes are free). */
+    function signResearch(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
+      m.handleMessage(playerId, buyMsg(signP2.id, seq + 1))
+    }
+
+    it('stamps the discount on the signatory while the partner is ahead, and only then', () => {
+      const base = getModeDefinition('idler')
+      const patched = withResearchPact()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // Signed, but the partner owns nothing p1 doesn't: nothing stamped.
+        expect(latestUpdate(ws1).player.pactCostFactors).toBeUndefined()
+
+        // The partner buys Axe Handling (10 🪵, affordable from the seed funds).
+        m.handleMessage('p2', buyMsg('be-af-mr', 1))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pactCostFactors).toEqual([
+          { pact: 'p2', scope: 'upgrade', id: 'be-af-mr', costFactor: 0.5 },
+        ])
+        // One-sided: the partner is never stamped, even though p1 holds the
+        // two pact nodes they don't.
+        expect(latestUpdate(ws2).player.pactCostFactors).toBeUndefined()
+
+        // Level for level, the discount lifts.
+        m.handleMessage('p1', buyMsg('be-af-mr', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pactCostFactors).toBeUndefined()
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('refreshes the stamp before an action batch, so a buy pays the discounted price', () => {
+      const base = getModeDefinition('idler')
+      const patched = withResearchPact()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        // No broadcast between the partner's buy and p1's: the discount has to
+        // be stamped on message receipt, not on the tick.
+        m.handleMessage('p2', buyMsg('be-af-mr', 1))
+        m.handleMessage('p1', buyMsg('be-af-mr', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const p1 = latestUpdate(ws1).player
+        const p2 = latestUpdate(ws2).player
+        expect(p1.upgrades['be-af-mr']).toBe(1)
+        expect(p2.upgrades['be-af-mr']).toBe(1)
+        // Same seed funds, same income since: p1 paid 5 for what cost p2 10.
+        expect(p1.resources.r0 - p2.resources.r0).toBeCloseTo(5, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('serializes cleanly with a discount stamped', () => {
+      const base = getModeDefinition('idler')
+      const patched = withResearchPact()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        m.handleMessage('p2', buyMsg('be-af-mr', 1))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(wireHazards(latestUpdate(ws1))).toEqual([])
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+  })
 })

@@ -1042,6 +1042,50 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: pact discount (plan 42) ─────────────────────────────────
+
+  describe('idler pact discount', () => {
+    /**
+     * A server snapshot with 7 🪵 — enough for Axe Handling (10 🪵) only at the
+     * stamped half price — and `be-af-mr` unbought.
+     */
+    function snapshot(ackSeq = 0): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 7, r1: 0 },
+          upgrades: { ...defaultUpgrades, 'be-af-mr': 0 },
+          generators: {},
+          pendingAttacks: [],
+          pactCostFactors: [{ pact: 'p2', scope: 'upgrade', id: 'be-af-mr', costFactor: 0.5 }],
+          meta: { highlight: 'r0', gameSec: 20 },
+        },
+      })
+    }
+
+    it('predicts the buy at the stamped discount', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot())
+      game.doBuy('be-af-mr')
+      expect(game.getState().player.upgrades['be-af-mr']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(2)
+    })
+
+    it('replays an unacknowledged buy at the same discount the server charged', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot())
+      game.doBuy('be-af-mr')
+
+      // The server has not seen the buy (ackSeq 0): the replay must price it
+      // off the snapshot's stamp, not the authored 10 it could not afford —
+      // otherwise the predicted purchase would flicker away until the ack.
+      game.handleServerMessage(snapshot(0))
+      expect(game.getState().player.upgrades['be-af-mr']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(2)
+    })
+  })
+
   // ── Idler: doClick ─────────────────────────────────────────────────
 
   describe('idler doClick', () => {

@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { INFLATED_COST_MARKER, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
+import { costFactorMarker, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -15,10 +15,9 @@ import {
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
   canSellGenerator,
-  incomingCostFactors,
   isGeneratorUnlocked,
-  isNeutralCostFactors,
   resolveGeneratorDef,
+  stampedCostFactors,
   getResourceIcon,
   getGeneratorName,
   getGeneratorIcon,
@@ -39,12 +38,14 @@ export interface GeneratorCardNums {
   readonly sellRefund: number
   readonly canSell: boolean
   /**
-   * An opponent's passive attack is inflating this generator's price. Marks the
-   * buy button, so a cost above the authored one reads as an attack rather than
-   * a bug. Defaults to false. The sell refund is never inflated (see
-   * `getGeneratorSellRefund`), so the marker sits on the buy side only.
+   * The marker for a buy price bent off the authored curve — an opponent's
+   * attack inflating it (`⬆`) or a pact discounting it (`⬇`), see
+   * `costFactorMarker`. Marks the buy button, so a cost off the authored one
+   * reads as an attack or a treaty rather than a bug. Defaults to none. The sell
+   * refund is never inflated (see `getGeneratorSellRefund`), so the marker sits
+   * on the buy side only.
    */
-  readonly inflated?: boolean
+  readonly costMarker?: string
   /**
    * The card is shown for a generator this player hasn't unlocked — only
    * possible when copies were stolen from an opponent who had. Buying is barred
@@ -77,7 +78,7 @@ export function renderGeneratorCardView(
   const { owned, nextCost, affordable, maxAffordable, bulkCost, sellRefund, canSell } = nums
   const locked = nums.locked === true
   const attackLock = nums.attackLockLabel
-  const marker = nums.inflated === true ? ` ${INFLATED_COST_MARKER}` : ''
+  const marker = nums.costMarker ? ` ${nums.costMarker}` : ''
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
@@ -164,7 +165,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
           ? getGeneratorSellRefund(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
           : 0
       const canSell = canSellGenerator(state.player, effectiveDef)
-      const inflated = !isNeutralCostFactors(incomingCostFactors(state.player, 'generator', def.id))
+      const costMarker = costFactorMarker(stampedCostFactors(state.player, 'generator', def.id))
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
@@ -173,7 +174,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         bulkCost,
         sellRefund,
         canSell,
-        inflated,
+        costMarker,
         locked: !unlocked,
         ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator') } : {}),
       })

@@ -572,6 +572,27 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `mirrorCostModifier` (on a pact) names a `target` from the same catalog;
+  // checked the same way, worded for pacts. Its factors are `(0, 1)` by schema —
+  // a pact is a discount by definition — and that bound is re-checked here for a
+  // programmatically built mode, as `durationSec <= 0` is for attacks.
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'mirrorCostModifier') continue
+      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+        )
+      for (const knob of ['costFactor', 'scalingFactor'] as const) {
+        const factor = ref[knob]
+        if (typeof factor === 'number' && !(factor > 0 && factor < 1))
+          throw new Error(
+            `[${id}] pact '${pact.id}' mirrorCostModifier ${knob} must be between 0 and 1 (a pact is a discount); got ${factor}`,
+          )
+      }
+    }
+  }
+
   // Active-attack cost/timing + `stealResource` integrity. An active attack that
   // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
   // strike), so both fields must be present and well-formed; a passive attack is

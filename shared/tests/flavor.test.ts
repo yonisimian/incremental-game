@@ -1290,6 +1290,45 @@ describe('validateModeDefinition — negative tests', () => {
     )
   })
 
+  it('rejects a mirrorCostModifier whose target is not in the cost catalog', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ type: 'mirrorCostModifier', target: 'upgrade:nope', costFactor: 0.5 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/pact 'p0' mirrorCostModifier effect references unknown cost target 'upgrade:nope'/)
+  })
+
+  it('accepts a mirrorCostModifier naming a real upgrade or a whole scope', () => {
+    for (const target of ['upgrade:u0', 'upgrades', 'generators']) {
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'mirrorCostModifier', target, costFactor: 0.5 }],
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  // The schema already bounds the factors; this is the boot rule for a
+  // programmatically built mode, named ahead of the zod error.
+  it('rejects a mirrorCostModifier factor outside (0, 1) — a pact is a discount', () => {
+    for (const knob of ['costFactor', 'scalingFactor'] as const) {
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'mirrorCostModifier', target: 'upgrades', [knob]: 1.5 }],
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(new RegExp(`pact 'p0' mirrorCostModifier ${knob} must be between 0 and 1`))
+    }
+  })
+
   it('accepts a mutual pact with no effects (a placeholder that says what it will be)', () => {
     const def = defWithPact({ id: 'p0', kind: 'passive', mutual: true })
     expect(() => {

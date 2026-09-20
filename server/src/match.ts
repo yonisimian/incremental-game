@@ -13,6 +13,7 @@ import {
   collectEnemyDebuffs,
   collectEnemyCostFactors,
   collectEnemyPurchaseLocks,
+  collectPactCostFactors,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -420,7 +421,8 @@ export class Match {
   /**
    * Stamp each player's incoming cost inflation and purchase locks from the
    * *other* player's attacks in force (see `collectEnemyCostFactors` and
-   * `collectEnemyPurchaseLocks`).
+   * `collectEnemyPurchaseLocks`), and the discounts the pacts in force grant
+   * them (see `collectPactCostFactors`).
    *
    * Every price path — server validation, the client's optimistic purchase, the
    * card the player reads — resolves the factors off `PlayerState`, so this is
@@ -429,7 +431,9 @@ export class Match {
    * message receipt, not on the tick, so a tick-only stamp could validate a
    * purchase against factors up to one tick stale), before the bot's actions,
    * and before each broadcast. The lock rides the same stamp for the same
-   * reason: a buy must be judged against the windows open *now*.
+   * reason: a buy must be judged against the windows open *now*. So does the
+   * pact discount: it hinges on the partner's level, which can change on any
+   * message, and this is the one place that already handles that.
    */
   private syncCostFactors(): void {
     for (let i = 0; i < this.players.length; i++) {
@@ -443,6 +447,9 @@ export class Match {
       const locks = collectEnemyPurchaseLocks(opponent, this.modeDef)
       if (locks.length > 0) player.state.incomingPurchaseLocks = locks
       else delete player.state.incomingPurchaseLocks
+      const discounts = collectPactCostFactors(player.state, opponent, this.modeDef)
+      if (discounts.length > 0) player.state.pactCostFactors = discounts
+      else delete player.state.pactCostFactors
     }
   }
 

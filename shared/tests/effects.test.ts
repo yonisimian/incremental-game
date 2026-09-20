@@ -81,6 +81,7 @@ describe('effect registry', () => {
       'generatorUnlock',
       'highlightMultiplier',
       'lowerTierBoost',
+      'mirrorCostModifier',
       'panelUnlock',
       'relativeModifier',
       'stealGenerator',
@@ -533,6 +534,63 @@ describe('enemyCostModifier params', () => {
   // inert rather than emit an output naming nothing.
   it('is inert on an unparseable target', () => {
     expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
+  })
+})
+
+// ─── mirrorCostModifier (plan 42) ────────────────────────────────────
+
+describe('mirrorCostModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('splits the target like enemyCostModifier does, under its own kind', () => {
+    expect(apply({ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 })).toEqual({
+      kind: 'mirrorCost',
+      scope: 'upgrade',
+      id: undefined,
+      costFactor: 0.75,
+      scalingFactor: undefined,
+    })
+    expect(
+      apply({ type: 'mirrorCostModifier', target: 'generator:g0', scalingFactor: 0.5 }),
+    ).toEqual({
+      kind: 'mirrorCost',
+      scope: 'generator',
+      id: 'g0',
+      costFactor: undefined,
+      scalingFactor: 0.5,
+    })
+  })
+
+  // A pact is a buff by definition: a factor at or above 1 would penalize its
+  // own signatory — the mirror image of `enemyCostModifier`'s `>= 1`.
+  it('rejects a factor at or above 1, or at or below 0', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { costFactor: 1.25 },
+      { scalingFactor: 1 },
+      { costFactor: 0 },
+      { scalingFactor: -0.5 },
+    ]) {
+      expect(() => apply({ type: 'mirrorCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a ref that sets neither factor (inert)', () => {
+    expect(() => apply({ type: 'mirrorCostModifier', target: 'upgrades' })).toThrow(/costFactor/u)
+  })
+
+  it('is inert on an unparseable target', () => {
+    expect(apply({ type: 'mirrorCostModifier', target: 'nope', costFactor: 0.5 })).toBeNull()
+  })
+
+  it('lives on pacts only', () => {
+    expect(isEffectAllowedOn('mirrorCostModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'passiveAttack')).toBe(false)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'upgrade')).toBe(false)
   })
 })
 
