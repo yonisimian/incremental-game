@@ -152,3 +152,10 @@ export {
   readSourceValue,
   RESERVED_TARGET_KEYS,
 } from './addressable.js'
+export type { PartnerSnapshot } from './enemy-stats.js'
+export {
+  ENEMY_STAT_SCORE_KEY,
+  enemyStatKeys,
+  enemyStatKeysFor,
+  readEnemyStat,
+} from './enemy-stats.js'
