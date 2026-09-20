@@ -1718,10 +1718,55 @@ body {
   color: var(--text-muted, var(--text));
 }
 
-.pact-hint {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
+.pact-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.pact-mutual {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--text-muted, var(--text));
+  vertical-align: middle;
+}
+
+.pact-worth-list {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pact-worth {
+  grid-column: 2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.pact-worth--none {
+  font-weight: 400;
+  color: var(--text-muted, var(--text));
+}
+
+.pact-shared .pact-card {
+  border-style: dashed;
 }
 
 .generator-card {
