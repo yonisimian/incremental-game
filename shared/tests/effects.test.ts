@@ -82,6 +82,7 @@ describe('effect registry', () => {
       'highlightMultiplier',
       'lowerTierBoost',
       'mirrorCostModifier',
+      'mirrorStatModifier',
       'panelUnlock',
       'relativeModifier',
       'stealGenerator',
@@ -591,6 +592,63 @@ describe('mirrorCostModifier params', () => {
     expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(true)
     expect(isEffectAllowedOn('mirrorCostModifier', 'passiveAttack')).toBe(false)
     expect(isEffectAllowedOn('mirrorCostModifier', 'upgrade')).toBe(false)
+  })
+})
+
+// ─── mirrorStatModifier (plan 42) ────────────────────────────────────
+
+describe('mirrorStatModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+  const rule = {
+    type: 'mirrorStatModifier',
+    source: 'generator:g0',
+    field: 'r0',
+    stage: 'multiplicative',
+    perUnit: 0.02,
+  }
+
+  it('echoes the rule as a mirrorModifier output, cap optional', () => {
+    expect(apply(rule)).toEqual({
+      kind: 'mirrorModifier',
+      source: 'generator:g0',
+      field: 'r0',
+      stage: 'multiplicative',
+      perUnit: 0.02,
+      cap: undefined,
+    })
+    expect(apply({ ...rule, cap: 0.5 })).toMatchObject({ cap: 0.5 })
+  })
+
+  it('requires every field of the rule', () => {
+    for (const key of ['source', 'field', 'stage', 'perUnit'] as const) {
+      const { [key]: _dropped, ...rest } = rule
+      expect(() => apply(rest)).toThrow()
+    }
+  })
+
+  // A pact is a bonus: a zero or negative rule would author a treaty that
+  // penalizes its own signatory.
+  it('rejects a non-positive perUnit or cap', () => {
+    expect(() => apply({ ...rule, perUnit: 0 })).toThrow()
+    expect(() => apply({ ...rule, perUnit: -0.1 })).toThrow()
+    expect(() => apply({ ...rule, cap: 0 })).toThrow()
+  })
+
+  it('rejects an unknown stage', () => {
+    expect(() => apply({ ...rule, stage: 'global' })).toThrow()
+  })
+
+  it('lives on pacts only, and is not dynamic', () => {
+    expect(isEffectAllowedOn('mirrorStatModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'passiveAttack')).toBe(false)
+    // It reads the *partner's* state, which the data panel's live-bonus
+    // section (owner-side) cannot show; the relations panel reports it instead.
+    expect(isDynamicEffect('mirrorStatModifier')).toBe(false)
   })
 })
 

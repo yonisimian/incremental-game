@@ -13,7 +13,9 @@ import {
   collectEnemyDebuffs,
   collectEnemyCostFactors,
   collectEnemyPurchaseLocks,
+  collectPactBonuses,
   collectPactCostFactors,
+  pactModifiers,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -48,6 +50,8 @@ import type {
   Modifier,
   ModeDefinition,
   OpponentView,
+  PactBonus,
+  PartnerSnapshot,
   PlayerAction,
   PurchaseEvent,
   AttackEvent,
@@ -105,6 +109,16 @@ interface MatchPlayer {
    * plain drain-on-broadcast buffer suffices.
    */
   attackEvents: AttackEvent[]
+  /**
+   * What each pact in force is worth to this player, resolved against the
+   * opponent once per tick by {@link Match.syncPactBonuses} (plan 42). Read by
+   * the income tick, by a click landing between ticks (at most one tick stale
+   * — the tolerance prices accepted before their stamp moved to message
+   * receipt, and a rate bonus does not need that move), and by the broadcast,
+   * which ships it as `STATE_UPDATE.pactBonuses`. Empty when nothing is in
+   * force.
+   */
+  pactBonuses: PactBonus[]
 }
 
 /** A purchase log entry: the wire {@link PurchaseEvent} plus its server-internal seq. */
@@ -341,6 +355,7 @@ export class Match {
       purchaseSeq: 0,
       purchaseFeedSeq: null,
       attackEvents: [],
+      pactBonuses: [],
     }
   }
 
@@ -367,6 +382,9 @@ export class Match {
         return
       }
 
+      // Resolve what the pacts in force are worth *before* either player's
+      // income moves, off both players' pact-free rates (see `syncPactBonuses`).
+      this.syncPactBonuses()
       for (let i = 0; i < this.players.length; i++) {
         this.applyPassiveIncome(this.players[i], this.players[1 - i])
       }
@@ -537,6 +555,54 @@ export class Match {
     }
   }
 
+  /**
+   * Resolve what the pacts in force are worth to each player this tick (plan
+   * 42): assemble both players' snapshots — their state plus their **pact-free**
+   * rates (own modifiers and the debuffs on them, nothing else) — then collect
+   * each side's bonuses against the other's snapshot, cached on `MatchPlayer`
+   * for the income tick, the click path and the broadcast.
+   *
+   * Pact-free rates are the rule that makes two rate-mirroring pacts a single
+   * pass: if each read the other's *final* rate the answer would be a fixed
+   * point. Reading "the enemy's own production" is explicit and one pass — see
+   * `PartnerSnapshot`. Both snapshots are taken before either player's income
+   * moves, so the two sides read the same instant.
+   */
+  private syncPactBonuses(): void {
+    const mode = this.modeDef
+    const snapshots = this.players.map((player, i): PartnerSnapshot => {
+      const opponent = this.players[1 - i]
+      return {
+        state: player.state,
+        rates: computePassiveRates(
+          [
+            ...collectModifiers(player.state, mode),
+            ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, mode), player.state),
+          ],
+          mode.resources,
+        ),
+      }
+    })
+    for (let i = 0; i < this.players.length; i++) {
+      this.players[i].pactBonuses = collectPactBonuses(
+        this.players[i].state,
+        snapshots[1 - i],
+        mode,
+      )
+    }
+  }
+
+  /**
+   * The pact bonuses cached for `player`, resolved against them (a
+   * highlight-factor bonus lands on whichever resource they hold right now) —
+   * the pact half of every income figure, appended after the debuffs so a
+   * `clickIncome` bonus scales the finished figure as a debuff does.
+   */
+  private pactModifiersFor(player: MatchPlayer): Modifier[] {
+    if (player.pactBonuses.length === 0) return []
+    return resolveEnemyDebuffs(pactModifiers(player.pactBonuses), player.state)
+  }
+
   private applyPassiveIncome(player: MatchPlayer, opponent: MatchPlayer): void {
     const tickSec = TICK_INTERVAL_MS / 1000
     // Advance the highlight battery first: its charge feeds the modifiers
@@ -546,10 +612,12 @@ export class Match {
     // The defender's own modifiers plus the offensive debuffs the opponent's
     // unlocked passive attacks inflict (e.g. a -10% wood-production attack),
     // resolved against the defender — a highlight-factor debuff lands on whichever
-    // resource they're holding right now.
+    // resource they're holding right now — plus what the pacts in force are
+    // worth to them this tick.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
       ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, this.modeDef), player.state),
+      ...this.pactModifiersFor(player),
     ]
     applyPassiveTick(
       player.state,
@@ -680,14 +748,16 @@ export class Match {
     player.state.meta.peakCps = player.stats.peakCps
 
     // The clicker's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict — appended last so a `clickIncome` debuff
-    // scales the finished figure, matching `applyPassiveIncome`.
+    // unlocked passive attacks inflict — appended after so a `clickIncome` debuff
+    // scales the finished figure, matching `applyPassiveIncome` — plus the pact
+    // bonuses cached by the last tick.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
       ...resolveEnemyDebuffs(
         collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
         player.state,
       ),
+      ...this.pactModifiersFor(player),
     ]
     const income = computeClickIncome(modifiers)
 

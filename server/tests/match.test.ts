@@ -5,6 +5,9 @@ import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
+  TICK_INTERVAL_MS,
+  collectModifiers,
+  computePassiveRates,
   getAttackPrepareCost,
   NEUTRAL_ATTACK_PARAMS,
   getModeDefinition,
@@ -1998,6 +2001,156 @@ describe('Match', () => {
         expect(p2.upgrades['be-af-mr']).toBe(1)
         // Same seed funds, same income since: p1 paid 5 for what cost p2 10.
         expect(p1.resources.r0 - p2.resources.r0).toBeCloseTo(5, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    // ── Production bonuses ─────────────────────────────────────────
+
+    /** `p3` re-authored with the given mirrored rule (and `mutual` flag). */
+    function withStatPact(rule: Record<string, unknown>, mutual: boolean): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        pacts: base.pacts.map((p) =>
+          p.id === 'p3' ? { ...p, mutual, effects: [{ type: 'mirrorStatModifier', ...rule }] } : p,
+        ),
+      }
+    }
+    const signP3 = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+    )!
+    function signTrade(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
+      m.handleMessage(playerId, buyMsg(signP3.id, seq + 1))
+    }
+    /** A player's r0 gain over one broadcast interval, from the latest snapshot. */
+    function incomeOver(ws: WebSocket): number {
+      const before = latestUpdate(ws).player.resources.r0
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      return latestUpdate(ws).player.resources.r0 - before
+    }
+    /** Give `playerId` `count` woodcutters (g0, priced in 🍺). */
+    function giveWoodcutters(m: Match, playerId: 'p1' | 'p2', count: number, seq: number) {
+      m.handleMessage(playerId, buyMsg('g1-g2', seq))
+      m.grantResourcesForTest(playerId, { r1: 100_000 })
+      for (let i = 0; i < count; i++) m.handleMessage(playerId, buyGenMsg('g0', seq + 1 + i))
+    }
+
+    it('raises the signatory’s rate with the partner’s woodcutters, capped, and back both ways when mutual', () => {
+      const base = getModeDefinition('idler')
+      // +10% 🪵 per enemy woodcutter, up to +50%.
+      const patched = withStatPact(
+        {
+          source: 'generator:g0',
+          field: 'r0',
+          stage: 'multiplicative',
+          perUnit: 0.1,
+          cap: 0.5,
+        },
+        true,
+      )
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signTrade(m, 'p1', 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const baseline = incomeOver(ws1)
+        expect(baseline).toBeGreaterThan(0)
+
+        // Two enemy woodcutters: +20% for p1. p2's own rate rises too (their
+        // woodcutters produce for them), so the comparison is against p1's
+        // *own* baseline, not against p2.
+        giveWoodcutters(m, 'p2', 2, 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(incomeOver(ws1) / baseline).toBeCloseTo(1.2, 6)
+
+        // Ten: the bonus saturates at the cap.
+        giveWoodcutters(m, 'p2', 8, 10)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(incomeOver(ws1) / baseline).toBeCloseTo(1.5, 6)
+
+        // Mutual: p2 signed nothing, yet p1's woodcutters pay p2 the same way.
+        // p2's baseline is measured with its own woodcutters already producing.
+        const p2Baseline = incomeOver(ws2)
+        giveWoodcutters(m, 'p1', 3, 20)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(incomeOver(ws2) / p2Baseline).toBeCloseTo(1.3, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('does not feed two rate mirrors into each other: each reads the other’s pact-free rate', () => {
+      const base = getModeDefinition('idler')
+      // +50% 🪵 per 1 🪵/s the enemy makes (before *their* pacts).
+      const patched = withStatPact(
+        { source: 'r0:rate', field: 'r0', stage: 'multiplicative', perUnit: 0.5 },
+        false,
+      )
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signTrade(m, 'p1', 1)
+        signTrade(m, 'p2', 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // Both sides' own rate R (no generators, no highlight bonus) — the
+        // figure each pact reads. A fixed point would instead solve
+        // x = R × (1 + 0.5x), a different number.
+        const R = computePassiveRates(
+          collectModifiers(latestUpdate(ws1).player, patched),
+          patched.resources,
+        ).r0
+        expect(R).toBeGreaterThan(0)
+        const expected = R * (1 + 0.5 * R) * (BROADCAST_INTERVAL_MS / 1000)
+        expect(incomeOver(ws1)).toBeCloseTo(expected, 6)
+        expect(incomeOver(ws2)).toBeCloseTo(expected, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('credits a click between ticks with the bonuses cached by the last tick', () => {
+      const base = getModeDefinition('idler')
+      // Each click pays +2 🪵 per enemy peak CPS.
+      const patched = withStatPact(
+        { source: 'peakCps', field: 'clickIncome', stage: 'additive', perUnit: 2 },
+        false,
+      )
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Both unlock clicking (50 🪵 each, symmetric); p1 signs the pact.
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        signTrade(m, 'p1', 2)
+        // p2 clicks 🍺 four times: peak CPS 4, 🪵 untouched.
+        m.handleMessage(
+          'p2',
+          JSON.stringify({
+            type: 'ACTION_BATCH',
+            seq: 2,
+            actions: Array.from({ length: 4 }, () => ({
+              type: 'click',
+              timestamp: Date.now(),
+              resource: 'r1',
+            })),
+          }),
+        )
+        // One tick caches p1's bonus off p2's fresh peak; the click then lands
+        // between ticks and reads the cache.
+        vi.advanceTimersByTime(TICK_INTERVAL_MS)
+        m.handleMessage('p1', clickMsg(4, 'r0'))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // Same seed funds, same spend, same passive 🪵 income: the difference is
+        // the one click — sc-unlock's +1 plus the mirrored 2 × 4.
+        const gap = latestUpdate(ws1).player.resources.r0 - latestUpdate(ws2).player.resources.r0
+        expect(gap).toBeCloseTo(9, 6)
       } finally {
         registerMode('idler', base)
       }

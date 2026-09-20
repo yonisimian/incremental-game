@@ -1329,6 +1329,90 @@ describe('validateModeDefinition — negative tests', () => {
     }
   })
 
+  const statRule = {
+    type: 'mirrorStatModifier',
+    source: 'score',
+    field: 'r0',
+    stage: 'multiplicative',
+    perUnit: 0.01,
+  }
+
+  it('rejects a mirrorStatModifier whose source is not an enemy stat', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, source: 'meta:peakCps' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/pact 'p0' mirrorStatModifier effect references unknown enemy stat 'meta:peakCps'/)
+  })
+
+  it('accepts every catalog source for a mirrorStatModifier', () => {
+    for (const source of ['r0', 'r0:rate', 'peakCps', 'score', 'upgrades', 'upgrade:u0']) {
+      const def = defWithPact({ id: 'p0', kind: 'passive', effects: [{ ...statRule, source }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  it('rejects a mirrorStatModifier field outside the debuff-target catalog', () => {
+    // A generator output is folded before a pact bonus merges in — same rule
+    // as for an enemy debuff, so the same catalog.
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'b0' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/pact 'p0' mirrorStatModifier effect references unknown or unsupported field 'b0'/)
+  })
+
+  it('rejects an additive mirrorStatModifier on the highlight factor', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'highlightFactor', stage: 'additive' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/targets 'highlightFactor' with stage 'additive'/)
+    const ok = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'highlightFactor' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', ok)
+    }).not.toThrow()
+  })
+
+  it('rejects a non-positive perUnit or cap, named ahead of the schema', () => {
+    for (const patch of [{ perUnit: 0 }, { cap: -1 }]) {
+      const def = defWithPact({ id: 'p0', kind: 'passive', effects: [{ ...statRule, ...patch }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(/must be positive \(a pact is a bonus\)/)
+    }
+  })
+
+  it('rejects a resource named after the enemy-stat score key', () => {
+    const def = withFlavor(
+      makeValidDef({ resources: ['r0', 'score'], initialResources: { r0: 0, score: 0 } }),
+      {
+        resources: [
+          { key: 'r0', displayName: 'Res', icon: '🔵' },
+          { key: 'score', displayName: 'Score', icon: '🏆' },
+        ],
+      },
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/resource key 'score' collides with a reserved enemy-stat key/)
+  })
+
   it('accepts a mutual pact with no effects (a placeholder that says what it will be)', () => {
     const def = defWithPact({ id: 'p0', kind: 'passive', mutual: true })
     expect(() => {

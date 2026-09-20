@@ -229,6 +229,34 @@ export interface MirrorCostOutput {
 }
 
 /**
+ * A *mirrored production bonus*: a bonus to the pact's beneficiary scaled by one
+ * enemy stat — their woodcutter count, their pact-free wood rate, their peak
+ * CPS (see `ENEMY_STAT_KEYS` in `enemy-stats.ts`). Emitted by the
+ * `mirrorStatModifier` effect on a pact and consumed by `collectPactBonuses`
+ * (see `pacts.ts`), which reads the stat off the partner and resolves
+ * `perUnit × stat` (capped) into a real {@link Modifier} at `stage` on `field`.
+ *
+ * The buff twin of {@link EnemyModifierOutput}: it names a target from the same
+ * enemy-debuff catalog (resource rates, `clickIncome`, the virtual
+ * `highlightFactor`, which `resolveEnemyDebuffs` translates for buffs exactly as
+ * for debuffs), but carries a *rule* rather than a value — the value only exists
+ * once both players are in hand. The distinct `kind` keeps it off every other
+ * consumer.
+ */
+export interface MirrorModifierOutput {
+  readonly kind: 'mirrorModifier'
+  /** Which enemy stat scales the bonus (an `enemyStatKeys` key). */
+  readonly source: string
+  /** The beneficiary's pipeline target (an `enemyDebuffTargets` key). */
+  readonly field: string
+  readonly stage: Modifier['stage']
+  /** Bonus per unit of the stat: additive → `perUnit × stat` added; multiplicative → `1 + perUnit × stat`. */
+  readonly perUnit: number
+  /** Upper bound on the *bonus* (the added amount, or the excess over 1). Absent = uncapped. */
+  readonly cap?: number
+}
+
+/**
  * An *offensive embargo*: the opponent cannot buy the named scopes while the
  * owning active attack's debuff window is open. Emitted by the
  * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
@@ -417,7 +445,7 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
  * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, a pact's
- * {@link MirrorCostOutput}, one of the
+ * {@link MirrorCostOutput} or {@link MirrorModifierOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
  * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, an
  * {@link AttackAlertOutput}, or one of the time-clock outputs
@@ -425,7 +453,8 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `collectEnemyPurchaseLocks` / `collectPactCostFactors` / `resolveAttackStrike`
+ * `collectEnemyPurchaseLocks` / `collectPactCostFactors` / `collectPactBonuses`
+ * / `resolveAttackStrike`
  * / `collectAttackParams` / `attackLimit` / `collectAttackAlert` /
  * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
  */
@@ -445,6 +474,7 @@ export type EffectOutput =
   | EnemyCostOutput
   | EnemyPurchaseLockOutput
   | MirrorCostOutput
+  | MirrorModifierOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput

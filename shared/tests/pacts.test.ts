@@ -8,6 +8,7 @@ import {
   applyPurchase,
   collectEnemyCostFactors,
   collectGeneratorCostFactors,
+  collectPactBonuses,
   collectPactCostFactors,
   createInitialState,
   ENEMY_STAT_SCORE_KEY,
@@ -19,9 +20,11 @@ import {
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
   pactCostFactors,
+  pactModifiers,
   pactsInForce,
   purchaseBlockReason,
   readEnemyStat,
+  resolveEnemyDebuffs,
   resolveGeneratorDef,
   upgradeCostFactors,
   validateModeDefinition,
@@ -173,7 +176,52 @@ const ACTIVE: PactDefinition = {
   kind: 'active',
   effects: [{ type: 'mirrorCostModifier', target: 'generators', costFactor: 0.5 }],
 }
-const PACTS = [RESEARCH, TRADE, EMPTY, ACTIVE]
+/** +2% r0 per enemy g0, up to +50%. Mutual. */
+const ROUTE: PactDefinition = {
+  id: 'p-route',
+  kind: 'passive',
+  mutual: true,
+  effects: [
+    {
+      type: 'mirrorStatModifier',
+      source: 'generator:g0',
+      field: 'r0',
+      stage: 'multiplicative',
+      perUnit: 0.02,
+      cap: 0.5,
+    },
+  ],
+}
+/** Each click pays +0.5 per enemy peak CPS, uncapped; plus a rate mirror. One-sided. */
+const TAPS: PactDefinition = {
+  id: 'p-taps',
+  kind: 'passive',
+  effects: [
+    {
+      type: 'mirrorStatModifier',
+      source: 'peakCps',
+      field: 'clickIncome',
+      stage: 'additive',
+      perUnit: 0.5,
+    },
+    { type: 'mirrorStatModifier', source: 'r0:rate', field: 'r0', stage: 'additive', perUnit: 0.1 },
+  ],
+}
+/** A highlight-factor mirror: ×(1 + 0.001 per enemy score point). */
+const GLOW: PactDefinition = {
+  id: 'p-glow',
+  kind: 'passive',
+  effects: [
+    {
+      type: 'mirrorStatModifier',
+      source: 'score',
+      field: 'highlightFactor',
+      stage: 'multiplicative',
+      perUnit: 0.001,
+    },
+  ],
+}
+const PACTS = [RESEARCH, TRADE, EMPTY, ACTIVE, ROUTE, TAPS, GLOW]
 
 /** Every upgrade 25% dearer — the attack the discount has to commute with. */
 const TARIFF: AttackDefinition = {
@@ -452,5 +500,98 @@ describe('prices under a pact discount', () => {
     expect(before - owner.resources.r0).toBe(50)
     // The refund is the player's own price — a discount never inflates it.
     expect(getGeneratorSellRefund(resolveGeneratorDef(G0, owner, MODE, 'sell'), 1)).toBe(50)
+  })
+})
+
+// ─── collectPactBonuses ──────────────────────────────────────────────
+
+describe('collectPactBonuses', () => {
+  const snap = (state: PlayerState, rates: Record<string, number> = {}): PartnerSnapshot => ({
+    state,
+    rates,
+  })
+
+  it('yields nothing when no pact is in force', () => {
+    expect(collectPactBonuses(player(), snap(player({ generators: { g0: 9 } })), MODE)).toEqual([])
+  })
+
+  it('resolves a multiplicative rule to 1 + perUnit × stat, per pact', () => {
+    const owner = player({ signed: ['p-route'] })
+    expect(collectPactBonuses(owner, snap(player({ generators: { g0: 5 } })), MODE)).toEqual([
+      { pact: 'p-route', modifiers: [{ stage: 'multiplicative', field: 'r0', value: 1.1 }] },
+    ])
+  })
+
+  it('caps the bonus, not the value', () => {
+    const owner = player({ signed: ['p-route'] })
+    const [bonus] = collectPactBonuses(owner, snap(player({ generators: { g0: 100 } })), MODE)
+    expect(bonus.modifiers).toEqual([{ stage: 'multiplicative', field: 'r0', value: 1.5 }])
+  })
+
+  it('resolves an additive rule to perUnit × stat, and drops a rule worth nothing', () => {
+    const owner = player({ signed: ['p-taps'] })
+    const partner = player()
+    partner.meta.peakCps = 6
+    // The rate rule reads the snapshot's rates — none given, so it is worth
+    // nothing and is left out rather than reported as +0.
+    expect(collectPactBonuses(owner, snap(partner), MODE)).toEqual([
+      { pact: 'p-taps', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 3 }] },
+    ])
+  })
+
+  // The rule that keeps two rate-mirroring pacts a single pass: the rate read
+  // is the snapshot's pact-free figure, never derived from the state.
+  it('reads a :rate source off the snapshot rates', () => {
+    const owner = player({ signed: ['p-taps'] })
+    const partner = player({ generators: { g0: 50 } }) // would produce plenty — irrelevant
+    expect(collectPactBonuses(owner, snap(partner, { r0: 20 }), MODE)).toEqual([
+      { pact: 'p-taps', modifiers: [{ stage: 'additive', field: 'r0', value: 2 }] },
+    ])
+  })
+
+  it('omits a pact whose every rule resolves to nothing', () => {
+    const owner = player({ signed: ['p-route', 'p-taps', 'p-empty'] })
+    expect(collectPactBonuses(owner, snap(player()), MODE)).toEqual([])
+  })
+
+  it('passes the virtual highlightFactor target through unresolved', () => {
+    const owner = player({ signed: ['p-glow'] })
+    const partner = player()
+    partner.score = 250
+    const [bonus] = collectPactBonuses(owner, snap(partner), MODE)
+    expect(bonus.modifiers).toEqual([
+      { stage: 'multiplicative', field: 'highlightFactor', value: 1.25 },
+    ])
+    // Resolved against the beneficiary exactly as a debuff is: onto whatever
+    // they hold, or nothing while released.
+    owner.meta.highlight = 'r0'
+    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner)).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 1.25 },
+    ])
+    owner.meta.highlight = null
+    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner)).toEqual([])
+  })
+
+  it('grants a partner-held mutual pact to the owner, reading the holder', () => {
+    // The owner signed nothing; the partner's trade route is mutual and the
+    // partner has the woodcutters — so the owner gains from them.
+    const partner = player({ signed: ['p-route'], generators: { g0: 10 } })
+    expect(collectPactBonuses(player(), snap(partner), MODE)).toEqual([
+      { pact: 'p-route', modifiers: [{ stage: 'multiplicative', field: 'r0', value: 1.2 }] },
+    ])
+    // And the holder gains from the owner's — none here.
+    expect(collectPactBonuses(partner, snap(player()), MODE)).toEqual([])
+  })
+
+  it('flattens for the pipeline in pact order', () => {
+    const owner = player({ signed: ['p-route', 'p-taps'] })
+    const partner = player({ generators: { g0: 5 } })
+    partner.meta.peakCps = 2
+    const bonuses = collectPactBonuses(owner, snap(partner, { r0: 10 }), MODE)
+    expect(pactModifiers(bonuses)).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 1.1 },
+      { stage: 'additive', field: 'clickIncome', value: 1 },
+      { stage: 'additive', field: 'r0', value: 1 },
+    ])
   })
 })

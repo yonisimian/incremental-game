@@ -46,8 +46,10 @@ import type { EnemyPurchaseLockParams } from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
+  ENEMY_STAT_SCORE_KEY,
   enemyCostTargets,
   enemyDebuffTargets,
+  enemyStatKeys,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
   RESERVED_TARGET_KEYS,
@@ -405,6 +407,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] resource key '${intelKey}' collides with a reserved non-resource intel key`,
       )
   }
+  // The enemy-stat catalog's `score` key names no resource either (plan 42).
+  if (resourceKeys.has(ENEMY_STAT_SCORE_KEY))
+    throw new Error(
+      `[${id}] resource key '${ENEMY_STAT_SCORE_KEY}' collides with a reserved enemy-stat key`,
+    )
   const nonResourceIntel = new Set(NON_RESOURCE_INTEL_KEYS)
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
@@ -588,6 +595,40 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         if (typeof factor === 'number' && !(factor > 0 && factor < 1))
           throw new Error(
             `[${id}] pact '${pact.id}' mirrorCostModifier ${knob} must be between 0 and 1 (a pact is a discount); got ${factor}`,
+          )
+      }
+    }
+  }
+
+  // `mirrorStatModifier` (on a pact) names a `source` — an enemy stat — and a
+  // `field` — the beneficiary's pipeline target. Both are mode-specific strings
+  // the schema only checks are present; validate them against the enemy-stat
+  // catalog and the enemy-debuff target catalog (the same set a debuff may hit,
+  // for the same reason: a pact bonus merges in after generator output is
+  // folded). The highlight-factor rule is copied from the attack check. The
+  // positivity of `perUnit` / `cap` is the schema's on the file path and
+  // re-checked here for a programmatically built mode.
+  const statKeys = new Set(enemyStatKeys(def).map((f) => f.key))
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'mirrorStatModifier') continue
+      if (typeof ref.source === 'string' && !statKeys.has(ref.source))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect references unknown enemy stat '${ref.source}' (expected a resource key, '<resource>:rate', 'peakCps', 'score', 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+        )
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be boosted from a pact)`,
+        )
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+      for (const knob of ['perUnit', 'cap'] as const) {
+        const value = ref[knob]
+        if (typeof value === 'number' && !(value > 0))
+          throw new Error(
+            `[${id}] pact '${pact.id}' mirrorStatModifier ${knob} must be positive (a pact is a bonus); got ${value}`,
           )
       }
     }
@@ -1069,7 +1110,10 @@ function collectRawModifiers(
     for (const o of normalizeEffectOutputs(out)) {
       if ('kind' in o && o.kind === 'baseModifier') {
         routeBaseModifier(o, owned ?? 1)
-      } else if ('stage' in o) {
+      } else if (!('kind' in o)) {
+        // A raw pipeline modifier is the one output with no `kind` tag. (A
+        // kinded output that also carries a `stage` — a pact's `mirrorModifier`
+        // rule — is not a modifier yet; its collector resolves it.)
         routeModifier(o)
       }
     }
