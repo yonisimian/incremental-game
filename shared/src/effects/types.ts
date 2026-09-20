@@ -150,8 +150,9 @@ export interface AttackAlertOutput {
  * Marks a pact as unlocked while the owning upgrade is held. Consumed by
  * `isPactUnlocked` (a pact that no owned upgrade names is locked — unlike
  * panels, pacts are hidden by default); carries no production weight, so the
- * modifier pipeline ignores it. The pact itself has no behavior yet — this
- * only gates its appearance in the international relationship panel.
+ * modifier pipeline ignores it. Unlocking is what puts a passive pact in force
+ * (`pactsInForce`), so this gates both its appearance in the international
+ * relationship panel and its buffs.
  */
 export interface PactUnlockOutput {
   readonly kind: 'pactUnlock'

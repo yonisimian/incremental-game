@@ -1003,8 +1003,9 @@ export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefiniti
  * Whether a pact is available to this player. Granted by an `unlockPact` effect
  * naming it — an owned upgrade's, or one of the mode's starting effects. Unlike
  * `isPanelUnlocked`, a pact nothing unlocks is *hidden* by default (pacts only
- * appear once unlocked). The pact itself has no behavior yet — this gates its
- * appearance in the international relationship panel.
+ * appear once unlocked). Unlocking is what puts a passive pact in force (see
+ * `pactsInForce`), so this gates both its appearance in the international
+ * relationship panel and its buffs.
  */
 export function isPactUnlocked(
   state: Readonly<PlayerState>,

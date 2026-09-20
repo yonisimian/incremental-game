@@ -105,6 +105,30 @@ function botAttackTarget(
   return null
 }
 
+/**
+ * The pact-signing upgrades the bot picks up (plan 42 §13): the unlock node of
+ * every *passive* pact that carries effects — the treaties that do something.
+ * A solo player then meets a live pact from the bot's side: a one-sided one
+ * discounts the bot, a mutual one pays the human too and fills their "Shared
+ * treaties" list without a second human. Active pacts (plan 44) and
+ * placeholders are skipped — nothing to sign for.
+ */
+function botPactUnlocks(
+  modeDef: ModeDefinition,
+  availableUpgrades: readonly UpgradeDefinition[],
+): UpgradeDefinition[] {
+  const live = new Set(
+    modeDef.pacts
+      .filter((p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0)
+      .map((p) => p.id),
+  )
+  return availableUpgrades.filter((u) =>
+    u.effects?.some(
+      (e) => e.type === 'unlockPact' && typeof e.pact === 'string' && live.has(e.pact),
+    ),
+  )
+}
+
 function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'): boolean {
   return (upgrade.effects ?? []).some(
     (effect) => effect.type === 'systemUnlock' && effect.system === system,
@@ -122,8 +146,9 @@ function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'
  * unlocked generators.
  *
  * The plan is: be-af-mr → the generator-unlock upgrades (free, so they fire
- * early and start passive income) → under the buy-upgrade goal, the Royal
- * Throne (trophy) via its prerequisite chain.
+ * early and start passive income) → one active attack → the passive pacts
+ * that do something → under the buy-upgrade goal, the Royal Throne (trophy)
+ * via its prerequisite chain.
  */
 export class IdlerBot implements BotStrategy {
   /** Ordered upgrade plan. */
@@ -195,6 +220,16 @@ export class IdlerBot implements BotStrategy {
     const target = botAttackTarget(modeDef, availableUpgrades)
     if (target) {
       const path = this.resolvePath(target.unlock, includedIds)
+      for (const step of path) includedIds.add(step.id)
+      basePlan.push(...path)
+    }
+
+    // The free pact nodes (plan 42): sign every passive pact that does
+    // something, so a bot match shows a treaty from the other side. Their
+    // unlock chain (the relations panel, then the node) rides the plan like the
+    // attack unlock does.
+    for (const unlock of botPactUnlocks(modeDef, availableUpgrades)) {
+      const path = this.resolvePath(unlock, includedIds)
       for (const step of path) includedIds.add(step.id)
       basePlan.push(...path)
     }
