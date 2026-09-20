@@ -16,6 +16,7 @@ import {
   collectPactBonuses,
   collectPactCostFactors,
   pactModifiers,
+  sharedPacts,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -843,6 +844,12 @@ export class Match {
     const p1Attacks = p1.attackEvents.length ? p1.attackEvents : undefined
     const p2Attacks = p2.attackEvents.length ? p2.attackEvents : undefined
 
+    // What the pacts in force are worth to each side, as cached by the last
+    // tick — resolved here rather than on the client, which never sees the
+    // enemy stats they read. Absent when nothing is in force.
+    const p1Pacts = p1.pactBonuses.length ? p1.pactBonuses : undefined
+    const p2Pacts = p2.pactBonuses.length ? p2.pactBonuses : undefined
+
     this.send(p1, {
       type: 'STATE_UPDATE',
       tick: this.tick,
@@ -851,6 +858,7 @@ export class Match {
       opponent: this.opponentViewFor(p1, p2, p1Debuffs),
       debuffs: p2Debuffs,
       attackEvents: p1Attacks,
+      pactBonuses: p1Pacts,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -863,6 +871,7 @@ export class Match {
       opponent: this.opponentViewFor(p2, p1, p2Debuffs),
       debuffs: p1Debuffs,
       attackEvents: p2Attacks,
+      pactBonuses: p2Pacts,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -926,6 +935,12 @@ export class Match {
     }
 
     this.projectIncomingAttacks(viewer, opponent, view)
+
+    // The opponent's mutual pacts already benefit the viewer, so naming them
+    // reveals nothing the viewer's own income doesn't; their one-sided pacts
+    // stay hidden (plan 42).
+    const shared = sharedPacts(opponent.state, mode)
+    if (shared.length > 0) view.pacts = shared
 
     return view
   }

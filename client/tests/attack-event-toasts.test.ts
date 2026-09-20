@@ -9,7 +9,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AttackEvent, RoundStartMessage, StateUpdateMessage } from '@game/shared'
-import { COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
+import {
+  COUNTDOWN_SEC,
+  ROUND_DURATION_SEC,
+  getModeDefinition,
+  getModeFlavor,
+  getPactName,
+} from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 
 vi.mock('../src/network.js', () => ({
@@ -128,5 +134,46 @@ describe('debuff attack events → toasts', () => {
     const texts = spawnToast.mock.calls.map(([text]) => text)
     expect(texts[0]).toContain('lost')
     expect(texts[1]).toContain('debuffed for 10s')
+  })
+})
+
+describe('shared pact → toast (plan 42)', () => {
+  let game: GameModule
+
+  beforeEach(async () => {
+    vi.useFakeTimers()
+    spawnToast.mockClear()
+    game = await loadGame()
+    game.handleServerMessage(roundStart)
+    vi.advanceTimersByTime(Math.max(COUNTDOWN_SEC, 1) * 1000)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** A snapshot whose opponent view names the given mutual pacts. */
+  function withSharedPacts(pacts: string[] | undefined): StateUpdateMessage {
+    const update = stateUpdate([])
+    return { ...update, opponent: { ...update.opponent, ...(pacts ? { pacts } : {}) } }
+  }
+
+  it('announces a treaty the enemy signed once, by its flavor name', () => {
+    const name = getPactName(getModeFlavor(getModeDefinition('idler')), 'p3')
+    game.handleServerMessage(withSharedPacts(['p3']))
+    expect(spawnToast).toHaveBeenCalledTimes(1)
+    const [text, tone] = spawnToast.mock.calls[0]
+    expect(text).toContain(name)
+    expect(text).toContain('signed by the enemy')
+    expect(tone).toBe('info')
+
+    // Rebroadcast every snapshot: announced only on first appearance.
+    game.handleServerMessage(withSharedPacts(['p3']))
+    expect(spawnToast).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays quiet when the view names no pact', () => {
+    game.handleServerMessage(withSharedPacts(undefined))
+    expect(spawnToast).not.toHaveBeenCalled()
   })
 })

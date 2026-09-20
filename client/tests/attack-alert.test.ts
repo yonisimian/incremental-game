@@ -162,6 +162,8 @@ describe('espionage panel — incoming strikes', () => {
       opponent: { resources: {}, rates: {} },
       opponentPurchaseFeed: [],
       debuffs: [],
+      pactBonuses: [],
+      opponentPacts: [],
       incomingAttacks,
       timeLeft: 60,
       paused: false,

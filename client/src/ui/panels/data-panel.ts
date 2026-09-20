@@ -22,6 +22,7 @@ import {
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
+  pactModifiers,
   resolveEnemyDebuffs,
   getModeDefinition,
   getModeFlavor,
@@ -481,11 +482,14 @@ function updateNumbers(state: Readonly<GameState>): void {
   const modeDef = getModeDefinition(state.mode)
 
   // Incoming debuffs, resolved once against this player — every figure below that
-  // folds them in reads from here (see `resolveEnemyDebuffs`).
+  // folds them in reads from here (see `resolveEnemyDebuffs`). The pact bonuses
+  // in force (plan 42) ride beside them into every total, but not into the
+  // debuff rows, which report what the enemy is *taking*.
   const debuffs = resolveEnemyDebuffs(state.debuffs, state.player)
+  const bonuses = resolveEnemyDebuffs(pactModifiers(state.pactBonuses), state.player)
 
-  // Production + source breakdown (debuffs folded in so totals match the header).
-  const breakdown = computeRateBreakdown(state.player, modeDef, debuffs)
+  // Production + source breakdown (debuffs and bonuses folded in so totals match the header).
+  const breakdown = computeRateBreakdown(state.player, modeDef, [...debuffs, ...bonuses])
   const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
@@ -520,7 +524,7 @@ function updateNumbers(state: Readonly<GameState>): void {
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
     const own = collectModifiers(state.player, modeDef)
-    const clickIncome = computeClickIncome([...own, ...debuffs])
+    const clickIncome = computeClickIncome([...own, ...debuffs, ...bonuses])
     setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
     // What the incoming `clickIncome` debuffs cost each click. These rows exist
     // because the number above them is already debuffed and so looks like the

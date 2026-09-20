@@ -37,6 +37,8 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     },
     opponentPurchaseFeed: [],
     incomingAttacks: [],
+    pactBonuses: [],
+    opponentPacts: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

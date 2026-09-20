@@ -1086,6 +1086,65 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: pact bonuses on the wire (plan 42) ──────────────────────
+
+  describe('idler pact bonuses', () => {
+    const ROUTE = {
+      pact: 'p3',
+      modifiers: [{ stage: 'multiplicative' as const, field: 'r0', value: 1.2 }],
+    }
+
+    it('replaces the bonuses and shared pacts from each snapshot, and clears them on round start', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          pactBonuses: [ROUTE],
+          opponent: { resources: {}, rates: {}, pacts: ['p3'] },
+        }),
+      )
+      expect(game.getState().pactBonuses).toEqual([ROUTE])
+      expect(game.getState().opponentPacts).toEqual(['p3'])
+
+      // State, not a delta: a snapshot without them empties both.
+      game.handleServerMessage(makeStateUpdate())
+      expect(game.getState().pactBonuses).toEqual([])
+      expect(game.getState().opponentPacts).toEqual([])
+
+      game.handleServerMessage(
+        makeStateUpdate({
+          pactBonuses: [ROUTE],
+          opponent: { resources: {}, rates: {}, pacts: ['p3'] },
+        }),
+      )
+      game.handleServerMessage(makeRoundStart())
+      expect(game.getState().pactBonuses).toEqual([])
+      expect(game.getState().opponentPacts).toEqual([])
+    })
+
+    it('credits a predicted click with the pact bonus the server will apply', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            pendingAttacks: [],
+            meta: { highlight: 'r0' },
+          },
+          // Each click pays +4 🪵 more (an enemy-peak-CPS mirror, resolved).
+          pactBonuses: [
+            { pact: 'p3', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 4 }] },
+          ],
+        }),
+      )
+      game.doClick()
+      // sc-unlock's +1 plus the mirrored 4.
+      expect(game.getState().player.resources.r0).toBe(5)
+    })
+  })
+
   // ── Idler: doClick ─────────────────────────────────────────────────
 
   describe('idler doClick', () => {

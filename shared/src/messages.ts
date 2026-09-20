@@ -1,4 +1,5 @@
 import type { Modifier } from './modifiers/types.js'
+import type { PactBonus } from './pacts.js'
 import type { GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
@@ -229,6 +230,14 @@ export interface OpponentView {
    * opponent's `pendingAttacks`, gated by an upgrade the *victim* buys.
    */
   incomingAttacks?: IncomingAttack[]
+  /**
+   * The opponent's unlocked *mutual* passive pacts — the treaties the viewer
+   * also benefits from (plan 42). Absent when none. Only ids of pacts that
+   * already affect the viewer are sent; a one-sided pact the opponent holds is
+   * never revealed. The client resolves an id to its flavor and pairs it with
+   * the matching `pactBonuses` entry for the relations panel.
+   */
+  pacts?: string[]
 }
 
 /** Periodic authoritative state snapshot. */
@@ -257,6 +266,16 @@ export interface StateUpdateMessage {
    * is sent exactly once and the client turns it into a transient toast.
    */
   attackEvents?: AttackEvent[]
+  /**
+   * What each pact in force is worth to the receiving player right now,
+   * resolved server-side (the enemy stats it reads are never sent). Absent
+   * when none. Merged into the client's rate and click income like `debuffs`
+   * (and, like them, still carrying the virtual `highlightFactor` target for
+   * `resolveEnemyDebuffs` to translate), and listed per pact by the relations
+   * panel. The one deliberate leak: `value / perUnit` recovers the stat — a
+   * trade route shows you how much timber crosses it.
+   */
+  pactBonuses?: PactBonus[]
   /** Seconds remaining in the round. */
   timeLeft: number
   /** Whether the server has paused the current match. */

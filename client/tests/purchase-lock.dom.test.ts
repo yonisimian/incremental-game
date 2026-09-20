@@ -45,6 +45,8 @@ function makeState(locks?: PurchaseLock[]): GameState {
     opponent: { score: 0, resources: {}, rates: {} },
     opponentPurchaseFeed: [],
     incomingAttacks: [],
+    pactBonuses: [],
+    opponentPacts: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

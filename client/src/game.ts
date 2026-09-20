@@ -5,6 +5,7 @@ import {
   type ModeDefinition,
   type Modifier,
   type OpponentView,
+  type PactBonus,
   type PlayerState,
   type PurchaseEvent,
   type AttackEvent,
@@ -23,6 +24,7 @@ import {
   getAvailableUpgrades,
   collectModifiers,
   resolveEnemyDebuffs,
+  pactModifiers,
   computeClickIncome as pipelineClickIncome,
   creditResource,
   canAffordGenerator,
@@ -49,6 +51,8 @@ import {
   getModeFlavor,
   getAttackName,
   getAttackIcon,
+  getPactIcon,
+  getPactName,
   getResourceIcon,
   getGeneratorIcon,
   getGeneratorName,
@@ -124,6 +128,21 @@ export interface GameState {
    * down against `player.meta.gameSec`. Reset at the start of each match.
    */
   incomingAttacks: IncomingAttack[]
+  /**
+   * What each pact in force is worth to this player right now, resolved by the
+   * server (plan 42). *Replaced* from each `STATE_UPDATE` (empty when the
+   * snapshot carries none), merged into the header's passive rate and the
+   * predicted click income like `debuffs`, and listed per pact by the
+   * relations panel. Reset at the start of each match.
+   */
+  pactBonuses: PactBonus[]
+  /**
+   * The opponent's unlocked *mutual* pacts — treaties this player also benefits
+   * from (plan 42). Replaced from each `STATE_UPDATE`'s opponent view (empty
+   * when none); the relations panel lists them as shared treaties, and a toast
+   * announces one the first time it appears. Reset at the start of each match.
+   */
+  opponentPacts: string[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -205,6 +224,8 @@ const state: GameState = {
   opponentPurchaseFeed: [],
   debuffs: [],
   incomingAttacks: [],
+  pactBonuses: [],
+  opponentPacts: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -641,6 +662,8 @@ export function resetForMatch(): void {
   state.opponentPurchaseFeed = []
   state.debuffs = []
   state.incomingAttacks = []
+  state.pactBonuses = []
+  state.opponentPacts = []
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -688,6 +711,8 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponentPurchaseFeed = []
   state.debuffs = []
   state.incomingAttacks = []
+  state.pactBonuses = []
+  state.opponentPacts = []
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -729,6 +754,12 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const modeDefForAlerts = state.mode ? getModeDefinition(state.mode) : undefined
   showIncomingAttackWarnings(state.incomingAttacks, incoming, msg.player, modeDefForAlerts)
   state.incomingAttacks = incoming
+  // Pact worth is state too — the server re-resolves it every tick — as is the
+  // list of the opponent's shared treaties, announced on first appearance.
+  state.pactBonuses = msg.pactBonuses ?? []
+  const shared = msg.opponent.pacts ?? []
+  showSharedPactsSigned(state.opponentPacts, shared, modeDefForAlerts)
+  state.opponentPacts = shared
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
@@ -966,18 +997,50 @@ function showIncomingAttackWarnings(
   }
 }
 
+/**
+ * Announce a mutual pact the opponent has just signed — present in `next` but
+ * not in `prev` — once, the way an incoming strike is announced: the treaty
+ * pays this player from now on, and nothing else on the screen says so until
+ * they open the relations panel.
+ */
+function showSharedPactsSigned(
+  prev: readonly string[],
+  next: readonly string[],
+  modeDef: ModeDefinition | undefined,
+): void {
+  if (!modeDef || next.length === 0) return
+  const seen = new Set(prev)
+  const flavor = getModeFlavor(modeDef)
+  for (const id of next) {
+    if (seen.has(id)) continue
+    spawnToast(
+      `🤝 ${getPactIcon(flavor, id)} ${getPactName(flavor, id)} signed by the enemy`,
+      'info',
+    )
+  }
+}
+
+/**
+ * The modifiers the server has resolved for this player beyond their own:
+ * the opponent's debuffs and the pacts' bonuses, both arriving unresolved and
+ * translated against `player` here (a highlight-factor entry lands on what
+ * they hold right now). Appended after `collectModifiers` on every client
+ * income path, so the header, the data panel and a predicted click agree with
+ * the income the server actually credits.
+ */
+export function externalModifiers(player: Readonly<PlayerState>): Modifier[] {
+  return resolveEnemyDebuffs([...state.debuffs, ...pactModifiers(state.pactBonuses)], player)
+}
+
 function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
   const modeDef = getModeDefinition(mode)
-  // Merge in the debuffs the opponent's passive attacks inflict (sent by the
-  // server) so a predicted click pays what the server will credit — the same
-  // reason the header folds them into the passive rate. Resolved against the
-  // clicking player, since they arrive unresolved.
-  const modifiers = [
-    ...collectModifiers(player, modeDef),
-    ...resolveEnemyDebuffs(state.debuffs, player),
-  ]
+  // Merge in the debuffs the opponent's passive attacks inflict and the pact
+  // bonuses in force (both sent by the server) so a predicted click pays what
+  // the server will credit — the same reason the header folds them into the
+  // passive rate.
+  const modifiers = [...collectModifiers(player, modeDef), ...externalModifiers(player)]
   return pipelineClickIncome(modifiers)
 }
 

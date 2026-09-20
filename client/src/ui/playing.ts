@@ -1,11 +1,10 @@
 import type { GameState } from '../game.js'
-import { quitMatch, togglePause, getState } from '../game.js'
+import { externalModifiers, quitMatch, togglePause, getState } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
   getModeDefinition,
   getModeFlavor,
-  resolveEnemyDebuffs,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
@@ -50,17 +49,14 @@ let activeModeDef: ModeDefinition | null = null
 /** Idle production per resource — includes highlight, excludes click income. */
 function passiveRates(state: Readonly<GameState>): Record<string, number> {
   if (!activeModeDef) return {}
-  // Merge in the debuffs the opponent's passive attacks inflict (sent by the
-  // server) so the header shows the true, debuffed rate — matching the income
-  // the server actually applies. The client can't derive these itself (it never
-  // sees the opponent's state), but it does resolve them, since they arrive
-  // unresolved and a highlight-factor debuff has to land on the resource we're
-  // holding right now.
+  // Merge in the debuffs the opponent's passive attacks inflict and the pact
+  // bonuses in force (both sent by the server) so the header shows the true
+  // rate — matching the income the server actually applies. The client can't
+  // derive these itself (it never sees the opponent's state), but it does
+  // resolve them, since they arrive unresolved and a highlight-factor entry has
+  // to land on the resource we're holding right now.
   return computePassiveRates(
-    [
-      ...collectModifiers(state.player, activeModeDef),
-      ...resolveEnemyDebuffs(state.debuffs, state.player),
-    ],
+    [...collectModifiers(state.player, activeModeDef), ...externalModifiers(state.player)],
     activeModeDef.resources,
   )
 }

@@ -57,6 +57,20 @@ export function pactsInForce(
   return inForce
 }
 
+/**
+ * The mutual passive pacts `partner` has unlocked — the treaties the other
+ * player also benefits from, in mode declaration order. What the server
+ * reveals of a partner's pacts (`OpponentView.pacts`): only these already
+ * affect the viewer, so a one-sided pact stays hidden.
+ */
+export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition): string[] {
+  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  return unlockedPacts(partner, mode).filter((id) => {
+    const pact = pactById.get(id)
+    return pact?.kind === 'passive' && pact.mutual === true
+  })
+}
+
 // ─── Cost factors ────────────────────────────────────────────────────
 
 /**

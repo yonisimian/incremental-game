@@ -2156,6 +2156,67 @@ describe('Match', () => {
       }
     })
 
+    // ── The wire ────────────────────────────────────────────────────
+
+    it('ships each side’s resolved bonuses and names only the mutual pacts the other holds', () => {
+      const base = getModeDefinition('idler')
+      const patched = withStatPact(
+        { source: 'generator:g0', field: 'r0', stage: 'multiplicative', perUnit: 0.1, cap: 0.5 },
+        true,
+      )
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signTrade(m, 'p1', 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // Signed but worth nothing yet: absent, not empty.
+        expect(latestUpdate(ws1).pactBonuses).toBeUndefined()
+        // p2 is told p1's mutual treaty already benefits them; p1 is told
+        // nothing about p2, who holds no pact.
+        expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+        expect(latestUpdate(ws1).opponent.pacts).toBeUndefined()
+
+        giveWoodcutters(m, 'p2', 2, 1)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).pactBonuses).toEqual([
+          { pact: 'p3', modifiers: [{ stage: 'multiplicative', field: 'r0', value: 1.2 }] },
+        ])
+        // The mutual side pays p2 off p1's woodcutters — none yet.
+        expect(latestUpdate(ws2).pactBonuses).toBeUndefined()
+        giveWoodcutters(m, 'p1', 1, 10)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).pactBonuses).toEqual([
+          { pact: 'p3', modifiers: [{ stage: 'multiplicative', field: 'r0', value: 1.1 }] },
+        ])
+        expect(wireHazards(latestUpdate(ws1))).toEqual([])
+        expect(wireHazards(latestUpdate(ws2))).toEqual([])
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('never reveals a one-sided pact in the partner’s snapshot', () => {
+      const base = getModeDefinition('idler')
+      const patched = withResearchPact()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        m.handleMessage('p2', buyMsg('be-af-mr', 1))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // p1 is stamped; p2's whole message carries no pact field at all.
+        expect(latestUpdate(ws1).player.pactCostFactors).toHaveLength(1)
+        const toPartner = latestUpdate(ws2)
+        expect('pacts' in toPartner.opponent).toBe(false)
+        expect('pactBonuses' in toPartner).toBe(false)
+        expect(toPartner.player.pactCostFactors).toBeUndefined()
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('serializes cleanly with a discount stamped', () => {
       const base = getModeDefinition('idler')
       const patched = withResearchPact()
