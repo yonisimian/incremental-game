@@ -124,8 +124,9 @@ describe('data panel — Highlight section', () => {
     const container = renderData(makeState('r0', [HL_DEBUFF]))
     expect(row(container).hidden).toBe(false)
     expect(text(container, 'data-hl-debuff')).toBe('×0.9')
-    // sh-unlock's ×2, debuffed 10% → ×1.8, matching the production it buys.
-    expect(text(container, 'data-hl-mult')).toBe('×1.8')
+    // sh-unlock's ×2 bonus, cut 10% → F' = 1 + (2−1)·0.9 = ×1.9 (bonus-scaled,
+    // not the whole factor ×1.8), matching the production it buys.
+    expect(text(container, 'data-hl-mult')).toBe('×1.9')
   })
 
   it('hides the row while the highlight is released', () => {

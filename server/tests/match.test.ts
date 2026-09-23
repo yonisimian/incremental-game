@@ -378,14 +378,16 @@ describe('Match', () => {
         })
         expect(latestUpdate(ws1).debuffs).toEqual([])
 
-        // ...and the income it actually applies lands on the held resource.
+        // ...and the income it actually applies lands on the held resource,
+        // bonus-scaled: both hold r0 at a ×2 highlight, and the ×0.9 debuff cuts
+        // the *bonus* to ×1.9, so p2 earns 1.9/2 = 95% of p1 (not 90%).
         const before1 = latestUpdate(ws1).player.resources.r0
         const before2 = latestUpdate(ws2).player.resources.r0
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
         const gain1 = latestUpdate(ws1).player.resources.r0 - before1
         const gain2 = latestUpdate(ws2).player.resources.r0 - before2
         expect(gain1).toBeGreaterThan(0)
-        expect(gain2 / gain1).toBeCloseTo(0.9, 6)
+        expect(gain2 / gain1).toBeCloseTo(0.95, 6)
       } finally {
         registerMode('idler', base)
       }

@@ -17,6 +17,7 @@ import {
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
+  debuffedHighlightFactor,
   getHighlightMultiplier,
   highlightDebuffFactor,
   isHighlightBatteryActive,
@@ -474,7 +475,7 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Incoming debuffs, resolved once against this player — every figure below that
   // folds them in reads from here (see `resolveEnemyDebuffs`).
-  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player)
+  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player, modeDef)
 
   // Production + source breakdown (debuffs folded in so totals match the header).
   const breakdown = computeRateBreakdown(state.player, modeDef, debuffs)
@@ -545,16 +546,19 @@ function updateNumbers(state: Readonly<GameState>): void {
         ? 'Released'
         : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
-    // The multiplier reads *debuffed*, so it matches the production it actually
+    // The multiplier reads *debuffed*: incoming highlight debuffs scale its
+    // bonus (see `debuffedHighlightFactor`), so it matches the production it
     // buys. Applied only while a resource is held: released, the factor lands
-    // nowhere and so does the debuff, and `getHighlightMultiplier` already
-    // reports a neutral ×1.
-    const debuffFactor = highlightDebuffFactor(state.debuffs)
+    // nowhere and `getHighlightMultiplier` already reports a neutral ×1.
+    const factor = getHighlightMultiplier(state.player, modeDef)
     const held = current !== null
-    const mult = getHighlightMultiplier(state.player, modeDef) * (held ? debuffFactor : 1)
+    const mult = held ? debuffedHighlightFactor(factor, state.debuffs) : factor
     setText('data-hl-mult', `×${formatMultiplier(mult)}`)
     // Shown only while highlighted — the enemy-data panel carries the standing
-    // warning, this row explains the number sitting directly above it.
+    // warning, this row explains the number sitting directly above it. It
+    // reports the multiplicative bonus scale; an additive debuff moves the
+    // multiplier above without a row of its own.
+    const debuffFactor = highlightDebuffFactor(state.debuffs)
     const debuffRow = document.getElementById('data-hl-debuff-row')
     if (debuffRow) debuffRow.hidden = !held || debuffFactor === 1
     if (held && debuffFactor !== 1) {

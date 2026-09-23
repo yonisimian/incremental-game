@@ -499,7 +499,11 @@ export class Match {
     // resource they're holding right now.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, this.modeDef), player.state),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(opponent.state, this.modeDef),
+        player.state,
+        this.modeDef,
+      ),
     ]
     applyPassiveTick(
       player.state,
@@ -612,6 +616,7 @@ export class Match {
       ...resolveEnemyDebuffs(
         collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
         player.state,
+        this.modeDef,
       ),
     ]
     const income = computeClickIncome(modifiers)
@@ -759,7 +764,7 @@ export class Match {
         rates ??= computePassiveRates(
           [
             ...collectModifiers(opponent.state, mode),
-            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state),
+            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state, mode),
           ],
           mode.resources,
         )

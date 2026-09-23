@@ -353,7 +353,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // *enemy-debuff* target catalog (resource rates, `clickIncome`, and the virtual
   // highlight-factor target). Generator-id targets are rejected here because the
   // debuff merges into the opponent's pipeline after generator output is folded,
-  // so they'd silently do nothing (see `enemyDebuffTargetsFor`).
+  // so they'd silently do nothing (see `enemyDebuffTargetsFor`). Both stages are
+  // legal on `highlightFactor`: a multiplicative debuff scales the highlight
+  // bonus, an additive one subtracts from the factor (and can push it below
+  // neutral) — `resolveEnemyDebuffs` reads the composite either way.
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
@@ -361,13 +364,6 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
         throw new Error(
           `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be debuffed)`,
-        )
-      // The highlight factor is a *multiplier*, and `resolveEnemyDebuffs`
-      // deliberately never reads the composite — so an additive debuff on it has
-      // nothing to subtract from and would be silently mistranslated as a scale.
-      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
-        throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
         )
     }
   }
@@ -1138,63 +1134,104 @@ export function collectEnemyDebuffs(
 }
 
 /**
+ * The floor an incoming highlight debuff can drag the effective factor down to.
+ * Below ×1 on purpose: a heavy (additive) debuff can push the highlight into net
+ * loss, so releasing it — which drops the debuff and returns a neutral ×1 —
+ * becomes real counter-play under pressure.
+ */
+export const HIGHLIGHT_DEBUFF_FLOOR = 0.5
+
+/**
+ * The victim's effective highlight factor once incoming highlight debuffs scale
+ * its **bonus**, not the whole factor.
+ *
+ * `factor` is the composite F (`getHighlightMultiplier`: battery × every
+ * `highlightMultiplier`). The highlight-factor debuffs fold as
+ *
+ *   F' = max(floor, 1 + (F − 1)·∏vₘ + Σvₐ)
+ *
+ * over their multiplicative values (vₘ ∈ (0,1)) and additive ones (vₐ < 0).
+ * Scaling the bonus above neutral — rather than the whole factor — makes one
+ * authored value mean "your highlight investment is worth N% less" at every
+ * point on the curve, instead of erasing a small factor while barely denting a
+ * large one. A multiplicative debuff can only shrink the bonus (F' > 1); an
+ * additive one can drive it below neutral, down to {@link HIGHLIGHT_DEBUFF_FLOOR}.
+ *
+ * Returns `factor` unchanged when there is no bonus to cut (F ≤ 1) — an
+ * uninvested highlight takes no debuff, and it keeps the F' / F ratio safe.
+ */
+export function debuffedHighlightFactor(factor: number, debuffs: readonly Modifier[]): number {
+  if (factor <= 1) return factor
+  let mult = 1
+  let add = 0
+  for (const debuff of debuffs) {
+    if (debuff.field !== HIGHLIGHT_FACTOR_TARGET) continue
+    if (debuff.stage === 'additive') add += debuff.value
+    else mult *= debuff.value
+  }
+  return Math.max(HIGHLIGHT_DEBUFF_FLOOR, 1 + (factor - 1) * mult + add)
+}
+
+/**
  * Resolve authored enemy debuffs against the player they land on, turning them
  * into modifiers the production pipeline can consume.
  *
- * Real pipeline targets pass through untouched. A {@link
- * HIGHLIGHT_FACTOR_TARGET} entry names no field, so the pipeline would silently
- * drop it; it becomes an equivalent multiplicative modifier on whichever
- * resource `victim` is currently highlighting.
+ * Real pipeline targets pass through untouched. Every {@link
+ * HIGHLIGHT_FACTOR_TARGET} entry names no field — it scales the victim's
+ * *highlight bonus* (see {@link debuffedHighlightFactor}), which the pipeline
+ * can't express directly — so they are folded into a single multiplicative
+ * modifier on whichever resource `victim` is holding: the ratio F' / F between
+ * the debuffed and live composite factor. One modifier, not one per entry, so
+ * the bonus is scaled once rather than re-dividing the ratio against F.
  *
- * That substitution is exact, not an approximation: the highlight factor is one
- * term in the highlighted resource's product, so scaling the factor and scaling
- * that resource's rate are the same arithmetic. Neither the victim's own
- * highlight multipliers nor the battery's share is read here — a 10% debuff
- * against a base ×5 with the battery at ×2 lands as 4.5 × 2 = 9, which is what
- * 10 × 0.9 already gives. (This is why only `multiplicative` is a legal stage for
- * the target: subtracting from the factor *would* require reading the composite,
- * and `validateModeDefinition` rejects that authoring.)
+ * Unlike a plain rate debuff this reads the victim's live composite F, so it
+ * must run against the state each side actually holds — which is why the wire
+ * carries debuffs *unresolved* and every call site passes `mode`.
  *
- * A released highlight drops the entry — nothing for the factor to apply to, so
- * the debuff doesn't pay. Releasing therefore dodges it, at the cost of the
- * entire highlight bonus.
- *
- * Called wherever debuffs enter a pipeline, on **both** sides: each resolves
- * against the victim state it already holds, so the client stays exact across a
- * mid-tick highlight switch. The wire deliberately carries the *unresolved* form
- * — once translated to a resource, a highlight debuff is indistinguishable from
- * a plain rate debuff, and the victim's UI could no longer report it.
+ * A released highlight (or an uninvested one, F ≤ 1) drops the entry — there is
+ * no bonus for the factor to scale. Releasing therefore dodges the debuff; worth
+ * it only once the debuff has pushed the held factor below the neutral ×1 a
+ * release returns.
  */
 export function resolveEnemyDebuffs(
   debuffs: readonly Modifier[],
   victim: Readonly<PlayerState>,
+  mode: ModeDefinition,
 ): Modifier[] {
   const highlight = readHighlight(victim)
   const resolved: Modifier[] = []
+  let hasHighlightDebuff = false
   for (const debuff of debuffs) {
-    if (debuff.field !== HIGHLIGHT_FACTOR_TARGET) {
-      resolved.push(debuff)
-      continue
-    }
-    if (highlight === null) continue
-    resolved.push({ stage: debuff.stage, field: highlight, value: debuff.value })
+    if (debuff.field === HIGHLIGHT_FACTOR_TARGET) hasHighlightDebuff = true
+    else resolved.push(debuff)
+  }
+  if (hasHighlightDebuff && highlight !== null) {
+    const factor = getHighlightMultiplier(victim, mode)
+    const debuffed = debuffedHighlightFactor(factor, debuffs)
+    if (debuffed !== factor)
+      resolved.push({ stage: 'multiplicative', field: highlight, value: debuffed / factor })
   }
   return resolved
 }
 
 /**
- * The combined factor that incoming {@link HIGHLIGHT_FACTOR_TARGET} debuffs
- * apply to this player's highlight, or `1` when none do.
+ * The multiplicative bonus-scale incoming highlight debuffs apply to this
+ * player's highlight — ∏ of the *multiplicative* {@link HIGHLIGHT_FACTOR_TARGET}
+ * values, or `1` when none.
  *
- * For reporting, not for income — {@link resolveEnemyDebuffs} owns the pipeline
- * path. Deliberately independent of whether a highlight is currently held, so
- * the UI can warn about the threat while it isn't paying (a player who has
- * released still needs to know holding is worth less than the tree claims).
+ * For the espionage panel's release-independent warning ("your highlight bonus
+ * is cut by N%", N = (1 − this)·100): the multiplicative scale means the same
+ * thing whether or not a resource is held, so it can warn a released player that
+ * holding is worth less than the tree claims. Additive highlight debuffs are
+ * excluded — their bite depends on the live factor, so they have no
+ * release-independent percentage and surface in the data panel's held factor
+ * instead. Not for income; {@link resolveEnemyDebuffs} owns the pipeline path.
  */
 export function highlightDebuffFactor(debuffs: readonly Modifier[]): number {
   let factor = 1
   for (const debuff of debuffs) {
-    if (debuff.field === HIGHLIGHT_FACTOR_TARGET) factor *= debuff.value
+    if (debuff.field === HIGHLIGHT_FACTOR_TARGET && debuff.stage === 'multiplicative')
+      factor *= debuff.value
   }
   return factor
 }

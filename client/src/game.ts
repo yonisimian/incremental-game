@@ -882,7 +882,7 @@ function computeClickIncome(player: PlayerState): number {
   // clicking player, since they arrive unresolved.
   const modifiers = [
     ...collectModifiers(player, modeDef),
-    ...resolveEnemyDebuffs(state.debuffs, player),
+    ...resolveEnemyDebuffs(state.debuffs, player, modeDef),
   ]
   return pipelineClickIncome(modifiers)
 }

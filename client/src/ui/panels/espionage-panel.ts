@@ -48,7 +48,7 @@ function renderLocked(): string {
 
 /**
  * Standing warning that the opponent holds a passive attack weakening this
- * player's highlight factor.
+ * player's highlight bonus.
  *
  * Deliberately **ungated and always shown** while the debuff is present, unlike
  * every other section here: the rest of this panel is intel you research, but
@@ -56,6 +56,11 @@ function renderLocked(): string {
  * to explain why their highlight underperforms the number on its own upgrades.
  * It also shows while the highlight is released — that's when the warning matters
  * most, since releasing is what dodges the debuff.
+ *
+ * Reports the multiplicative bonus scale (`highlightDebuffFactor`), which means
+ * the same thing at every factor and so reads true while released. An additive
+ * highlight debuff — whose bite depends on the live factor — isn't summarised
+ * here; it shows in the data panel's debuffed multiplier instead.
  */
 function renderIncomingDebuffs(state: Readonly<GameState>): string {
   const factor = highlightDebuffFactor(state.debuffs)
@@ -72,7 +77,7 @@ function renderIncomingDebuffs(state: Readonly<GameState>): string {
     <section class="espionage-section">
       <h3 class="espionage-heading">Enemy Attacks</h3>
       <p class="espionage-warning">
-        ⚔️ Your ✨ highlight factor is reduced by ${pct}% while the enemy holds this attack.
+        ⚔️ Your ✨ highlight bonus is cut by ${pct}% while the enemy holds this attack.
       </p>
     </section>
   `
