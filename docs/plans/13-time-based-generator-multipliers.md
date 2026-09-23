@@ -40,6 +40,17 @@ In a 35-second timed round it reaches ≈ 1.58× if bought immediately.
 - Apply the multiplier globally to all generator production (stage: `'multiplicative'`, field: `'globalMultiplier'`).
 - The multiplier remains deterministic for multiplayer simulations.
 
+### Status: superseded
+
+The original `u12` was wiped with the rest of the PoC tree (Phase 0), and the
+mechanic is now data-driven — see `shared/src/time-bonus.ts` and the
+`timeScaledModifier` / `timeFactorBoost` / `timeRetroactive` effects, wired to the
+idler's `ae-mf-ar-time` → `ae-atf` → `ae-tf-retro` branch. Two notes on the
+differences: the purchase timeline is `meta.purchaseTimes` (an array per upgrade,
+so a repeatable boost's levels can be dated individually), and there is no
+`globalMultiplier` field any more (removed in plan 27) — a clock targets each
+resource's rate, one effect ref per resource.
+
 ### Future Considerations
 
 Possible future extensions:

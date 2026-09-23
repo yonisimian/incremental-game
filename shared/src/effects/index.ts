@@ -15,6 +15,9 @@ import { relativeModifier } from './seed/relative-modifier.js'
 import { stealGenerator } from './seed/steal-generator.js'
 import { stealResource } from './seed/steal-resource.js'
 import { systemUnlock } from './seed/system-unlock.js'
+import { timeFactorBoost } from './seed/time-factor-boost.js'
+import { timeRetroactive } from './seed/time-retroactive.js'
+import { timeScaledModifier } from './seed/time-scaled-modifier.js'
 import { unlockAttack } from './seed/unlock-attack.js'
 import { unlockPact } from './seed/unlock-pact.js'
 
@@ -37,6 +40,9 @@ registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
+registerEffect('timeScaledModifier', timeScaledModifier)
+registerEffect('timeFactorBoost', timeFactorBoost)
+registerEffect('timeRetroactive', timeRetroactive)
 
 export type { EffectDef, EffectHost } from './types.js'
 export type {
@@ -54,6 +60,8 @@ export type {
   EnemyModifierOutput,
   ResourceStealOutput,
   GeneratorStealOutput,
+  TimeFactorBoostOutput,
+  TimeRetroactiveOutput,
 } from './types.js'
 export {
   applyEffect,
@@ -81,6 +89,9 @@ export type { BatteryBandParams } from './seed/battery-band.js'
 export type { PanelUnlockParams } from './seed/panel-unlock.js'
 export type { GeneratorUnlockParams } from './seed/generator-unlock.js'
 export type { SystemUnlockParams } from './seed/system-unlock.js'
+export type { TimeScaledModifierParams } from './seed/time-scaled-modifier.js'
+export type { TimeFactorBoostParams } from './seed/time-factor-boost.js'
+export type { TimeRetroactiveParams } from './seed/time-retroactive.js'
 export type { AccessEnemyDataParams } from './seed/access-enemy-data.js'
 export {
   ENEMY_DATA_RATE_SUFFIX,

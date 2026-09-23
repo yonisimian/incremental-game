@@ -986,6 +986,16 @@
             }
           },
           "purchaseLimit": 1,
+          "effects": [
+            {
+              "type": "timeScaledModifier",
+              "clock": "ae-mf-ar-time",
+              "field": "allResources",
+              "stage": "multiplicative",
+              "perMinute": 0.1,
+              "maxFactor": 10
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 96
@@ -1005,6 +1015,13 @@
                 "type": "upgrade",
                 "id": "ae-mf-ar-time"
               },
+              "effects": [
+                {
+                  "type": "timeFactorBoost",
+                  "clock": "ae-mf-ar-time",
+                  "perMinute": 0.1
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1023,6 +1040,12 @@
                     "id": "ae-atf",
                     "minLevel": 2
                   },
+                  "effects": [
+                    {
+                      "type": "timeRetroactive",
+                      "clock": "ae-mf-ar-time"
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
