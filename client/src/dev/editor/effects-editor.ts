@@ -14,6 +14,7 @@ import {
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
   isEffectAllowedOn,
+  isTimeEffectType,
   listEffectTypes,
   resolveEffect,
   UNLOCKABLE_SYSTEMS,
@@ -29,6 +30,7 @@ import {
   type EffectFormSpec,
   type FieldSpec,
 } from './effect-schema.js'
+import { collectIds } from './model.js'
 import { ALL_PANELS } from '../../ui/mode-ui.js'
 import { el } from './views/dom.js'
 
@@ -91,7 +93,8 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  * shared addressable-field catalog (labelled), the same set the
  * boot-time validator enforces; `enemyProductionModifier`'s `field` uses the
  * narrower enemy-debuff catalog (resource rates plus click income — generator
- * targets don't apply to a debuff).
+ * targets don't apply to a debuff); and every time-clock effect's `clock` picks
+ * from the tree's own node ids.
  *
  * Exported for testing: every id-referencing param should resolve to a picker,
  * so free text can never author a key the boot-time validator would reject.
@@ -140,10 +143,19 @@ export function effectFieldOptions(
   if (effectType === 'unlockPact' && fieldKey === 'pact') {
     return tree.pacts.map((p) => p.id)
   }
-  // `baseModifier` targets the same production catalog the boot-time validator
-  // enforces: each resource's global rate (`rK`) and isolated base producer
-  // (`bK`), each generator, plus the `clickIncome` special.
-  if (effectType === 'baseModifier' && fieldKey === 'field') {
+  // Every time-clock effect names the upgrade whose purchase starts the clock, so
+  // the picker is the tree's own node ids — the same set `validateModeDefinition`
+  // checks the ref against.
+  if (isTimeEffectType(effectType) && fieldKey === 'clock') {
+    return collectIds(tree)
+  }
+  // `baseModifier` and the time clock's payout target the same production catalog
+  // the boot-time validator enforces: each resource's global rate (`rK`) and
+  // isolated base producer (`bK`), each generator, plus the `clickIncome` special.
+  if (
+    (effectType === 'baseModifier' || effectType === 'timeScaledModifier') &&
+    fieldKey === 'field'
+  ) {
     return addressableTargetsFor(
       tree.resources,
       tree.generators.map((g) => g.id),
@@ -345,6 +357,10 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     types: ['panelUnlock', 'systemUnlock', 'unlockAttack', 'unlockPact', 'accessEnemyData'],
   },
   { label: 'Offense', types: ['stealResource', 'stealGenerator'] },
+  {
+    label: 'Time clock',
+    types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],
+  },
 ]
 
 /**
