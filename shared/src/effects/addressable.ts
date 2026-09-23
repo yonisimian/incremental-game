@@ -19,6 +19,7 @@
 
 import type { PlayerState } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
+import { ALL_GENERATORS_FIELD, ALL_RESOURCES_FIELD } from '../modifiers/types.js'
 
 /** Namespace prefix for a resource-stockpile source (e.g. `resource:r0`). */
 const RESOURCE_SOURCE_PREFIX = 'resource:'
@@ -68,6 +69,11 @@ export function addressableSources(mode: ModeDefinition): AddressableField[] {
  * production) and `bK` (its isolated base producer — see {@link
  * ResourceLayers}). `bK` uses the resource's *index*, so `b0` is the base
  * producer of `resourceKeys[0]`.
+ *
+ * Two aggregate sentinels are offered when they'd have a target to hit: {@link
+ * ALL_RESOURCES_FIELD} (every resource's global layer) and {@link
+ * ALL_GENERATORS_FIELD} (every generator's output). They let one modifier fan
+ * out instead of authoring a copy per resource/generator.
  */
 export function addressableTargetsFor(
   resourceKeys: readonly string[],
@@ -78,6 +84,12 @@ export function addressableTargetsFor(
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
     ...resourceKeys.map((key, i) => ({ key: `b${i}`, label: `${key} (base producer)` })),
     ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
+    ...(resourceKeys.length > 0
+      ? [{ key: ALL_RESOURCES_FIELD, label: 'All resources (rate)' }]
+      : []),
+    ...(generatorIds.length > 0
+      ? [{ key: ALL_GENERATORS_FIELD, label: 'All generators (output)' }]
+      : []),
   ]
 }
 

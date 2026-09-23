@@ -8,6 +8,21 @@ export const MODIFIER_STAGES = ['additive', 'multiplicative'] as const
 /** A pipeline stage a modifier targets, derived from {@link MODIFIER_STAGES}. */
 export type ModifierStage = (typeof MODIFIER_STAGES)[number]
 
+/**
+ * Sentinel `field` targeting **every declared resource** at once (each on its
+ * global layer). An authoring convenience: `collectModifiers` fans it out into
+ * one concrete per-resource modifier, so the pure pipeline never sees it.
+ */
+export const ALL_RESOURCES_FIELD = 'allResources'
+
+/**
+ * Sentinel `field` targeting **every declared generator's output** at once.
+ * `collectModifiers` fans it out across the per-generator accumulators (with the
+ * same owned-count compounding a single-generator `field` gets), so it is folded
+ * into resource rates before the pipeline runs.
+ */
+export const ALL_GENERATORS_FIELD = 'allGenerators'
+
 /** A single declarative modifier — pure data, serializable. */
 export interface Modifier {
   readonly stage: ModifierStage
@@ -22,6 +37,10 @@ export interface Modifier {
    *    folded generator output both feed.
    *  - a generator id (e.g. `g0`) — a single generator, folded into its per-unit
    *    total by `collectModifiers` before it ever reaches the pipeline.
+   *  - {@link ALL_RESOURCES_FIELD} — every declared resource's **global** layer
+   *    at once; expanded to one per-resource modifier by `collectModifiers`.
+   *  - {@link ALL_GENERATORS_FIELD} — every declared generator's output at once;
+   *    expanded across the per-generator accumulators by `collectModifiers`.
    */
   readonly field: string
   /**

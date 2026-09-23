@@ -1,5 +1,6 @@
-import type { Modifier } from '../modifiers/types.js'
+import type { Modifier, ModifierStage } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
+import { ALL_GENERATORS_FIELD, ALL_RESOURCES_FIELD } from '../modifiers/types.js'
 import type {
   EffectRef,
   GameMode,
@@ -176,6 +177,17 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
 
+  // A resource or generator id equal to an aggregate sentinel would be shadowed
+  // by the fan-out branch in `collectRawModifiers`, making a modifier ambiguous
+  // between "this one target" and "all of them". Reject it like the `bK`
+  // collision above.
+  for (const key of [...def.resources, ...def.generators.map((g) => g.id)]) {
+    if (key === ALL_RESOURCES_FIELD || key === ALL_GENERATORS_FIELD)
+      throw new Error(
+        `[${id}] id '${key}' collides with an aggregate-target sentinel (allResources/allGenerators); rename it`,
+      )
+  }
+
   // `unlockAttack` effects name an attack by id; validate against the mode's
   // attacks so an authored typo fails loudly instead of unlocking nothing.
   const attackIds = new Set(def.attacks.map((a) => a.id))
@@ -261,7 +273,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
-        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'allResources'/'allGenerators', or 'clickIncome')`,
       )
   }
   const checkBaseModifier = (where: string, ref: EffectRef): void => {
@@ -690,6 +702,20 @@ interface CollectedModifiers {
 }
 
 /**
+ * Expand an aggregate sentinel `field` into the concrete targets it stands for
+ * ({@link ALL_RESOURCES_FIELD} → every resource, {@link ALL_GENERATORS_FIELD} →
+ * every generator id), or `null` if `field` isn't a sentinel. The single source
+ * of truth for what "all resources"/"all generators" means, shared by the
+ * pipeline routing (which *applies* each target) and the dynamic-bonus report
+ * (which *lists* them), so the two can never disagree.
+ */
+function expandAggregateField(field: string, mode: ModeDefinition): readonly string[] | null {
+  if (field === ALL_RESOURCES_FIELD) return mode.resources
+  if (field === ALL_GENERATORS_FIELD) return mode.generators.map((g) => g.id)
+  return null
+}
+
+/**
  * Run the modifier pass: mode-level effects + owned upgrades, with
  * generator-targeted modifiers held back in their own accumulators rather than
  * folded into resource rates. Shared by {@link collectModifiers} (which folds
@@ -707,13 +733,26 @@ function collectRawModifiers(
     generatorModifiers.set(gen.id, { additive: 0, multiplicative: 1 })
   }
 
-  // Route a single state-derived modifier: generator-targeted ones accumulate
-  // into the per-generator totals; everything else is pushed directly.
+  // Route a single state-derived modifier: an aggregate sentinel fans out into
+  // one call per concrete target; generator-targeted ones accumulate into the
+  // per-generator totals; everything else is pushed directly. Sentinels are
+  // expanded here, so the pure pipeline never sees one.
+  const applyToGenerator = (
+    acc: GeneratorAccumulator,
+    stage: ModifierStage,
+    value: number,
+  ): void => {
+    if (stage === 'additive') acc.additive += value
+    else acc.multiplicative *= value
+  }
   const routeModifier = (mod: Modifier): void => {
+    const expanded = expandAggregateField(mod.field, mode)
+    if (expanded) {
+      for (const field of expanded) routeModifier({ ...mod, field })
+      return
+    }
     if (generatorIds.has(mod.field)) {
-      const genState = generatorModifiers.get(mod.field)!
-      if (mod.stage === 'additive') genState.additive += mod.value
-      else genState.multiplicative *= mod.value
+      applyToGenerator(generatorModifiers.get(mod.field)!, mod.stage, mod.value)
     } else {
       modifiers.push(mod)
     }
@@ -721,17 +760,20 @@ function collectRawModifiers(
 
   // Route a `baseModifier` output with the owning upgrade's owned-count
   // compounding: additive scales linearly (× owned), multiplicative compounds
-  // (^ owned). Generator-targeted bonuses feed the per-generator
-  // accumulator (additive per-unit × owned, applied again per generator below);
-  // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
-  // `modifiers` array exactly.
+  // (^ owned). An aggregate sentinel fans out after compounding; generator-
+  // targeted bonuses feed the per-generator accumulator (additive per-unit ×
+  // owned, applied again per generator below); everything else is pushed to the
+  // pipeline. Reproduces the legacy per-upgrade `modifiers` array exactly.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
+    const expanded = expandAggregateField(o.field, mode)
+    if (expanded) {
+      for (const field of expanded) routeBaseModifier({ ...o, field }, owned)
+      return
+    }
+    const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
     if (generatorIds.has(o.field)) {
-      const genState = generatorModifiers.get(o.field)!
-      if (o.stage === 'additive') genState.additive += o.value * owned
-      else genState.multiplicative *= o.value ** owned
+      applyToGenerator(generatorModifiers.get(o.field)!, o.stage, value)
     } else {
-      const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
       modifiers.push({ stage: o.stage, field: o.field, value })
     }
   }
@@ -1008,7 +1050,12 @@ export function collectDynamicBonuses(
         // returns a *kinded* output (e.g. a `baseModifier`) is skipped — the UI
         // has no owned-count-compounded value to show for it. Keep dynamic
         // effects emitting raw `Modifier`s if their live worth should surface.
-        if (!('kind' in out) && 'stage' in out) modifiers.push(out)
+        if ('kind' in out || !('stage' in out)) continue
+        // Fan out an aggregate sentinel to its concrete targets so the report
+        // matches the pipeline (and the panel can collapse "all resources").
+        const expanded = expandAggregateField(out.field, mode)
+        if (expanded) for (const field of expanded) modifiers.push({ ...out, field })
+        else modifiers.push(out)
       }
     }
     if (modifiers.length > 0) bonuses.push({ upgradeId: upgrade.id, modifiers })
