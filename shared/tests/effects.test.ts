@@ -1284,6 +1284,43 @@ describe('production field mode validation', () => {
     }
   })
 
+  it('throws when a resource id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'allResources'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'allResources', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
+  it('throws when a generator id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        {
+          id: 'allGenerators',
+          cost: { r0: { baseCost: 1 } },
+          production: { resource: 'r0', rate: 1 },
+        },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'allGenerators', name: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
   it('throws on a mode-level baseModifier targeting an unknown field', () => {
     const base = getModeDefinition('idler')
     const def: ModeDefinition = {
