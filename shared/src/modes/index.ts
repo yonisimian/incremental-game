@@ -1,5 +1,6 @@
-import type { Modifier } from '../modifiers/types.js'
+import type { Modifier, ModifierStage } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
+import { ALL_GENERATORS_FIELD, ALL_RESOURCES_FIELD } from '../modifiers/types.js'
 import type {
   EffectRef,
   GameMode,
@@ -261,7 +262,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
-        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'allResources'/'allGenerators', or 'clickIncome')`,
       )
   }
   const checkBaseModifier = (where: string, ref: EffectRef): void => {
@@ -708,12 +709,26 @@ function collectRawModifiers(
   }
 
   // Route a single state-derived modifier: generator-targeted ones accumulate
-  // into the per-generator totals; everything else is pushed directly.
+  // into the per-generator totals; everything else is pushed directly. The two
+  // aggregate sentinels fan out here — never reaching the pure pipeline — so
+  // `allResources` becomes one modifier per resource and `allGenerators` lands
+  // on every generator accumulator.
+  const applyToGenerator = (
+    acc: GeneratorAccumulator,
+    stage: ModifierStage,
+    value: number,
+  ): void => {
+    if (stage === 'additive') acc.additive += value
+    else acc.multiplicative *= value
+  }
   const routeModifier = (mod: Modifier): void => {
-    if (generatorIds.has(mod.field)) {
-      const genState = generatorModifiers.get(mod.field)!
-      if (mod.stage === 'additive') genState.additive += mod.value
-      else genState.multiplicative *= mod.value
+    if (mod.field === ALL_GENERATORS_FIELD) {
+      for (const acc of generatorModifiers.values()) applyToGenerator(acc, mod.stage, mod.value)
+    } else if (mod.field === ALL_RESOURCES_FIELD) {
+      for (const resource of mode.resources)
+        modifiers.push({ stage: mod.stage, field: resource, value: mod.value })
+    } else if (generatorIds.has(mod.field)) {
+      applyToGenerator(generatorModifiers.get(mod.field)!, mod.stage, mod.value)
     } else {
       modifiers.push(mod)
     }
@@ -723,15 +738,19 @@ function collectRawModifiers(
   // compounding: additive scales linearly (× owned), multiplicative compounds
   // (^ owned). Generator-targeted bonuses feed the per-generator
   // accumulator (additive per-unit × owned, applied again per generator below);
-  // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
-  // `modifiers` array exactly.
+  // everything else is pushed to the pipeline. The aggregate sentinels fan out
+  // the same way `routeModifier` does, after compounding. Reproduces the legacy
+  // per-upgrade `modifiers` array exactly.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
-    if (generatorIds.has(o.field)) {
-      const genState = generatorModifiers.get(o.field)!
-      if (o.stage === 'additive') genState.additive += o.value * owned
-      else genState.multiplicative *= o.value ** owned
+    const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
+    if (o.field === ALL_GENERATORS_FIELD) {
+      for (const acc of generatorModifiers.values()) applyToGenerator(acc, o.stage, value)
+    } else if (o.field === ALL_RESOURCES_FIELD) {
+      for (const resource of mode.resources)
+        modifiers.push({ stage: o.stage, field: resource, value })
+    } else if (generatorIds.has(o.field)) {
+      applyToGenerator(generatorModifiers.get(o.field)!, o.stage, value)
     } else {
-      const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
       modifiers.push({ stage: o.stage, field: o.field, value })
     }
   }
