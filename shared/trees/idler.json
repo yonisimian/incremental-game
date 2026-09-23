@@ -990,15 +990,7 @@
             {
               "type": "timeScaledModifier",
               "clock": "ae-mf-ar-time",
-              "field": "r0",
-              "stage": "multiplicative",
-              "perMinute": 0.1,
-              "maxFactor": 10
-            },
-            {
-              "type": "timeScaledModifier",
-              "clock": "ae-mf-ar-time",
-              "field": "r1",
+              "field": "allResources",
               "stage": "multiplicative",
               "perMinute": 0.1,
               "maxFactor": 10
