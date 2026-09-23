@@ -174,6 +174,30 @@
           "count": 1
         }
       ]
+    },
+    {
+      "id": "less-click-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-click-power-add",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": -2
+        }
+      ]
     }
   ],
   "pacts": [
@@ -641,6 +665,12 @@
           "description": "Unlock Poach Sawmill"
         },
         {
+          "id": "node-7",
+          "name": "node-7",
+          "icon": "💥",
+          "description": "Unlock the click-income debuffs"
+        },
+        {
           "id": "pact-node",
           "name": "pact-node",
           "icon": "🤝",
@@ -723,6 +753,18 @@
           "name": "Poach Sawmill",
           "icon": "🏗️",
           "description": "Steal one of the enemy's Sawmills, even one you haven't unlocked yourself. (does not affect score)"
+        },
+        {
+          "id": "less-click-power",
+          "name": "Less Click Power",
+          "icon": "💥",
+          "description": "Passively halves the enemy's per-click income while unlocked."
+        },
+        {
+          "id": "less-click-power-add",
+          "name": "Less Click Power (flat)",
+          "icon": "💥",
+          "description": "Passively takes a flat 2 off the enemy's per-click income while unlocked."
         }
       ],
       "pacts": [
@@ -966,13 +1008,7 @@
         {
           "type": "baseModifier",
           "stage": "multiplicative",
-          "field": "r0",
-          "value": 1.1
-        },
-        {
-          "type": "baseModifier",
-          "stage": "multiplicative",
-          "field": "r1",
+          "field": "allResources",
           "value": 1.1
         }
       ],
@@ -992,6 +1028,16 @@
             }
           },
           "purchaseLimit": 1,
+          "effects": [
+            {
+              "type": "timeScaledModifier",
+              "clock": "ae-mf-ar-time",
+              "field": "allResources",
+              "stage": "multiplicative",
+              "perMinute": 0.1,
+              "maxFactor": 10
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 96
@@ -1011,6 +1057,13 @@
                 "type": "upgrade",
                 "id": "ae-mf-ar-time"
               },
+              "effects": [
+                {
+                  "type": "timeFactorBoost",
+                  "clock": "ae-mf-ar-time",
+                  "perMinute": 0.1
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1029,6 +1082,12 @@
                     "id": "ae-atf",
                     "minLevel": 2
                   },
+                  "effects": [
+                    {
+                      "type": "timeRetroactive",
+                      "clock": "ae-mf-ar-time"
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -2151,6 +2210,29 @@
             "x": -48,
             "y": 288
           }
+        },
+        {
+          "id": "node-7",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power-add"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 384
+          }
         }
       ]
     },
@@ -2166,7 +2248,7 @@
       ],
       "offset": {
         "x": 1176,
-        "y": 528
+        "y": 936
       },
       "children": [
         {

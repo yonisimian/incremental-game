@@ -78,6 +78,9 @@ describe('effect registry', () => {
       'stealGenerator',
       'stealResource',
       'systemUnlock',
+      'timeFactorBoost',
+      'timeRetroactive',
+      'timeScaledModifier',
       'unlockAttack',
       'unlockPact',
     ])
@@ -95,6 +98,7 @@ describe('effect registry', () => {
       'dominantGenerator',
       'lowerTierBoost',
       'relativeModifier',
+      'timeScaledModifier',
     ])
   })
 })
@@ -394,6 +398,57 @@ describe('collectModifiers effect wiring', () => {
     // generator id itself.
     expect(withMods.some((m) => m.field === gen.id)).toBe(false)
     // per-unit (3) × upgrade owned (2) × generator owned (4) = 24 extra production.
+    expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
+  })
+
+  it('fans out an allResources baseModifier to every resource, with compounding', () => {
+    const base = getModeDefinition('idler')
+    const up: UpgradeDefinition = {
+      id: 'uAllRes',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'allResources', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const state = createInitialState(def)
+    state.upgrades.uAllRes = 2
+    const mods = collectModifiers(state, def)
+
+    // The sentinel is expanded away: 3 ** 2 = 9 lands on every declared
+    // resource's global layer, and never as the sentinel field itself.
+    expect(mods.some((m) => m.field === 'allResources')).toBe(false)
+    for (const resource of def.resources) {
+      expect(mods).toContainEqual({ stage: 'multiplicative', field: resource, value: 9 })
+    }
+  })
+
+  it('fans out an allGenerators baseModifier into every owned generator output', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0]
+    const up: UpgradeDefinition = {
+      id: 'uAllGen',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'allGenerators', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const sumAdditive = (mods: readonly { field: string; stage: string; value: number }[]) =>
+      mods
+        .filter((m) => m.field === gen.production.resource && m.stage === 'additive')
+        .reduce((s, m) => s + m.value, 0)
+
+    const withUp = createInitialState(def)
+    withUp.upgrades.uAllGen = 2
+    withUp.generators[gen.id] = 4
+    const withMods = collectModifiers(withUp, def)
+
+    const without = createInitialState(def)
+    without.generators[gen.id] = 4
+    const withoutMods = collectModifiers(without, def)
+
+    // The sentinel never leaks; the bonus folds into each owned generator's output.
+    expect(withMods.some((m) => m.field === 'allGenerators')).toBe(false)
+    // Only gen is owned: per-unit (3) × upgrade owned (2) × generator owned (4) = 24.
     expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
   })
 
@@ -1225,6 +1280,54 @@ describe('production field mode validation', () => {
     }).toThrow(/baseModifier targets unknown production field 'nope'/u)
   })
 
+  it('accepts the aggregate target fields (allResources / allGenerators)', () => {
+    for (const field of ['allResources', 'allGenerators']) {
+      expect(() => {
+        validateModeDefinition(
+          'idler',
+          withUpgrade({ type: 'baseModifier', field, stage: 'additive', value: 1 }),
+        )
+      }).not.toThrow()
+    }
+  })
+
+  it('throws when a resource id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'allResources'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'allResources', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
+  it('throws when a generator id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        {
+          id: 'allGenerators',
+          cost: { r0: { baseCost: 1 } },
+          production: { resource: 'r0', rate: 1 },
+        },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'allGenerators', name: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
   it('throws on a mode-level baseModifier targeting an unknown field', () => {
     const base = getModeDefinition('idler')
     const def: ModeDefinition = {
@@ -1325,6 +1428,8 @@ describe('addressable-field catalog', () => {
       { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },
       { key: 'g1', label: 'g1 (output)' },
+      { key: 'allResources', label: 'All resources (rate)' },
+      { key: 'allGenerators', label: 'All generators (output)' },
     ])
   })
 
@@ -1348,6 +1453,12 @@ describe('addressable-field catalog', () => {
       else expect(full).toContainEqual(target)
     }
     expect(full.map((f) => f.key)).not.toContain(HIGHLIGHT_FACTOR_TARGET)
+  })
+
+  it('omits allGenerators when a mode has no generators', () => {
+    const keys = addressableTargetsFor(['r0'], []).map((f) => f.key)
+    expect(keys).toContain('allResources')
+    expect(keys).not.toContain('allGenerators')
   })
 
   it('the mode-level helpers delegate to the primitive ones', () => {

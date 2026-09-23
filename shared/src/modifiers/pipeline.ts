@@ -1,5 +1,6 @@
 import type { LayerAccumulator, Modifier, ModifierContext, ResourceLayers } from './types.js'
 import type { PlayerState } from '../types.js'
+import { advanceGameSec } from '../game-clock.js'
 import { MAX_RESOURCE } from '../game-config.js'
 
 // ─── Pipeline Core ───────────────────────────────────────────────────
@@ -161,8 +162,7 @@ export function applyPassiveTick(
   tickSec: number,
 ): void {
   // Track cumulative game time for time-based upgrades
-  const prevSec = (state.meta.gameSec as number | undefined) ?? 0
-  state.meta.gameSec = prevSec + tickSec
+  advanceGameSec(state, tickSec)
 
   const rates = computePassiveRates(modifiers, resources)
 
