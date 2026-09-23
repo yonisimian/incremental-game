@@ -501,11 +501,21 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
-    const clickIncome = computeClickIncome([
-      ...collectModifiers(state.player, modeDef),
-      ...state.debuffs,
-    ])
-    setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
+    const ownModifiers = collectModifiers(state.player, modeDef)
+    const baseClick = computeClickIncome(ownModifiers)
+    const clickIncome = computeClickIncome([...ownModifiers, ...state.debuffs])
+    const fmt = (n: number) => formatNumber(n, Number.isInteger(n) ? 0 : 1)
+    const clickEl = document.getElementById('data-click-income')
+    if (clickEl) {
+      // While an enemy debuff is dragging the figure below its un-debuffed
+      // worth, show the debuffed value in red with the base value alongside in
+      // parentheses; otherwise just the plain figure.
+      if (clickIncome !== baseClick) {
+        clickEl.innerHTML = `<span class="data-click-debuffed">${fmt(clickIncome)}</span> <span class="data-click-base">(${fmt(baseClick)})</span>`
+      } else {
+        clickEl.textContent = fmt(clickIncome)
+      }
+    }
     setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
     setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
     setText('data-click-total', formatNumber(roundStats.totalClicks))

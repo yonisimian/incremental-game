@@ -2519,3 +2519,13 @@ body {
   font-weight: 600;
   color: var(--text);
 }
+
+/* Per-click income under an enemy debuff: the debuffed figure in red, the
+   un-debuffed worth beside it in the normal colour. */
+.data-click-debuffed {
+  color: var(--danger);
+}
+
+.data-click-base {
+  color: var(--text);
+}
