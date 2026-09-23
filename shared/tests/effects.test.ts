@@ -7,6 +7,8 @@ import {
   applyEffect,
   collectModifiers,
   createInitialState,
+  enemyDebuffTargets,
+  enemyDebuffTargetsFor,
   getModeDefinition,
   hasEnemyDataAccess,
   isAttackUnlocked,
@@ -1430,6 +1432,22 @@ describe('addressable-field catalog', () => {
     ])
   })
 
+  // The enemy-debuff catalog is a strict subset: the two tracks a debuff can
+  // actually reach are click income and per-second resource rates. Generator and
+  // base-producer targets are absent — a debuff merges in after generator output
+  // has been folded into rates.
+  it('builds enemy-debuff target keys from click income and resource rates only', () => {
+    expect(enemyDebuffTargetsFor(['r0', 'r1'])).toEqual([
+      { key: 'clickIncome', label: 'Click income' },
+      { key: 'r0', label: 'r0 (rate)' },
+      { key: 'r1', label: 'r1 (rate)' },
+    ])
+    const full = addressableTargetsFor(['r0', 'r1'], ['g0'])
+    for (const target of enemyDebuffTargetsFor(['r0', 'r1'])) {
+      expect(full).toContainEqual(target)
+    }
+  })
+
   it('omits allGenerators when a mode has no generators', () => {
     const keys = addressableTargetsFor(['r0'], []).map((f) => f.key)
     expect(keys).toContain('allResources')
@@ -1445,6 +1463,7 @@ describe('addressable-field catalog', () => {
         mode.generators.map((g) => g.id),
       ),
     )
+    expect(enemyDebuffTargets(mode)).toEqual(enemyDebuffTargetsFor(mode.resources))
   })
 })
 

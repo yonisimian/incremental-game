@@ -921,6 +921,30 @@ describe('game.ts', () => {
       )
     }
 
+    it('predicts a debuffed click at the value the server will credit', () => {
+      enterIdlerPlaying(game)
+      // Same state, plus the ×0.5 clickIncome debuff the server reports from the
+      // opponent's passive attack — prediction must fold it in or the click
+      // flickers back on the next reconciliation.
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            pendingAttacks: [],
+            meta: { highlight: 'r0' },
+          },
+          debuffs: [{ stage: 'multiplicative', field: 'clickIncome', value: 0.5 }],
+        }),
+      )
+      game.doClick('r0')
+      const s = game.getState()
+      expect(s.player.resources.r0).toBeCloseTo(0.5, 6)
+      expect(s.player.score).toBeCloseTo(0.5, 6)
+    })
+
     it('credits a clicked non-score resource without adding to score', () => {
       enterIdlerPlaying(game)
       unlockClicking(game)

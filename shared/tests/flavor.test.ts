@@ -404,7 +404,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/unsupported field 'globalMultiplier'/)
   })
 
-  it('throws when an enemyProductionModifier targets an unsupported field (clickIncome)', () => {
+  it('accepts an enemyProductionModifier targeting clickIncome', () => {
     const base = makeValidDef({
       attacks: [
         {
@@ -426,7 +426,39 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/unknown or unsupported field 'clickIncome'/)
+    }).not.toThrow()
+  })
+
+  // A *declared* generator, so the rejection is about the field not being a
+  // debuff target (a debuff merges in after generator output is folded) rather
+  // than about an unknown id.
+  it('throws when an enemyProductionModifier targets a generator', () => {
+    const base = makeValidDef({
+      generators: [
+        { id: 'g0', cost: { r0: { baseCost: 10 } }, production: { resource: 'r0', rate: 1 } },
+      ],
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [
+            {
+              type: 'enemyProductionModifier',
+              stage: 'multiplicative',
+              field: 'g0',
+              value: 0.5,
+            },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      generators: [{ id: 'g0', name: 'Gen', icon: '⚙️' }],
+      attacks: [{ id: 'a0', name: 'Jam', icon: '🔇', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/unknown or unsupported field 'g0'/)
   })
 
   it('throws when an enemyProductionModifier is carried by a non-passive attack', () => {
