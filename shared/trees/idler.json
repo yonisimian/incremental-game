@@ -966,13 +966,7 @@
         {
           "type": "baseModifier",
           "stage": "multiplicative",
-          "field": "r0",
-          "value": 1.1
-        },
-        {
-          "type": "baseModifier",
-          "stage": "multiplicative",
-          "field": "r1",
+          "field": "allResources",
           "value": 1.1
         }
       ],
