@@ -26,6 +26,23 @@ const RESOURCE_SOURCE_PREFIX = 'resource:'
 /** The sole meta source in Stage A: the player's live peak CPS. */
 const PEAK_CPS_SOURCE = 'meta:peakCps'
 
+/**
+ * Reserved enemy-debuff target: the victim's *highlight factor*.
+ *
+ * Unlike every other target this names no pipeline field — the highlight bonus
+ * is folded into whichever resource the victim is holding, so there is nothing
+ * standing to address. It is a **virtual** target, translated against the victim
+ * by `resolveEnemyDebuffs` before the pipeline ever sees it.
+ */
+export const HIGHLIGHT_FACTOR_TARGET = 'highlightFactor'
+
+/**
+ * Target keys that name something other than a resource. A mode declaring a
+ * resource by one of these names would make the authored target ambiguous, so
+ * `validateModeDefinition` rejects the collision.
+ */
+export const RESERVED_TARGET_KEYS: readonly string[] = ['clickIncome', HIGHLIGHT_FACTOR_TARGET]
+
 /** One addressable field: its stable key plus a human label for the editor. */
 export interface AddressableField {
   readonly key: string
@@ -107,22 +124,27 @@ export function addressableTargets(mode: ModeDefinition): AddressableField[] {
 
 /**
  * Target keys an *offensive* `enemyProductionModifier` (carried by a passive
- * attack) may feed on the opponent. Deliberately a **subset** of {@link
- * addressableTargetsFor}: the debuffs are merged into the opponent's pipeline
- * *after* `collectModifiers` has already folded generator output into resource
- * rates, so a generator-id target would silently do nothing. The two tracks a
- * debuff *can* reach are per-second resource rates (merged on the passive-income
- * path) and `clickIncome` (merged when a click is credited, see the server's
- * `applyClick`), so those are the only targets offered and validated.
+ * attack) may feed on the opponent. Neither a subset nor a superset of {@link
+ * addressableTargetsFor} — the sets overlap:
+ *
+ *  - per-second resource rates (merged on the passive-income path) and
+ *    `clickIncome` (merged when a click is credited — see the server's
+ *    `applyClick`) are shared with the full catalog;
+ *  - {@link HIGHLIGHT_FACTOR_TARGET} is debuff-only and *virtual*, resolved
+ *    against the victim by `resolveEnemyDebuffs` rather than fed to a field;
+ *  - generator ids and base producers are absent: a debuff merges in after
+ *    `collectModifiers` has folded generator output into resource rates, so they
+ *    would silently do nothing.
  */
 export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): AddressableField[] {
   return [
     { key: 'clickIncome', label: 'Click income' },
+    { key: HIGHLIGHT_FACTOR_TARGET, label: 'Highlight factor' },
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
   ]
 }
 
-/** Offensive-debuff target keys for this mode (click income + resource rates). */
+/** Offensive-debuff target keys for this mode (click income + highlight + rates). */
 export function enemyDebuffTargets(mode: ModeDefinition): AddressableField[] {
   return enemyDebuffTargetsFor(mode.resources)
 }

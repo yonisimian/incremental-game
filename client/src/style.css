@@ -1323,6 +1323,15 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+/* Standing warning about an incoming enemy debuff — not researched intel, so it
+   reads as an alert rather than a table row. */
+.espionage-warning {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--danger);
+}
+
 .espionage-table {
   width: 100%;
   border-collapse: collapse;
@@ -2520,12 +2529,13 @@ body {
   color: var(--text);
 }
 
-/* Per-click income under an enemy debuff: the debuffed figure in red, the
-   un-debuffed worth beside it in the normal colour. */
-.data-click-debuffed {
+/* A stat value under an enemy debuff: the debuffed figure in red, the
+   un-debuffed worth beside it in the normal colour. Shared by the clicking
+   section's "Per click" and the highlight section's "Multiplier". */
+.data-value-debuffed {
   color: var(--danger);
 }
 
-.data-click-base {
+.data-value-base {
   color: var(--text);
 }

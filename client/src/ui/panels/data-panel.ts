@@ -17,10 +17,12 @@ import {
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
+  debuffedHighlightFactor,
   getHighlightMultiplier,
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
+  resolveEnemyDebuffs,
   getModeDefinition,
   getModeFlavor,
   getGeneratorIcon,
@@ -466,8 +468,12 @@ function updateNumbers(state: Readonly<GameState>): void {
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
 
+  // Incoming debuffs, resolved once against this player — every figure below that
+  // folds them in reads from here (see `resolveEnemyDebuffs`).
+  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player, modeDef)
+
   // Production + source breakdown (debuffs folded in so totals match the header).
-  const breakdown = computeRateBreakdown(state.player, modeDef, state.debuffs)
+  const breakdown = computeRateBreakdown(state.player, modeDef, debuffs)
   const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
@@ -503,7 +509,7 @@ function updateNumbers(state: Readonly<GameState>): void {
   if (modeDef.clicksEnabled) {
     const ownModifiers = collectModifiers(state.player, modeDef)
     const baseClick = computeClickIncome(ownModifiers)
-    const clickIncome = computeClickIncome([...ownModifiers, ...state.debuffs])
+    const clickIncome = computeClickIncome([...ownModifiers, ...debuffs])
     const fmt = (n: number) => formatNumber(n, Number.isInteger(n) ? 0 : 1)
     const clickEl = document.getElementById('data-click-income')
     if (clickEl) {
@@ -511,7 +517,7 @@ function updateNumbers(state: Readonly<GameState>): void {
       // worth, show the debuffed value in red with the base value alongside in
       // parentheses; otherwise just the plain figure.
       if (clickIncome !== baseClick) {
-        clickEl.innerHTML = `<span class="data-click-debuffed">${fmt(clickIncome)}</span> <span class="data-click-base">(${fmt(baseClick)})</span>`
+        clickEl.innerHTML = `<span class="data-value-debuffed">${fmt(clickIncome)}</span> <span class="data-value-base">(${fmt(baseClick)})</span>`
       } else {
         clickEl.textContent = fmt(clickIncome)
       }
@@ -535,8 +541,23 @@ function updateNumbers(state: Readonly<GameState>): void {
         ? 'Released'
         : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
-    const mult = getHighlightMultiplier(state.player, modeDef)
-    setText('data-hl-mult', `×${formatMultiplier(mult)}`)
+    // The multiplier reads *debuffed* while a resource is held: incoming
+    // highlight debuffs scale its bonus (see `debuffedHighlightFactor`), so it
+    // matches the production it buys. When a debuff drags it below its
+    // un-debuffed worth, show the debuffed value in red with the base alongside
+    // in parentheses — the same before/after the clicking section uses. Released,
+    // the factor lands nowhere and `getHighlightMultiplier` reports a neutral ×1.
+    const factor = getHighlightMultiplier(state.player, modeDef)
+    const held = current !== null
+    const mult = held ? debuffedHighlightFactor(factor, state.debuffs) : factor
+    const multEl = document.getElementById('data-hl-mult')
+    if (multEl) {
+      if (held && mult !== factor) {
+        multEl.innerHTML = `<span class="data-value-debuffed">×${formatMultiplier(mult)}</span> <span class="data-value-base">(×${formatMultiplier(factor)})</span>`
+      } else {
+        multEl.textContent = `×${formatMultiplier(mult)}`
+      }
+    }
     updateBattery(state, modeDef)
     for (const r of modeDef.resources) {
       setText(`data-hl-dwell-${r}`, `${formatNumber(roundStats.dwellByResource[r] ?? 0, 1)}s`)

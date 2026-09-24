@@ -9,20 +9,32 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *
  * An *offensive* production modifier carried by an attack: while the attack is
  * unlocked, apply `value` to the **opponent's** `field` at the given pipeline
- * `stage`. `field` is a debuffable pipeline target — a resource rate or
- * `clickIncome`; like `baseModifier`'s `field`, it's a plain `z.string()` so the
- * schema-driven editor form can introspect it. The valid set is the narrower
- * *enemy-debuff* catalog (not the full addressable targets): the debuff merges
- * into the opponent's pipeline after generator output is folded, so generator-id
- * targets would silently do nothing. The editor dropdown offers only the
- * supported targets and `validateModeDefinition` rejects the rest at load, so an
- * authored typo (or an unsupported target) fails loudly.
+ * `stage`. `field` is a debuffable target — a resource rate, `clickIncome`, or
+ * the virtual `highlightFactor`; like `baseModifier`'s `field`, it's a plain
+ * `z.string()` so the schema-driven editor form can introspect it. The valid set
+ * is the *enemy-debuff* catalog, which overlaps but doesn't match the full
+ * addressable targets: the debuff merges into the opponent's pipeline after
+ * generator output is folded, so generator-id targets would silently do nothing.
+ * The editor dropdown offers only the supported targets and
+ * `validateModeDefinition` rejects the rest at load, so an authored typo (or an
+ * unsupported target) fails loudly.
  *
- * For a passive attack the modifier applies continuously while unlocked (e.g.
- * `field: "r0", stage: "multiplicative", value: 0.9` reduces the opponent's wood
- * production 10%; `field: "clickIncome", stage: "multiplicative", value: 0.7`
- * takes 30% off what each of their clicks pays). `collectEnemyDebuffs` owns the
- * wiring; the effect itself only describes the bonus.
+ * For a passive attack the modifier applies continuously while unlocked:
+ *
+ *  - `field: "r0", stage: "multiplicative", value: 0.9` — 10% off the opponent's
+ *    wood production;
+ *  - `field: "clickIncome", stage: "multiplicative", value: 0.7` — 30% off what
+ *    each of their clicks pays;
+ *  - `field: "highlightFactor", stage: "multiplicative", value: 0.9` — cuts
+ *    their highlight *bonus* 10% (scaling the bonus above neutral, not the whole
+ *    factor), whichever resource they hold;
+ *  - `field: "highlightFactor", stage: "additive", value: -1` — subtracts from
+ *    the highlight factor directly, which (unlike the multiplicative form) can
+ *    cancel the bonus entirely, though it's clamped at neutral — never a penalty.
+ *
+ * `collectEnemyDebuffs` gathers these and `resolveEnemyDebuffs` translates the
+ * virtual `highlightFactor` target against the victim; the effect itself only
+ * describes the debuff.
  */
 const schema = z
   .strictObject({

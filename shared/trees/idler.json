@@ -198,6 +198,30 @@
           "value": -2
         }
       ]
+    },
+    {
+      "id": "less-highlight-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "highlightFactor",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-highlight-power-add",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "additive",
+          "field": "highlightFactor",
+          "value": -1
+        }
+      ]
     }
   ],
   "pacts": [
@@ -671,6 +695,12 @@
           "description": "Unlock the click-income debuffs"
         },
         {
+          "id": "node-8",
+          "name": "node-8",
+          "icon": "🌫️",
+          "description": "Unlock the highlight-bonus debuffs"
+        },
+        {
           "id": "pact-node",
           "name": "pact-node",
           "icon": "🤝",
@@ -765,6 +795,18 @@
           "name": "Less Click Power (flat)",
           "icon": "💥",
           "description": "Passively takes a flat 2 off the enemy's per-click income while unlocked."
+        },
+        {
+          "id": "less-highlight-power",
+          "name": "Dim Highlight",
+          "icon": "🌫️",
+          "description": "Passively cuts the enemy's highlight bonus in half while unlocked."
+        },
+        {
+          "id": "less-highlight-power-add",
+          "name": "Dim Highlight (flat)",
+          "icon": "🌫️",
+          "description": "Passively subtracts 1 from the enemy's highlight factor while unlocked — enough to cancel a small highlight's bonus, though never below a neutral ×1."
         }
       ],
       "pacts": [
@@ -2232,6 +2274,29 @@
           "offset": {
             "x": -48,
             "y": 384
+          }
+        },
+        {
+          "id": "node-8",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "less-highlight-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-highlight-power-add"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 480
           }
         }
       ]

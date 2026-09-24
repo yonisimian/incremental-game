@@ -21,6 +21,7 @@ import {
   getModeDefinition,
   getAvailableUpgrades,
   collectModifiers,
+  resolveEnemyDebuffs,
   computeClickIncome as pipelineClickIncome,
   creditResource,
   canAffordGenerator,
@@ -877,8 +878,12 @@ function computeClickIncome(player: PlayerState): number {
   const modeDef = getModeDefinition(mode)
   // Merge in the debuffs the opponent's passive attacks inflict (sent by the
   // server) so a predicted click pays what the server will credit — the same
-  // reason the header folds them into the passive rate.
-  const modifiers = [...collectModifiers(player, modeDef), ...state.debuffs]
+  // reason the header folds them into the passive rate. Resolved against the
+  // clicking player, since they arrive unresolved.
+  const modifiers = [
+    ...collectModifiers(player, modeDef),
+    ...resolveEnemyDebuffs(state.debuffs, player, modeDef),
+  ]
   return pipelineClickIncome(modifiers)
 }
 

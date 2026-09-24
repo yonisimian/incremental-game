@@ -15,6 +15,8 @@ import {
   getUpgradeIcon,
   getUpgradeName,
   hasEnemyDataAccess,
+  highlightDebuffFactor,
+  HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
 import type { ModeFlavor, PurchaseEvent } from '@game/shared'
 
@@ -42,6 +44,54 @@ function renderLocked(): string {
       <span class="placeholder-icon">🕵️</span>
       <p>No intel yet — research espionage to reveal enemy data.</p>
     </div>
+  `
+}
+
+/**
+ * Standing warning that the opponent holds a passive attack weakening this
+ * player's highlight bonus.
+ *
+ * Deliberately **ungated and always shown** while the debuff is present, unlike
+ * every other section here: the rest of this panel is intel you research, but
+ * this is something being done *to* you, and a player who can't see it has no way
+ * to explain why their highlight underperforms the number on its own upgrades.
+ * It also shows while the highlight is released, so a player deciding whether to
+ * hold knows the bonus is worth less than its own upgrades advertise.
+ *
+ * The multiplicative part is summarised as a percentage (`highlightDebuffFactor`
+ * means the same thing at every factor, so it reads true while released). An
+ * additive part can't be — its bite depends on the live factor — so it's named
+ * as "a flat cut" rather than folded into the percentage, which would otherwise
+ * understate the true reduction. The exact debuffed multiplier is in the data
+ * panel's Highlight section.
+ */
+function renderIncomingDebuffs(state: Readonly<GameState>): string {
+  const factor = highlightDebuffFactor(state.debuffs)
+  const hasFlat = state.debuffs.some(
+    (d) => d.field === HIGHLIGHT_FACTOR_TARGET && d.stage === 'additive',
+  )
+  if (factor === 1 && !hasFlat) return ''
+  let body: string
+  if (factor === 1) {
+    // Additive-only: no release-independent percentage exists, so name it plain.
+    body = 'Your ✨ highlight bonus takes a flat cut while the enemy holds this attack.'
+  } else {
+    // Round to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
+    // truncates to a wrong-looking "9%". A tenth still reads exactly for a
+    // compounded pair of debuffs (×0.9 × ×0.95 → 14.5%). Percentage only, no
+    // `(×N)`: a compounded ×0.855 would print "14.5% (×0.85)" and self-contradict.
+    const reduction = Math.round((1 - factor) * 1000) / 10
+    const pct = formatNumber(reduction, Number.isInteger(reduction) ? 0 : 1)
+    const flat = hasFlat ? ', plus a flat cut on top,' : ''
+    body = `Your ✨ highlight bonus is cut by ${pct}%${flat} while the enemy holds this attack.`
+  }
+  return `
+    <section class="espionage-section">
+      <h3 class="espionage-heading">Enemy Attacks</h3>
+      <p class="espionage-warning">
+        ⚔️ ${body}
+      </p>
+    </section>
   `
 }
 
@@ -177,14 +227,17 @@ function renderEspionage(state: Readonly<GameState>): string {
     .filter((r) => r.amount || r.rate)
   const cps = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_CPS_KEY)
   const purchases = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_PURCHASES_KEY)
-  if (rows.length === 0 && !cps && !purchases) return renderLocked()
+  // Incoming debuffs are not intel — they're reported whether or not any
+  // espionage is researched, so they lead, and they survive the locked state.
+  const incoming = renderIncomingDebuffs(state)
+  if (rows.length === 0 && !cps && !purchases) return `${incoming}${renderLocked()}`
   // Stockpiles and per-second rates are projected by the server into the
   // redacted opponent view — only the keys this viewer has unlocked are present
   // (the opponent's full state is never sent), so we read them directly.
   const flavor = getModeFlavor(modeDef)
   const resources =
     rows.length > 0 ? renderResources(state, flavor, rows, state.opponent.rates) : ''
-  return `${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state, flavor) : ''}`
+  return `${incoming}${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state, flavor) : ''}`
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────
