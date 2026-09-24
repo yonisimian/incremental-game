@@ -19,7 +19,11 @@
 
 import type { CostScope, PlayerState } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import { ALL_GENERATORS_FIELD, ALL_RESOURCES_FIELD } from '../modifiers/types.js'
+import {
+  ALL_GENERATORS_FIELD,
+  ALL_RESOURCES_FIELD,
+  INCOMING_CLICK_INCOME_FIELD,
+} from '../modifiers/types.js'
 
 /** Namespace prefix for a resource-stockpile source (e.g. `resource:r0`). */
 const RESOURCE_SOURCE_PREFIX = 'resource:'
@@ -41,7 +45,11 @@ export const HIGHLIGHT_FACTOR_TARGET = 'highlightFactor'
  * resource by one of these names would make the authored target ambiguous, so
  * `validateModeDefinition` rejects the collision.
  */
-export const RESERVED_TARGET_KEYS: readonly string[] = ['clickIncome', HIGHLIGHT_FACTOR_TARGET]
+export const RESERVED_TARGET_KEYS: readonly string[] = [
+  'clickIncome',
+  INCOMING_CLICK_INCOME_FIELD,
+  HIGHLIGHT_FACTOR_TARGET,
+]
 
 /** One addressable field: its stable key plus a human label for the editor. */
 export interface AddressableField {

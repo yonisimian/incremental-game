@@ -1,6 +1,10 @@
 import type { Modifier, ModifierStage } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
-import { ALL_GENERATORS_FIELD, ALL_RESOURCES_FIELD } from '../modifiers/types.js'
+import {
+  ALL_GENERATORS_FIELD,
+  ALL_RESOURCES_FIELD,
+  INCOMING_CLICK_INCOME_FIELD,
+} from '../modifiers/types.js'
 import type {
   EffectRef,
   EnemyCostFactor,
@@ -1233,7 +1237,10 @@ export function collectEnemyCostFactors(
  * Resolve authored enemy debuffs against the player they land on, turning them
  * into modifiers the production pipeline can consume.
  *
- * Real pipeline targets pass through untouched. Every {@link
+ * Real pipeline targets pass through untouched, except `clickIncome`, which is
+ * rewritten to {@link INCOMING_CLICK_INCOME_FIELD} so the click track can tell
+ * the victim's own click power from the enemy's drain (see `ClickLayers`). Every
+ * {@link
  * HIGHLIGHT_FACTOR_TARGET} entry names no field — it scales the victim's
  * *highlight bonus* (see {@link debuffedHighlightFactor}), which the pipeline
  * can't express directly — so they are folded into a single multiplicative
@@ -1259,6 +1266,8 @@ export function resolveEnemyDebuffs(
   let hasHighlightDebuff = false
   for (const debuff of debuffs) {
     if (debuff.field === HIGHLIGHT_FACTOR_TARGET) hasHighlightDebuff = true
+    else if (debuff.field === 'clickIncome')
+      resolved.push({ ...debuff, field: INCOMING_CLICK_INCOME_FIELD })
     else resolved.push(debuff)
   }
   if (hasHighlightDebuff && highlight !== null) {
