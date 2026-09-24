@@ -97,7 +97,7 @@ const schema = z
   .strictObject({
     /** `upgrades` / `generators`, or `upgrade:<id>` / `generator:<id>`. */
     target: z.string(),
-    /** Multiplies the base cost. `1.25` = 25% dearer. */
+    /** Multiplies the price at every level. `1.25` = 25% dearer. */
     costFactor: z.number().gt(1).optional(),
     /** Multiplies the growth portion of the cost curve. */
     scalingFactor: z.number().gt(1).optional(),

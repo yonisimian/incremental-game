@@ -517,7 +517,7 @@ export function doBuyGenerator(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
@@ -532,7 +532,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
   if (quantity <= 0) return
@@ -754,7 +754,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           if (!modeDef) break
           const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
           if (!gdef) break
-          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef, 'buy')
           if (!canAffordGenerator(reconciled, effectiveGdef)) break
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
           break

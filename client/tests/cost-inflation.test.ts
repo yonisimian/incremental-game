@@ -81,6 +81,20 @@ describe('upgrade price label', () => {
     expect(label).not.toContain(INFLATED_COST_MARKER)
   })
 
+  // A whole-scope attack names every upgrade, but a price it didn't move has
+  // nothing to explain — a free upgrade must not render as a bare "⬆".
+  it('leaves a price the attack did not move unmarked', () => {
+    const free: UpgradeDefinition = { id: 'u-free', cost: {}, purchaseLimit: 1 }
+    expect(formatUpgradeCost(makeState(DOUBLE_ALL), free, flavor)).not.toContain(
+      INFLATED_COST_MARKER,
+    )
+    // Growth-only inflation on a flat cost: the curve has no growth to steepen.
+    const growthOnly: EnemyCostFactor[] = [{ scope: 'upgrade', scalingFactor: 2 }]
+    expect(formatUpgradeCost(makeState(growthOnly), UPGRADE, flavor)).not.toContain(
+      INFLATED_COST_MARKER,
+    )
+  })
+
   // The card's affordability shading has to agree with the quote, or a node
   // reads as buyable at a price the server will refuse.
   it('shades affordability against the inflated price', () => {
@@ -128,6 +142,18 @@ describe('generator card', () => {
     expect(html).toContain(`Buy 1 — ${costIcon}${formatNumber(basePrice)}`)
     expect(html).not.toContain(INFLATED_COST_MARKER)
     expect(html).toContain(`+${costIcon}${formatNumber(baseRefund)}`)
+  })
+
+  // Growth-only inflation can't move the first copy's price (`base · r⁰`), so
+  // an unowned card has nothing to mark yet.
+  it('leaves an unmoved price unmarked under a growth-only attack', () => {
+    const state = makeState([{ scope: 'generator', scalingFactor: 2 }])
+    state.player.upgrades[unlockId] = 1
+    state.player.resources[generatorCostCurrency(g0)] = 1e6
+    const container = { innerHTML: '' } as HTMLElement
+    generatorsPanel.render(container, state)
+    expect(container.innerHTML).toContain(`Buy 1 — ${costIcon}${formatNumber(basePrice)}`)
+    expect(container.innerHTML).not.toContain(INFLATED_COST_MARKER)
   })
 })
 

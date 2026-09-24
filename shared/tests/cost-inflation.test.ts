@@ -12,6 +12,7 @@ import {
   getMaxAffordableGeneratorCount,
   getUpgradeNextCost,
   incomingCostFactors,
+  NEUTRAL_COST_FACTORS,
   purchaseBlockReason,
   resolveGeneratorDef,
   upgradeCostFactors,
@@ -284,6 +285,23 @@ describe('upgrade prices under inflation', () => {
       r0: 100,
     })
   })
+
+  // `costFactor` means "×N at every level" on both curve shapes, so the
+  // espionage line's "cost N% more" holds for linear curves too.
+  it('scales a linear curve by costFactor at every level, not just its base', () => {
+    const linear: UpgradeDefinition = {
+      id: 'u-linear',
+      cost: { r0: { baseCost: 10, scaleType: 'linear', scaleFactor: 5 } },
+      purchaseLimit: Infinity,
+    }
+    const inflate = { costFactor: 2, scalingFactor: 1 }
+    for (const level of [0, 1, 10]) {
+      const authored = getUpgradeNextCost(linear, level, NEUTRAL_COST_FACTORS).r0
+      expect(getUpgradeNextCost(linear, level, inflate).r0).toBe(authored * 2)
+    }
+    // scalingFactor steepens only the increment: 10 + 5·3·level.
+    expect(getUpgradeNextCost(linear, 4, { costFactor: 1, scalingFactor: 3 }).r0).toBe(70)
+  })
 })
 
 // ─── The client/server price-agreement invariant ─────────────────────
@@ -330,7 +348,7 @@ describe('validated price === charged price', () => {
   it('charges exactly the inflated quote for a generator', () => {
     const mode = makeMode()
     const victim = victimOf(mode, 'a-g0')
-    const effective = resolveGeneratorDef(G0, victim, mode)
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
     const quoted = getGeneratorCost(effective, 0)
     expect(quoted).toBe(200)
 
@@ -342,7 +360,7 @@ describe('validated price === charged price', () => {
   it('flips generator affordability at exactly the inflated price', () => {
     const mode = makeMode()
     const victim = victimOf(mode, 'a-g0')
-    const effective = resolveGeneratorDef(G0, victim, mode)
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
 
     victim.resources.r0 = 199
     expect(canAffordGenerator(victim, effective)).toBe(false)
@@ -356,7 +374,7 @@ describe('validated price === charged price', () => {
     const mode = makeMode()
     const victim = victimOf(mode, 'a-g0')
     victim.resources.r0 = 600 // 200 + 400 inflated = 600; base curve would fit 3 (100+200+400=700)
-    const effective = resolveGeneratorDef(G0, victim, mode)
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
     expect(getMaxAffordableGeneratorCount(victim, effective)).toBe(2)
     expect(getGeneratorBulkCost(effective, 0, 2)).toBe(600)
   })
@@ -411,11 +429,11 @@ describe('inflation composes with a friendly reduction', () => {
     const victim = victimOf(mode, 'a-g0')
     victim.upgrades['u-cheap-g0'] = 1
     // Own ×0.5, enemy ×2 → back to the authored price.
-    expect(collectGeneratorCostFactors(victim, mode).get('g0')).toEqual({
+    expect(collectGeneratorCostFactors(victim, mode, 'buy').get('g0')).toEqual({
       costFactor: 1,
       scalingFactor: 1,
     })
-    expect(getGeneratorCost(resolveGeneratorDef(G0, victim, mode), 0)).toBe(100)
+    expect(getGeneratorCost(resolveGeneratorDef(G0, victim, mode, 'buy'), 0)).toBe(100)
   })
 
   it('inflates a generator the player has no reduction for', () => {
@@ -425,6 +443,6 @@ describe('inflation composes with a friendly reduction', () => {
     const victim = makeState({
       incomingCostFactors: [{ scope: 'generator', costFactor: 4 }],
     })
-    expect(getGeneratorCost(resolveGeneratorDef(G0, victim, mode), 0)).toBe(400)
+    expect(getGeneratorCost(resolveGeneratorDef(G0, victim, mode, 'buy'), 0)).toBe(400)
   })
 })
