@@ -569,6 +569,16 @@ describe('enemyCostModifier params', () => {
     }
   })
 
+  it('rejects a factor of exactly 1 (a no-op)', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { scalingFactor: 1 },
+      { costFactor: 1.5, scalingFactor: 1 },
+    ]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
   it('rejects a ref that sets neither factor (inert)', () => {
     expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades' })).toThrow(/costFactor/u)
   })
