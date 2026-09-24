@@ -55,16 +55,25 @@ describe('data panel — per-click income display', () => {
   it('shows a plain figure when no debuff is active', () => {
     const el = render(makeIdlerState()).querySelector('#data-click-income')!
     expect(el.textContent).toBe('1')
-    expect(el.querySelector('.data-click-debuffed')).toBeNull()
-    expect(el.querySelector('.data-click-base')).toBeNull()
+    expect(el.querySelector('.data-value-debuffed')).toBeNull()
+    expect(el.querySelector('.data-value-base')).toBeNull()
   })
 
   it('shows the debuffed figure in red with the un-debuffed value in parentheses', () => {
     const debuffs: Modifier[] = [{ stage: 'multiplicative', field: 'clickIncome', value: 0.5 }]
     const el = render(makeIdlerState(debuffs)).querySelector('#data-click-income')!
-    const debuffed = el.querySelector('.data-click-debuffed')
-    const base = el.querySelector('.data-click-base')
+    const debuffed = el.querySelector('.data-value-debuffed')
+    const base = el.querySelector('.data-value-base')
     expect(debuffed?.textContent).toBe('0.5')
     expect(base?.textContent).toBe('(1)')
+  })
+
+  it('reflects a flat (additive) click debuff, flooring the figure at 0', () => {
+    // `less-click-power-add` is a −2 additive clickIncome debuff; against a base
+    // of 1 it floors the credit to 0, still shown as debuffed 0 vs base (1).
+    const debuffs: Modifier[] = [{ stage: 'additive', field: 'clickIncome', value: -2 }]
+    const el = render(makeIdlerState(debuffs)).querySelector('#data-click-income')!
+    expect(el.querySelector('.data-value-debuffed')?.textContent).toBe('0')
+    expect(el.querySelector('.data-value-base')?.textContent).toBe('(1)')
   })
 })

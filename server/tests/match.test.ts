@@ -448,6 +448,57 @@ describe('Match', () => {
       }
     })
 
+    it("applies a flat (additive) enemy clickIncome debuff to the victim's click credit", () => {
+      const base = getModeDefinition('idler')
+      // Same isolation as above, but a −2 *additive* click debuff on `a3`: it
+      // subtracts a flat 2 from the victim's per-click income, flooring a base-1
+      // click to 0 (`computeClickIncome` clamps at 0, so nothing is drained).
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'additive',
+                    field: 'clickIncome',
+                    value: -2,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.grantResourcesForTest('p2', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p1', clickMsg(4))
+        m.handleMessage('p2', clickMsg(2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        // Attacker earns its base 1; the victim's 1 is cut by the flat 2 and
+        // floored to 0 — so the whole click gap is the attacker's 1.
+        expect(gain1 - gain2).toBeCloseTo(1, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('sends no debuffs when neither player has an unlocked passive attack', () => {
       enterPlaying()
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)

@@ -19,7 +19,6 @@ import {
   computeRateBreakdown,
   debuffedHighlightFactor,
   getHighlightMultiplier,
-  highlightDebuffFactor,
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
@@ -421,10 +420,6 @@ function renderSkeleton(
             <span class="data-stat-label">Multiplier</span>
             <span class="data-stat-value" id="data-hl-mult">—</span>
           </div>
-          <div class="data-stat" id="data-hl-debuff-row" hidden>
-            <span class="data-stat-label">⚔️ Enemy debuff</span>
-            <span class="data-stat-value data-debuff" id="data-hl-debuff">—</span>
-          </div>
         </div>
         ${battery}
         <p class="data-subhead">Time highlighted</p>
@@ -522,7 +517,7 @@ function updateNumbers(state: Readonly<GameState>): void {
       // worth, show the debuffed value in red with the base value alongside in
       // parentheses; otherwise just the plain figure.
       if (clickIncome !== baseClick) {
-        clickEl.innerHTML = `<span class="data-click-debuffed">${fmt(clickIncome)}</span> <span class="data-click-base">(${fmt(baseClick)})</span>`
+        clickEl.innerHTML = `<span class="data-value-debuffed">${fmt(clickIncome)}</span> <span class="data-value-base">(${fmt(baseClick)})</span>`
       } else {
         clickEl.textContent = fmt(clickIncome)
       }
@@ -546,23 +541,22 @@ function updateNumbers(state: Readonly<GameState>): void {
         ? 'Released'
         : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
-    // The multiplier reads *debuffed*: incoming highlight debuffs scale its
-    // bonus (see `debuffedHighlightFactor`), so it matches the production it
-    // buys. Applied only while a resource is held: released, the factor lands
-    // nowhere and `getHighlightMultiplier` already reports a neutral ×1.
+    // The multiplier reads *debuffed* while a resource is held: incoming
+    // highlight debuffs scale its bonus (see `debuffedHighlightFactor`), so it
+    // matches the production it buys. When a debuff drags it below its
+    // un-debuffed worth, show the debuffed value in red with the base alongside
+    // in parentheses — the same before/after the clicking section uses. Released,
+    // the factor lands nowhere and `getHighlightMultiplier` reports a neutral ×1.
     const factor = getHighlightMultiplier(state.player, modeDef)
     const held = current !== null
     const mult = held ? debuffedHighlightFactor(factor, state.debuffs) : factor
-    setText('data-hl-mult', `×${formatMultiplier(mult)}`)
-    // Shown only while highlighted — the enemy-data panel carries the standing
-    // warning, this row explains the number sitting directly above it. It
-    // reports the multiplicative bonus scale; an additive debuff moves the
-    // multiplier above without a row of its own.
-    const debuffFactor = highlightDebuffFactor(state.debuffs)
-    const debuffRow = document.getElementById('data-hl-debuff-row')
-    if (debuffRow) debuffRow.hidden = !held || debuffFactor === 1
-    if (held && debuffFactor !== 1) {
-      setText('data-hl-debuff', `×${formatMultiplier(debuffFactor)}`)
+    const multEl = document.getElementById('data-hl-mult')
+    if (multEl) {
+      if (held && mult !== factor) {
+        multEl.innerHTML = `<span class="data-value-debuffed">×${formatMultiplier(mult)}</span> <span class="data-value-base">(×${formatMultiplier(factor)})</span>`
+      } else {
+        multEl.textContent = `×${formatMultiplier(mult)}`
+      }
     }
     updateBattery(state, modeDef)
     for (const r of modeDef.resources) {

@@ -2529,18 +2529,13 @@ body {
   color: var(--text);
 }
 
-/* A stat value that reports something working against the player (an incoming
-   enemy debuff), so it doesn't read as one of their own bonuses. */
-.data-debuff {
+/* A stat value under an enemy debuff: the debuffed figure in red, the
+   un-debuffed worth beside it in the normal colour. Shared by the clicking
+   section's "Per click" and the highlight section's "Multiplier". */
+.data-value-debuffed {
   color: var(--danger);
 }
 
-/* Per-click income under an enemy debuff: the debuffed figure in red, the
-   un-debuffed worth beside it in the normal colour. */
-.data-click-debuffed {
-  color: var(--danger);
-}
-
-.data-click-base {
+.data-value-base {
   color: var(--text);
 }
