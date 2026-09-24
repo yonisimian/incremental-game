@@ -806,7 +806,7 @@
           "id": "less-highlight-power-add",
           "name": "Dim Highlight (flat)",
           "icon": "🌫️",
-          "description": "Passively subtracts 1 from the enemy's highlight factor while unlocked — enough to push a small highlight into net loss, so releasing it dodges the attack."
+          "description": "Passively subtracts 1 from the enemy's highlight factor while unlocked — enough to cancel a small highlight's bonus, though never below a neutral ×1."
         }
       ],
       "pacts": [

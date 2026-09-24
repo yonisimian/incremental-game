@@ -36,7 +36,7 @@ fold the incoming highlight debuffs into a multiplicative product `vₘ` (each i
 `(0,1)`) and an additive sum `vₐ` (each `< 0`):
 
 ```text
-F' = max(floor, 1 + (F − 1)·vₘ + vₐ)
+F' = max(1, 1 + (F − 1)·vₘ + vₐ)
 ```
 
 `F` is already a multiplicative term on the highlighted resource, so the modifier
@@ -47,13 +47,12 @@ so emitting several and letting the pipeline multiply them would re-divide by `F
 each time.
 
 A multiplicative debuff can only shrink the bonus (`(F−1)·vₘ > 0`, so `F' > 1`);
-an **additive** debuff subtracts from the factor and can drive it below neutral,
-down to the floor.
+an **additive** debuff subtracts from the factor and can cancel the bonus
+entirely, but the floor holds it at neutral — never a penalty.
 
 ### Guards
 
-- **Released highlight** → emit nothing. There is no bonus to scale, and it keeps
-  releasing a real dodge.
+- **Released highlight** → emit nothing. There is no bonus to scale.
 - **`F ≤ 1`** (uninvested highlight) → return `F` unchanged, so an uninvested
   player takes no debuff and the `F' / F` ratio stays safe.
 
@@ -70,17 +69,19 @@ routed into `collectModifiers` without being mirrored in
 
 ## Decisions (previously open questions)
 
-1. **Floor below ×1, not at ×1.** `HIGHLIGHT_DEBUFF_FLOOR = 0.5`. A hard ×1 floor
-   would make holding always ≥ releasing, so releasing would be strictly
-   dominated and the attack would be flat attrition. Keeping the floor below ×1
-   preserves releasing as real counter-play under heavy pressure.
+1. **Floor at ×1 (neutral).** `HIGHLIGHT_DEBUFF_FLOOR = 1`. An incoming debuff
+   can cancel the highlight bonus but never invert it into a penalty, so a
+   debuffed highlight is never _worse_ than releasing. (An earlier iteration set
+   the floor below ×1 to keep releasing a live counter-play; that was reverted —
+   the owner preferred the debuff never punish holding below neutral.)
 
 2. **The additive restriction is relaxed.** Both `multiplicative` and `additive`
-   stages are legal on `highlightFactor`. This is what actually makes the sub-×1
-   floor reachable: multiplicative bonus-scaling is structurally `> 1`, so only
-   an additive debuff can push the effective factor into net loss. The idler tree
-   authors one of each (`less-highlight-power`, `less-highlight-power-add`) so the
-   path is used, not speculative.
+   stages are legal on `highlightFactor`. The two are distinct levers: a
+   multiplicative debuff scales the bonus proportionally (structurally `> 1`),
+   while an additive one subtracts a flat amount from the factor — able to cancel
+   a small highlight to exactly ×1 while barely denting a large one (both clamped
+   at neutral). The idler tree authors one of each (`less-highlight-power`,
+   `less-highlight-power-add`) so the path is used, not speculative.
 
 3. **`highlightDebuffFactor` stays value-shaped.** It returns the multiplicative
    bonus-scale (`∏ vₘ`) for the espionage panel's release-independent "your

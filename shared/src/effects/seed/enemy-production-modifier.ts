@@ -30,7 +30,7 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *    factor), whichever resource they hold;
  *  - `field: "highlightFactor", stage: "additive", value: -1` — subtracts from
  *    the highlight factor directly, which (unlike the multiplicative form) can
- *    push it below neutral down to a floor, making a release worthwhile.
+ *    cancel the bonus entirely, though it's clamped at neutral — never a penalty.
  *
  * `collectEnemyDebuffs` gathers these and `resolveEnemyDebuffs` translates the
  * virtual `highlightFactor` target against the victim; the effect itself only

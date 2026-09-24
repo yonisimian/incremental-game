@@ -355,8 +355,8 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // debuff merges into the opponent's pipeline after generator output is folded,
   // so they'd silently do nothing (see `enemyDebuffTargetsFor`). Both stages are
   // legal on `highlightFactor`: a multiplicative debuff scales the highlight
-  // bonus, an additive one subtracts from the factor (and can push it below
-  // neutral) — `resolveEnemyDebuffs` reads the composite either way.
+  // bonus, an additive one subtracts from the factor (clamped at neutral by
+  // `resolveEnemyDebuffs`, which reads the composite either way).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
@@ -1134,12 +1134,12 @@ export function collectEnemyDebuffs(
 }
 
 /**
- * The floor an incoming highlight debuff can drag the effective factor down to.
- * Below ×1 on purpose: a heavy (additive) debuff can push the highlight into net
- * loss, so releasing it — which drops the debuff and returns a neutral ×1 —
- * becomes real counter-play under pressure.
+ * The floor a highlight debuff can drag the effective factor down to. Held at
+ * neutral (×1) on purpose: an incoming debuff can cancel the highlight bonus but
+ * never invert it into a penalty, so a debuffed highlight is never *worse* than
+ * releasing.
  */
-export const HIGHLIGHT_DEBUFF_FLOOR = 0.5
+export const HIGHLIGHT_DEBUFF_FLOOR = 1
 
 /**
  * The victim's effective highlight factor once incoming highlight debuffs scale
@@ -1148,14 +1148,15 @@ export const HIGHLIGHT_DEBUFF_FLOOR = 0.5
  * `factor` is the composite F (`getHighlightMultiplier`: battery × every
  * `highlightMultiplier`). The highlight-factor debuffs fold as
  *
- *   F' = max(floor, 1 + (F − 1)·∏vₘ + Σvₐ)
+ *   F' = max(1, 1 + (F − 1)·∏vₘ + Σvₐ)
  *
  * over their multiplicative values (vₘ ∈ (0,1)) and additive ones (vₐ < 0).
  * Scaling the bonus above neutral — rather than the whole factor — makes one
  * authored value mean "your highlight investment is worth N% less" at every
  * point on the curve, instead of erasing a small factor while barely denting a
- * large one. A multiplicative debuff can only shrink the bonus (F' > 1); an
- * additive one can drive it below neutral, down to {@link HIGHLIGHT_DEBUFF_FLOOR}.
+ * large one. A multiplicative debuff shrinks the bonus (F' stays > 1); an
+ * additive one subtracts from the factor and can cancel the bonus entirely, but
+ * the {@link HIGHLIGHT_DEBUFF_FLOOR} clamps it at neutral — never a penalty.
  *
  * Returns `factor` unchanged when there is no bonus to cut (F ≤ 1) — an
  * uninvested highlight takes no debuff, and it keeps the F' / F ratio safe.
@@ -1189,9 +1190,8 @@ export function debuffedHighlightFactor(factor: number, debuffs: readonly Modifi
  * carries debuffs *unresolved* and every call site passes `mode`.
  *
  * A released highlight (or an uninvested one, F ≤ 1) drops the entry — there is
- * no bonus for the factor to scale. Releasing therefore dodges the debuff; worth
- * it only once the debuff has pushed the held factor below the neutral ×1 a
- * release returns.
+ * no bonus for the factor to scale. The debuff is clamped at neutral, so a held
+ * highlight is never worse than a released one.
  */
 export function resolveEnemyDebuffs(
   debuffs: readonly Modifier[],

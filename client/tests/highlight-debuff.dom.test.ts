@@ -100,8 +100,8 @@ describe('enemy-data panel — standing debuff warning', () => {
   })
 
   it('keeps warning while the highlight is released', () => {
-    // Releasing dodges the debuff, which is exactly when the player most needs
-    // to be told holding is worth less than the tree claims.
+    // Shown while released too, so a player deciding whether to hold knows the
+    // bonus is worth less than the tree claims.
     expect(renderEspionage(makeState(null, [HL_DEBUFF]))).toContain('espionage-warning')
   })
 
@@ -146,10 +146,10 @@ describe('data panel — Highlight section', () => {
     expect(el.querySelector('.data-value-base')?.textContent).toBe('(×2)')
   })
 
-  it('floors the multiplier when a multiplicative and flat debuff combine', () => {
-    // ×0.5 bonus-scale plus −1 flat on ×2 → 1 + (2−1)·0.5 − 1 = 0.5 (the floor).
+  it('floors the multiplier at neutral when a multiplicative and flat debuff combine', () => {
+    // ×0.5 bonus-scale plus −1 flat on ×2 → 1 + (2−1)·0.5 − 1 = 0.5, clamped to ×1.
     const el = multEl(renderData(makeState('r0', [HL_MULT_05, HL_ADD])))
-    expect(el.querySelector('.data-value-debuffed')?.textContent).toBe('×0.5')
+    expect(el.querySelector('.data-value-debuffed')?.textContent).toBe('×1')
     expect(el.querySelector('.data-value-base')?.textContent).toBe('(×2)')
   })
 

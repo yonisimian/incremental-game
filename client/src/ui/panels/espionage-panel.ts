@@ -55,8 +55,8 @@ function renderLocked(): string {
  * every other section here: the rest of this panel is intel you research, but
  * this is something being done *to* you, and a player who can't see it has no way
  * to explain why their highlight underperforms the number on its own upgrades.
- * It also shows while the highlight is released — that's when the warning matters
- * most, since releasing is what dodges the debuff.
+ * It also shows while the highlight is released, so a player deciding whether to
+ * hold knows the bonus is worth less than its own upgrades advertise.
  *
  * The multiplicative part is summarised as a percentage (`highlightDebuffFactor`
  * means the same thing at every factor, so it reads true while released). An

@@ -409,7 +409,7 @@ describe('resolveEnemyDebuffs', () => {
 
   it('drops a highlight-factor debuff while the victim has released', () => {
     const def = getModeDefinition('idler')
-    // Releasing dodges it — there is no bonus for the factor to scale.
+    // Released → no bonus for the factor to scale, so nothing lands.
     expect(resolveEnemyDebuffs([HL_MULT], victim(def, null), def)).toEqual([])
     // ...without dropping the debuffs that don't depend on a highlight.
     expect(resolveEnemyDebuffs([HL_MULT, RATE_DEBUFF], victim(def, null), def)).toEqual([
@@ -452,15 +452,15 @@ describe('resolveEnemyDebuffs', () => {
     expect(mods[0].value).toBeCloseTo(debuffed / factor, 9)
   })
 
-  it('lets an additive debuff push the factor below neutral, clamped at the floor', () => {
+  it('clamps a heavy additive debuff at neutral, never below ×1', () => {
     const def = getModeDefinition('idler')
     const state = victim(def, 'r0')
     const factor = getHighlightMultiplier(state, def)
-    // Enough additive pressure to underrun the floor: F' clamps to the floor.
+    // Enough additive pressure to underrun neutral: F' clamps to the floor (×1).
     const mods = resolveEnemyDebuffs([HL_ADD, HL_ADD, HL_ADD], state, def)
     expect(mods[0].value).toBeCloseTo(HIGHLIGHT_DEBUFF_FLOOR / factor, 9)
-    // Below the neutral ×1 a release returns — so releasing is now real dodging.
-    expect(HIGHLIGHT_DEBUFF_FLOOR).toBeLessThan(1)
+    // A debuffed highlight is never a penalty, so it's never worse than releasing.
+    expect(HIGHLIGHT_DEBUFF_FLOOR).toBe(1)
   })
 
   // Pins getHighlightMultiplier to the factor the pipeline actually applies: if a
@@ -496,14 +496,14 @@ describe('debuffedHighlightFactor', () => {
   })
 
   it('composes multiplicative and additive, then clamps at the floor', () => {
-    // F=4: 1 + (4−1)·0.5 + (−1) = 1.5 (above the 0.5 floor).
+    // F=4: 1 + (4−1)·0.5 + (−1) = 1.5 (above the neutral ×1 floor).
     expect(
       debuffedHighlightFactor(4, [
         hlMult(0.5),
         { stage: 'additive', field: HIGHLIGHT_FACTOR_TARGET, value: -1 },
       ]),
     ).toBeCloseTo(1.5, 9)
-    // Heavy additive underruns the floor and is clamped.
+    // Heavy additive underruns neutral and is clamped at ×1.
     expect(
       debuffedHighlightFactor(2, [
         { stage: 'additive', field: HIGHLIGHT_FACTOR_TARGET, value: -5 },
