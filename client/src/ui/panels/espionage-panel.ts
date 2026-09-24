@@ -16,6 +16,7 @@ import {
   getUpgradeName,
   hasEnemyDataAccess,
   highlightDebuffFactor,
+  HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
 import type { ModeFlavor, PurchaseEvent } from '@game/shared'
 
@@ -57,27 +58,38 @@ function renderLocked(): string {
  * It also shows while the highlight is released — that's when the warning matters
  * most, since releasing is what dodges the debuff.
  *
- * Reports the multiplicative bonus scale (`highlightDebuffFactor`), which means
- * the same thing at every factor and so reads true while released. An additive
- * highlight debuff — whose bite depends on the live factor — isn't summarised
- * here; it shows in the data panel's debuffed multiplier instead.
+ * The multiplicative part is summarised as a percentage (`highlightDebuffFactor`
+ * means the same thing at every factor, so it reads true while released). An
+ * additive part can't be — its bite depends on the live factor — so it's named
+ * as "a flat cut" rather than folded into the percentage, which would otherwise
+ * understate the true reduction. The exact debuffed multiplier is in the data
+ * panel's Highlight section.
  */
 function renderIncomingDebuffs(state: Readonly<GameState>): string {
   const factor = highlightDebuffFactor(state.debuffs)
-  if (factor === 1) return ''
-  // Round to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
-  // truncates to a wrong-looking "9%". A tenth still reads exactly for a
-  // compounded pair of debuffs (×0.9 × ×0.95 → 14.5%).
-  const reduction = Math.round((1 - factor) * 1000) / 10
-  const pct = formatNumber(reduction, Number.isInteger(reduction) ? 0 : 1)
-  // Percentage only, no `(×N)` alongside it: `formatMultiplier` rounds to two
-  // decimals, so a compounded ×0.855 would print as "14.5% (×0.85)" and read as
-  // self-contradictory. The exact factor has its own row under Highlight.
+  const hasFlat = state.debuffs.some(
+    (d) => d.field === HIGHLIGHT_FACTOR_TARGET && d.stage === 'additive',
+  )
+  if (factor === 1 && !hasFlat) return ''
+  let body: string
+  if (factor === 1) {
+    // Additive-only: no release-independent percentage exists, so name it plain.
+    body = 'Your ✨ highlight bonus takes a flat cut while the enemy holds this attack.'
+  } else {
+    // Round to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
+    // truncates to a wrong-looking "9%". A tenth still reads exactly for a
+    // compounded pair of debuffs (×0.9 × ×0.95 → 14.5%). Percentage only, no
+    // `(×N)`: a compounded ×0.855 would print "14.5% (×0.85)" and self-contradict.
+    const reduction = Math.round((1 - factor) * 1000) / 10
+    const pct = formatNumber(reduction, Number.isInteger(reduction) ? 0 : 1)
+    const flat = hasFlat ? ', plus a flat cut on top,' : ''
+    body = `Your ✨ highlight bonus is cut by ${pct}%${flat} while the enemy holds this attack.`
+  }
   return `
     <section class="espionage-section">
       <h3 class="espionage-heading">Enemy Attacks</h3>
       <p class="espionage-warning">
-        ⚔️ Your ✨ highlight bonus is cut by ${pct}% while the enemy holds this attack.
+        ⚔️ ${body}
       </p>
     </section>
   `

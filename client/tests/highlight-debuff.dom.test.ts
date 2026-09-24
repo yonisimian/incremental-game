@@ -22,6 +22,7 @@ import { espionagePanel } from '../src/ui/panels/espionage-panel.js'
 const modeDef = getModeDefinition('idler')
 
 const HL_DEBUFF: Modifier = { stage: 'multiplicative', field: 'highlightFactor', value: 0.9 }
+const HL_ADD: Modifier = { stage: 'additive', field: 'highlightFactor', value: -1 }
 const RATE_DEBUFF: Modifier = { stage: 'multiplicative', field: 'r0', value: 0.5 }
 
 /** A playing-screen state holding `highlight`, with the given incoming debuffs. */
@@ -101,6 +102,19 @@ describe('enemy-data panel — standing debuff warning', () => {
     // Releasing dodges the debuff, which is exactly when the player most needs
     // to be told holding is worth less than the tree claims.
     expect(renderEspionage(makeState(null, [HL_DEBUFF]))).toContain('espionage-warning')
+  })
+
+  it('names a flat cut instead of understating when an additive debuff is present', () => {
+    // A −1 additive debuff has no release-independent percentage, so the warning
+    // must not fold it into the multiplicative figure (which would understate).
+    const withMult = renderEspionage(makeState('r0', [HL_DEBUFF, HL_ADD]))
+    expect(withMult).toContain('10%')
+    expect(withMult).toContain('flat cut')
+    // Additive-only: still warns (even released), with no misleading percentage.
+    const flatOnly = renderEspionage(makeState(null, [HL_ADD]))
+    expect(flatOnly).toContain('espionage-warning')
+    expect(flatOnly).toContain('flat cut')
+    expect(flatOnly).not.toMatch(/\d%/u)
   })
 
   it('stays silent with no debuff, and for a debuff that is not on the highlight', () => {
