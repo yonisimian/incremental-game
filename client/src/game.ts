@@ -36,6 +36,7 @@ import {
   isChoiceGroupAvailable,
   isCostAffordable,
   getUpgradeNextCost,
+  upgradeCostFactors,
   applyPurchase,
   isClickUnlocked,
   readHighlight,
@@ -492,8 +493,10 @@ export function doBuy(upgradeId: string): void {
 
   if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
 
-  // Every currency in the cost map must be affordable
-  if (!isCostAffordable(state.player.resources, getUpgradeNextCost(def, owned))) return
+  // Every currency in the cost map must be affordable, at the price the server
+  // will charge — enemy cost inflation included.
+  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state.player, upgradeId))
+  if (!isCostAffordable(state.player.resources, cost)) return
 
   applyPurchase(state.player, upgradeId, modeDef)
 
@@ -514,7 +517,7 @@ export function doBuyGenerator(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
@@ -529,7 +532,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
   if (quantity <= 0) return
@@ -722,7 +725,11 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           const owned = reconciled.upgrades[action.upgradeId] ?? 0
           if (isMaxed(def, owned)) break
           if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
-          const cost = getUpgradeNextCost(def, owned)
+          const cost = getUpgradeNextCost(
+            def,
+            owned,
+            upgradeCostFactors(reconciled, action.upgradeId),
+          )
           if (!isCostAffordable(reconciled.resources, cost)) break
           for (const [currency, amount] of Object.entries(cost)) {
             reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
@@ -747,7 +754,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           if (!modeDef) break
           const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
           if (!gdef) break
-          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef, 'buy')
           if (!canAffordGenerator(reconciled, effectiveGdef)) break
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
           break
@@ -894,6 +901,10 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
     pendingAttacks: [...s.pendingAttacks],
+    // Carried through reconciliation: a re-applied optimistic purchase must be
+    // priced with the same inflation the server charged (entries are readonly,
+    // so the shallow copy is enough).
+    ...(s.incomingCostFactors ? { incomingCostFactors: [...s.incomingCostFactors] } : {}),
     meta: structuredClone(s.meta),
   }
 }

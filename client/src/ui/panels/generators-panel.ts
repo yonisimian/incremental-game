@@ -2,6 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
+import { INFLATED_COST_MARKER } from '../helpers.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -14,7 +15,9 @@ import {
   getMaxAffordableGeneratorCount,
   canAffordGenerator,
   canSellGenerator,
+  incomingCostFactors,
   isGeneratorUnlocked,
+  isNeutralCostFactors,
   resolveGeneratorDef,
   getResourceIcon,
   getGeneratorName,
@@ -35,6 +38,13 @@ export interface GeneratorCardNums {
   readonly bulkCost: number
   readonly sellRefund: number
   readonly canSell: boolean
+  /**
+   * An opponent's passive attack is inflating this generator's price. Marks the
+   * buy button, so a cost above the authored one reads as an attack rather than
+   * a bug. Defaults to false. The sell refund is never inflated (see
+   * `getGeneratorSellRefund`), so the marker sits on the buy side only.
+   */
+  readonly inflated?: boolean
   /**
    * The card is shown for a generator this player hasn't unlocked — only
    * possible when copies were stolen from an opponent who had. Buying is barred
@@ -58,6 +68,7 @@ export function renderGeneratorCardView(
 ): string {
   const { owned, nextCost, affordable, maxAffordable, bulkCost, sellRefund, canSell } = nums
   const locked = nums.locked === true
+  const marker = nums.inflated === true ? ` ${INFLATED_COST_MARKER}` : ''
   const totalRate = def.production.rate * owned
   const rateStr = totalRate % 1 === 0 ? String(totalRate) : totalRate.toFixed(1)
   const prodIcon = getResourceIcon(flavor, def.production.resource)
@@ -75,7 +86,7 @@ export function renderGeneratorCardView(
       </div>
       <div class="generator-actions">
         <button class="generator-buy-btn" data-action="buy" ${!affordable ? 'disabled' : ''}>
-          ${locked ? '🔒 Locked' : `Buy 1 — ${costIcon}${formatNumber(nextCost)}`}
+          ${locked ? '🔒 Locked' : `Buy 1 — ${costIcon}${formatNumber(nextCost)}${marker}`}
         </button>
         <button class="generator-buy-btn buy-max" data-action="buy-max" ${maxAffordable <= 1 ? 'disabled' : ''}>
           ${
@@ -117,7 +128,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         (state.player.generators[def.id] ?? 0) > 0,
     )
     .map((def) => {
-      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
       const owned = state.player.generators[def.id] ?? 0
       const unlocked = isGeneratorUnlocked(state.player, def, modeDef)
       const nextCost = getGeneratorCost(effectiveDef, owned)
@@ -127,8 +138,22 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         : 0
       const bulkCost =
         maxAffordable > 0 ? getGeneratorBulkCost(effectiveDef, owned, maxAffordable) : 0
-      const sellRefund = getGeneratorSellRefund(effectiveDef, owned)
+      // Refunds are priced at the player's own factors only (`'sell'`), so the
+      // figure shown is the one `applyGeneratorSell` actually credits — an
+      // inflated refund would let a strong attack be sold back at a profit.
+      // Resolved only when there's a copy to sell, so an unowned card doesn't
+      // pay for a second factor collection to print a 0.
+      const sellRefund =
+        owned > 0
+          ? getGeneratorSellRefund(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
+          : 0
       const canSell = canSellGenerator(state.player, effectiveDef)
+      // Marked only when the attack actually moved this price (compared against
+      // the player's own-factor price, which is what `'sell'` resolves).
+      const inflated =
+        !isNeutralCostFactors(incomingCostFactors(state.player, 'generator', def.id)) &&
+        nextCost !==
+          getGeneratorCost(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
@@ -137,6 +162,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         bulkCost,
         sellRefund,
         canSell,
+        inflated,
         locked: !unlocked,
       })
     })

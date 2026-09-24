@@ -4,6 +4,7 @@ import {
   getUpgradeBulkCost,
   getMaxAffordableUpgradeLevels,
 } from '../src/upgrade-costs.js'
+import { NEUTRAL_COST_FACTORS } from '../src/cost.js'
 import type { UpgradeDefinition } from '../src/types.js'
 
 const fixed: UpgradeDefinition = {
@@ -24,20 +25,20 @@ const expo: UpgradeDefinition = {
 
 describe('upgrade costs', () => {
   it('fixed next cost', () => {
-    expect(getUpgradeNextCost(fixed, 0)).toEqual({ r0: 10 })
-    expect(getUpgradeNextCost(fixed, 3)).toEqual({ r0: 10 })
+    expect(getUpgradeNextCost(fixed, 0, NEUTRAL_COST_FACTORS)).toEqual({ r0: 10 })
+    expect(getUpgradeNextCost(fixed, 3, NEUTRAL_COST_FACTORS)).toEqual({ r0: 10 })
   })
 
   it('linear next cost', () => {
-    expect(getUpgradeNextCost(linear, 0)).toEqual({ r0: 5 })
-    expect(getUpgradeNextCost(linear, 1)).toEqual({ r0: 7 })
-    expect(getUpgradeNextCost(linear, 3)).toEqual({ r0: 11 })
+    expect(getUpgradeNextCost(linear, 0, NEUTRAL_COST_FACTORS)).toEqual({ r0: 5 })
+    expect(getUpgradeNextCost(linear, 1, NEUTRAL_COST_FACTORS)).toEqual({ r0: 7 })
+    expect(getUpgradeNextCost(linear, 3, NEUTRAL_COST_FACTORS)).toEqual({ r0: 11 })
   })
 
   it('exponential next cost', () => {
-    expect(getUpgradeNextCost(expo, 0)).toEqual({ r0: 3 })
-    expect(getUpgradeNextCost(expo, 1)).toEqual({ r0: 6 })
-    expect(getUpgradeNextCost(expo, 2)).toEqual({ r0: 12 })
+    expect(getUpgradeNextCost(expo, 0, NEUTRAL_COST_FACTORS)).toEqual({ r0: 3 })
+    expect(getUpgradeNextCost(expo, 1, NEUTRAL_COST_FACTORS)).toEqual({ r0: 6 })
+    expect(getUpgradeNextCost(expo, 2, NEUTRAL_COST_FACTORS)).toEqual({ r0: 12 })
   })
 
   it('scales only currencies with an entry, leaving others flat', () => {
@@ -46,21 +47,21 @@ describe('upgrade costs', () => {
       cost: { r0: { baseCost: 8, scaleType: 'linear', scaleFactor: 4 }, r1: { baseCost: 10 } },
       purchaseLimit: 5,
     }
-    expect(getUpgradeNextCost(mixed, 0)).toEqual({ r0: 8, r1: 10 })
+    expect(getUpgradeNextCost(mixed, 0, NEUTRAL_COST_FACTORS)).toEqual({ r0: 8, r1: 10 })
     // r0 grows (8 + 4*2 = 16); r1 has no entry so stays flat.
-    expect(getUpgradeNextCost(mixed, 2)).toEqual({ r0: 16, r1: 10 })
+    expect(getUpgradeNextCost(mixed, 2, NEUTRAL_COST_FACTORS)).toEqual({ r0: 16, r1: 10 })
   })
 
   it('bulk cost linear', () => {
-    expect(getUpgradeBulkCost(linear, 0, 3)).toEqual({ r0: 5 + 7 + 9 })
+    expect(getUpgradeBulkCost(linear, 0, 3, NEUTRAL_COST_FACTORS)).toEqual({ r0: 5 + 7 + 9 })
   })
 
   it('bulk cost exponential', () => {
-    expect(getUpgradeBulkCost(expo, 0, 3)).toEqual({ r0: 3 + 6 + 12 })
+    expect(getUpgradeBulkCost(expo, 0, 3, NEUTRAL_COST_FACTORS)).toEqual({ r0: 3 + 6 + 12 })
   })
 
   it('max affordable from budget', () => {
-    expect(getMaxAffordableUpgradeLevels(linear, 0, { r0: 100 })).toBe(5)
-    expect(getMaxAffordableUpgradeLevels(linear, 0, { r0: 0 })).toBe(0)
+    expect(getMaxAffordableUpgradeLevels(linear, 0, { r0: 100 }, NEUTRAL_COST_FACTORS)).toBe(5)
+    expect(getMaxAffordableUpgradeLevels(linear, 0, { r0: 0 }, NEUTRAL_COST_FACTORS)).toBe(0)
   })
 })

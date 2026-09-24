@@ -6,8 +6,12 @@ import {
   isChoiceGroupAvailable,
   isCostAffordable,
   isMaxed,
+  isNeutralCostFactors,
   isPrerequisiteSatisfied,
+  isUnlimited,
   getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
+  upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
@@ -82,14 +86,55 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return false
   if (!state.mode) return false
-  return isCostAffordable(state.player.resources, getUpgradeNextCost(u, owned))
+  const cost = getUpgradeNextCost(u, owned, upgradeCostFactors(state.player, u.id))
+  return isCostAffordable(state.player.resources, cost)
 }
 
-/** Render a cost map as a `"<amount> <icon>"` label, one entry per currency. */
-export function formatCostLabel(
-  cost: Readonly<Record<string, number>>,
+/** Marker appended to a price an opponent's passive attack is inflating. */
+export const INFLATED_COST_MARKER = '⬆'
+
+/**
+ * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
+ * the cost map plus the owned count for an unlimited upgrade.
+ *
+ * Priced with the factors in force, so it matches what a buy will actually
+ * charge, and marked with {@link INFLATED_COST_MARKER} when an opponent's
+ * inflation actually raised it — otherwise a price above the tree's authored
+ * number reads as a bug rather than as an attack. A free upgrade, or a
+ * growth-only factor on a flat cost, is left unmarked: nothing moved.
+ */
+export function formatUpgradeCost(
+  state: Readonly<GameState>,
+  u: UpgradeDefinition,
   flavor: ModeFlavor,
 ): string {
+  const owned = state.player.upgrades[u.id] ?? 0
+  if (isMaxed(u, owned)) return 'Maxed'
+  const factors = upgradeCostFactors(state.player, u.id)
+  const cost = getUpgradeNextCost(u, owned, factors)
+  const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+  const marker =
+    !isNeutralCostFactors(factors) &&
+    costRaised(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
+      ? ` ${INFLATED_COST_MARKER}`
+      : ''
+  return `${formatCostLabel(cost, flavor)}${countLabel}${marker}`
+}
+
+/** Whether any currency in `cost` exceeds its amount in `authored`. */
+function costRaised(
+  cost: Readonly<Record<string, number>>,
+  authored: Readonly<Record<string, number>>,
+): boolean {
+  return Object.entries(cost).some(([currency, amount]) => amount > (authored[currency] ?? 0))
+}
+
+/**
+ * Render a cost map as a `"<amount> <icon>"` label, one entry per currency.
+ * Module-private now that {@link formatUpgradeCost} is the single seam every
+ * upgrade price label goes through.
+ */
+function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {
   return Object.entries(cost)
     .map(([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`)
     .join('  ')

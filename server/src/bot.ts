@@ -19,6 +19,7 @@ import {
   isCostAffordable,
   isGeneratorUnlocked,
   resolveGeneratorDef,
+  upgradeCostFactors,
 } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -229,7 +230,11 @@ export class IdlerBot implements BotStrategy {
     const def = this.upgradeMap.get(next.id)
     if (!def) return
     const owned = state.upgrades[next.id] ?? 0
-    if (isCostAffordable(state.resources, getUpgradeNextCost(def, owned))) {
+    // Priced with any enemy cost inflation folded in (`upgradeCostFactors`), the
+    // same way the server will price it — otherwise the bot emits buys that
+    // validation rejects, and its plan stalls on an unaffordable target.
+    const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, next.id))
+    if (isCostAffordable(state.resources, cost)) {
       actions.push({ type: 'buy', upgradeId: next.id })
       this.planIndex++
     }
@@ -247,7 +252,7 @@ export class IdlerBot implements BotStrategy {
     // Cost-reduction factors depend on owned upgrades, not generator counts, so
     // the resolved defs are stable across this tick's buys.
     const resolved = new Map(
-      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef)]),
+      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef, 'buy')]),
     )
     const wallet: Record<string, number> = { ...state.resources }
     const owned: Record<string, number> = { ...state.generators }

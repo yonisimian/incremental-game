@@ -68,6 +68,7 @@ describe('effect registry', () => {
       'batteryBand',
       'batteryStat',
       'dominantGenerator',
+      'enemyCostModifier',
       'enemyProductionModifier',
       'generatorCost',
       'generatorUnlock',
@@ -522,6 +523,70 @@ describe('enemyProductionModifier params', () => {
         apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value }),
       ).toThrow(/value/u)
     }
+  })
+})
+
+// ─── enemyCostModifier ───────────────────────────────────────────────
+
+describe('enemyCostModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('splits a whole-scope target into scope + no id', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual({
+      kind: 'enemyCost',
+      scope: 'upgrade',
+      id: undefined,
+      costFactor: 1.25,
+      scalingFactor: undefined,
+    })
+    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual({
+      kind: 'enemyCost',
+      scope: 'generator',
+      id: undefined,
+      costFactor: undefined,
+      scalingFactor: 1.1,
+    })
+  })
+
+  it('splits a namespaced target into scope + id', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual({
+      kind: 'enemyCost',
+      scope: 'generator',
+      id: 'g0',
+      costFactor: 2,
+      scalingFactor: undefined,
+    })
+  })
+
+  // An attack that discounts the victim is never intended authoring — the same
+  // reasoning as `guardModifierValue`'s debuff intent, in the other direction.
+  it('rejects a factor below 1 (a gift, not an attack)', () => {
+    for (const params of [{ costFactor: 0.9 }, { scalingFactor: 0.5 }]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a factor of exactly 1 (a no-op)', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { scalingFactor: 1 },
+      { costFactor: 1.5, scalingFactor: 1 },
+    ]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a ref that sets neither factor (inert)', () => {
+    expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades' })).toThrow(/costFactor/u)
+  })
+
+  // `validateModeDefinition` rejects this at boot; `apply` still has to stay
+  // inert rather than emit an output naming nothing.
+  it('is inert on an unparseable target', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
   })
 })
 

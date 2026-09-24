@@ -11,6 +11,7 @@ import {
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
+  collectEnemyCostFactors,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -411,7 +412,31 @@ export class Match {
 
   // ─── Private: action processing ────────────────────────────────────
 
+  /**
+   * Stamp each player's incoming cost inflation from the *other* player's
+   * unlocked passive attacks (see `collectEnemyCostFactors`).
+   *
+   * Every price path — server validation, the client's optimistic purchase, the
+   * card the player reads — resolves the factors off `PlayerState`, so this is
+   * the one place they're computed. Called wherever a price is about to be
+   * judged or shown: before an action batch is validated (actions arrive on
+   * message receipt, not on the tick, so a tick-only stamp could validate a
+   * purchase against factors up to one tick stale), before the bot's actions,
+   * and before each broadcast.
+   */
+  private syncCostFactors(): void {
+    for (let i = 0; i < this.players.length; i++) {
+      const player = this.players[i]
+      const incoming = collectEnemyCostFactors(this.players[1 - i].state, this.modeDef)
+      // Absent rather than empty when nothing is inflicted: the field is optional
+      // on the wire, and the common case should carry no payload.
+      if (incoming.length > 0) player.state.incomingCostFactors = incoming
+      else delete player.state.incomingCostFactors
+    }
+  }
+
   private processActions(player: MatchPlayer, actions: PlayerAction[], seq: number): void {
+    this.syncCostFactors()
     for (const action of actions) {
       if (action.type === 'click') {
         if (!isClickUnlocked(player.state, this.modeDef)) continue
@@ -454,6 +479,7 @@ export class Match {
 
   /** Run the bot strategy for player index 1 and apply its actions. */
   private processBotActions(): void {
+    this.syncCostFactors()
     const botPlayer = this.players[1]
     const tickSec = TICK_INTERVAL_MS / 1000
     const actions = this.bot!.decide(botPlayer.state, tickSec)
@@ -683,6 +709,10 @@ export class Match {
 
   private broadcastState(): void {
     const [p1, p2] = this.players
+
+    // Refresh each side's incoming cost inflation so the snapshot carries the
+    // prices the client is about to quote and predict against.
+    this.syncCostFactors()
 
     // Offensive debuffs each player's unlocked passive attacks inflict on the
     // other, sent so the victim's client can render its true (debuffed) rate —

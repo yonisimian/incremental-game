@@ -16,7 +16,7 @@
 import { isChoiceGroupAvailable } from './upgrade-groups.js'
 import { isMaxed } from './modes/index.js'
 import { isPrerequisiteSatisfied } from './prerequisites.js'
-import { getUpgradeNextCost, isCostAffordable } from './upgrade-costs.js'
+import { getUpgradeNextCost, isCostAffordable, upgradeCostFactors } from './upgrade-costs.js'
 import { canAffordGenerator, isGeneratorUnlocked, resolveGeneratorDef } from './generators.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { PlayerState, UpgradeDefinition } from './types.js'
@@ -46,7 +46,8 @@ export function purchaseBlockReason(
   if (isMaxed(def, owned)) return 'maxed'
   if (!isPrerequisiteSatisfied(def.prerequisites, state)) return 'prerequisite'
   if (!isChoiceGroupAvailable(def, state, Array.from(upgradeMap.values()))) return 'choice-group'
-  if (!isCostAffordable(state.resources, getUpgradeNextCost(def, owned))) return 'unaffordable'
+  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, upgradeId))
+  if (!isCostAffordable(state.resources, cost)) return 'unaffordable'
   return null
 }
 
@@ -78,7 +79,8 @@ export function generatorBlockReason(
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return 'unknown'
   if (!isGeneratorUnlocked(state, def, mode)) return 'locked'
-  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode))) return 'unaffordable'
+  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode, 'buy')))
+    return 'unaffordable'
   return null
 }
 
