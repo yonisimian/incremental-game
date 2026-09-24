@@ -53,6 +53,14 @@ const CHEAPER_G0: UpgradeDefinition = {
   effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.5 }],
 }
 
+/** Friendly growth reduction: halves the growth portion of `g0`'s curve. */
+const FLATTER_G0: UpgradeDefinition = {
+  id: 'u-flatter-g0',
+  cost: { r0: { baseCost: 0 } },
+  purchaseLimit: 1,
+  effects: [{ type: 'generatorCost', generator: 'g0', scalingFactor: 0.5 }],
+}
+
 const G0: GeneratorDefinition = {
   id: 'g0',
   cost: { r0: { baseCost: 100, scaleType: 'exponential', scaleFactor: 2 } },
@@ -80,6 +88,13 @@ const STEEPEN_EXPO: AttackDefinition = {
   effects: [{ type: 'enemyCostModifier', target: 'upgrade:u-expo', scalingFactor: 1.5 }],
 }
 
+/** `g0`'s growth doubled: its ×2 curve becomes ×3 (100 / 300 / 900). */
+const STEEPEN_G0: AttackDefinition = {
+  id: 'a-steepen-g0',
+  kind: 'passive',
+  effects: [{ type: 'enemyCostModifier', target: 'generator:g0', scalingFactor: 2 }],
+}
+
 /**
  * The same inflation authored on an *active* attack. `validateModeDefinition`
  * rejects this placement (the effect declares `hosts: ['passiveAttack']`), so it
@@ -105,13 +120,14 @@ function gate(attackId: string): UpgradeDefinition {
   }
 }
 
-const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, ACTIVE_TARIFF]
+const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, STEEPEN_G0, ACTIVE_TARIFF]
+const OWN_UPGRADES = [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, FLATTER_G0]
 
 function makeMode(): ModeDefinition {
   return {
     resources: ['r0'],
     scoreResource: 'r0',
-    upgrades: [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, ...ATTACKS.map((a) => gate(a.id))],
+    upgrades: [...OWN_UPGRADES, ...ATTACKS.map((a) => gate(a.id))],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     clicksEnabled: false,
     highlightEnabled: false,
@@ -128,9 +144,12 @@ function makeMode(): ModeDefinition {
         scoreLabel: 'Score',
         showClickStats: false,
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-        upgrades: [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, ...ATTACKS.map((a) => gate(a.id))].map(
-          (u) => ({ id: u.id, name: u.id, icon: '🔧', description: '' }),
-        ),
+        upgrades: [...OWN_UPGRADES, ...ATTACKS.map((a) => gate(a.id))].map((u) => ({
+          id: u.id,
+          name: u.id,
+          icon: '🔧',
+          description: '',
+        })),
         generators: [{ id: 'g0', name: 'Gen', icon: '🏭' }],
         attacks: ATTACKS.map((a) => ({ id: a.id, name: a.id, icon: '💸', description: '' })),
         pacts: [],
@@ -396,14 +415,16 @@ describe('sell refund ignores enemy inflation', () => {
     expect(victim.resources.r0 - before).toBe(50)
   })
 
-  // The exploit this guards: at ×2 or more an inflated refund would exceed what
-  // the copy cost, making the attack a gift and a sell/re-buy a money pump.
-  it('makes a buy-then-sell round trip strictly lossy under a heavy inflation', () => {
+  // The exploit this guards: a copy bought *before* the attack lands must not
+  // refund at the inflated price after it — at ×4 that would pay back 200 for a
+  // 100 copy, turning the attack into a gift and sell/re-buy into a money pump.
+  it('never refunds more than a copy cost, even once a heavy inflation lands', () => {
     const mode = makeMode()
-    const victim = victimOf(mode, 'a-g0')
+    const victim = makeState()
     const before = victim.resources.r0
 
     applyGeneratorPurchase(victim, 'g0', mode)
+    victim.incomingCostFactors = [{ scope: 'generator', costFactor: 4 }]
     applyGeneratorSell(victim, 'g0', mode)
 
     expect(victim.resources.r0).toBeLessThan(before)
@@ -418,6 +439,102 @@ describe('sell refund ignores enemy inflation', () => {
     // Own ×0.5 applies to the refund; the enemy's ×2 does not.
     const sellDef = resolveGeneratorDef(G0, victim, mode, 'sell')
     expect(getGeneratorSellRefund(sellDef, 1)).toBe(25)
+  })
+})
+
+// ─── Growth inflation (scalingFactor) ────────────────────────────────
+//
+// `scalingFactor` bends the curve rather than lifting it: the first copy/level
+// keeps its authored price and every later one compounds faster. Pinned on the
+// same price-agreement properties as `costFactor` above.
+
+describe('growth inflation (scalingFactor)', () => {
+  it('collects a growth-only entry without inventing a costFactor', () => {
+    const mode = makeMode()
+    expect(collectEnemyCostFactors(attacker('a-steepen-g0'), mode)).toEqual([
+      { scope: 'generator', id: 'g0', scalingFactor: 2 },
+    ])
+  })
+
+  it('keeps the first generator copy at its authored price and steepens the rest', () => {
+    const mode = makeMode()
+    const effective = resolveGeneratorDef(G0, victimOf(mode, 'a-steepen-g0'), mode, 'buy')
+    // ×2 growth doubled → ×3: 100, 300, 900 (authored: 100, 200, 400).
+    expect([0, 1, 2].map((owned) => getGeneratorCost(effective, owned))).toEqual([100, 300, 900])
+  })
+
+  it('flips generator affordability at exactly the steepened price, and charges it', () => {
+    const mode = makeMode()
+    const victim = victimOf(mode, 'a-steepen-g0')
+    victim.generators.g0 = 1
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
+
+    victim.resources.r0 = 299
+    expect(canAffordGenerator(victim, effective)).toBe(false)
+    victim.resources.r0 = 300
+    expect(canAffordGenerator(victim, effective)).toBe(true)
+
+    applyGeneratorPurchase(victim, 'g0', mode)
+    expect(victim.resources.r0).toBe(0)
+    expect(victim.generators.g0).toBe(2)
+  })
+
+  it('counts buy-max copies along the steepened curve', () => {
+    const mode = makeMode()
+    const victim = victimOf(mode, 'a-steepen-g0')
+    victim.resources.r0 = 700 // steepened: 100 + 300 = 400, +900 won't fit; authored would fit 3
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
+    expect(getMaxAffordableGeneratorCount(victim, effective)).toBe(2)
+    expect(getGeneratorBulkCost(effective, 0, 2)).toBe(400)
+  })
+
+  it('flips upgrade affordability at exactly the steepened price, and charges it', () => {
+    const mode = makeMode()
+    const map = upgradeMap(mode)
+    const victim = victimOf(mode, 'a-steepen')
+    victim.upgrades['u-expo'] = 1 // level 1: authored 200, steepened 250
+
+    victim.resources.r0 = 249
+    expect(purchaseBlockReason(victim, 'u-expo', map)).toBe('unaffordable')
+    victim.resources.r0 = 250
+    expect(purchaseBlockReason(victim, 'u-expo', map)).toBeNull()
+    applyPurchase(victim, 'u-expo', mode)
+    expect(victim.resources.r0).toBe(0)
+  })
+
+  it('refunds along the authored curve, not the steepened one', () => {
+    const mode = makeMode()
+    const victim = victimOf(mode, 'a-steepen-g0')
+    victim.generators.g0 = 2
+    // The copy being sold is index 1: 50% of the authored 200, not of 300.
+    expect(getGeneratorSellRefund(resolveGeneratorDef(G0, victim, mode, 'sell'), 2)).toBe(100)
+  })
+
+  it('cancels against a friendly growth reduction', () => {
+    const mode = makeMode()
+    const victim = victimOf(mode, 'a-steepen-g0')
+    victim.upgrades['u-flatter-g0'] = 1
+    // Own growth ×0.5, enemy ×2 → the authored curve.
+    expect(collectGeneratorCostFactors(victim, mode, 'buy').get('g0')).toEqual({
+      costFactor: 1,
+      scalingFactor: 1,
+    })
+    const effective = resolveGeneratorDef(G0, victim, mode, 'buy')
+    expect([0, 1, 2].map((owned) => getGeneratorCost(effective, owned))).toEqual([100, 200, 400])
+  })
+
+  it('stacks independently with a costFactor on the same generator', () => {
+    const mode = makeMode()
+    // Base ×2 and growth ×2 together: 200 · 3ⁿ.
+    const effective = resolveGeneratorDef(G0, victimOf(mode, 'a-g0', 'a-steepen-g0'), mode, 'buy')
+    expect([0, 1, 2].map((owned) => getGeneratorCost(effective, owned))).toEqual([200, 600, 1800])
+  })
+
+  it('leaves a flat cost untouched at every level', () => {
+    const steep = { costFactor: 1, scalingFactor: 5 }
+    for (const level of [0, 3]) {
+      expect(getUpgradeNextCost(FLAT_UPGRADE, level, steep)).toEqual({ r0: 100 })
+    }
   })
 })
 
