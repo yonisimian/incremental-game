@@ -6,14 +6,17 @@ import {
   applyPassiveTick,
 } from '../src/modifiers/pipeline.js'
 import type { Modifier } from '../src/modifiers/types.js'
+import { INCOMING_CLICK_INCOME_FIELD } from '../src/modifiers/types.js'
 import type { PlayerState } from '../src/types.js'
+
+const NEUTRAL_CLICK = { own: { add: 0, mult: 1 }, incoming: { add: 0, mult: 1 } }
 
 // ─── computeIncome ───────────────────────────────────────────────────
 
 describe('computeIncome', () => {
   it('returns zeroed context with no modifiers', () => {
     const ctx = computeIncome([])
-    expect(ctx.clickIncome).toBe(0)
+    expect(ctx.clickIncome).toEqual(NEUTRAL_CLICK)
     expect(ctx.resources).toEqual({})
   })
 
@@ -34,14 +37,18 @@ describe('computeIncome', () => {
     expect(computePassiveRates(mods, ['currency']).currency).toBe(15) // 5 * 3
   })
 
-  it('handles clickIncome through additive + multiplicative', () => {
+  it('routes own and incoming click modifiers into separate accumulators', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'clickIncome', value: 1 },
       { stage: 'additive', field: 'clickIncome', value: 1 },
       { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+      { stage: 'multiplicative', field: INCOMING_CLICK_INCOME_FIELD, value: 0.5 },
+      { stage: 'additive', field: INCOMING_CLICK_INCOME_FIELD, value: -1 },
     ]
-    const ctx = computeIncome(mods)
-    expect(ctx.clickIncome).toBe(4) // (1+1) * 2
+    expect(computeIncome(mods).clickIncome).toEqual({
+      own: { add: 2, mult: 2 },
+      incoming: { add: -1, mult: 0.5 },
+    })
   })
 
   it('ignores globalMultiplier modifiers in the pipeline', () => {
@@ -51,7 +58,7 @@ describe('computeIncome', () => {
     ]
     const ctx = computeIncome(mods)
     expect(ctx.resources).toEqual({})
-    expect(ctx.clickIncome).toBe(0)
+    expect(ctx.clickIncome).toEqual(NEUTRAL_CLICK)
   })
 
   it('multiplicative on empty rate creates the rate (0 * N = 0)', () => {
@@ -156,14 +163,55 @@ describe('computeClickIncome', () => {
     expect(computeClickIncome(mods)).toBe(Number.MAX_VALUE)
   })
 
-  it('scales click income by a multiplicative debuff appended last', () => {
+  it('scales the finished own click power by an incoming multiplier', () => {
     const mods: Modifier[] = [
       { stage: 'additive', field: 'clickIncome', value: 4 },
       { stage: 'multiplicative', field: 'clickIncome', value: 2 },
-      // An enemy `clickIncome` debuff — merged after the clicker's own modifiers.
-      { stage: 'multiplicative', field: 'clickIncome', value: 0.5 },
+      { stage: 'multiplicative', field: INCOMING_CLICK_INCOME_FIELD, value: 0.5 },
     ]
     expect(computeClickIncome(mods)).toBe(4) // (4 * 2) * 0.5
+  })
+
+  // "Flat means flat": the drain comes off last, scaled by nothing — neither the
+  // victim's own multipliers nor the enemy's.
+  it('takes an incoming flat drain off last, unscaled', () => {
+    const drain: Modifier = { stage: 'additive', field: INCOMING_CLICK_INCOME_FIELD, value: -2 }
+    const halve: Modifier = {
+      stage: 'multiplicative',
+      field: INCOMING_CLICK_INCOME_FIELD,
+      value: 0.5,
+    }
+    const own = (mult: number): Modifier[] => [
+      { stage: 'additive', field: 'clickIncome', value: 10 },
+      { stage: 'multiplicative', field: 'clickIncome', value: mult },
+    ]
+    expect(computeClickIncome([...own(1), halve, drain])).toBe(3) // 10 * 0.5 - 2
+    for (const mult of [1, 1.5, 3]) {
+      const without = computeClickIncome([...own(mult), halve])
+      expect(without - computeClickIncome([...own(mult), halve, drain])).toBeCloseTo(2, 9)
+    }
+  })
+
+  // The regression this track had: `+=` and `*=` folded in array order, so the
+  // same modifiers gave different income depending on tree JSON line order.
+  it('is invariant under every ordering of its modifiers', () => {
+    const mods: Modifier[] = [
+      { stage: 'additive', field: 'clickIncome', value: 1 },
+      { stage: 'multiplicative', field: 'clickIncome', value: 1.21 },
+      { stage: 'additive', field: 'clickIncome', value: 4 },
+      { stage: 'multiplicative', field: INCOMING_CLICK_INCOME_FIELD, value: 0.5 },
+      { stage: 'additive', field: INCOMING_CLICK_INCOME_FIELD, value: -2 },
+    ]
+    const permutations = (xs: Modifier[]): Modifier[][] =>
+      xs.length <= 1
+        ? [xs]
+        : xs.flatMap((x, i) =>
+            permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p]),
+          )
+    const expected = 5 * 1.21 * 0.5 - 2
+    for (const order of permutations(mods)) {
+      expect(computeClickIncome(order)).toBeCloseTo(expected, 9)
+    }
   })
 
   it('floors click income at 0 when an additive debuff overshoots', () => {
