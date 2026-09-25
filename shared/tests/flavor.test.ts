@@ -456,9 +456,9 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  // The highlight factor is a multiplier and `resolveEnemyDebuffs` never reads
-  // the composite, so an additive debuff has nothing to subtract from.
-  it('throws when a highlight-factor debuff is authored additive', () => {
+  // An additive highlight debuff subtracts from the composite factor (floored by
+  // `resolveEnemyDebuffs`), so — unlike before — it is a legal authoring.
+  it('accepts an additive enemyProductionModifier targeting the highlight factor', () => {
     const base = makeValidDef({
       highlightEnabled: true,
       initialMeta: { highlight: null },
@@ -482,7 +482,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/only 'multiplicative' is supported/)
+    }).not.toThrow()
   })
 
   it('throws when a resource key collides with a reserved modifier target', () => {

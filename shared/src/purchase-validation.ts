@@ -136,7 +136,8 @@ export function generatorBlockReason(
   if (!def) return 'unknown'
   if (!isGeneratorUnlocked(state, def, mode)) return 'locked'
   if (isPurchaseLocked(state, 'generator')) return 'locked-by-attack'
-  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode))) return 'unaffordable'
+  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode, 'buy')))
+    return 'unaffordable'
   return null
 }
 
