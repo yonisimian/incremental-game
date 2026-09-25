@@ -529,7 +529,7 @@ export function doBuyGenerator(generatorId: string): void {
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
   if (isPurchaseLocked(state.player, 'generator')) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
@@ -545,7 +545,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
   if (isPurchaseLocked(state.player, 'generator')) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
   if (quantity <= 0) return
@@ -773,7 +773,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
           if (!gdef) break
           if (isPurchaseLocked(reconciled, 'generator')) break
-          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef, 'buy')
           if (!canAffordGenerator(reconciled, effectiveGdef)) break
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
           break
@@ -922,7 +922,7 @@ function computeClickIncome(player: PlayerState): number {
   // clicking player, since they arrive unresolved.
   const modifiers = [
     ...collectModifiers(player, modeDef),
-    ...resolveEnemyDebuffs(state.debuffs, player),
+    ...resolveEnemyDebuffs(state.debuffs, player, modeDef),
   ]
   return pipelineClickIncome(modifiers)
 }
