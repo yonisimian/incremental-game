@@ -550,7 +550,7 @@ export function openDebuffWindows(state: Readonly<PlayerState>, gameSec: number)
   return (state.activeDebuffs ?? []).filter((w) => w.expiresAtSec > gameSec)
 }
 
-// ─── Attack slots (plan 38) ──────────────────────────────────────────
+// ─── Attack slots ────────────────────────────────────────────────────
 //
 // A budget on how many attacks of each kind a player can *hold*. Unlocking stays
 // derived and monotonic (`isAttackUnlocked`); the cap turns each unlock into an

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { AttackSlotsOutput, EffectDef } from '../types.js'
 
 /**
- * Schema for the `attackSlots` effect's params (plan 38).
+ * Schema for the `attackSlots` effect's params.
  *
  * Grants room to *hold* attacks of one kind. Authored on the mode it is the
  * round's base budget; on an upgrade it is a raise, scaled by the owned count

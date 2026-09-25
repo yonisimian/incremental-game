@@ -1046,7 +1046,7 @@
                   "source": "resource:r0",
                   "field": "b0",
                   "stage": "multiplicative",
-                  "factor": 1e-05
+                  "factor": 0.00001
                 }
               ],
               "offset": {
@@ -1141,7 +1141,7 @@
                       "source": "resource:r1",
                       "field": "b1",
                       "stage": "multiplicative",
-                      "factor": 1e-05
+                      "factor": 0.00001
                     }
                   ],
                   "offset": {

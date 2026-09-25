@@ -1668,7 +1668,7 @@ describe('Match', () => {
     })
   })
 
-  // ── Attack slots (plan 38) ─────────────────────────────────────────
+  // ── Attack slots ───────────────────────────────────────────────────
 
   describe('attack slots', () => {
     const mode = getModeDefinition('idler')

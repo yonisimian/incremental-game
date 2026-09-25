@@ -906,7 +906,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: attack slots (plan 38) ──────────────────────────────────
+  // ── Idler: attack slots ────────────────────────────────────────────
 
   describe('idler attack slots', () => {
     /** The idler's free unlock node for `attack`. */
