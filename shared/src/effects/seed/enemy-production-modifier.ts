@@ -25,9 +25,12 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  *    wood production;
  *  - `field: "clickIncome", stage: "multiplicative", value: 0.7` — 30% off what
  *    each of their clicks pays;
- *  - `field: "highlightFactor", stage: "multiplicative", value: 0.9` — 10% off
- *    their highlight factor, whichever resource they hold (`multiplicative` is
- *    the only legal stage for this target).
+ *  - `field: "highlightFactor", stage: "multiplicative", value: 0.9` — cuts
+ *    their highlight *bonus* 10% (scaling the bonus above neutral, not the whole
+ *    factor), whichever resource they hold;
+ *  - `field: "highlightFactor", stage: "additive", value: -1` — subtracts from
+ *    the highlight factor directly, which (unlike the multiplicative form) can
+ *    cancel the bonus entirely, though it's clamped at neutral — never a penalty.
  *
  * On an *active* attack the same modifier applies for the attack's
  * `durationSec` after the strike lands — a debuff window, tracked on the
@@ -35,8 +38,9 @@ import type { EffectDef, EnemyModifierOutput } from '../types.js'
  * values, paid for with a prepare cost and delay.
  *
  * `collectEnemyDebuffs` gathers these (from unlocked passive attacks and open
- * windows alike) and `resolveEnemyDebuffs` translates the virtual target; the
- * effect itself only describes the debuff.
+ * windows alike) and `resolveEnemyDebuffs` translates the virtual
+ * `highlightFactor` target against the victim; the effect itself only
+ * describes the debuff.
  */
 const schema = z
   .strictObject({

@@ -8,12 +8,36 @@ export const MODIFIER_STAGES = ['additive', 'multiplicative'] as const
 /** A pipeline stage a modifier targets, derived from {@link MODIFIER_STAGES}. */
 export type ModifierStage = (typeof MODIFIER_STAGES)[number]
 
+/**
+ * Sentinel `field` targeting **every declared resource** at once (each on its
+ * global layer). An authoring convenience: `collectModifiers` fans it out into
+ * one concrete per-resource modifier, so the pure pipeline never sees it.
+ */
+export const ALL_RESOURCES_FIELD = 'allResources'
+
+/**
+ * Sentinel `field` targeting **every declared generator's output** at once.
+ * `collectModifiers` fans it out across the per-generator accumulators (with the
+ * same owned-count compounding a single-generator `field` gets), so it is folded
+ * into resource rates before the pipeline runs.
+ */
+export const ALL_GENERATORS_FIELD = 'allGenerators'
+
+/**
+ * Pipeline `field` for an **incoming** (enemy) click-income debuff. Never
+ * authored — attacks target `clickIncome`, and `resolveEnemyDebuffs` rewrites
+ * the field to this one so the click track can apply own and incoming modifiers
+ * in a defined order instead of in array order.
+ */
+export const INCOMING_CLICK_INCOME_FIELD = 'clickIncome:incoming'
+
 /** A single declarative modifier — pure data, serializable. */
 export interface Modifier {
   readonly stage: ModifierStage
   /**
    * The production field to target, interpreted by the pipeline:
-   *  - `clickIncome` — the standalone click income track.
+   *  - `clickIncome` — the standalone click income track (the player's own).
+   *  - {@link INCOMING_CLICK_INCOME_FIELD} — an enemy debuff on that track.
    *  - `bK` (e.g. `b0`) — the **base producer** of the K-th declared resource
    *    (native floor + `b`-targeted upgrades); isolated so a base boost never
    *    leaks into generator output.
@@ -22,6 +46,10 @@ export interface Modifier {
    *    folded generator output both feed.
    *  - a generator id (e.g. `g0`) — a single generator, folded into its per-unit
    *    total by `collectModifiers` before it ever reaches the pipeline.
+   *  - {@link ALL_RESOURCES_FIELD} — every declared resource's **global** layer
+   *    at once; expanded to one per-resource modifier by `collectModifiers`.
+   *  - {@link ALL_GENERATORS_FIELD} — every declared generator's output at once;
+   *    expanded across the per-generator accumulators by `collectModifiers`.
    */
   readonly field: string
   /**
@@ -63,10 +91,24 @@ export interface ResourceLayers {
   global: LayerAccumulator
 }
 
+/**
+ * The click track's two accumulators, composed as
+ * `own.add · own.mult · incoming.mult + incoming.add` (floored at 0).
+ *
+ * The player's own modifiers build their click power; an incoming multiplier
+ * then scales the finished figure, and an incoming flat drain comes off last,
+ * unscaled — so a `−2` debuff always costs exactly 2. Separate accumulators
+ * make the result independent of modifier order.
+ */
+interface ClickLayers {
+  own: LayerAccumulator
+  incoming: LayerAccumulator
+}
+
 /** Result of running the modifier pipeline. */
 export interface ModifierContext {
-  /** Income per manual click (0 if clicks disabled). */
-  clickIncome: number
+  /** Per-click income accumulators (see {@link ClickLayers}). */
+  clickIncome: ClickLayers
   /** Per-resource production layers, keyed by resource id. */
   resources: Record<string, ResourceLayers>
 }
