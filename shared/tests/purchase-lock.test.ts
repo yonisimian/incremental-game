@@ -1,4 +1,4 @@
-// Plan 40 — enemy purchase lock: the collector, the two block reasons, what
+// Enemy purchase lock: the collector, the two block reasons, what
 // the lock deliberately leaves open (selling, attacking), the strike that opens
 // it, and the simulator's reading of the reason.
 

@@ -596,7 +596,7 @@ describe('enemyCostModifier params', () => {
   })
 })
 
-// ─── enemyPurchaseLock (plan 40) ─────────────────────────────────────
+// ─── enemyPurchaseLock ───────────────────────────────────────────────
 
 describe('enemyPurchaseLock params', () => {
   function apply(ref: EffectRef): unknown {

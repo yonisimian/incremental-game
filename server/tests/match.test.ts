@@ -1648,7 +1648,7 @@ describe('Match', () => {
       }
     })
 
-    // ── Purchase lock (plan 40) ────────────────────────────────────
+    // ── Purchase lock ──────────────────────────────────────────────
 
     /** `a3` re-authored as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
     function withLockAttack(): ModeDefinition {

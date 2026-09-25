@@ -1,4 +1,4 @@
-// Plan 40 — the client surfaces that report an incoming *purchase lock* to its
+// The client surfaces that report an incoming *purchase lock* to its
 // victim: the tree node's state class, the generator card's buy buttons (with
 // selling left live), and the standing warning in the enemy-data panel.
 //

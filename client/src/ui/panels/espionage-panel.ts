@@ -90,7 +90,7 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
 }
 
 /**
- * One line for an enemy purchase lock in force (plan 40), naming what is
+ * One line for an enemy purchase lock in force, naming what is
  * embargoed and for how much longer. Both scopes locked with the same expiry
  * collapse into one sentence; different expiries get one line each, since the
  * countdowns differ.

@@ -499,7 +499,7 @@ export function doBuy(upgradeId: string): void {
   // the player's attack slots is refused, not predicted.
   if (!hasAttackSlotsFor(state.player, def, modeDef)) return
 
-  // An enemy purchase lock (plan 40) is server-stamped on our own state, so the
+  // An enemy purchase lock is server-stamped on our own state, so the
   // same read the server makes refuses the buy here — a predicted buy the
   // server would drop only snaps back on the next snapshot.
   if (isPurchaseLocked(state.player, 'upgrade')) return

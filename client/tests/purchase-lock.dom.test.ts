@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 //
-// Plan 40 — the upgrade detail popup names an enemy purchase lock as the lock
+// The upgrade detail popup names an enemy purchase lock as the lock
 // reason, with its countdown. Without it a locked node looks affordable and
 // does nothing on click, which reads as a bug. DOM tier for the same reason as
 // the slots twin: the popup mounts into a live host, and its Buy button's

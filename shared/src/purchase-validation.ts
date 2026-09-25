@@ -24,7 +24,7 @@ import type { CostScope, PlayerState, UpgradeDefinition } from './types.js'
 
 /**
  * Whether an opponent's open attack window currently bars this player from
- * buying anything of `scope` (plan 40). Reads the server-stamped
+ * buying anything of `scope`. Reads the server-stamped
  * {@link PlayerState.incomingPurchaseLocks} by *presence* — not by comparing
  * `untilSec` against the clock — so a client whose game clock has drifted a
  * tick still agrees with the server on whether a buy goes through. The lock
