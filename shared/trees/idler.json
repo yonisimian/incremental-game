@@ -27,6 +27,16 @@
       "stage": "additive",
       "field": "b1",
       "value": 1
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "active",
+      "value": 3
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "passive",
+      "value": 4
     }
   ],
   "generators": [
@@ -801,6 +811,24 @@
           "name": "🐛 Termite Swarm",
           "icon": "🐛",
           "description": "Unlock Termite Swarm: −22% enemy Wood for 67s."
+        },
+        {
+          "id": "slot-active-1",
+          "name": "⚔️ War Room",
+          "icon": "⚔️",
+          "description": "+1 active attack slot."
+        },
+        {
+          "id": "slot-passive",
+          "name": "🕵️ Spy Network",
+          "icon": "🕵️",
+          "description": "+2 passive attack slots."
+        },
+        {
+          "id": "slot-active-2",
+          "name": "🏰 Siege Camp",
+          "icon": "🏰",
+          "description": "+1 more active attack slot."
         }
       ],
       "generators": [
@@ -2450,6 +2478,66 @@
           "offset": {
             "x": -48,
             "y": 480
+          }
+        },
+        {
+          "id": "slot-active-1",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "active",
+              "value": 1
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 576
+          }
+        },
+        {
+          "id": "slot-passive",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "passive",
+              "value": 2
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 576
+          }
+        },
+        {
+          "id": "slot-active-2",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "slot-active-1"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "active",
+              "value": 1
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 672
           }
         }
       ]

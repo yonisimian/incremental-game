@@ -1,5 +1,6 @@
 import { registerEffect } from './registry.js'
 import { accessEnemyData } from './seed/access-enemy-data.js'
+import { attackSlots } from './seed/attack-slots.js'
 import { attackStat } from './seed/attack-stat.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { batteryBand } from './seed/battery-band.js'
@@ -39,6 +40,7 @@ registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
 registerEffect('attackStat', attackStat)
+registerEffect('attackSlots', attackSlots)
 registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('enemyCostModifier', enemyCostModifier)
@@ -60,6 +62,7 @@ export type {
   SystemUnlockOutput,
   AttackUnlockOutput,
   AttackStatOutput,
+  AttackSlotsOutput,
   PactUnlockOutput,
   EnemyDataAccessOutput,
   EnemyModifierOutput,
@@ -116,6 +119,7 @@ export type { UnlockAttackParams } from './seed/unlock-attack.js'
 // (mirroring `highlight-battery` for the battery's), so the shared barrel has
 // exactly one path to each.
 export type { AttackStatParams } from './seed/attack-stat.js'
+export type { AttackSlotsParams } from './seed/attack-slots.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'

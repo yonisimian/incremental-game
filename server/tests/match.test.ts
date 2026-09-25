@@ -1667,4 +1667,67 @@ describe('Match', () => {
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
     })
   })
+
+  // ── Attack slots ───────────────────────────────────────────────────
+
+  describe('attack slots', () => {
+    const mode = getModeDefinition('idler')
+    const panelUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'panelUnlock' && e.panel === 'attack'),
+    )!
+    /** The free unlock nodes for the idler's first two active attacks. */
+    const unlockOf = (attack: string) =>
+      mode.upgrades.find((u) =>
+        u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
+      )!
+    const a0Upgrade = unlockOf('a0')
+    const a1Upgrade = unlockOf('a1')
+
+    /** The idler with its active budget squeezed to one slot. */
+    function oneActiveSlot(): ModeDefinition {
+      return {
+        ...mode,
+        effects: [
+          ...(mode.effects ?? []).filter((e) => e.type !== 'attackSlots'),
+          { type: 'attackSlots', attackKind: 'active', value: 1 },
+          { type: 'attackSlots', attackKind: 'passive', value: 4 },
+        ],
+      }
+    }
+
+    it('rejects a buy that would unlock an attack past the player’s slots', () => {
+      const patched = oneActiveSlot()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+        m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+        // The one active slot is now held by a0; a1's free unlock is refused.
+        m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const player = latestUpdate(ws1).player
+        expect(player.upgrades[a0Upgrade.id]).toBe(1)
+        expect(player.upgrades[a1Upgrade.id] ?? 0).toBe(0)
+        // The batch is still acknowledged — a refused action is dropped, not
+        // left pending for the client to replay forever.
+        expect(latestUpdate(ws1).ackSeq).toBe(3)
+      } finally {
+        registerMode('idler', mode)
+      }
+    })
+
+    it('accepts both unlocks under the authored idler budget', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const player = latestUpdate(ws1).player
+      expect(player.upgrades[a0Upgrade.id]).toBe(1)
+      expect(player.upgrades[a1Upgrade.id]).toBe(1)
+    })
+  })
 })

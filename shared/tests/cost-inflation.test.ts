@@ -448,16 +448,16 @@ describe('validated price === charged price', () => {
     const victim = victimOf(mode, 'a-upgrades')
 
     victim.resources.r0 = 124
-    expect(purchaseBlockReason(victim, 'u-flat', map)).toBe('unaffordable')
+    expect(purchaseBlockReason(victim, 'u-flat', map, mode)).toBe('unaffordable')
     victim.resources.r0 = 125
-    expect(purchaseBlockReason(victim, 'u-flat', map)).toBeNull()
+    expect(purchaseBlockReason(victim, 'u-flat', map, mode)).toBeNull()
   })
 
   it('is unaffected for a player nobody is attacking', () => {
     const mode = makeMode()
     const map = upgradeMap(mode)
     const victim = makeState({ resources: { r0: 100 } })
-    expect(purchaseBlockReason(victim, 'u-flat', map)).toBeNull()
+    expect(purchaseBlockReason(victim, 'u-flat', map, mode)).toBeNull()
     expect(chargedFor(mode, victim, 'u-flat')).toBe(100)
   })
 
@@ -592,9 +592,9 @@ describe('growth inflation (scalingFactor)', () => {
     victim.upgrades['u-expo'] = 1 // level 1: authored 200, steepened 250
 
     victim.resources.r0 = 249
-    expect(purchaseBlockReason(victim, 'u-expo', map)).toBe('unaffordable')
+    expect(purchaseBlockReason(victim, 'u-expo', map, mode)).toBe('unaffordable')
     victim.resources.r0 = 250
-    expect(purchaseBlockReason(victim, 'u-expo', map)).toBeNull()
+    expect(purchaseBlockReason(victim, 'u-expo', map, mode)).toBeNull()
     applyPurchase(victim, 'u-expo', mode)
     expect(victim.resources.r0).toBe(0)
   })

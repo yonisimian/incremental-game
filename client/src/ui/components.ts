@@ -3,6 +3,7 @@ import {
   canAfford,
   escapeAttr,
   formatUpgradeCost,
+  isAttackSlotBlocked,
   isUnlocked,
   formatTime,
   formatScore,
@@ -164,12 +165,15 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
+      const slotBlocked = isAttackSlotBlocked(state, u)
 
-      // State-class derivation (mutually exclusive, in priority order)
+      // State-class derivation (mutually exclusive, in priority order). A
+      // slot-blocked node reuses `locked`: like a closed choice group, no amount
+      // of income opens it, so `too-expensive` would promise the wrong fix.
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
       else if (maxed) stateClass = 'owned'
-      else if (choiceBlocked) stateClass = 'locked'
+      else if (choiceBlocked || slotBlocked) stateClass = 'locked'
       else if (!affordable) stateClass = 'too-expensive'
 
       const costLabel = formatUpgradeCost(state, u, flavor)
