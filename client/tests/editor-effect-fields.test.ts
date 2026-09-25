@@ -52,7 +52,7 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
-  it('offers the whole scopes, both at once, then every upgrade and generator as lock targets', () => {
+  it('offers one purchase-target list for both enemyCostModifier and enemyPurchaseLock', () => {
     const tree = idler()
     const pairs = (type: string) =>
       (effectFieldOptions(tree, type, 'target') ?? []).map((o) =>
@@ -64,9 +64,8 @@ describe('effectFieldOptions', () => {
       { value: 'generators', label: 'All generators' },
       { value: 'purchases', label: 'All upgrades and generators' },
     ])
-    // The per-entity tail is exactly `enemyCostModifier`'s, so one authored key
-    // means the same thing on both attack effects.
-    expect(lock.slice(3)).toEqual(pairs('enemyCostModifier').slice(2))
+    // One authored key means the same thing on both attack effects.
+    expect(pairs('enemyCostModifier')).toEqual(lock)
     expect(lock.some((o) => o.value === `generator:${tree.generators[0].id}`)).toBe(true)
   })
 
