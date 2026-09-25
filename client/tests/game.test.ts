@@ -988,7 +988,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: enemy purchase lock (plan 40) ───────────────────────────
+  // ── Idler: enemy purchase lock ─────────────────────────────────────
 
   describe('idler purchase lock', () => {
     /** A server snapshot: funded, `sh-unlock` (free) unbought, optionally locked. */

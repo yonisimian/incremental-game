@@ -53,8 +53,8 @@ export interface GeneratorCardNums {
    */
   readonly locked?: boolean
   /**
-   * An opponent's open attack window is barring every generator purchase
-   * (plan 40). The buy buttons show this label — `🔒 Locked N.Ns` — in place of
+   * An opponent's open attack window is barring every generator purchase.
+   * The buy buttons show this label — `🔒 Locked N.Ns` — in place of
    * the price, since a price the player cannot pay for a few seconds reads as
    * a bug without the reason. Selling stays live: the lock is on spending.
    * Absent when no lock is in force.

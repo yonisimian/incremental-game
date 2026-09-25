@@ -628,7 +628,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/carries effects but has no prepareCost/)
   })
 
-  // ── Purchase lock (plan 40): the third member of the debuff family ──
+  // ── Purchase lock: the third member of the debuff family ──
 
   it('accepts a lock-only active attack that declares a duration', () => {
     const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }] })
@@ -987,7 +987,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/moves 'duration' on passive attack 'a0'/)
   })
 
-  // Plan 40: a lock has no magnitude, so `power` has nothing to scale on an
+  // A lock has no magnitude, so `power` has nothing to scale on an
   // attack whose effects are all locks — `duration` is that attack's lever.
   it('throws for a power stat aimed at a lock-only attack, and accepts one on a raid', () => {
     const lockOnly: ModeDefinition['attacks'] = [

@@ -160,8 +160,8 @@ export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefini
 }
 
 /**
- * Is an opponent's open attack window barring this player from buying `scope`
- * (plan 40)? The client-side face of the `'locked-by-attack'` block reason,
+ * Is an opponent's open attack window barring this player from buying `scope`?
+ * The client-side face of the `'locked-by-attack'` block reason,
  * reading the same server-stamped field the server validates against.
  */
 export function isPurchaseLockedByAttack(state: Readonly<GameState>, scope: CostScope): boolean {
