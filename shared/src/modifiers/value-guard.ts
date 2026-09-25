@@ -66,7 +66,7 @@ export function scaleDebuffValue(stage: ModifierStage, value: number, power: num
 
 /**
  * The cost-path twin of {@link scaleDebuffValue}: scale an authored cost
- * inflation factor (`costFactor` / `scalingFactor`, both `>= 1`) by an attack's
+ * inflation factor (`costFactor` / `scalingFactor`, both `> 1`) by an attack's
  * `power`.
  *
  * Same neutral-point arithmetic, with `1` as the neutral point and no ceiling —
