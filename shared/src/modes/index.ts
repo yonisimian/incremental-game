@@ -369,7 +369,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
 
-  // `attackAlert` (plan 41): a reveal grant shows the *name* on a warning, so a
+  // `attackAlert`: a reveal grant shows the *name* on a warning, so a
   // mode whose grants reveal but never grant a lead has a node that is bought
   // and does nothing — there is no warning to put the name on. Judged by ref
   // fields; a lead on the mode or on any upgrade (owned or not) is enough.

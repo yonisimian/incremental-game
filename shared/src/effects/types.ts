@@ -131,7 +131,7 @@ export interface AttackSlotsOutput {
 /**
  * Grants an early warning of enemy active strikes while the owning upgrade is
  * held (or for the whole round when authored on the mode). Emitted by the
- * `attackAlert` effect (plan 41).
+ * `attackAlert` effect.
  *
  * Consumed by `collectAttackAlert`, which sums `leadSec × owned` across every
  * grant and ORs `revealAttack`; the server then projects the opponent's pending

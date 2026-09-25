@@ -1,4 +1,4 @@
-// Plan 41 — attack alert: an early warning of enemy active strikes, granted by
+// Attack alert: an early warning of enemy active strikes, granted by
 // the `attackAlert` effect and read by the server for the *victim*.
 
 import { describe, expect, it } from 'vitest'

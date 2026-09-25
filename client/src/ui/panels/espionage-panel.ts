@@ -116,11 +116,11 @@ function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): 
 }
 
 /**
- * One line per enemy strike inside the viewer's alert lead (plan 41), soonest
+ * One line per enemy strike inside the viewer's alert lead, soonest
  * first, counting down against the viewer's own `meta.gameSec` — the same clock
  * `readyAtSec` was stamped on (both advance in lockstep). Named when the alert
  * reveals the attack; a bare "Enemy attack" otherwise. Steps at snapshot
- * cadence like the panel's other countdowns; the header badge is the smooth one.
+ * cadence like the panel's other countdowns.
  */
 function describeIncomingAttacks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   if (state.incomingAttacks.length === 0) return []

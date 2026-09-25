@@ -47,7 +47,7 @@ type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
 //
 // The simple editor models "all/any of N upgrade ids", each with an optional
 // minimum level, plus one checkbox for the `meta` gate the tree uses today —
-// "hit by an enemy attack" (plan 41), which ANDs onto whatever the checklist
+// "hit by an enemy attack", which ANDs onto whatever the checklist
 // says. Anything richer (nested groups, other meta keys or thresholds)
 // round-trips through a raw-JSON textarea instead.
 
@@ -449,7 +449,7 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   }
   modeSelect.addEventListener('change', sync)
 
-  // The one `meta` gate the tree authors today (plan 41): the node stays locked
+  // The one `meta` gate the tree authors today: the node stays locked
   // until an enemy active strike has landed on the player.
   const hitBox = el('input')
   hitBox.type = 'checkbox'
