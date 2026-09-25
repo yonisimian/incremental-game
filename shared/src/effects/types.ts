@@ -308,8 +308,8 @@ export interface BatteryBandOutput {
  */
 export interface AttackStatOutput {
   readonly kind: 'attackStat'
-  /** Which attack this moves, or absent for every attack. */
-  readonly attack?: string
+  /** Which attack this moves. */
+  readonly attack: string
   /** Which attack parameter to move (see `ATTACK_STATS`). */
   readonly stat: AttackStat
   /** `add` shifts the multiplier; `mult` scales it. */

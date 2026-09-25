@@ -182,10 +182,8 @@ function isAttackStatOutput(out: EffectOutput): out is AttackStatOutput {
  * linearly (`× owned`), `mult` compounds (`** owned`) — and **all adds are
  * applied before any mult**, per stat, so the result doesn't depend on the order
  * the tree happens to be authored in. Mode-level refs are collected too (with
- * `owned = 1`), so a mode can buff attacks without an upgrade.
- *
- * An output naming no `attack` applies to every attack; one naming a different
- * attack is skipped, which is what lets "+20% to all raids" be a single node.
+ * `owned = 1`), so a mode can buff attacks without an upgrade. An output naming
+ * a different attack is skipped.
  */
 export function collectAttackParams(
   state: Readonly<PlayerState>,
@@ -204,7 +202,7 @@ export function collectAttackParams(
   }
 
   const accumulate = (out: AttackStatOutput, owned: number): void => {
-    if (out.attack !== undefined && out.attack !== attackId) return
+    if (out.attack !== attackId) return
     // `offset` is absolute (the stat's own unit) and so never touches the
     // multiplier; like `add` it scales linearly with the owned count.
     if (out.op === 'offset') offsets[out.stat] += out.value * owned

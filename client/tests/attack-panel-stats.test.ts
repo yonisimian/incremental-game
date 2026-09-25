@@ -28,7 +28,7 @@ import { formatNumber } from '../src/ui/format-number.js'
 
 // ─── Mode with synthetic stat upgrades ───────────────────────────────
 
-/** An `attackStat` upgrade over a0, buyable up to three times. */
+/** An `attackStat` upgrade over a0 (unless `params` names another), buyable up to three times. */
 function statUpgrade(id: string, params: Record<string, unknown>): UpgradeDefinition {
   return {
     id,
@@ -44,28 +44,18 @@ const FASTER = statUpgrade('t-fast', { stat: 'prepareTime', op: 'mult', value: 0
 /** The absolute op: one literal second off the delay, per level. */
 const SOONER = statUpgrade('t-sooner', { stat: 'prepareTime', op: 'offset', value: -1 })
 
-/**
- * The same two stats authored with **no** `attack` — legal, and the case a
- * passive card must not report: a passive attack is never activated, so it has
- * no prepare cost or delay for these to move.
- */
-const ALL_POWER: UpgradeDefinition = {
-  id: 't-all-power',
-  cost: { r0: { baseCost: 0 } },
-  purchaseLimit: 1,
-  effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
-}
-const ALL_FASTER: UpgradeDefinition = {
-  id: 't-all-fast',
-  cost: { r0: { baseCost: 0 } },
-  purchaseLimit: 1,
-  effects: [{ type: 'attackStat', stat: 'prepareTime', op: 'mult', value: 0.5 }],
-}
-
 const base = getModeDefinition('idler')
+/** A power buff aimed at the tree's first passive attack. */
+const PASSIVE_POWER = statUpgrade('t-passive-power', {
+  attack: base.attacks.find((a) => a.kind === 'passive')!.id,
+  stat: 'power',
+  op: 'mult',
+  value: 2,
+})
+
 registerMode('idler', {
   ...base,
-  upgrades: [...base.upgrades, POWER_UP, CHEAPER, FASTER, SOONER, ALL_POWER, ALL_FASTER],
+  upgrades: [...base.upgrades, POWER_UP, CHEAPER, FASTER, SOONER, PASSIVE_POWER],
 })
 const modeDef = getModeDefinition('idler')
 
@@ -174,23 +164,15 @@ describe('attackPanel — attackStat reporting', () => {
     expect(halved).not.toContain(`>${formatNumber(a0Cost)} `)
   })
 
-  it('shows only power on a passive card — it has no prepare time to move', () => {
-    // An `attack`-less stat collects a prepareTime for every attack, passive ones
-    // included; a passive attack is never activated, so reporting it would claim
-    // a speed-up that can never happen.
+  it('reports power on a passive card', () => {
     const state = makeState(a0Cost, {
       [passiveUpgrade.id]: 1,
-      't-all-power': 1,
-      't-all-fast': 1,
+      't-passive-power': 1,
     })
     const html = renderHtml(state)
     const passiveCard = html.slice(html.indexOf('Passive'))
     expect(passiveCard).toContain('Power ×2')
     expect(passiveCard).not.toContain('Prep ')
-    // The active card, which *is* activated, still reports both.
-    const activeCard = html.slice(0, html.indexOf('Passive'))
-    expect(activeCard).toContain('Power ×2')
-    expect(activeCard).toContain(prepLabel(a0Delay / 2))
   })
 
   it('enables the button at a price only the discount makes affordable', () => {
