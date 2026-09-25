@@ -52,6 +52,20 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
+  it('labels the enemyPurchaseLock targets, covering exactly the schema’s values', () => {
+    const options = effectFieldOptions(idler(), 'enemyPurchaseLock', 'target')
+    expect(options).toEqual([
+      { value: 'upgrades', label: 'All upgrades' },
+      { value: 'generators', label: 'All generators' },
+      { value: 'purchases', label: 'All upgrades and generators' },
+    ])
+    const def = resolveEffect('enemyPurchaseLock')!
+    const target = describeEffectSchema(def.schema).variants[0].fields.find(
+      (f) => f.key === 'target',
+    )
+    expect(options?.map((o) => (typeof o === 'string' ? o : o.value))).toEqual(target?.options)
+  })
+
   it('leaves an unmapped effect/field pair as free text', () => {
     expect(effectFieldOptions(idler(), 'stealResource', 'fraction')).toBeUndefined()
     expect(effectFieldOptions(idler(), 'highlightMultiplier', 'multiplier')).toBeUndefined()
