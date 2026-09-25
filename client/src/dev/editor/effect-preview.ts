@@ -86,20 +86,15 @@ function paramsAt(ref: EffectRef, attackId: string, level: number): AttackParams
 }
 
 /** Whether the stat resolves to a concrete figure on this attack, or just a factor. */
-function hasAbsolute(stat: AttackStat, def: AttackDefinition | undefined): boolean {
-  if (!def) return false
+function hasAbsolute(stat: AttackStat, def: AttackDefinition): boolean {
   if (stat === 'prepareTime') return def.prepareTimeSec !== undefined
   if (stat === 'prepareCost') return Object.keys(def.prepareCost ?? {}).length > 0
   return false
 }
 
 /** One level's outcome: an absolute figure where the attack has one, else a factor. */
-function describeLevel(
-  stat: AttackStat,
-  params: AttackParams,
-  def: AttackDefinition | undefined,
-): string {
-  if (hasAbsolute(stat, def) && def) {
+function describeLevel(stat: AttackStat, params: AttackParams, def: AttackDefinition): string {
+  if (hasAbsolute(stat, def)) {
     if (stat === 'prepareTime') return `${num(getAttackPrepareTimeSec(def, params))}s`
     return formatCost(getAttackPrepareCost(def, params))
   }
@@ -117,7 +112,8 @@ function describeLevel(
 
 /**
  * A resolved preview of `ref`, or `null` when there is nothing to say — a
- * non-`attackStat` ref, or params the effect's own schema rejects (the form's
+ * non-`attackStat` ref, an attack the tree doesn't declare (the boot-time
+ * validator reports it), or params the effect's own schema rejects (the form's
  * error line already reports those).
  */
 export function describeEffectRef(tree: TreeFile, ref: EffectRef): string | null {
@@ -127,21 +123,17 @@ export function describeEffectRef(tree: TreeFile, ref: EffectRef): string | null
   if (typeof rawStat !== 'string' || !known.includes(rawStat)) return null
   const stat = rawStat as AttackStat
 
-  const target = typeof ref.attack === 'string' ? ref.attack : undefined
-  const def = target === undefined ? undefined : tree.attacks.find((a) => a.id === target)
-  // A named attack that isn't in the tree is an authoring error the boot-time
-  // validator reports; previewing it as "every attack" would be a lie.
-  if (target !== undefined && !def) return null
+  const def = tree.attacks.find((a) => a.id === ref.attack)
+  if (!def) return null
 
   try {
     const levels = PREVIEW_LEVELS.map(
-      (level) => `${describeLevel(stat, paramsAt(ref, target ?? '', level), def)} (L${level})`,
+      (level) => `${describeLevel(stat, paramsAt(ref, def.id, level), def)} (L${level})`,
     )
-    const subject = def ? def.id : 'every attack'
     const baseline = hasAbsolute(stat, def)
       ? `${describeLevel(stat, NEUTRAL_ATTACK_PARAMS, def)} → `
       : ''
-    return `${subject} ${STAT_LABELS[stat]}: ${baseline}${levels.join(' · ')}`
+    return `${def.id} ${STAT_LABELS[stat]}: ${baseline}${levels.join(' · ')}`
   } catch {
     // Invalid params (the schema throws inside `applyEffect`) — the form's own
     // error line is the right place for that, not a half-resolved preview.

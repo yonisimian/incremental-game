@@ -121,12 +121,15 @@ function gate(attackId: string): UpgradeDefinition {
   }
 }
 
-/** Doubles every attack's magnitude per level — including its inflation. */
+/** Doubles both inflation attacks' magnitude per level — including their inflation. */
 const POWER_UP: UpgradeDefinition = {
   id: 'u-power',
   cost: { r0: { baseCost: 0 } },
   purchaseLimit: 3,
-  effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
+  effects: [
+    { type: 'attackStat', attack: 'a-upgrades', stat: 'power', op: 'mult', value: 2 },
+    { type: 'attackStat', attack: 'a-steepen', stat: 'power', op: 'mult', value: 2 },
+  ],
 }
 
 const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, STEEPEN_G0, ACTIVE_TARIFF]

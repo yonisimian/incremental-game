@@ -46,7 +46,7 @@ describe('effectFieldOptions', () => {
     ])
   })
 
-  it('offers every stat when the attackStat names no attack (it buffs all of them)', () => {
+  it('offers every stat until the attackStat names an attack', () => {
     const tree = idler()
     expect(effectFieldOptions(tree, 'attackStat', 'stat')).toEqual([...ATTACK_STATS])
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])

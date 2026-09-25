@@ -91,9 +91,8 @@ const guardValue = guardScaledStatValue('attackStat', ATTACK_STAT_DIRECTION)
  *
  * Hosted on the *production-pipeline* hosts (mode + upgrade, the default), not on
  * the attacks themselves: a stat is something an upgrade grants, not something an
- * attack carries. `attack` names which attack to buff, or is omitted to buff
- * every attack in the mode (mirroring `EnemyCostOutput.id`), so "+20% to all
- * raids" is one authored node rather than one per attack.
+ * attack carries. `attack` names which attack to buff and is required, so a ref
+ * that forgot to pick one fails at boot rather than silently buffing them all.
  *
  * One effect with a `stat` enum rather than three near-identical effects, for the
  * same reasons as `batteryStat`: a closed enum rejects an authored typo at boot,
@@ -126,8 +125,8 @@ const guardValue = guardScaledStatValue('attackStat', ATTACK_STAT_DIRECTION)
  */
 const schema = z
   .strictObject({
-    /** Which attack to buff, or absent for every attack in the mode. */
-    attack: z.string().optional(),
+    /** Which attack to buff. */
+    attack: z.string(),
     stat: z.enum(ATTACK_STATS),
     op: z.enum(ATTACK_STAT_OPS),
     value: z.number(),
@@ -160,7 +159,7 @@ export type AttackStatParams = z.infer<typeof schema>
 function apply(p: AttackStatParams): AttackStatOutput {
   return {
     kind: 'attackStat',
-    ...(p.attack !== undefined ? { attack: p.attack } : {}),
+    attack: p.attack,
     stat: p.stat,
     op: p.op,
     value: p.value,

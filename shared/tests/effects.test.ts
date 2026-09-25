@@ -888,27 +888,39 @@ describe('attackStat params', () => {
     ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 })
   })
 
-  it('omits the attack key entirely when none is authored', () => {
-    expect(
+  it('rejects a ref naming no attack', () => {
+    expect(() =>
       applyEffect({ type: 'attackStat', stat: 'power', op: 'add', value: 1 }, state, mode),
-    ).toEqual({ kind: 'attackStat', stat: 'power', op: 'add', value: 1 })
+    ).toThrow(/"attack"/)
   })
 
   it('rejects an unknown stat', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'nope', op: 'add', value: 1 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'nope', op: 'add', value: 1 },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
   it('rejects a stat that has no consumer yet (duration awaits plan 37)', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'duration', op: 'mult', value: 2 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
   it('rejects an unknown op', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'divide', value: 2 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'divide', value: 2 },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
@@ -916,22 +928,26 @@ describe('attackStat params', () => {
   it('accepts an offset on prepareTime', () => {
     expect(
       applyEffect(
-        { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 },
+        { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 },
         state,
         mode,
       ),
-    ).toEqual({ kind: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 })
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 })
   })
 
   it('rejects an offset on a stat with no single unit', () => {
     // `power` has no unit (fraction / amount / count / debuff distance) and
     // `prepareCost` has one per currency, so neither can take a flat shift.
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'offset', value: 1 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'offset', value: 1 },
+        state,
+        mode,
+      ),
     ).toThrow(/does not apply to stat 'power'/u)
     expect(() =>
       applyEffect(
-        { type: 'attackStat', stat: 'prepareCost', op: 'offset', value: -100 },
+        { type: 'attackStat', attack: 'a0', stat: 'prepareCost', op: 'offset', value: -100 },
         state,
         mode,
       ),
@@ -940,7 +956,11 @@ describe('attackStat params', () => {
 
   it('rejects a non-numeric value', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'mult', value: 'lots' }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 'lots' },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
@@ -949,7 +969,7 @@ describe('attackStat params', () => {
       ...mode,
       effects: [
         ...(mode.effects ?? []),
-        { type: 'attackStat', stat: 'power', op: 'mult', value: 2 },
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
       ],
     }
     const fresh = createInitialState(withEffect)
@@ -970,7 +990,7 @@ describe('attackStat value direction', () => {
   const state = createInitialState(mode)
 
   const attempt = (stat: string, op: string, value: unknown): (() => unknown) => {
-    return () => applyEffect({ type: 'attackStat', stat, op, value }, state, mode)
+    return () => applyEffect({ type: 'attackStat', attack: 'a0', stat, op, value }, state, mode)
   }
 
   it('lets an increasing stat only increase', () => {
