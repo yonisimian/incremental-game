@@ -1435,7 +1435,7 @@ body {
   color: var(--text-muted, var(--text));
 }
 
-/* `held / limit` attack slots beside a section heading (plan 38). */
+/* `held / limit` attack slots beside a section heading. */
 .attack-slots {
   margin-left: 0.4rem;
   font-variant-numeric: tabular-nums;

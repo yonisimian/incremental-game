@@ -181,7 +181,7 @@ function renderPassiveAttack(
 
 /**
  * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
- * nothing when the mode never caps that kind (plan 38). Reads as a loadout
+ * nothing when the mode never caps that kind. Reads as a loadout
  * rather than an inventory: the player can see how many commitments remain.
  */
 function renderSlots(

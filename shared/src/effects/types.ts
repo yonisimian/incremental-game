@@ -111,7 +111,7 @@ export interface AttackUnlockOutput {
 /**
  * Grants attack slots — room to hold attacks of one kind — while the owning
  * upgrade is held, or for the whole round when authored on the mode. Emitted by
- * the `attackSlots` effect (plan 38).
+ * the `attackSlots` effect.
  *
  * Consumed by `attackLimit`, which sums `value × owned` across every grant for
  * the kind; `hasAttackSlotsFor` then refuses a purchase that would unlock more
