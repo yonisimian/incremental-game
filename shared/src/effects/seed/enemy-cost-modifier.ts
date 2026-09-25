@@ -6,8 +6,9 @@ import type { EffectDef, EnemyCostOutput } from '../types.js'
 /**
  * Schema for the `enemyCostModifier` effect's params.
  *
- * An *offensive* cost inflation carried by a passive attack: while the attack is
- * unlocked, the opponent pays more for what `target` names. `target` is a key
+ * An *offensive* cost inflation carried by an attack: while a passive attack is
+ * unlocked — or for an active attack's `durationSec` after its strike lands —
+ * the opponent pays more for what `target` names. `target` is a key
  * from the enemy-cost catalog — `upgrades` / `generators` for a whole scope, or
  * `upgrade:<id>` / `generator:<id>` for one entity. Like `baseModifier`'s
  * `field` it's a plain `z.string()` so the schema-driven editor form can
@@ -44,7 +45,8 @@ export type EnemyCostModifierParams = z.infer<typeof schema>
 /**
  * State-independent: splits the authored target and echoes the inflation as an
  * {@link EnemyCostOutput}. Whether it actually applies (the attack is an
- * unlocked passive one held by the *other* player) is decided by
+ * unlocked passive one held by the *other* player, or an active one whose
+ * window is open) is decided by
  * `collectEnemyCostFactors`, which owns this output. Unlike `baseModifier` there
  * is no owned-count compounding — an attack is unlocked or it isn't.
  */
@@ -64,6 +66,7 @@ export const enemyCostModifier: EffectDef<EnemyCostModifierParams> = {
   schema,
   apply,
   // Only `collectEnemyCostFactors` reads this output, and it walks the *passive*
-  // attacks a player holds — anywhere else the inflation would never be gathered.
-  hosts: ['passiveAttack'],
+  // attacks a player holds plus the debuff windows their *active* attacks have
+  // opened — anywhere else the inflation would never be gathered.
+  hosts: ['passiveAttack', 'activeAttack'],
 }

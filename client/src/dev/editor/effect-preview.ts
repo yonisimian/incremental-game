@@ -18,6 +18,7 @@
 import {
   ATTACK_STATS,
   collectAttackParams,
+  getAttackDurationSec,
   getAttackPrepareCost,
   getAttackPrepareTimeSec,
   NEUTRAL_ATTACK_PARAMS,
@@ -43,6 +44,7 @@ const STAT_LABELS: Readonly<Record<AttackStat, string>> = {
   power: 'magnitude',
   prepareCost: 'prepare cost',
   prepareTime: 'prepare time',
+  duration: 'debuff duration',
 }
 
 /** Trim a resolved number to something readable (2 decimals, no trailing zeros). */
@@ -88,6 +90,7 @@ function paramsAt(ref: EffectRef, attackId: string, level: number): AttackParams
 /** Whether the stat resolves to a concrete figure on this attack, or just a factor. */
 function hasAbsolute(stat: AttackStat, def: AttackDefinition): boolean {
   if (stat === 'prepareTime') return def.prepareTimeSec !== undefined
+  if (stat === 'duration') return def.durationSec !== undefined
   if (stat === 'prepareCost') return Object.keys(def.prepareCost ?? {}).length > 0
   return false
 }
@@ -96,17 +99,19 @@ function hasAbsolute(stat: AttackStat, def: AttackDefinition): boolean {
 function describeLevel(stat: AttackStat, params: AttackParams, def: AttackDefinition): string {
   if (hasAbsolute(stat, def)) {
     if (stat === 'prepareTime') return `${num(getAttackPrepareTimeSec(def, params))}s`
+    if (stat === 'duration') return `${num(getAttackDurationSec(def, params))}s`
     return formatCost(getAttackPrepareCost(def, params))
   }
   if (stat === 'power') return `×${num(params.power)}`
   if (stat === 'prepareCost') return `×${num(params.prepareCost)}`
-  // A prepare time with no authored delay to resolve against: report the shape of
+  // A time stat with no authored seconds to resolve against: report the shape of
   // the change, factor and offset alike, since one ref can carry either.
-  const factor = params.prepareTime === 1 ? '' : `×${num(params.prepareTime)}`
-  const offset =
-    params.prepareTimeOffsetSec === 0
-      ? ''
-      : `${params.prepareTimeOffsetSec > 0 ? '+' : ''}${num(params.prepareTimeOffsetSec)}s`
+  const [scale, offsetSec] =
+    stat === 'duration'
+      ? [params.duration, params.durationOffsetSec]
+      : [params.prepareTime, params.prepareTimeOffsetSec]
+  const factor = scale === 1 ? '' : `×${num(scale)}`
+  const offset = offsetSec === 0 ? '' : `${offsetSec > 0 ? '+' : ''}${num(offsetSec)}s`
   return [factor, offset].filter(Boolean).join(' ') || 'no change'
 }
 

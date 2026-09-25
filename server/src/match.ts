@@ -23,6 +23,7 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
+  openDebuffWindows,
   resolveAttackStrike,
   hasEnemyDataAccess,
   enemyDataKeysFor,
@@ -544,14 +545,31 @@ export class Match {
    * Land every active attack whose preparation has elapsed this tick. For each
    * player, drain the pending strikes due at their current `meta.gameSec`,
    * resolve them against the opponent (moving the stolen resources / generator
-   * copies), and buffer an `outgoing`/`incoming` event pair per theft for the
-   * next broadcast.
+   * copies, opening a debuff window), and buffer an `outgoing`/`incoming` event
+   * pair per result for the next broadcast.
+   *
+   * Also sweeps expired debuff windows off `activeDebuffs`. The collectors
+   * already ignore an expired window at read time, so the sweep is hygiene —
+   * it bounds the array and keeps the wire small — not correctness. Ordering
+   * consequence, accepted: `applyPassiveIncome` runs before this in the tick and
+   * reads the windows through that same filter, so a window is worth whole
+   * ticks at `TICK_INTERVAL_MS` granularity, exactly as `prepareTimeSec` is.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
       const attacker = this.players[i]
       const victim = this.players[1 - i]
       const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
+
+      if (attacker.state.activeDebuffs !== undefined) {
+        const open = openDebuffWindows(attacker.state, gameSec)
+        // Absent rather than empty once the last window closes — the same
+        // convention as `incomingCostFactors`, so a quiet round carries nothing.
+        if (open.length === 0) delete attacker.state.activeDebuffs
+        else if (open.length !== attacker.state.activeDebuffs.length)
+          attacker.state.activeDebuffs = open
+      }
+
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
 
@@ -579,12 +597,14 @@ export class Match {
           continue
         }
         for (const result of moved) {
-          // The same theft, described once per side: `direction` is the only
+          // The same result, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.
           const what =
             result.kind === 'resource'
               ? { kind: result.kind, resource: result.resource, amount: result.amount }
-              : { kind: result.kind, generator: result.generator, count: result.count }
+              : result.kind === 'generator'
+                ? { kind: result.kind, generator: result.generator, count: result.count }
+                : { kind: result.kind, durationSec: result.durationSec }
           attacker.attackEvents.push({
             attack: pending.attack,
             direction: 'outgoing',
@@ -877,9 +897,12 @@ export class Match {
     this.clearTimers()
 
     const [p1, p2] = this.players
-    // Discard any attacks still preparing — the round is over, so they never land.
+    // Discard any attacks still preparing — the round is over, so they never
+    // land — and close any open debuff window with them.
     p1.state.pendingAttacks = []
     p2.state.pendingAttacks = []
+    delete p1.state.activeDebuffs
+    delete p2.state.activeDebuffs
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

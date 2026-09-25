@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { AttackDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
 import {
+  activeDebuffRemainingSec,
   attackBlockReason,
   collectAttackParams,
   isValidAttackActivation,
+  getAttackDurationSec,
   getAttackPrepareCost,
   getAttackPrepareTimeSec,
   applyAttackActivation,
   dueAttacks,
   MAX_ATTACK_PARAM,
   NEUTRAL_ATTACK_PARAMS,
+  openDebuffWindows,
   resolveAttackStrike,
 } from '../src/attacks.js'
 import type { AttackParams } from '../src/attacks.js'
@@ -58,6 +61,34 @@ const PLACEHOLDER_ATTACK: AttackDefinition = {
   kind: 'active',
 }
 
+/** A duration attack: halves the victim's r0 for 10s after the strike. */
+const DEBUFF_ATTACK: AttackDefinition = {
+  id: 'a3',
+  kind: 'active',
+  prepareCost: { r0: { baseCost: 100 } },
+  prepareTimeSec: 2,
+  durationSec: 10,
+  effects: [{ type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.5 }],
+}
+
+/** A raid: the steal *and* the debuff, sharing one window. */
+const RAID_ATTACK: AttackDefinition = {
+  ...DEBUFF_ATTACK,
+  id: 'a4',
+  effects: [
+    { type: 'stealResource', resource: 'r0', fraction: 0.1 },
+    { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.5 },
+    { type: 'enemyCostModifier', target: 'upgrades', costFactor: 2 },
+  ],
+}
+
+/** The debuff attack authored without a window — invalid, and inert here. */
+const WINDOWLESS_DEBUFF_ATTACK: AttackDefinition = {
+  ...DEBUFF_ATTACK,
+  id: 'a5',
+  durationSec: undefined,
+}
+
 /** Upgrade that unlocks a0 when owned. */
 const UNLOCK_A0: UpgradeDefinition = {
   id: 'unlock-a0',
@@ -71,6 +102,13 @@ const UNLOCK_A2: UpgradeDefinition = {
   cost: { r0: { baseCost: 0 } },
   purchaseLimit: 1,
   effects: [{ type: 'unlockAttack', attack: 'a2' }],
+}
+
+const UNLOCK_A3: UpgradeDefinition = {
+  id: 'unlock-a3',
+  cost: { r0: { baseCost: 0 } },
+  purchaseLimit: 1,
+  effects: [{ type: 'unlockAttack', attack: 'a3' }],
 }
 
 /** An `attackStat` upgrade, buyable up to three times. */
@@ -165,6 +203,22 @@ const A0_SOONER = statUpgrade('a0-sooner', {
   value: -1,
 })
 
+/** Stretches a3's debuff window by half, per level. */
+const A3_LONGER = statUpgrade('a3-longer', {
+  attack: 'a3',
+  stat: 'duration',
+  op: 'mult',
+  value: 1.5,
+})
+
+/** Adds two literal seconds to a3's window, per level. */
+const A3_EXTEND = statUpgrade('a3-extend', {
+  attack: 'a3',
+  stat: 'duration',
+  op: 'offset',
+  value: 2,
+})
+
 const STAT_UPGRADES = [
   A0_POWER_ADD,
   A0_POWER_MULT,
@@ -176,13 +230,15 @@ const STAT_UPGRADES = [
   A0_CHEAP_STEP_B,
   A0_FAST,
   A0_SOONER,
+  A3_LONGER,
+  A3_EXTEND,
 ]
 
 function makeMode(): ModeDefinition {
   return {
     resources: ['r0'],
     scoreResource: 'r0',
-    upgrades: [UNLOCK_A0, UNLOCK_A2, ...STAT_UPGRADES],
+    upgrades: [UNLOCK_A0, UNLOCK_A2, UNLOCK_A3, ...STAT_UPGRADES],
     goals: [{ type: 'timed', label: '⏱ Timed', durationSec: 30 }],
     clicksEnabled: false,
     highlightEnabled: false,
@@ -195,7 +251,14 @@ function makeMode(): ModeDefinition {
         production: { resource: 'r0', rate: 2 },
       },
     ],
-    attacks: [STEAL_ATTACK, PASSIVE_ATTACK, PLACEHOLDER_ATTACK],
+    attacks: [
+      STEAL_ATTACK,
+      PASSIVE_ATTACK,
+      PLACEHOLDER_ATTACK,
+      DEBUFF_ATTACK,
+      RAID_ATTACK,
+      WINDOWLESS_DEBUFF_ATTACK,
+    ],
     pacts: [],
     flavors: [
       {
@@ -205,7 +268,7 @@ function makeMode(): ModeDefinition {
         scoreLabel: 'Score',
         showClickStats: false,
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
-        upgrades: [UNLOCK_A0, UNLOCK_A2, ...STAT_UPGRADES].map((u) => ({
+        upgrades: [UNLOCK_A0, UNLOCK_A2, UNLOCK_A3, ...STAT_UPGRADES].map((u) => ({
           id: u.id,
           name: u.id,
           icon: '⚙️',
@@ -216,6 +279,9 @@ function makeMode(): ModeDefinition {
           { id: 'a0', name: 'Steal', icon: '🪓', description: 'steal' },
           { id: 'a1', name: 'Debuff', icon: '💥', description: 'debuff' },
           { id: 'a2', name: 'Placeholder', icon: '❓', description: 'todo' },
+          { id: 'a3', name: 'Blockade', icon: '⛓️', description: 'window' },
+          { id: 'a4', name: 'Raid', icon: '🏴‍☠️', description: 'steal + window' },
+          { id: 'a5', name: 'Windowless', icon: '🚫', description: 'invalid' },
         ],
         pacts: [],
       },
@@ -227,7 +293,7 @@ function makeState(overrides?: Partial<PlayerState>): PlayerState {
   return {
     score: 0,
     resources: { r0: 5000 },
-    upgrades: { 'unlock-a0': 1, 'unlock-a2': 1 },
+    upgrades: { 'unlock-a0': 1, 'unlock-a2': 1, 'unlock-a3': 1 },
     generators: {},
     pendingAttacks: [],
     meta: {},
@@ -291,7 +357,19 @@ describe('collectAttackParams', () => {
       prepareCost: 0.5,
       prepareTime: 0.5,
       prepareTimeOffsetSec: 0,
+      duration: 1,
+      durationOffsetSec: 0,
     })
+  })
+
+  it('collects the duration stat, factor and offset apart, like prepareTime', () => {
+    const state = withStats({ 'a3-longer': 2, 'a3-extend': 2 })
+    const params = collectAttackParams(state, mode, 'a3')
+    expect(params.duration).toBe(2.25) // 1.5 ** 2
+    expect(params.durationOffsetSec).toBe(4) // +2s × 2
+    // Neither leaks into the delay's pair.
+    expect(params.prepareTime).toBe(1)
+    expect(params.prepareTimeOffsetSec).toBe(0)
   })
 
   it('floors a stacked reduction at zero, so nothing inverts', () => {
@@ -361,6 +439,21 @@ describe('getAttackPrepareTimeSec', () => {
     expect(getAttackPrepareTimeSec(STEAL_ATTACK, params({ 'a0-sooner': 9 }))).toBe(0)
   })
 
+  it('resolves the debuff window the same way — scaled, then shifted, floored', () => {
+    const at = (duration: number, durationOffsetSec: number): AttackParams => ({
+      ...NEUTRAL_ATTACK_PARAMS,
+      duration,
+      durationOffsetSec,
+    })
+    expect(getAttackDurationSec(DEBUFF_ATTACK, NEUTRAL_ATTACK_PARAMS)).toBe(10)
+    expect(getAttackDurationSec(DEBUFF_ATTACK, at(1.5, 0))).toBe(15)
+    expect(getAttackDurationSec(DEBUFF_ATTACK, at(1, 2))).toBe(12)
+    expect(getAttackDurationSec(DEBUFF_ATTACK, at(1.5, 2))).toBe(17)
+    expect(getAttackDurationSec(DEBUFF_ATTACK, at(1, -20))).toBe(0)
+    // No authored window: nothing to scale, whatever the stats say.
+    expect(getAttackDurationSec(STEAL_ATTACK, at(3, 5))).toBe(0)
+  })
+
   it('treats an attack with no authored delay as 0, offset included', () => {
     expect(getAttackPrepareTimeSec(PLACEHOLDER_ATTACK, params({ 'a0-sooner': 1 }))).toBe(0)
   })
@@ -417,6 +510,29 @@ describe('attackBlockReason', () => {
   it('returns already-preparing when an activation is pending', () => {
     const state = makeState({ pendingAttacks: [{ attack: 'a0', readyAtSec: 3 }] })
     expect(attackBlockReason(state, 'a0', mode)).toBe('already-preparing')
+  })
+
+  it('returns already-active while the debuff window is open, and null once it closes', () => {
+    const open = makeState({
+      meta: { gameSec: 12 },
+      activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
+    })
+    expect(attackBlockReason(open, 'a3', mode)).toBe('already-active')
+    expect(isValidAttackActivation(open, 'a3', mode)).toBe(false)
+    // The window closes at 15 exactly — `expiresAtSec <= gameSec` is closed.
+    const closed = makeState({
+      meta: { gameSec: 15 },
+      activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
+    })
+    expect(attackBlockReason(closed, 'a3', mode)).toBeNull()
+  })
+
+  it('does not let one attack’s open window block a different attack', () => {
+    const state = makeState({
+      meta: { gameSec: 12 },
+      activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
+    })
+    expect(attackBlockReason(state, 'a0', mode)).toBeNull()
   })
 
   it('returns unaffordable when the prepare cost cannot be paid', () => {
@@ -744,5 +860,126 @@ describe('resolveAttackStrike — stealGenerator', () => {
     }
     expect(() => resolveAttackStrike(attacker, victim, bothAttack, mode)).toThrow()
     expect(victim.generators.g0).toBe(4)
+  })
+})
+
+// ─── resolveAttackStrike — debuff windows (plan 37) ──────────────────
+
+describe('resolveAttackStrike — debuff window', () => {
+  it('opens one window at gameSec + durationSec, reports it, and moves nothing', () => {
+    const mode = makeMode()
+    const attacker = makeState({ resources: { r0: 100 }, meta: { gameSec: 20 } })
+    const victim = makeState({ resources: { r0: 500 } })
+    const results = resolveAttackStrike(attacker, victim, DEBUFF_ATTACK, mode)
+    expect(results).toEqual([{ kind: 'debuff', durationSec: 10 }])
+    expect(attacker.activeDebuffs).toEqual([{ attack: 'a3', expiresAtSec: 30 }])
+    expect(victim.resources.r0).toBe(500)
+    expect(attacker.resources.r0).toBe(100)
+  })
+
+  it('scales the window by the attacker’s duration stat, frozen at the strike', () => {
+    const mode = makeMode()
+    const attacker = makeState({
+      upgrades: { 'unlock-a3': 1, 'a3-longer': 1, 'a3-extend': 1 },
+      meta: { gameSec: 0 },
+    })
+    const victim = makeState()
+    const results = resolveAttackStrike(attacker, victim, DEBUFF_ATTACK, mode)
+    // 10 × 1.5 + 2
+    expect(results).toEqual([{ kind: 'debuff', durationSec: 17 }])
+    expect(attacker.activeDebuffs).toEqual([{ attack: 'a3', expiresAtSec: 17 }])
+  })
+
+  it('does both on a raid — the steal lands and one window opens, however many debuff effects', () => {
+    const mode = makeMode()
+    const attacker = makeState({ resources: { r0: 0 }, meta: { gameSec: 5 } })
+    const victim = makeState({ resources: { r0: 1000 } })
+    const results = resolveAttackStrike(attacker, victim, RAID_ATTACK, mode)
+    expect(results).toEqual([
+      { kind: 'resource', resource: 'r0', amount: 100 },
+      { kind: 'debuff', durationSec: 10 },
+    ])
+    expect(victim.resources.r0).toBe(900)
+    expect(attacker.resources.r0).toBe(100)
+    // Two debuff effects on the attack, one window.
+    expect(attacker.activeDebuffs).toEqual([{ attack: 'a4', expiresAtSec: 15 }])
+  })
+
+  it('appends to windows already open from other attacks', () => {
+    const mode = makeMode()
+    const attacker = makeState({
+      meta: { gameSec: 5 },
+      activeDebuffs: [{ attack: 'a4', expiresAtSec: 8 }],
+    })
+    resolveAttackStrike(attacker, makeState(), DEBUFF_ATTACK, mode)
+    expect(attacker.activeDebuffs).toEqual([
+      { attack: 'a4', expiresAtSec: 8 },
+      { attack: 'a3', expiresAtSec: 15 },
+    ])
+  })
+
+  it('opens no window for a debuff attack authored without a duration', () => {
+    // Boot validation rejects this authoring; the strike still has to be inert
+    // rather than push a zero-length window no tick could gather.
+    const mode = makeMode()
+    const attacker = makeState({ meta: { gameSec: 5 } })
+    expect(resolveAttackStrike(attacker, makeState(), WINDOWLESS_DEBUFF_ATTACK, mode)).toEqual([])
+    expect(attacker.activeDebuffs).toBeUndefined()
+  })
+
+  it('treats a missing gameSec as 0, like activation does', () => {
+    const mode = makeMode()
+    const attacker = makeState()
+    resolveAttackStrike(attacker, makeState(), DEBUFF_ATTACK, mode)
+    expect(attacker.activeDebuffs).toEqual([{ attack: 'a3', expiresAtSec: 10 }])
+  })
+})
+
+// ─── activeDebuffRemainingSec / openDebuffWindows ────────────────────
+
+describe('activeDebuffRemainingSec', () => {
+  it('is null with no windows at all', () => {
+    expect(activeDebuffRemainingSec(makeState(), 'a3')).toBeNull()
+  })
+
+  it('reports the seconds left on an open window for that attack only', () => {
+    const state = makeState({
+      meta: { gameSec: 12.5 },
+      activeDebuffs: [
+        { attack: 'a3', expiresAtSec: 15 },
+        { attack: 'a4', expiresAtSec: 40 },
+      ],
+    })
+    expect(activeDebuffRemainingSec(state, 'a3')).toBeCloseTo(2.5)
+    expect(activeDebuffRemainingSec(state, 'a4')).toBeCloseTo(27.5)
+    expect(activeDebuffRemainingSec(state, 'a0')).toBeNull()
+  })
+
+  it('reads an expired-but-unswept window as null', () => {
+    const state = makeState({
+      meta: { gameSec: 15 },
+      activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
+    })
+    expect(activeDebuffRemainingSec(state, 'a3')).toBeNull()
+  })
+})
+
+describe('openDebuffWindows', () => {
+  it('keeps only windows that are strictly still open', () => {
+    const state = makeState({
+      activeDebuffs: [
+        { attack: 'a3', expiresAtSec: 10 },
+        { attack: 'a4', expiresAtSec: 20 },
+      ],
+    })
+    expect(openDebuffWindows(state, 10)).toEqual([{ attack: 'a4', expiresAtSec: 20 }])
+    expect(openDebuffWindows(state, 20)).toEqual([])
+    expect(openDebuffWindows(state, 0)).toHaveLength(2)
+    // Pure.
+    expect(state.activeDebuffs).toHaveLength(2)
+  })
+
+  it('is empty when the field is absent', () => {
+    expect(openDebuffWindows(makeState(), 0)).toEqual([])
   })
 })

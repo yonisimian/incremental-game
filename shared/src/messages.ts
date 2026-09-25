@@ -117,7 +117,8 @@ export interface PurchaseEvent {
  * `none` event — `outgoing` to the attacker, `incoming` to the victim — so a
  * fired attack always yields feedback and the target learns of the attempt.
  */
-export type AttackEvent = ResourceAttackEvent | GeneratorAttackEvent | MissedAttackEvent
+export type AttackEvent =
+  ResourceAttackEvent | GeneratorAttackEvent | DebuffAttackEvent | MissedAttackEvent
 
 /** Fields every strike event carries, whatever it moved. */
 interface AttackEventBase {
@@ -145,6 +146,19 @@ export interface GeneratorAttackEvent extends AttackEventBase {
   generator: string
   /** How many copies the strike moved. */
   count: number
+}
+
+/**
+ * A strike that opened a debuff window — the attack's debuff effects apply to
+ * the victim for `durationSec` game seconds from `t`. Emitted once per strike
+ * however many debuff effects the attack carries, since they share one window.
+ * A window that opens is never a miss, so it never coexists with `kind: 'none'`
+ * for the same strike.
+ */
+export interface DebuffAttackEvent extends AttackEventBase {
+  kind: 'debuff'
+  /** How long the window stays open, in game seconds. */
+  durationSec: number
 }
 
 /**

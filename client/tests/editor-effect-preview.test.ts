@@ -43,6 +43,30 @@ describe('describeEffectRef — attackStat', () => {
     )
   })
 
+  it('resolves a duration stat against the attack’s window, factor and offset alike', () => {
+    const tree = idler()
+    const def = activeAttack(tree)
+    def.durationSec = 10
+    expect(
+      describeEffectRef(tree, {
+        type: 'attackStat',
+        attack: def.id,
+        stat: 'duration',
+        op: 'mult',
+        value: 1.5,
+      }),
+    ).toBe(`${def.id} debuff duration: 10s → 15s (L1) · 22.5s (L2)`)
+    expect(
+      describeEffectRef(tree, {
+        type: 'attackStat',
+        attack: def.id,
+        stat: 'duration',
+        op: 'offset',
+        value: 2,
+      }),
+    ).toBe(`${def.id} debuff duration: 10s → 12s (L1) · 14s (L2)`)
+  })
+
   it('shows an add for the multiplier it is, not the seconds it looks like', () => {
     const tree = idler()
     const def = activeAttack(tree)

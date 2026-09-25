@@ -535,12 +535,79 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/unknown or unsupported field 'g0'/)
   })
 
-  it('throws when an enemyProductionModifier is carried by a non-passive attack', () => {
+  // ── Duration attacks (plan 37): the debuff pair on an *active* attack ──
+
+  /** An active attack carrying a debuff, with the fields `patch` says. */
+  function debuffAttackDef(patch: Partial<ModeDefinition['attacks'][number]>): ModeDefinition {
     const base = makeValidDef({
       attacks: [
         {
           id: 'a0',
           kind: 'active',
+          prepareCost: { r0: { baseCost: 10 } },
+          prepareTimeSec: 1,
+          durationSec: 10,
+          effects: [
+            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.5 },
+          ],
+          ...patch,
+        },
+      ],
+    })
+    return withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Blockade', icon: '⛓️', description: '' }],
+    })
+  }
+
+  it('accepts an enemyProductionModifier on an active attack that declares a duration', () => {
+    expect(() => {
+      validateModeDefinition('test', debuffAttackDef({}))
+    }).not.toThrow()
+  })
+
+  it('accepts a raid — a steal and a debuff on one active attack, sharing the window', () => {
+    const def = debuffAttackDef({
+      effects: [
+        { type: 'stealResource', resource: 'r0', fraction: 0.1 },
+        { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.5 },
+        { type: 'enemyCostModifier', target: 'upgrades', costFactor: 2 },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws when an enemyProductionModifier rides an active attack with no durationSec', () => {
+    expect(() => {
+      validateModeDefinition('test', debuffAttackDef({ durationSec: undefined }))
+    }).toThrow(/carries a debuff effect .* but has no durationSec/)
+  })
+
+  it('throws for a durationSec on an active attack whose effects are all steals', () => {
+    const def = debuffAttackDef({
+      effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/declares durationSec but carries no debuff effect/)
+  })
+
+  it('throws for a non-positive durationSec', () => {
+    for (const durationSec of [0, -5]) {
+      expect(() => {
+        validateModeDefinition('test', debuffAttackDef({ durationSec }))
+      }).toThrow(/non-positive durationSec/)
+    }
+  })
+
+  it('throws for a durationSec on a passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          durationSec: 10,
           effects: [
             { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
           ],
@@ -548,11 +615,17 @@ describe('validateModeDefinition — negative tests', () => {
       ],
     })
     const def = withFlavor(base, {
-      attacks: [{ id: 'a0', name: 'Strike', icon: '⚔️', description: '' }],
+      attacks: [{ id: 'a0', name: 'Jam', icon: '🔇', description: '' }],
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/'enemyProductionModifier' effect, which only applies on a passive attack/)
+    }).toThrow(/passive attack 'a0' declares durationSec/)
+  })
+
+  it('still requires the prepare cost and delay on a duration attack', () => {
+    expect(() => {
+      validateModeDefinition('test', debuffAttackDef({ prepareCost: undefined }))
+    }).toThrow(/carries effects but has no prepareCost/)
   })
 
   it('throws when an enemyCostModifier names an unknown cost target', () => {
@@ -616,7 +689,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('throws when an enemyCostModifier is carried by a non-passive attack', () => {
+  it('throws when an enemyCostModifier rides an active attack with no durationSec', () => {
     const base = makeValidDef({
       attacks: [
         {
@@ -633,7 +706,12 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/'enemyCostModifier' effect, which only applies on a passive attack/)
+    }).toThrow(/carries a debuff effect .* but has no durationSec/)
+    // With a window it is a duration attack, and legal.
+    const timed = { ...def, attacks: [{ ...def.attacks[0], durationSec: 8 }] }
+    expect(() => {
+      validateModeDefinition('test', timed)
+    }).not.toThrow()
   })
 
   it('throws when a stealResource is carried by a passive attack', () => {
@@ -816,6 +894,52 @@ describe('validateModeDefinition — negative tests', () => {
     )
     expect(() => {
       validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  /** Active, with a debuff window for a `duration` stat to stretch. */
+  const WINDOW_A0: ModeDefinition['attacks'] = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareCost: { r0: { baseCost: 10 } },
+      prepareTimeSec: 1,
+      durationSec: 10,
+      effects: [
+        { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.5 },
+      ],
+    },
+  ]
+
+  it('throws for a duration stat aimed at a passive attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+      PASSIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'duration' on passive attack 'a0'/)
+  })
+
+  it('throws for a duration stat aimed at an active attack with no window', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 2 },
+      ACTIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'duration' on attack 'a0', which opens no debuff window/)
+  })
+
+  it('accepts a duration stat aimed at a duration attack', () => {
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+          WINDOW_A0,
+        ),
+      )
     }).not.toThrow()
   })
 

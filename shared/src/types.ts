@@ -111,8 +111,11 @@ export type AttackKind = 'active' | 'passive'
  * while the attack is unlocked — gathered by `collectEnemyDebuffs`. An `active`
  * attack is *activated* by paying its `prepareCost`; after `prepareTimeSec` game
  * seconds it strikes, resolving its effects once against the opponent (e.g.
- * `stealResource`). Display data lives in `AttackFlavor`. `kind` groups attacks
- * into separate blocks in the panel.
+ * `stealResource`). An active attack may also carry the passive vocabulary
+ * (`enemyProductionModifier` / `enemyCostModifier`): those open a *debuff
+ * window* of `durationSec` game seconds when the strike lands, tracked on the
+ * attacker as `PlayerState.activeDebuffs`. Display data lives in
+ * `AttackFlavor`. `kind` groups attacks into separate blocks in the panel.
  */
 export interface AttackDefinition {
   readonly id: string
@@ -134,11 +137,22 @@ export interface AttackDefinition {
    */
   readonly prepareTimeSec?: number
   /**
+   * Seconds the strike's debuff effects stay in force, in *game* seconds (so it
+   * freezes with the round, like `prepareTimeSec`). Active attacks only, and
+   * required when the attack carries a window-consuming effect
+   * (`enemyProductionModifier` / `enemyCostModifier`); forbidden on a passive
+   * attack, which is always-on by definition, and on an active attack whose
+   * effects are all steals (a window with nothing in it). One window per
+   * *attack*, not per effect — several debuff effects on one attack share it.
+   */
+  readonly durationSec?: number
+  /**
    * Offensive effects this attack carries. Each ref names a registered effect
    * plus its params. On a *passive* attack an `enemyModifier`-emitting effect
    * applies continuously to the opponent; on an *active* attack a
-   * `resourceSteal`-emitting effect resolves once, when the attack strikes.
-   * Optional (an effect-less attack is a placeholder). Optional.
+   * `resourceSteal`-emitting effect resolves once, when the attack strikes, and
+   * an `enemyModifier`/`enemyCost`-emitting one applies for `durationSec` from
+   * the strike. Optional (an effect-less attack is a placeholder).
    */
   readonly effects?: readonly EffectRef[]
 }
@@ -186,8 +200,35 @@ export interface PlayerState {
    * `getGeneratorSellRefund`).
    */
   incomingCostFactors?: EnemyCostFactor[]
+  /**
+   * Debuff windows this player's *landed* active attacks are currently
+   * inflicting on the opponent (see `resolveAttackStrike`). Absent when none is
+   * open, which is the default — the same convention as `incomingCostFactors`.
+   *
+   * Stored on the **attacker**, not the victim: `collectEnemyDebuffs` and
+   * `collectEnemyCostFactors` are attacker-keyed and already gather from attack
+   * definitions, so a window makes them one filter longer, and the attacker's
+   * own client can show "active for N s". Correctness comes from the read-time
+   * expiry filter in those collectors; the server's tick sweep only bounds the
+   * array. Never predicted client-side — the strike lands server-side and the
+   * field arrives like any other reconciled `PlayerState` field.
+   */
+  activeDebuffs?: ActiveDebuff[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
+}
+
+/**
+ * An offensive debuff window opened by a landed active attack — the timed twin
+ * of {@link PendingAttack}, one step later in the attack's life. Created by
+ * `resolveAttackStrike`, read by the enemy-debuff collectors while
+ * `meta.gameSec < expiresAtSec`, and swept by the server once expired.
+ */
+export interface ActiveDebuff {
+  /** Attack id (matches {@link AttackDefinition.id}). */
+  readonly attack: string
+  /** `meta.gameSec` value at which the window closes. */
+  readonly expiresAtSec: number
 }
 
 /** Which kind of priced entity a cost factor applies to. */

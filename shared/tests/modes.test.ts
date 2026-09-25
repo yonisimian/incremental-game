@@ -368,6 +368,94 @@ describe('collectEnemyDebuffs', () => {
     state.upgrades[attackGate(def, 'a3').id] = 1
     expect(collectEnemyDebuffs(state, def)).toEqual([])
   })
+
+  // ── Debuff windows (plan 37) ────────────────────────────────────────
+
+  const WINDOW_DEBUFF: Modifier = { stage: 'multiplicative', field: 'r0', value: 0.5 }
+
+  /** The idler tree plus one duration attack, `a-window`, gated by no upgrade. */
+  function withWindowAttack(): ModeDefinition {
+    const base = getModeDefinition('idler')
+    return {
+      ...base,
+      attacks: [
+        ...base.attacks,
+        {
+          id: 'a-window',
+          kind: 'active',
+          prepareCost: { r0: { baseCost: 10 } },
+          prepareTimeSec: 1,
+          durationSec: 10,
+          effects: [{ type: 'enemyProductionModifier', ...WINDOW_DEBUFF }],
+        },
+      ],
+    }
+  }
+
+  /** A player at `gameSec` inflicting the given windows. */
+  function inflicting(
+    def: ModeDefinition,
+    gameSec: number,
+    windows: PlayerState['activeDebuffs'],
+  ): PlayerState {
+    const state = createInitialState(def)
+    state.meta.gameSec = gameSec
+    if (windows) state.activeDebuffs = windows
+    return state
+  }
+
+  it('gathers the debuff from an open window, with no gating upgrade owned', () => {
+    const def = withWindowAttack()
+    const state = inflicting(def, 5, [{ attack: 'a-window', expiresAtSec: 15 }])
+    expect(collectEnemyDebuffs(state, def)).toEqual([WINDOW_DEBUFF])
+  })
+
+  it('excludes a window once gameSec reaches its expiry, swept or not', () => {
+    const def = withWindowAttack()
+    expect(
+      collectEnemyDebuffs(inflicting(def, 15, [{ attack: 'a-window', expiresAtSec: 15 }]), def),
+    ).toEqual([])
+    expect(
+      collectEnemyDebuffs(inflicting(def, 99, [{ attack: 'a-window', expiresAtSec: 15 }]), def),
+    ).toEqual([])
+  })
+
+  it('excludes a window naming an unknown attack', () => {
+    const def = withWindowAttack()
+    expect(
+      collectEnemyDebuffs(inflicting(def, 5, [{ attack: 'nope', expiresAtSec: 15 }]), def),
+    ).toEqual([])
+  })
+
+  it('reads a missing gameSec as 0, so a fresh window is open', () => {
+    const def = withWindowAttack()
+    const state = createInitialState(def)
+    delete state.meta.gameSec
+    state.activeDebuffs = [{ attack: 'a-window', expiresAtSec: 10 }]
+    expect(collectEnemyDebuffs(state, def)).toEqual([WINDOW_DEBUFF])
+  })
+
+  it('composes a window with an unlocked passive attack, and two windows with each other', () => {
+    const def = withWindowAttack()
+    // a2 is the tree's passive r0 ×0.9.
+    const state = inflicting(def, 5, [
+      { attack: 'a-window', expiresAtSec: 15 },
+      { attack: 'a-window', expiresAtSec: 20 },
+    ])
+    state.upgrades[attackGate(def, 'a2').id] = 1
+    expect(collectEnemyDebuffs(state, def)).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 0.9 },
+      WINDOW_DEBUFF,
+      WINDOW_DEBUFF,
+    ])
+  })
+
+  it('does not gather a duration attack that is merely unlocked or preparing', () => {
+    const def = withWindowAttack()
+    const state = createInitialState(def)
+    state.pendingAttacks.push({ attack: 'a-window', readyAtSec: 5 })
+    expect(collectEnemyDebuffs(state, def)).toEqual([])
+  })
 })
 
 // ─── resolveEnemyDebuffs / highlightDebuffFactor ─────────────────────

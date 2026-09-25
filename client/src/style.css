@@ -1497,6 +1497,16 @@ body {
   color: var(--gold);
 }
 
+/* A debuff window this player's strike opened is still in force. */
+.attack-status--active {
+  color: var(--danger);
+}
+
+.attack-btn.active {
+  border-color: var(--danger);
+  opacity: 1;
+}
+
 .attack-status--blocked {
   color: var(--text-muted, var(--text));
 }

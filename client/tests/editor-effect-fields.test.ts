@@ -126,9 +126,16 @@ describe('effect hosts', () => {
     listEffectTypes().filter((type) => isEffectAllowedOn(type, host))
 
   // What the editor's "+ effect" picker offers per section (see EffectsHost).
-  it('offers only offensive effects on attacks, and only on the matching kind', () => {
+  it('offers only offensive effects on attacks, steals on active ones only', () => {
     expect(typesFor('passiveAttack')).toEqual(['enemyCostModifier', 'enemyProductionModifier'])
-    expect(typesFor('activeAttack')).toEqual(['stealGenerator', 'stealResource'])
+    // The debuff pair rides both kinds: always-on on a passive attack, a timed
+    // window (`durationSec`) on an active one (plan 37).
+    expect(typesFor('activeAttack')).toEqual([
+      'enemyCostModifier',
+      'enemyProductionModifier',
+      'stealGenerator',
+      'stealResource',
+    ])
   })
 
   it('offers every production effect on upgrades and the mode, and no offensive one', () => {

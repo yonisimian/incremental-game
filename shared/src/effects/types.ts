@@ -368,10 +368,12 @@ export type EffectOutput =
  * - `upgrade` — an upgrade's `effects`: while owned, scaled by owned count
  *   (`collectModifiers`).
  * - `passiveAttack` — a passive attack's `effects`: continuous, against the
- *   opponent, and only `enemyModifier` outputs survive (`collectEnemyDebuffs`).
- * - `activeAttack` — an active attack's `effects`: resolved once when the strike
- *   lands, and only the steal outputs (`resourceSteal`, `generatorSteal`)
- *   survive (`resolveAttackStrike`).
+ *   opponent, and only the debuff outputs (`enemyModifier`, `enemyCost`)
+ *   survive (`collectEnemyDebuffs` / `collectEnemyCostFactors`).
+ * - `activeAttack` — an active attack's `effects`: resolved when the strike
+ *   lands. The steal outputs (`resourceSteal`, `generatorSteal`) move something
+ *   once (`resolveAttackStrike`); the debuff outputs open a window of the
+ *   attack's `durationSec`, during which the same collectors gather them.
  */
 export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
 

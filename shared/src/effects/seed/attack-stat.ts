@@ -7,12 +7,10 @@ import type { AttackStatOutput, EffectDef } from '../types.js'
 /**
  * The attack parameters an `attackStat` effect can move.
  *
- * `duration` is deliberately absent: an active attack has no duration field yet
- * (see plan 37), so shipping the enum member would offer the `/dev.html` editor
- * a stat nothing reads. Add it here — plus a floor in `ATTACK_PARAM_FLOORS` and a
- * consumer — when durations land.
+ * `duration` scales an active attack's debuff window (`durationSec`, plan 37);
+ * its consumer is `getAttackDurationSec`, read when the strike opens the window.
  */
-export const ATTACK_STATS = ['power', 'prepareCost', 'prepareTime'] as const
+export const ATTACK_STATS = ['power', 'prepareCost', 'prepareTime', 'duration'] as const
 export type AttackStat = (typeof ATTACK_STATS)[number]
 
 /**
@@ -35,13 +33,14 @@ export type AttackStatOp = (typeof ATTACK_STAT_OPS)[number]
  * The stats an `offset` can move: those measured in a single, unambiguous unit.
  *
  * - `prepareTime` — seconds. Well-defined.
+ * - `duration` — seconds. Well-defined.
  * - `prepareCost` — *not* well-defined: an attack may cost several currencies, so
  *   a flat `-100` would have to be applied to each, arbitrarily.
  * - `power` — no unit at all: an attack's magnitude lives in a `fraction`, a flat
  *   `amount`, a `count`, or a debuff's distance from neutral, so `+1` would mean a
  *   different thing per effect the attack carries.
  */
-const OFFSET_STATS: readonly AttackStat[] = ['prepareTime']
+const OFFSET_STATS: readonly AttackStat[] = ['prepareTime', 'duration']
 
 /**
  * The ops that are legal on `stat`. Enforced by the schema below (so a
@@ -56,7 +55,7 @@ export function attackStatOpsFor(stat: AttackStat): readonly AttackStatOp[] {
 
 /**
  * Which way each stat has to move to help the attacker who bought the upgrade —
- * hit harder, pay less, wait less.
+ * hit harder, pay less, wait less, debuff longer.
  *
  * Read by {@link guardScaledStatValue}, which turns it into the schema's `value`
  * rules, so an upgrade that would make your own attack _worse_ fails to load.
@@ -74,6 +73,7 @@ export const ATTACK_STAT_DIRECTION: Readonly<Record<AttackStat, StatDirection>> 
   power: 'increase',
   prepareCost: 'decrease',
   prepareTime: 'decrease',
+  duration: 'increase',
 }
 
 /** The `value` half of the refinement, built once from the direction table. */
@@ -83,8 +83,9 @@ const guardValue = guardScaledStatValue('attackStat', ATTACK_STAT_DIRECTION)
  * Schema for the `attackStat` effect's params.
  *
  * Scales one of an attack's numbers while the owning upgrade is held: how hard it
- * hits (`power`), what activating it costs (`prepareCost`), or how long the
- * strike takes to land (`prepareTime`). `op` picks how — `add` shifts the
+ * hits (`power`), what activating it costs (`prepareCost`), how long the strike
+ * takes to land (`prepareTime`), or how long its debuff window stays open
+ * (`duration`). `op` picks how — `add` shifts the
  * multiplier, `mult` scales it, `offset` shifts the stat's own unit — and each
  * compounds with the owned count (`add × owned`, `mult ** owned`,
  * `offset × owned`) in `collectAttackParams`.
