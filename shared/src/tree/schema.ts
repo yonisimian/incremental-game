@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { PREREQUISITE_META_KEYS } from '../prerequisites.js'
 import type { PrerequisiteExpression } from '../types.js'
 
 /**
@@ -45,6 +46,11 @@ const PrerequisiteSchema: z.ZodType<PrerequisiteExpression> = z.lazy(() =>
       type: z.literal('upgrade'),
       id: z.string(),
       minLevel: z.number().int().min(1).optional(),
+    }),
+    z.strictObject({
+      type: z.literal('meta'),
+      key: z.enum(PREREQUISITE_META_KEYS),
+      min: z.number().int().min(1),
     }),
     z.strictObject({ type: z.literal('all'), items: z.array(PrerequisiteSchema) }),
     z.strictObject({ type: z.literal('any'), items: z.array(PrerequisiteSchema) }),

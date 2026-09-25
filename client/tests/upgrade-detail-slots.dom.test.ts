@@ -59,6 +59,7 @@ function makeState(owned: Record<string, number>): GameState {
     player,
     opponent: { score: 0, resources: {}, rates: {} },
     opponentPurchaseFeed: [],
+    incomingAttacks: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

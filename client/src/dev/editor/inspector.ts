@@ -8,7 +8,12 @@
  * effect's zod param schema (production bonuses are the `baseModifier` effect).
  */
 
-import { type CostEntry, type TreeFile, type TreeUpgradeNode } from '@game/shared'
+import {
+  ATTACKS_SUFFERED_META_KEY,
+  type CostEntry,
+  type TreeFile,
+  type TreeUpgradeNode,
+} from '@game/shared'
 
 import { buildEffectsSection } from './effects-editor.js'
 import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
@@ -41,8 +46,10 @@ type Prereq = NonNullable<TreeUpgradeNode['prerequisites']>
 // ─── Prerequisite representability ───────────────────────────────────
 //
 // The simple editor models "all/any of N upgrade ids", each with an optional
-// minimum level. Anything richer (nested groups) round-trips through a
-// raw-JSON textarea instead.
+// minimum level, plus one checkbox for the `meta` gate the tree uses today —
+// "hit by an enemy attack", which ANDs onto whatever the checklist
+// says. Anything richer (nested groups, other meta keys or thresholds)
+// round-trips through a raw-JSON textarea instead.
 
 /** A single required upgrade. `minLevel` of 1 (or omitted) means "owned". */
 interface SimplePrereqItem {
@@ -53,33 +60,82 @@ interface SimplePrereqItem {
 export interface SimplePrereq {
   readonly mode: 'all' | 'any'
   readonly items: SimplePrereqItem[]
+  /** Also require the player to have been hit by an enemy attack once. */
+  readonly hitByAttack: boolean
+}
+
+/** The one `meta` gate the checkbox authors. */
+const HIT_BY_ATTACK: Prereq = { type: 'meta', key: ATTACKS_SUFFERED_META_KEY, min: 1 }
+
+function isHitByAttack(node: Prereq): boolean {
+  // `key` is not compared: the whitelist has one member today, so the type
+  // already pins it. When a second meta key exists, compare against
+  // `ATTACKS_SUFFERED_META_KEY` here too.
+  return node.type === 'meta' && node.min === 1
+}
+
+type UpgradeNode = Extract<Prereq, { type: 'upgrade' }>
+
+/** The checklist items for a list of nodes, or `null` if any is not a bare upgrade. */
+function upgradeItems(nodes: readonly Prereq[]): SimplePrereqItem[] | null {
+  const items: SimplePrereqItem[] = []
+  for (const node of nodes) {
+    if (node.type !== 'upgrade') return null
+    items.push({ id: node.id, minLevel: node.minLevel })
+  }
+  return items
 }
 
 export function asSimplePrereq(prereq: Prereq | undefined): SimplePrereq | null {
-  if (!prereq) return { mode: 'all', items: [] }
+  if (!prereq) return { mode: 'all', items: [], hitByAttack: false }
   if (prereq.type === 'upgrade') {
-    return { mode: 'all', items: [{ id: prereq.id, minLevel: prereq.minLevel }] }
+    return {
+      mode: 'all',
+      items: [{ id: prereq.id, minLevel: prereq.minLevel }],
+      hitByAttack: false,
+    }
   }
-  const flat = prereq.items.every((i) => i.type === 'upgrade')
-  if (!flat) return null
-  return {
-    mode: prereq.type,
-    items: prereq.items.map((i) => {
-      const u = i as { id: string; minLevel?: number }
-      return { id: u.id, minLevel: u.minLevel }
-    }),
+  // Only the checkbox's exact gate is representable; another key or threshold
+  // is JSON territory.
+  if (prereq.type === 'meta')
+    return isHitByAttack(prereq) ? { mode: 'all', items: [], hitByAttack: true } : null
+
+  const plain = upgradeItems(prereq.items)
+  if (plain) return { mode: prereq.type, items: plain, hitByAttack: false }
+  if (prereq.type !== 'all') return null
+
+  // `all` of [upgrades…, hit-by-attack] — or of [any(upgrades…), hit-by-attack],
+  // which is how `fromSimplePrereq` spells an any-group with the checkbox on.
+  const metas = prereq.items.filter((i) => i.type === 'meta')
+  if (metas.length !== 1 || !isHitByAttack(metas[0])) return null
+  const rest = prereq.items.filter((i) => i.type !== 'meta')
+  const restItems = upgradeItems(rest)
+  if (restItems) return { mode: 'all', items: restItems, hitByAttack: true }
+  if (rest.length === 1 && rest[0].type === 'any') {
+    const inner = upgradeItems(rest[0].items)
+    if (inner) return { mode: 'any', items: inner, hitByAttack: true }
   }
+  return null
 }
 
 export function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
   // A minLevel of 1 is the default ("owned"), so drop it to keep the JSON terse.
-  const toExpr = (item: SimplePrereqItem): Prereq =>
+  const toExpr = (item: SimplePrereqItem): UpgradeNode =>
     item.minLevel !== undefined && item.minLevel > 1
       ? { type: 'upgrade', id: item.id, minLevel: item.minLevel }
       : { type: 'upgrade', id: item.id }
-  if (simple.items.length === 0) return undefined
-  if (simple.items.length === 1) return toExpr(simple.items[0])
-  return { type: simple.mode, items: simple.items.map(toExpr) }
+  const upgrades: Prereq | undefined =
+    simple.items.length === 0
+      ? undefined
+      : simple.items.length === 1
+        ? toExpr(simple.items[0])
+        : { type: simple.mode, items: simple.items.map(toExpr) }
+  if (!simple.hitByAttack) return upgrades
+  if (!upgrades) return HIT_BY_ATTACK
+  // The checkbox ANDs onto the checklist: an `all` group flattens, an `any`
+  // group (or a lone upgrade) nests as one member beside the gate.
+  const members = upgrades.type === 'all' ? upgrades.items : [upgrades]
+  return { type: 'all', items: [...members, HIT_BY_ATTACK] }
 }
 
 // ─── DOM helpers ─────────────────────────────────────────────────────
@@ -384,10 +440,23 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
       if (String(minLevel) !== level.value) level.value = String(minLevel)
       items.push({ id: box.value, minLevel: minLevel > 1 ? minLevel : undefined })
     }
-    ctx.node.prerequisites = fromSimplePrereq({ mode: modeSelect.value as 'all' | 'any', items })
+    ctx.node.prerequisites = fromSimplePrereq({
+      mode: modeSelect.value as 'all' | 'any',
+      items,
+      hitByAttack: hitBox.checked,
+    })
     ctx.onChange()
   }
   modeSelect.addEventListener('change', sync)
+
+  // The one `meta` gate the tree authors today: the node stays locked
+  // until an enemy active strike has landed on the player.
+  const hitBox = el('input')
+  hitBox.type = 'checkbox'
+  hitBox.checked = simple.hitByAttack
+  hitBox.addEventListener('change', sync)
+  const hitLabel = el('label', 'ed-checkbox')
+  hitLabel.append(hitBox, document.createTextNode(' also requires being hit by an enemy attack'))
 
   const selected = new Map(simple.items.map((i) => [i.id, i.minLevel ?? 1]))
   for (const id of ctx.allIds) {
@@ -421,7 +490,7 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
     checklist.append(row)
   }
 
-  section.append(field('Require', modeSelect), checklist)
+  section.append(field('Require', modeSelect), checklist, hitLabel)
   return section
 }
 

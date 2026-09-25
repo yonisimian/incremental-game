@@ -369,6 +369,26 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
 
+  // `attackAlert`: a reveal grant shows the *name* on a warning, so a
+  // mode whose grants reveal but never grant a lead has a node that is bought
+  // and does nothing — there is no warning to put the name on. Judged by ref
+  // fields; a lead on the mode or on any upgrade (owned or not) is enough.
+  {
+    const alerts = { grantsLead: false, revealOnly: [] as string[] }
+    const noteAlert = (where: string, ref: EffectRef): void => {
+      if (ref.type !== 'attackAlert') return
+      if (typeof ref.leadSec === 'number' && ref.leadSec > 0) alerts.grantsLead = true
+      else if (ref.revealAttack === true) alerts.revealOnly.push(where)
+    }
+    for (const ref of def.effects ?? []) noteAlert('the mode', ref)
+    for (const u of def.upgrades)
+      for (const ref of u.effects ?? []) noteAlert(`upgrade '${u.id}'`, ref)
+    if (alerts.revealOnly.length > 0 && !alerts.grantsLead)
+      throw new Error(
+        `[${id}] ${alerts.revealOnly[0]} has an attackAlert reveal but no attackAlert in the mode grants a lead (leadSec) — there is no warning to put the name on`,
+      )
+  }
+
   // `unlockPact` effects name a pact by id; validate against the mode's pacts
   // so an authored typo fails loudly instead of unlocking nothing.
   const pactIds = new Set(def.pacts.map((p) => p.id))

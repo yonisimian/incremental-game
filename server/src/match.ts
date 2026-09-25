@@ -35,6 +35,9 @@ import {
   ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
   applyHighlightSelection,
+  ATTACKS_SUFFERED_META_KEY,
+  collectAttackAlert,
+  incomingAttacksWithin,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -516,6 +519,10 @@ export class Match {
         if (!isValidGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)
         this.recordPurchase(botPlayer, 'generator', action.generatorId)
+      } else if (action.type === 'activate_attack') {
+        // The same gate a human's activation passes — the bot gets no shortcut.
+        if (!isValidAttackActivation(botPlayer.state, action.attackId, this.modeDef)) continue
+        applyAttackActivation(botPlayer.state, action.attackId, this.modeDef)
       } else {
         // set_highlight — same validator as processActions, by construction now.
         applyHighlightSelection(botPlayer.state, this.modeDef, action.highlight)
@@ -586,6 +593,11 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        // Every landed active strike counts toward the `meta` prerequisites that
+        // unlock defensive nodes, even one that moved nothing — being attacked
+        // is what the gate asks about. A passive attack never passes through here.
+        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
+          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         if (moved.length === 0) {
           // The strike landed but moved nothing (the victim owned none of the
           // target). Report it to both sides: the attacker gets feedback that
@@ -840,7 +852,36 @@ export class Match {
       this.projectPurchaseFeed(viewer, opponent, view)
     }
 
+    this.projectIncomingAttacks(viewer, opponent, view)
+
     return view
+  }
+
+  /**
+   * Warn `viewer` of the opponent's pending strikes due within the viewer's
+   * `attackAlert` lead. Unlike the purchase feed this is *state*, not
+   * a delta: the full list of strikes inside the lead goes out every broadcast
+   * and the client replaces, never accumulates — so no watermark, no per-viewer
+   * bookkeeping. `readyAtSec` is on the attacker's clock, which advances in
+   * lockstep with the viewer's (one tick loop), so the viewer counts down
+   * against its own `meta.gameSec`. The attack id is included only with a
+   * reveal grant. Absent when empty, like every other optional view field.
+   */
+  private projectIncomingAttacks(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    view: OpponentView,
+  ): void {
+    const alert = collectAttackAlert(viewer.state, this.modeDef)
+    if (alert.leadSec <= 0) return
+    const gameSec = (opponent.state.meta.gameSec as number | undefined) ?? 0
+    const soon = incomingAttacksWithin(opponent.state, gameSec, alert)
+    if (soon.length === 0) return
+    view.incomingAttacks = soon.map((p) =>
+      alert.revealAttack
+        ? { readyAtSec: p.readyAtSec, attack: p.attack }
+        : { readyAtSec: p.readyAtSec },
+    )
   }
 
   /**

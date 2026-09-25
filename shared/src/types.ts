@@ -1,4 +1,16 @@
-/** Recursive prerequisite expression with AND / OR semantics. */
+import type { PrerequisiteMetaKey } from './prerequisites.js'
+
+/**
+ * Recursive prerequisite expression with AND / OR semantics.
+ *
+ * `upgrade` tests owned levels. `meta` tests a counter the server stamps on
+ * `PlayerState.meta` (e.g. `attacksSuffered`, how many enemy strikes have
+ * landed on this player) — the only prerequisite kind that reads live state
+ * rather than the tree, which is what lets a node unlock in response to what
+ * the *opponent* did. Its `key` is drawn from a whitelist
+ * (`PREREQUISITE_META_KEYS`) so a typo fails at boot instead of locking the
+ * node for good.
+ */
 export type PrerequisiteExpression =
   | { readonly type: 'all'; readonly items: readonly PrerequisiteExpression[] }
   | { readonly type: 'any'; readonly items: readonly PrerequisiteExpression[] }
@@ -6,6 +18,12 @@ export type PrerequisiteExpression =
       readonly type: 'upgrade'
       readonly id: string
       readonly minLevel?: number
+    }
+  | {
+      readonly type: 'meta'
+      readonly key: PrerequisiteMetaKey
+      /** Satisfied once `state.meta[key]` reaches this (a positive integer). */
+      readonly min: number
     }
 
 export type UpgradePrerequisites = PrerequisiteExpression

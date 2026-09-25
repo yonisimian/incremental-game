@@ -26,6 +26,7 @@ function makeState(
     player: { score: 0, resources: {}, upgrades, generators: {}, pendingAttacks: [], meta },
     opponent: { score: 0, resources: {}, rates: {} },
     opponentPurchaseFeed: [],
+    incomingAttacks: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

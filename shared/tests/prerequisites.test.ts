@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatPrerequisiteExpression,
+  getPrerequisiteUpgradeIds,
   isPrerequisiteSatisfied,
   validateUpgradePrerequisites,
 } from '../src/prerequisites.js'
-import type { PlayerState, UpgradeDefinition } from '../src/types.js'
+import type { PrerequisiteMetaKey } from '../src/prerequisites.js'
+import type { PlayerState, PrerequisiteExpression, UpgradeDefinition } from '../src/types.js'
 
 const baseState: PlayerState = {
   score: 0,
@@ -109,6 +111,59 @@ describe('isPrerequisiteSatisfied', () => {
     }
     expect(isPrerequisiteSatisfied(expr, ownedState)).toBe(true)
   })
+
+  describe('meta prerequisites', () => {
+    const hitOnce: PrerequisiteExpression = { type: 'meta', key: 'attacksSuffered', min: 1 }
+
+    it('reads an unstamped counter as zero', () => {
+      expect(isPrerequisiteSatisfied(hitOnce, baseState)).toBe(false)
+    })
+
+    it('is satisfied once the counter reaches min (inclusive)', () => {
+      const hit = { ...baseState, meta: { attacksSuffered: 1 } }
+      expect(isPrerequisiteSatisfied(hitOnce, hit)).toBe(true)
+      expect(isPrerequisiteSatisfied({ type: 'meta', key: 'attacksSuffered', min: 2 }, hit)).toBe(
+        false,
+      )
+      expect(
+        isPrerequisiteSatisfied(
+          { type: 'meta', key: 'attacksSuffered', min: 2 },
+          { ...baseState, meta: { attacksSuffered: 2 } },
+        ),
+      ).toBe(true)
+    })
+
+    it('ignores a non-numeric value under the key', () => {
+      const odd = { ...baseState, meta: { attacksSuffered: 'lots' } }
+      expect(isPrerequisiteSatisfied(hitOnce, odd)).toBe(false)
+    })
+
+    it('composes with upgrade prerequisites', () => {
+      const expr: PrerequisiteExpression = {
+        type: 'all',
+        items: [{ type: 'upgrade', id: 'u0' }, hitOnce],
+      }
+      expect(isPrerequisiteSatisfied(expr, ownedState)).toBe(false)
+      expect(isPrerequisiteSatisfied(expr, { ...ownedState, meta: { attacksSuffered: 1 } })).toBe(
+        true,
+      )
+    })
+  })
+})
+
+describe('getPrerequisiteUpgradeIds', () => {
+  it('omits meta prerequisites, which name no upgrade', () => {
+    expect(
+      getPrerequisiteUpgradeIds({
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'u0' },
+          { type: 'meta', key: 'attacksSuffered', min: 1 },
+        ],
+      }),
+    ).toEqual(['u0'])
+    expect(getPrerequisiteUpgradeIds({ type: 'meta', key: 'attacksSuffered', min: 1 })).toEqual([])
+  })
 })
 
 describe('formatPrerequisiteExpression', () => {
@@ -147,6 +202,24 @@ describe('formatPrerequisiteExpression', () => {
     expect(formatPrerequisiteExpression(expr, (id) => names[id] ?? id)).toBe(
       'Sawmill or Tavern (level 2+)',
     )
+  })
+
+  it('renders a meta prerequisite by its label, with ×N above one', () => {
+    expect(formatPrerequisiteExpression({ type: 'meta', key: 'attacksSuffered', min: 1 })).toBe(
+      'being hit by an enemy attack',
+    )
+    expect(formatPrerequisiteExpression({ type: 'meta', key: 'attacksSuffered', min: 3 })).toBe(
+      'being hit by an enemy attack ×3',
+    )
+    expect(
+      formatPrerequisiteExpression({
+        type: 'all',
+        items: [
+          { type: 'upgrade', id: 'u0' },
+          { type: 'meta', key: 'attacksSuffered', min: 1 },
+        ],
+      }),
+    ).toBe('u0 and being hit by an enemy attack')
   })
 })
 
@@ -227,5 +300,42 @@ describe('validateUpgradePrerequisites', () => {
     expect(() => {
       validateUpgradePrerequisites([makeUpgrade('u0', { type: 'any', items: [] })])
     }).toThrow(/empty 'any' prerequisite group/)
+  })
+
+  it('accepts a whitelisted meta prerequisite and keeps it out of the cycle graph', () => {
+    expect(() => {
+      validateUpgradePrerequisites([
+        makeUpgrade('u0', { type: 'meta', key: 'attacksSuffered', min: 1 }),
+        makeUpgrade('u1', {
+          type: 'all',
+          items: [
+            { type: 'upgrade', id: 'u0' },
+            { type: 'meta', key: 'attacksSuffered', min: 2 },
+          ],
+        }),
+      ])
+    }).not.toThrow()
+  })
+
+  it('rejects an unknown meta key', () => {
+    expect(() => {
+      validateUpgradePrerequisites([
+        makeUpgrade('u0', {
+          type: 'meta',
+          key: 'notAKey' as PrerequisiteMetaKey,
+          min: 1,
+        }),
+      ])
+    }).toThrow(/unknown meta prerequisite 'notAKey'/)
+  })
+
+  it('rejects a meta min that is not a positive integer', () => {
+    for (const min of [0, -1, 1.5]) {
+      expect(() => {
+        validateUpgradePrerequisites([
+          makeUpgrade('u0', { type: 'meta', key: 'attacksSuffered', min }),
+        ])
+      }).toThrow(/invalid min/)
+    }
   })
 })

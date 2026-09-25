@@ -54,6 +54,7 @@ function makeState(locks?: PurchaseLock[]): GameState {
     player,
     opponent: { resources: {}, rates: {} },
     opponentPurchaseFeed: [],
+    incomingAttacks: [],
     debuffs: [],
     timeLeft: 60,
     paused: false,

@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type IncomingAttack,
   type ModeDefinition,
   type Modifier,
   type OpponentView,
@@ -77,6 +78,7 @@ import {
   shockwave,
   spawnToast,
 } from './ui/vfx/index.js'
+import type { ToastHandle } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
 import { formatDecimal, formatNumber } from './ui/format-number.js'
@@ -115,6 +117,14 @@ export interface GameState {
    * debuffed income the server actually applies. Reset at the start of each match.
    */
   debuffs: Modifier[]
+  /**
+   * Enemy strikes due to land on this player within their `attackAlert` lead
+   * *Replaced* from each `STATE_UPDATE` (it is state, not a delta —
+   * empty when the snapshot carries none), so an entry vanishes the broadcast
+   * after its strike lands. The header badge and the espionage panel count
+   * down against `player.meta.gameSec`. Reset at the start of each match.
+   */
+  incomingAttacks: IncomingAttack[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -195,6 +205,7 @@ const state: GameState = {
   opponent: emptyOpponentView(),
   opponentPurchaseFeed: [],
   debuffs: [],
+  incomingAttacks: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -630,6 +641,8 @@ export function resetForMatch(): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -676,6 +689,8 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -710,6 +725,12 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
   state.debuffs = msg.debuffs ?? []
+  // The alert list is state, not a delta: replace it, and keep one toast per
+  // strike in view — counting down, gone once the strike lands.
+  const incoming = msg.opponent.incomingAttacks ?? []
+  const modeDefForAlerts = state.mode ? getModeDefinition(state.mode) : undefined
+  syncIncomingAttackToasts(incoming, msg.player, modeDefForAlerts)
+  state.incomingAttacks = incoming
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
@@ -803,6 +824,8 @@ function handleRoundEnd(msg: RoundEndMessage): void {
   state.screen = 'ended'
   state.endData = msg
   state.paused = false
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.player.score = msg.finalScores.player
   // Omitted for buy-upgrade (opponent score is never revealed in race-to-buy).
   if (msg.finalScores.opponent !== undefined) state.opponent.score = msg.finalScores.opponent
@@ -910,6 +933,59 @@ function showAttackEvents(
       shakeScreen('medium')
     }
   }
+}
+
+/** A warning's identity across broadcasts: the strike's landing time plus what it names. */
+function incomingAttackKey(a: IncomingAttack): string {
+  return `${a.readyAtSec}:${a.attack ?? ''}`
+}
+
+/** The live warning toast for each strike in view, by {@link incomingAttackKey}. */
+const incomingAttackToasts = new Map<string, ToastHandle>()
+
+/**
+ * Keep one sticky `warning` toast per enemy strike in view: spawned when the
+ * strike first appears, its countdown rewritten on each snapshot, and dismissed
+ * once the strike leaves the list (it landed) — so the warning never vanishes
+ * before the attack does, however long the lead. The remaining time is read
+ * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
+ * the attack, otherwise a generic "Incoming attack".
+ */
+function syncIncomingAttackToasts(
+  next: readonly IncomingAttack[],
+  player: Readonly<PlayerState>,
+  modeDef: ModeDefinition | undefined,
+): void {
+  const inView = new Set<string>()
+  if (modeDef) {
+    const gameSec = (player.meta.gameSec as number | undefined) ?? 0
+    const flavor = getModeFlavor(modeDef)
+    for (const a of next) {
+      const key = incomingAttackKey(a)
+      inView.add(key)
+      // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
+      // toast reading "4s" beside them would look like a different clock.
+      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
+      const what = a.attack
+        ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
+        : 'Incoming attack'
+      const text = `⚠️ ${what} in ${inSec}s`
+      const toast = incomingAttackToasts.get(key)
+      if (toast) toast.update(text)
+      else incomingAttackToasts.set(key, spawnToast(text, 'warning', { sticky: true }))
+    }
+  }
+  for (const [key, toast] of incomingAttackToasts) {
+    if (inView.has(key)) continue
+    toast.dismiss()
+    incomingAttackToasts.delete(key)
+  }
+}
+
+/** Dismiss every warning toast — the round is starting, over, or left. */
+function clearIncomingAttackToasts(): void {
+  for (const toast of incomingAttackToasts.values()) toast.dismiss()
+  incomingAttackToasts.clear()
 }
 
 function computeClickIncome(player: PlayerState): number {

@@ -268,6 +268,37 @@ describe('tree codec — validation failures', () => {
     ).toThrow()
   })
 
+  it('accepts a meta prerequisite with a whitelisted key and rejects an unknown one', () => {
+    const tree = minimalTree()
+    tree.upgrades = [
+      {
+        id: 'a',
+        cost: { r0: { baseCost: 5 } },
+        purchaseLimit: 1,
+        prerequisites: { type: 'meta', key: 'attacksSuffered', min: 1 },
+        offset: { x: 0, y: 0 },
+      },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a')]
+    expect(() => parseTreeFile(tree)).not.toThrow()
+    expect(() =>
+      parseTreeFile({
+        ...tree,
+        upgrades: [
+          { ...tree.upgrades[0], prerequisites: { type: 'meta', key: 'peakCps', min: 1 } },
+        ],
+      }),
+    ).toThrow()
+    expect(() =>
+      parseTreeFile({
+        ...tree,
+        upgrades: [
+          { ...tree.upgrades[0], prerequisites: { type: 'meta', key: 'attacksSuffered', min: 0 } },
+        ],
+      }),
+    ).toThrow()
+  })
+
   it('rejects a cost entry with scaleType but no scaleFactor (must co-occur)', () => {
     const tree = minimalTree()
     tree.upgrades = [

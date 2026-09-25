@@ -88,6 +88,7 @@ function makeState(mode: ModeDefinition, owned: Record<string, number>): GameSta
     player,
     opponent: { score: 0, resources: {}, rates: {} },
     opponentPurchaseFeed: [],
+    incomingAttacks: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

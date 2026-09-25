@@ -1404,6 +1404,10 @@ describe('Match', () => {
       ),
     )!
 
+    /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
+    const prepareMs = (attackId: string): number =>
+      mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
@@ -1430,8 +1434,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
 
-      // Advance past the 3s preparation; the strike lands and drains the pending queue.
-      vi.advanceTimersByTime(3000)
+      // Advance past the preparation; the strike lands and drains the pending queue.
+      vi.advanceTimersByTime(prepareMs('a0'))
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
 
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
@@ -1442,6 +1446,24 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
       )
+
+      // The hit is counted on the victim (for `meta` prerequisites), never the attacker.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
+      expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeUndefined()
+    })
+
+    it('counts every landed strike on the victim', () => {
+      const m = enterPlaying()
+      armAttacker(m)
+      m.grantResourcesForTest('p1', { r0: 10_000 })
+      m.grantResourcesForTest('p2', { r0: 1000 })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      m.handleMessage('p1', activateMsg('a0', 4))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(2)
     })
 
     it('tells both sides when a strike steals nothing', () => {
@@ -1453,7 +1475,7 @@ describe('Match', () => {
       // p2 owns no Sawmills (g2), so the poach can move nothing.
 
       m.handleMessage('p1', activateMsg('a5', 3))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + 3000)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a5'))
 
       // The attacker is told the strike landed but moved nothing.
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
@@ -1465,6 +1487,8 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a5', direction: 'incoming', kind: 'none' }),
       )
+      // Being attacked is what the defensive gate asks about, so a miss counts too.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
     })
 
     // ── Duration attacks (plan 37) ─────────────────────────────────
@@ -1737,6 +1761,119 @@ describe('Match', () => {
       } finally {
         registerMode('idler', base)
       }
+    })
+
+    // ── Attack alert ───────────────────────────────────────────────
+
+    describe('attack alert', () => {
+      /**
+       * The idler plus three free alert nodes for the *victim* (p2): a 4s lead,
+       * a +1s level, and a reveal. Nothing in the tree carries `attackAlert`
+       * yet, so the mode is patched here; the tree gets its own authoring pass.
+       */
+      function withAlertNodes(): ModeDefinition {
+        const base = getModeDefinition('idler')
+        const node = (id: string, effects: ModeDefinition['upgrades'][number]['effects']) => ({
+          id,
+          cost: {},
+          purchaseLimit: 1,
+          effects,
+        })
+        const upgrades = [
+          ...base.upgrades,
+          node('t-alert', [{ type: 'attackAlert', leadSec: 4 }]),
+          node('t-longer', [{ type: 'attackAlert', leadSec: 1 }]),
+          node('t-reveal', [{ type: 'attackAlert', revealAttack: true }]),
+        ]
+        const flavor = base.flavors[0]
+        const patched: ModeDefinition = {
+          ...base,
+          upgrades,
+          flavors: [
+            {
+              ...flavor,
+              upgrades: [
+                ...flavor.upgrades,
+                { id: 't-alert', name: 'Alert', icon: '🛡️', description: '' },
+                { id: 't-longer', name: 'Longer', icon: '🛡️', description: '' },
+                { id: 't-reveal', name: 'Reveal', icon: '🛡️', description: '' },
+              ],
+            },
+          ],
+        }
+        validateModeDefinition('idler', patched)
+        return patched
+      }
+
+      /** p1 arms a0 and fires it; returns the strike's `readyAtSec` as p1 sees it. */
+      function fireA0(m: Match, seq: number): number {
+        m.handleMessage('p1', activateMsg('a0', seq))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const pending = latestUpdate(ws1).player.pendingAttacks
+        expect(pending).toHaveLength(1)
+        return pending[0].readyAtSec
+      }
+
+      it('is absent for a viewer with no alert grant, however close the strike', () => {
+        const m = enterPlaying()
+        armAttacker(m)
+        fireA0(m, 3)
+        // Right up to the last broadcast before it lands, p2 sees nothing.
+        vi.advanceTimersByTime(prepareMs('a0') - BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+        // Serialized, not merely typed: the field must not reach the wire.
+        expect(JSON.stringify(latestUpdate(ws2).opponent)).not.toContain('incomingAttacks')
+      })
+
+      it('warns the victim once the strike is within the lead, and drops it when it lands', () => {
+        const base = getModeDefinition('idler')
+        registerMode('idler', withAlertNodes())
+        try {
+          const m = enterPlaying()
+          armAttacker(m)
+          m.handleMessage('p2', buyMsg('t-alert', 1)) // 4s lead vs a 6s prepare
+          const readyAtSec = fireA0(m, 3)
+
+          // Just after activation: ~5.5s remain, outside the 4s lead.
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+
+          // Two more seconds in: inside the lead. No reveal → no attack id.
+          vi.advanceTimersByTime(2000)
+          const warned = latestUpdate(ws2).opponent.incomingAttacks
+          expect(warned).toEqual([{ readyAtSec }])
+          expect(JSON.stringify(warned)).not.toContain('attack')
+          // The attacker is never warned about their own strike.
+          expect(latestUpdate(ws1).opponent.incomingAttacks).toBeUndefined()
+
+          // Landed: the list is gone with the pending entry.
+          vi.advanceTimersByTime(prepareMs('a0'))
+          expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+        } finally {
+          registerMode('idler', base)
+        }
+      })
+
+      it('names the attack only with a reveal grant, and levels extend the lead', () => {
+        const base = getModeDefinition('idler')
+        registerMode('idler', withAlertNodes())
+        try {
+          const m = enterPlaying()
+          armAttacker(m)
+          m.handleMessage('p2', buyMsg('t-alert', 1))
+          m.handleMessage('p2', buyMsg('t-longer', 2)) // 5s lead
+          m.handleMessage('p2', buyMsg('t-reveal', 3))
+          const readyAtSec = fireA0(m, 3)
+
+          // ~5.5s remain: still outside even the extended lead.
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+          // One more broadcast: ~5.0s remain, inside a 5s lead but not a 4s one.
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toEqual([{ readyAtSec, attack: 'a0' }])
+        } finally {
+          registerMode('idler', base)
+        }
+      })
     })
 
     it('rejects an activation the player cannot afford', () => {

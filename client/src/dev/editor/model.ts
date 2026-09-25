@@ -128,6 +128,7 @@ export function prerequisiteRefs(node: TreeUpgradeNode): string[] {
       refs.push(expr.id)
       return
     }
+    if (expr.type === 'meta') return // names no upgrade — nothing to draw
     for (const item of expr.items) collect(item)
   }
   collect(node.prerequisites)
@@ -280,6 +281,7 @@ function subtreeIds(node: TreeUpgradeNode): string[] {
 /** Drop references to any removed id from a prerequisite expression. */
 function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undefined {
   if (expr.type === 'upgrade') return removed.has(expr.id) ? undefined : expr
+  if (expr.type === 'meta') return expr // references no node, so nothing to prune
   const items = expr.items
     .map((item) => prunePrereq(item, removed))
     .filter((item): item is Prereq => item !== undefined)
@@ -290,6 +292,7 @@ function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undef
 /** Rewrite every reference to `oldId` as `newId` within a prerequisite expression. */
 function renamePrereqRef(expr: Prereq, oldId: string, newId: string): Prereq {
   if (expr.type === 'upgrade') return expr.id === oldId ? { ...expr, id: newId } : expr
+  if (expr.type === 'meta') return expr
   return { type: expr.type, items: expr.items.map((item) => renamePrereqRef(item, oldId, newId)) }
 }
 

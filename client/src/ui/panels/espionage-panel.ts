@@ -18,6 +18,7 @@ import {
   highlightDebuffFactor,
   HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
+import { getAttackIcon, getAttackName } from '@game/shared'
 import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -115,6 +116,27 @@ function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): 
 }
 
 /**
+ * One line per enemy strike inside the viewer's alert lead, soonest
+ * first, counting down against the viewer's own `meta.gameSec` — the same clock
+ * `readyAtSec` was stamped on (both advance in lockstep). Named when the alert
+ * reveals the attack; a bare "Enemy attack" otherwise. Steps at snapshot
+ * cadence like the panel's other countdowns.
+ */
+function describeIncomingAttacks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
+  if (state.incomingAttacks.length === 0) return []
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  return [...state.incomingAttacks]
+    .sort((a, b) => a.readyAtSec - b.readyAtSec)
+    .map((a) => {
+      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
+      const what = a.attack
+        ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
+        : 'Enemy attack'
+      return `⚠️ ${what} lands in ${inSec}s.`
+    })
+}
+
+/**
  * Standing warning about the passive attacks the opponent holds against this
  * player — a weakened highlight factor, inflated prices, or both.
  *
@@ -149,6 +171,7 @@ function renderIncomingDebuffs(state: Readonly<GameState>, flavor: ModeFlavor): 
   }
   lines.push(...describeCostInflation(state, flavor))
   lines.push(...describePurchaseLocks(state, flavor))
+  lines.push(...describeIncomingAttacks(state, flavor))
   if (lines.length === 0) return ''
   const body = lines.map((line) => `<p class="espionage-warning">${line}</p>`).join('')
   return `
