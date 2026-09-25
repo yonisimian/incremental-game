@@ -605,26 +605,34 @@ describe('enemyPurchaseLock params', () => {
     return applyEffect(ref, createInitialState(mode), mode)
   }
 
-  it('maps each target to the scopes it bars', () => {
+  it('maps each target to what it bars', () => {
     expect(apply({ type: 'enemyPurchaseLock', target: 'upgrades' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['upgrade'],
+      targets: [{ scope: 'upgrade' }],
     })
     expect(apply({ type: 'enemyPurchaseLock', target: 'generators' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['generator'],
+      targets: [{ scope: 'generator' }],
     })
     expect(apply({ type: 'enemyPurchaseLock', target: 'purchases' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['upgrade', 'generator'],
+      targets: [{ scope: 'upgrade' }, { scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrade:u0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade', id: 'u0' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generator:g0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator', id: 'g0' }],
     })
   })
 
-  // A closed enum, unlike `enemyCostModifier`'s catalog string: there is no
-  // per-entity form, so anything else is a typo the schema itself can reject.
-  it('rejects any other target, including a per-entity one', () => {
-    for (const target of ['upgrade:u0', 'generator:g0', 'all', '']) {
-      expect(() => apply({ type: 'enemyPurchaseLock', target })).toThrow()
+  // A catalog string like `enemyCostModifier`'s: the schema only checks it is a
+  // string, `apply` stays inert on an unrecognized key, and boot rejects it.
+  it('is inert for an unrecognized target and rejects a missing one', () => {
+    for (const target of ['all', '']) {
+      expect(apply({ type: 'enemyPurchaseLock', target })).toBeNull()
     }
     expect(() => apply({ type: 'enemyPurchaseLock' })).toThrow()
   })

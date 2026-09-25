@@ -148,7 +148,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const nextCost = getGeneratorCost(effectiveDef, owned)
       // Buying is gated exactly as `generatorBlockReason` gates it: unlocked,
       // no enemy purchase lock, then affordable.
-      const attackLocked = isPurchaseLockedByAttack(state, 'generator')
+      const attackLocked = isPurchaseLockedByAttack(state, 'generator', def.id)
       const buyable = unlocked && !attackLocked
       const affordable = buyable && canAffordGenerator(state.player, effectiveDef)
       const maxAffordable = buyable ? getMaxAffordableGeneratorCount(state.player, effectiveDef) : 0
@@ -180,7 +180,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         inflated,
         locked: !unlocked,
-        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator') } : {}),
+        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator', def.id) } : {}),
       })
     })
     .join('')

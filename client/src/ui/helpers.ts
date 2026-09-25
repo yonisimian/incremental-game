@@ -160,12 +160,16 @@ export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefini
 }
 
 /**
- * Is an opponent's open attack window barring this player from buying `scope`?
- * The client-side face of the `'locked-by-attack'` block reason,
+ * Is an opponent's open attack window barring this player from buying `id` of
+ * `scope`? The client-side face of the `'locked-by-attack'` block reason,
  * reading the same server-stamped field the server validates against.
  */
-export function isPurchaseLockedByAttack(state: Readonly<GameState>, scope: CostScope): boolean {
-  return isPurchaseLocked(state.player, scope)
+export function isPurchaseLockedByAttack(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): boolean {
+  return isPurchaseLocked(state.player, scope, id)
 }
 
 /**
@@ -174,8 +178,12 @@ export function isPurchaseLockedByAttack(state: Readonly<GameState>, scope: Cost
  * card, so the three agree. Omits the seconds when the countdown is unknown
  * (`null`), which cannot happen for a stamped lock but keeps the helper total.
  */
-export function purchaseLockLabel(state: Readonly<GameState>, scope: CostScope): string {
-  const remaining = purchaseLockRemainingSec(state.player, scope)
+export function purchaseLockLabel(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): string {
+  const remaining = purchaseLockRemainingSec(state.player, scope, id)
   return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
 }
 
@@ -187,7 +195,7 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
     !isAttackSlotBlocked(state, u) &&
-    !isPurchaseLockedByAttack(state, 'upgrade') &&
+    !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
     canAfford(state, u)
   )
 }
