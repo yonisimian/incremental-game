@@ -118,10 +118,7 @@ export interface PurchaseEvent {
  * fired attack always yields feedback and the target learns of the attempt.
  */
 export type AttackEvent =
-  | ResourceAttackEvent
-  | GeneratorAttackEvent
-  | DebuffAttackEvent
-  | MissedAttackEvent
+  ResourceAttackEvent | GeneratorAttackEvent | DebuffAttackEvent | MissedAttackEvent
 
 /** Fields every strike event carries, whatever it moved. */
 interface AttackEventBase {
