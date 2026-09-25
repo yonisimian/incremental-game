@@ -164,6 +164,14 @@ export function effectFieldOptions(
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))
   }
+  if (effectType === 'enemyPurchaseLock' && fieldKey === 'target') {
+    // Same wording as `enemyCostModifier`'s whole-scope targets.
+    return [
+      { value: 'upgrades', label: 'All upgrades' },
+      { value: 'generators', label: 'All generators' },
+      { value: 'purchases', label: 'All upgrades and generators' },
+    ]
+  }
   if (
     (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&
     fieldKey === 'generator'
