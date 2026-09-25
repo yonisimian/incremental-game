@@ -525,7 +525,11 @@ export class Match {
     // resource they're holding right now.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, this.modeDef), player.state),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(opponent.state, this.modeDef),
+        player.state,
+        this.modeDef,
+      ),
     ]
     applyPassiveTick(
       player.state,
@@ -631,13 +635,14 @@ export class Match {
     player.state.meta.peakCps = player.stats.peakCps
 
     // The clicker's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict — appended last so a `clickIncome` debuff
-    // scales the finished figure, matching `applyPassiveIncome`.
+    // unlocked passive attacks inflict. Resolving tags a `clickIncome` debuff as
+    // incoming, which is what orders it after the clicker's own click power.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
       ...resolveEnemyDebuffs(
         collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
         player.state,
+        this.modeDef,
       ),
     ]
     const income = computeClickIncome(modifiers)
@@ -789,7 +794,7 @@ export class Match {
         rates ??= computePassiveRates(
           [
             ...collectModifiers(opponent.state, mode),
-            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state),
+            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state, mode),
           ],
           mode.resources,
         )

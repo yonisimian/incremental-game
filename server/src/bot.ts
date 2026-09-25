@@ -252,7 +252,7 @@ export class IdlerBot implements BotStrategy {
     // Cost-reduction factors depend on owned upgrades, not generator counts, so
     // the resolved defs are stable across this tick's buys.
     const resolved = new Map(
-      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef)]),
+      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef, 'buy')]),
     )
     const wallet: Record<string, number> = { ...state.resources }
     const owned: Record<string, number> = { ...state.generators }

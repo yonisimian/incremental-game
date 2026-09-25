@@ -380,14 +380,16 @@ describe('Match', () => {
         })
         expect(latestUpdate(ws1).debuffs).toEqual([])
 
-        // ...and the income it actually applies lands on the held resource.
+        // ...and the income it actually applies lands on the held resource,
+        // bonus-scaled: both hold r0 at a ×2 highlight, and the ×0.9 debuff cuts
+        // the *bonus* to ×1.9, so p2 earns 1.9/2 = 95% of p1 (not 90%).
         const before1 = latestUpdate(ws1).player.resources.r0
         const before2 = latestUpdate(ws2).player.resources.r0
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
         const gain1 = latestUpdate(ws1).player.resources.r0 - before1
         const gain2 = latestUpdate(ws2).player.resources.r0 - before2
         expect(gain1).toBeGreaterThan(0)
-        expect(gain2 / gain1).toBeCloseTo(0.9, 6)
+        expect(gain2 / gain1).toBeCloseTo(0.95, 6)
       } finally {
         registerMode('idler', base)
       }
@@ -443,6 +445,57 @@ describe('Match', () => {
         // Passive income over the interval is equal, so the whole difference is
         // the click: the attacker earns 1, the victim the debuffed 0.5.
         expect(gain1 - gain2).toBeCloseTo(0.5, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it("applies a flat (additive) enemy clickIncome debuff to the victim's click credit", () => {
+      const base = getModeDefinition('idler')
+      // Same isolation as above, but a −2 *additive* click debuff on `a3`: it
+      // subtracts a flat 2 from the victim's per-click income, flooring a base-1
+      // click to 0 (`computeClickIncome` clamps at 0, so nothing is drained).
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'additive',
+                    field: 'clickIncome',
+                    value: -2,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.grantResourcesForTest('p2', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p1', clickMsg(4))
+        m.handleMessage('p2', clickMsg(2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        // Attacker earns its base 1; the victim's 1 is cut by the flat 2 and
+        // floored to 0 — so the whole click gap is the attacker's 1.
+        expect(gain1 - gain2).toBeCloseTo(1, 6)
       } finally {
         registerMode('idler', base)
       }

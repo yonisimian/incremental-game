@@ -20,17 +20,17 @@ import type { EffectDef, EnemyCostOutput } from '../types.js'
  *  - `target: "generator:g0", scalingFactor: 1.1` — their first generator's
  *    price curve grows 10% faster, base price unchanged.
  *
- * Both factors are `>= 1`: on a *friendly* `generatorCost` upgrade a factor
+ * Both factors are `> 1`: on a *friendly* `generatorCost` upgrade a factor
  * below 1 is the whole point, but on an attack it would gift the victim a
  * discount, which is never intended authoring (the same reasoning as
- * `guardModifierValue`'s debuff intent). At least one must be present — a ref
- * setting neither would be a no-op.
+ * `guardModifierValue`'s debuff intent), and exactly 1 would be a no-op. At
+ * least one must be present — a ref setting neither would be inert.
  */
 const schema = z
   .strictObject({
     target: z.string(),
-    costFactor: z.number().min(1).optional(),
-    scalingFactor: z.number().min(1).optional(),
+    costFactor: z.number().gt(1).optional(),
+    scalingFactor: z.number().gt(1).optional(),
   })
   .refine((p) => p.costFactor !== undefined || p.scalingFactor !== undefined, {
     message:

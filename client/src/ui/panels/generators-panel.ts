@@ -128,7 +128,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         (state.player.generators[def.id] ?? 0) > 0,
     )
     .map((def) => {
-      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
       const owned = state.player.generators[def.id] ?? 0
       const unlocked = isGeneratorUnlocked(state.player, def, modeDef)
       const nextCost = getGeneratorCost(effectiveDef, owned)
@@ -148,7 +148,12 @@ function renderAllGenerators(state: Readonly<GameState>): string {
           ? getGeneratorSellRefund(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
           : 0
       const canSell = canSellGenerator(state.player, effectiveDef)
-      const inflated = !isNeutralCostFactors(incomingCostFactors(state.player, 'generator', def.id))
+      // Marked only when the attack actually moved this price (compared against
+      // the player's own-factor price, which is what `'sell'` resolves).
+      const inflated =
+        !isNeutralCostFactors(incomingCostFactors(state.player, 'generator', def.id)) &&
+        nextCost !==
+          getGeneratorCost(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
