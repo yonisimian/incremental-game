@@ -1485,6 +1485,14 @@ body {
   font-weight: 600;
 }
 
+/* Derived stat line — what owned upgrades make of the authored numbers. */
+.attack-stats {
+  grid-column: 2;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .attack-status--preparing {
   color: var(--gold);
 }

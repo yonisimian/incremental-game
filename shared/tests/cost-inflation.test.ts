@@ -12,6 +12,7 @@ import {
   getMaxAffordableGeneratorCount,
   getUpgradeNextCost,
   incomingCostFactors,
+  MAX_ATTACK_PARAM,
   NEUTRAL_COST_FACTORS,
   purchaseBlockReason,
   resolveGeneratorDef,
@@ -120,8 +121,19 @@ function gate(attackId: string): UpgradeDefinition {
   }
 }
 
+/** Doubles both inflation attacks' magnitude per level — including their inflation. */
+const POWER_UP: UpgradeDefinition = {
+  id: 'u-power',
+  cost: { r0: { baseCost: 0 } },
+  purchaseLimit: 3,
+  effects: [
+    { type: 'attackStat', attack: 'a-upgrades', stat: 'power', op: 'mult', value: 2 },
+    { type: 'attackStat', attack: 'a-steepen', stat: 'power', op: 'mult', value: 2 },
+  ],
+}
+
 const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, STEEPEN_G0, ACTIVE_TARIFF]
-const OWN_UPGRADES = [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, FLATTER_G0]
+const OWN_UPGRADES = [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, FLATTER_G0, POWER_UP]
 
 function makeMode(): ModeDefinition {
   return {
@@ -225,6 +237,54 @@ describe('collectEnemyCostFactors', () => {
       { scope: 'upgrade', costFactor: 1.25 },
       { scope: 'generator', id: 'g0', costFactor: 2 },
     ])
+  })
+
+  // Factors are authored `> 1`, so `1 + (f - 1) × power` can't hit the old
+  // `∞ × 0 = NaN` case, but an unbounded power would still price at +∞.
+  it('keeps a factor finite against a saturating power', () => {
+    const mode = makeMode()
+    const state = attacker('a-upgrades')
+    // `2 ** 2000` overflows to Infinity while it is still being collected; the
+    // power ceiling is what holds the factor finite.
+    state.upgrades['u-power'] = 2000
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(Number.isFinite(factor.costFactor)).toBe(true)
+    expect(factor.costFactor).toBeCloseTo(1 + 0.25 * MAX_ATTACK_PARAM)
+  })
+
+  it('scales the growth portion of a factor by the attacker’s power', () => {
+    const mode = makeMode()
+    const state = attacker('a-upgrades')
+    state.upgrades['u-power'] = 1
+    // 1 + (1.25 - 1) × 2 = 1.5 — *not* 1.25 × 2, which would more than double
+    // the 25% bite the author signed off on.
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(factor.costFactor).toBeCloseTo(1.5)
+  })
+
+  it('scales a scalingFactor the same way', () => {
+    const mode = makeMode()
+    const state = attacker('a-steepen')
+    state.upgrades['u-power'] = 1
+    const [factor] = collectEnemyCostFactors(state, mode)
+    expect(factor).toEqual({ scope: 'upgrade', id: 'u-expo', scalingFactor: 2 })
+  })
+
+  it('raises the victim’s quoted price through the scaled factor', () => {
+    const mode = makeMode()
+    const plain = victimOf(mode, 'a-upgrades')
+    const buffedAttacker = attacker('a-upgrades')
+    buffedAttacker.upgrades['u-power'] = 1
+    const buffed = makeState({
+      incomingCostFactors: collectEnemyCostFactors(buffedAttacker, mode),
+    })
+    const def = upgradeMap(mode).get('u-flat')!
+    const base = getUpgradeNextCost(def, 0, upgradeCostFactors(makeState(), 'u-flat')).r0
+    const inflated = getUpgradeNextCost(def, 0, upgradeCostFactors(plain, 'u-flat')).r0
+    const doubled = getUpgradeNextCost(def, 0, upgradeCostFactors(buffed, 'u-flat')).r0
+    expect(base).toBe(100)
+    expect(inflated).toBe(125)
+    expect(doubled).toBe(150)
   })
 })
 

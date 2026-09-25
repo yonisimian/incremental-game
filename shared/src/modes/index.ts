@@ -17,6 +17,10 @@ import type {
 import type { ModeDefinition, ModeFlavor } from './types.js'
 import { readHighlight } from '../highlight.js'
 import { batteryFactor } from '../highlight-battery.js'
+// `attacks.ts` imports `isAttackUnlocked` from here in turn; the cycle is safe
+// because neither module reads the other at load time, only inside functions.
+import { ATTACK_STATS, attackStatsFor, collectAttackParams } from '../attacks.js'
+import { scaleCostFactor, scaleDebuffValue } from '../modifiers/value-guard.js'
 import { recordPurchaseTime } from '../game-clock.js'
 import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
@@ -210,6 +214,81 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
           `[${id}] upgrade '${u.id}' unlockAttack effect references unknown attack '${target}'`,
         )
     }
+  }
+
+  // `attackStat` effects scale an attack's numbers, naming the attack by id.
+  // Validate the id the same way — a typo would silently buff nothing — and
+  // reject a stat aimed at an attack that has no such field:
+  // `prepareCost`/`prepareTime` are forbidden on a passive attack (see below), so
+  // a stat pointed at one is authored dead weight.
+  //
+  // The schema (`guardScaledStatValue`) has already judged each value on its
+  // own; what it cannot see is the *context* — how many copies the owning
+  // upgrade sells, and what the named attack actually authors. Every check here
+  // asks one question in that context: does this ref still do something at every
+  // level a player can buy?
+  const attacksById = new Map(def.attacks.map((a) => [a.id, a]))
+  const checkAttackStat = (where: string, ref: EffectRef, purchaseLimit: number): void => {
+    if (ref.type !== 'attackStat') return
+    // A negative `add` resolves as `1 + value × owned`, so it reaches `0` at
+    // `1/|value|` copies and is floored (useless) from there on. Rejecting it
+    // when the owning upgrade can be bought that many times is what stops a
+    // track whose last levels are bought and do nothing — `mult`, which decays
+    // asymptotically, is the op for a reduction meant to keep stacking. No
+    // attack is named in this check: it is arithmetic on the ref alone.
+    const value = ref.value
+    if (
+      ref.op === 'add' &&
+      typeof value === 'number' &&
+      value < 0 &&
+      1 + value * purchaseLimit <= 0
+    )
+      throw new Error(
+        `[${id}] ${where} attackStat 'add' of ${value} reaches a zero multiplier at ${Math.ceil(-1 / value)} copies, within the upgrade's purchase limit of ${purchaseLimit} — use 'mult' for a reduction that keeps stacking`,
+      )
+
+    const target = ref.attack
+    // A missing id is the schema's to reject (`prepareEffect`, below).
+    if (typeof target !== 'string') return
+    const attack = attacksById.get(target)
+    if (!attack)
+      throw new Error(`[${id}] ${where} attackStat effect references unknown attack '${target}'`)
+    if (typeof ref.stat !== 'string') return
+    // An unknown stat string is the schema's to reject (`prepareEffect`, below),
+    // not this check's — otherwise a typo reads as a kind mismatch.
+    const known: readonly string[] = ATTACK_STATS
+    const legal: readonly string[] = attackStatsFor(attack.kind)
+    if (!known.includes(ref.stat)) return
+    if (!legal.includes(ref.stat))
+      throw new Error(
+        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost and delay)`,
+      )
+
+    // A stat must have something to move. Both fields are optional on an active
+    // attack (a free attack, an attack that strikes on the next tick), and
+    // scaling a zero cost or a zero delay is arithmetic on nothing — the same
+    // dead weight the kind check above rejects, one level finer.
+    const delaySec = attack.prepareTimeSec ?? 0
+    if (ref.stat === 'prepareTime' && delaySec <= 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'prepareTime' on attack '${target}', which has no prepare delay to move`,
+      )
+    if (ref.stat === 'prepareCost' && Object.keys(attack.prepareCost ?? {}).length === 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'prepareCost' on attack '${target}', which is free to activate`,
+      )
+    // An offset at least as deep as the authored delay floors it to zero at a
+    // single copy, so every later copy is bought and does nothing — the absolute
+    // twin of the `add` check above, and the reason that one needs no attack.
+    const offsetsDelay = ref.stat === 'prepareTime' && ref.op === 'offset'
+    if (offsetsDelay && typeof value === 'number' && value <= -delaySec)
+      throw new Error(
+        `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${delaySec}s delay to 0 at one copy, leaving every later copy inert`,
+      )
+  }
+  for (const ref of def.effects ?? []) checkAttackStat('mode-level', ref, 1)
+  for (const u of def.upgrades) {
+    for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
   // `unlockPact` effects name a pact by id; validate against the mode's pacts
@@ -1129,10 +1208,15 @@ export function collectDynamicBonuses(
  *
  * Only `passive` attacks contribute — an active attack's effects await a trigger
  * mechanism. Each attack's `enemyModifier`-emitting effects (e.g.
- * `enemyProductionModifier`) become raw {@link Modifier}s, applied verbatim
- * (no owned-count compounding — an attack is unlocked or it isn't). The
- * attacker's state is passed to `applyEffect` so future state-relative debuffs
- * can read it; today's effects are state-independent.
+ * `enemyProductionModifier`) become raw {@link Modifier}s (no owned-count
+ * compounding — an attack is unlocked or it isn't). The attacker's state is
+ * passed to `applyEffect` so state-relative debuffs can read it; today's effects
+ * are state-independent.
+ *
+ * The authored value is scaled by the attacker's `power`
+ * ({@link collectAttackParams}) via {@link scaleDebuffValue} — which moves the
+ * *distance from neutral*, so a stronger debuff means `0.9 → 0.8`, never
+ * `0.9 → 1.8`.
  *
  * Debuffs come out **as authored**, which can include the virtual
  * {@link HIGHLIGHT_FACTOR_TARGET} field. Run them through
@@ -1147,9 +1231,12 @@ export function collectEnemyDebuffs(
   for (const attackId of unlockedAttacks(attacker, mode)) {
     const attack = attackById.get(attackId)
     if (attack?.kind !== 'passive') continue
+    const { power } = collectAttackParams(attacker, mode, attackId)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
-        if ('kind' in out && out.kind === 'enemyModifier') debuffs.push(out.modifier)
+        if (!('kind' in out) || out.kind !== 'enemyModifier') continue
+        const { stage, field, value } = out.modifier
+        debuffs.push({ stage, field, value: scaleDebuffValue(stage, value, power) })
       }
     }
   }
@@ -1203,8 +1290,10 @@ export function debuffedHighlightFactor(factor: number, debuffs: readonly Modifi
  * player's prices.
  *
  * Only `passive` attacks contribute, and each `enemyCost`-emitting effect
- * contributes verbatim (no owned-count compounding — an attack is unlocked or it
- * isn't). The result is stamped onto the victim's
+ * contributes once (no owned-count compounding — an attack is unlocked or it
+ * isn't), with both factors scaled by the attacker's `power` through
+ * {@link scaleCostFactor}: `1 + (f - 1) × power`, the growth portion again
+ * rather than the whole factor. The result is stamped onto the victim's
  * {@link PlayerState.incomingCostFactors} by the server, which is where every
  * price path reads it from; unlike a production debuff there is nothing to
  * resolve against the victim afterwards, so no `resolve*` step is needed.
@@ -1218,14 +1307,19 @@ export function collectEnemyCostFactors(
   for (const attackId of unlockedAttacks(attacker, mode)) {
     const attack = attackById.get(attackId)
     if (attack?.kind !== 'passive') continue
+    const { power } = collectAttackParams(attacker, mode, attackId)
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyCost') continue
         factors.push({
           scope: out.scope,
           ...(out.id !== undefined ? { id: out.id } : {}),
-          ...(out.costFactor !== undefined ? { costFactor: out.costFactor } : {}),
-          ...(out.scalingFactor !== undefined ? { scalingFactor: out.scalingFactor } : {}),
+          ...(out.costFactor !== undefined
+            ? { costFactor: scaleCostFactor(out.costFactor, power) }
+            : {}),
+          ...(out.scalingFactor !== undefined
+            ? { scalingFactor: scaleCostFactor(out.scalingFactor, power) }
+            : {}),
         })
       }
     }

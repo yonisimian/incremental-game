@@ -7,6 +7,7 @@ import type { CostScope, PlayerState } from '../types.js'
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
 import type { BatteryBandSide } from './seed/battery-band.js'
+import type { AttackStat, AttackStatOp } from './seed/attack-stat.js'
 
 /**
  * A reduction to a generator's cost curve, emitted by a cost-track effect.
@@ -233,6 +234,26 @@ export interface BatteryBandOutput {
 }
 
 /**
+ * An adjustment to one of an attack's numbers, emitted by the `attackStat`
+ * effect while the owning upgrade is held.
+ *
+ * Consumed by `collectAttackParams`, which owns the owned-count compounding, the
+ * cross-upgrade stacking, the per-attack filtering, and the clamping — this
+ * output is just the authored adjustment echoed back. Carries no production
+ * weight, so the modifier pipeline ignores it.
+ */
+export interface AttackStatOutput {
+  readonly kind: 'attackStat'
+  /** Which attack this moves. */
+  readonly attack: string
+  /** Which attack parameter to move (see `ATTACK_STATS`). */
+  readonly stat: AttackStat
+  /** `add` shifts the multiplier; `mult` scales it. */
+  readonly op: AttackStatOp
+  readonly value: number
+}
+
+/**
  * A raise to a time clock's accrual rate, emitted by the `timeFactorBoost`
  * effect while the owning upgrade is held.
  *
@@ -307,14 +328,15 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
  * {@link EnemyCostOutput}, one of the
- * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), or
+ * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
+ * {@link AttackStatOutput}, or
  * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
  * TimeRetroactiveOutput}).
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `resolveAttackStrike` / `timeBonusFraction`); every consumer ignores the
- * outputs it doesn't own.
+ * `resolveAttackStrike` / `collectAttackParams` / `timeBonusFraction`); every
+ * consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -329,6 +351,7 @@ export type EffectOutput =
   | EnemyModifierOutput
   | EnemyCostOutput
   | ResourceStealOutput
+  | AttackStatOutput
   | BatteryStatOutput
   | BatteryBandOutput
   | GeneratorStealOutput

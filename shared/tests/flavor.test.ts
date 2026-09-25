@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getModeDefinition, validateModeDefinition } from '../src/modes/index.js'
 import type { ModeDefinition, ModeFlavor } from '../src/modes/types.js'
-import type { GameMode } from '../src/types.js'
+import type { EffectRef, GameMode } from '../src/types.js'
 import {
   getModeFlavor,
   getResourceIcon,
@@ -716,6 +716,253 @@ describe('validateModeDefinition — negative tests', () => {
     expect(() => {
       validateModeDefinition('test', def)
     }).not.toThrow()
+  })
+
+  // ── attackStat ───────────────────────────────────────────────────
+  //
+  // The stat only reaches an attack through `collectAttackParams`, which looks
+  // the id up — so a typo, or a stat the named attack has no field for, buffs
+  // nothing at all and says nothing about it.
+
+  /** A def whose only upgrade carries `ref`, with `attacks` declared + flavored. */
+  function withAttackStat(
+    ref: EffectRef,
+    attacks: ModeDefinition['attacks'],
+    purchaseLimit = 1,
+  ): ModeDefinition {
+    const base = makeValidDef({
+      attacks,
+      upgrades: [{ id: 'u0', cost: { r0: { baseCost: 10 } }, purchaseLimit, effects: [ref] }],
+    })
+    return withFlavor(base, {
+      attacks: attacks.map((a) => ({ id: a.id, name: a.id, icon: '⚔️', description: '' })),
+    })
+  }
+
+  const ACTIVE_A0: ModeDefinition['attacks'] = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareCost: { r0: { baseCost: 10 } },
+      prepareTimeSec: 1,
+      effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+    },
+  ]
+
+  const PASSIVE_A0: ModeDefinition['attacks'] = [
+    {
+      id: 'a0',
+      kind: 'passive',
+      effects: [
+        { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+      ],
+    },
+  ]
+
+  it('throws when an attackStat references an unknown attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a-missing', stat: 'power', op: 'mult', value: 2 },
+      ACTIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/upgrade 'u0' attackStat effect references unknown attack 'a-missing'/)
+  })
+
+  it('accepts an attackStat naming a declared attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
+      ACTIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws for an attackStat naming no attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', stat: 'prepareTime', op: 'mult', value: 0.5 },
+      ACTIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/"attack"/)
+  })
+
+  it('throws for a prepareCost stat aimed at a passive attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'prepareCost', op: 'mult', value: 0.5 },
+      PASSIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'prepareCost' on passive attack 'a0'/)
+  })
+
+  it('throws for a prepareTime stat aimed at a passive attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'mult', value: 0.5 },
+      PASSIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'prepareTime' on passive attack 'a0'/)
+  })
+
+  it('accepts a power stat aimed at a passive attack — its debuff still scales', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
+      PASSIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  // ── attackStat in context ────────────────────────────────────────
+  //
+  // The schema judges one ref on its own; these are the questions that need the
+  // *host* (how many copies sell) or the *named attack* (what it authors). Each
+  // asks the same thing: does this ref still do something at every level a
+  // player can buy?
+
+  /** Active, but free to activate — nothing for a `prepareCost` stat to move. */
+  const FREE_A0: ModeDefinition['attacks'] = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareTimeSec: 1,
+      effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+    },
+  ]
+
+  /** Active, but strikes on the next tick — no delay for a `prepareTime` stat. */
+  const INSTANT_A0: ModeDefinition['attacks'] = [
+    {
+      id: 'a0',
+      kind: 'active',
+      prepareCost: { r0: { baseCost: 10 } },
+      prepareTimeSec: 0,
+      effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+    },
+  ]
+
+  it('throws when a reducing add dies inside its own purchase limit', () => {
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, 5))
+    }).toThrow(/reaches a zero multiplier at 5 copies, within the upgrade's purchase limit of 5/)
+    // One copy short of the zero point, every level still buys something.
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, 4))
+    }).not.toThrow()
+  })
+
+  it('throws for a reducing add on an unlimited upgrade — it always reaches zero', () => {
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, Infinity))
+    }).toThrow(/use 'mult' for a reduction that keeps stacking/)
+  })
+
+  it('accepts the ops that never reach zero, however many copies sell', () => {
+    // `mult` decays asymptotically and a growing `add` only climbs, so neither
+    // has a level at which it stops buying anything.
+    const mult: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'mult',
+      value: 0.9,
+    }
+    const grow: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'power',
+      op: 'add',
+      value: 0.2,
+    }
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(mult, ACTIVE_A0, Infinity))
+    }).not.toThrow()
+    expect(() => {
+      validateModeDefinition('test', withAttackStat(grow, ACTIVE_A0, Infinity))
+    }).not.toThrow()
+  })
+
+  it('throws for a stat the named attack has no number for', () => {
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'prepareCost', op: 'mult', value: 0.5 },
+          FREE_A0,
+        ),
+      )
+    }).toThrow(/moves 'prepareCost' on attack 'a0', which is free to activate/)
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'mult', value: 0.5 },
+          INSTANT_A0,
+        ),
+      )
+    }).toThrow(/moves 'prepareTime' on attack 'a0', which has no prepare delay to move/)
+  })
+
+  it('throws when an offset already floors the delay at one copy', () => {
+    // a0 waits 1s, so -1s leaves nothing for a second copy to take.
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 },
+          ACTIVE_A0,
+          3,
+        ),
+      )
+    }).toThrow(/already floors attack 'a0's 1s delay to 0 at one copy/)
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -0.5 },
+          ACTIVE_A0,
+          3,
+        ),
+      )
+    }).not.toThrow()
+  })
+
+  it('throws when an attackStat is carried by an attack rather than an upgrade', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          effects: [{ type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 }],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Odd', icon: '❓', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/'attackStat' effect, which only applies on the mode \/ an upgrade/)
   })
 
   it('throws when an unlockPact effect references an unknown pact', () => {

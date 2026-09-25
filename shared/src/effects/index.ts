@@ -1,5 +1,6 @@
 import { registerEffect } from './registry.js'
 import { accessEnemyData } from './seed/access-enemy-data.js'
+import { attackStat } from './seed/attack-stat.js'
 import { balancedGenerators } from './seed/balanced-generators.js'
 import { batteryBand } from './seed/battery-band.js'
 import { batteryStat } from './seed/battery-stat.js'
@@ -37,6 +38,7 @@ registerEffect('systemUnlock', systemUnlock)
 registerEffect('accessEnemyData', accessEnemyData)
 registerEffect('relativeModifier', relativeModifier)
 registerEffect('unlockAttack', unlockAttack)
+registerEffect('attackStat', attackStat)
 registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('enemyCostModifier', enemyCostModifier)
@@ -57,6 +59,7 @@ export type {
   GeneratorUnlockOutput,
   SystemUnlockOutput,
   AttackUnlockOutput,
+  AttackStatOutput,
   PactUnlockOutput,
   EnemyDataAccessOutput,
   EnemyModifierOutput,
@@ -109,6 +112,10 @@ export {
 } from './seed/access-enemy-data.js'
 export type { RelativeModifierParams } from './seed/relative-modifier.js'
 export type { UnlockAttackParams } from './seed/unlock-attack.js'
+// Params type only; `attacks.ts` is the sole re-exporter of the stat/op enums
+// (mirroring `highlight-battery` for the battery's), so the shared barrel has
+// exactly one path to each.
+export type { AttackStatParams } from './seed/attack-stat.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
