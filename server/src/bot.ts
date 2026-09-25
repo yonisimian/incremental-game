@@ -279,8 +279,8 @@ export class IdlerBot implements BotStrategy {
     // server drops for an enemy purchase lock would be skipped for good. Hold
     // the step until the window closes (the stamp is refreshed before every
     // bot turn, so this reads the windows open right now).
-    if (isPurchaseLocked(state, 'upgrade')) return
     const next = this.plan[this.planIndex]
+    if (isPurchaseLocked(state, 'upgrade', next.id)) return
     const def = this.upgradeMap.get(next.id)
     if (!def) return
     const owned = state.upgrades[next.id] ?? 0
@@ -306,9 +306,11 @@ export class IdlerBot implements BotStrategy {
     actions: BotAction[],
   ): void {
     // Stateless per tick, so a lock costs the bot nothing but the doomed
-    // actions it would otherwise emit; skip them.
-    if (isPurchaseLocked(state, 'generator')) return
-    const unlocked = this.generators.filter((g) => isGeneratorUnlocked(state, g, this.modeDef))
+    // actions it would otherwise emit; skip the locked generators.
+    const unlocked = this.generators.filter(
+      (g) =>
+        isGeneratorUnlocked(state, g, this.modeDef) && !isPurchaseLocked(state, 'generator', g.id),
+    )
     if (unlocked.length === 0) return
 
     // Cost-reduction factors depend on owned upgrades, not generator counts, so

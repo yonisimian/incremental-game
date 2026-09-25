@@ -52,18 +52,22 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
-  it('labels the enemyPurchaseLock targets, covering exactly the schema’s values', () => {
-    const options = effectFieldOptions(idler(), 'enemyPurchaseLock', 'target')
-    expect(options).toEqual([
+  it('offers the whole scopes, both at once, then every upgrade and generator as lock targets', () => {
+    const tree = idler()
+    const pairs = (type: string) =>
+      (effectFieldOptions(tree, type, 'target') ?? []).map((o) =>
+        typeof o === 'string' ? { value: o, label: o } : o,
+      )
+    const lock = pairs('enemyPurchaseLock')
+    expect(lock.slice(0, 3)).toEqual([
       { value: 'upgrades', label: 'All upgrades' },
       { value: 'generators', label: 'All generators' },
       { value: 'purchases', label: 'All upgrades and generators' },
     ])
-    const def = resolveEffect('enemyPurchaseLock')!
-    const target = describeEffectSchema(def.schema).variants[0].fields.find(
-      (f) => f.key === 'target',
-    )
-    expect(options?.map((o) => (typeof o === 'string' ? o : o.value))).toEqual(target?.options)
+    // The per-entity tail is exactly `enemyCostModifier`'s, so one authored key
+    // means the same thing on both attack effects.
+    expect(lock.slice(3)).toEqual(pairs('enemyCostModifier').slice(2))
+    expect(lock.some((o) => o.value === `generator:${tree.generators[0].id}`)).toBe(true)
   })
 
   it('leaves an unmapped effect/field pair as free text', () => {

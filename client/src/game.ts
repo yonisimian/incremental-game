@@ -512,7 +512,7 @@ export function doBuy(upgradeId: string): void {
   // An enemy purchase lock is server-stamped on our own state, so the
   // same read the server makes refuses the buy here — a predicted buy the
   // server would drop only snaps back on the next snapshot.
-  if (isPurchaseLocked(state.player, 'upgrade')) return
+  if (isPurchaseLocked(state.player, 'upgrade', upgradeId)) return
 
   // Every currency in the cost map must be affordable, at the price the server
   // will charge — enemy cost inflation included.
@@ -538,7 +538,7 @@ export function doBuyGenerator(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  if (isPurchaseLocked(state.player, 'generator')) return
+  if (isPurchaseLocked(state.player, 'generator', generatorId)) return
   const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
@@ -554,7 +554,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  if (isPurchaseLocked(state.player, 'generator')) return
+  if (isPurchaseLocked(state.player, 'generator', generatorId)) return
   const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
@@ -761,7 +761,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           // refuse for want of a slot — or under an enemy purchase lock — is
           // dropped here rather than flickering back until the next snapshot.
           if (!hasAttackSlotsFor(reconciled, def, modeDef)) break
-          if (isPurchaseLocked(reconciled, 'upgrade')) break
+          if (isPurchaseLocked(reconciled, 'upgrade', action.upgradeId)) break
           const cost = getUpgradeNextCost(
             def,
             owned,
@@ -791,7 +791,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           if (!modeDef) break
           const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
           if (!gdef) break
-          if (isPurchaseLocked(reconciled, 'generator')) break
+          if (isPurchaseLocked(reconciled, 'generator', action.generatorId)) break
           const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef, 'buy')
           if (!canAffordGenerator(reconciled, effectiveGdef)) break
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)

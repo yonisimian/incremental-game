@@ -8,7 +8,6 @@ import {
 import type {
   AttackDefinition,
   AttackKind,
-  CostScope,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -16,6 +15,7 @@ import type {
   Goal,
   PlayerState,
   PurchaseLock,
+  PurchaseLockTarget,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -45,9 +45,7 @@ import {
   isEffectAllowedOn,
   normalizeEffectOutputs,
   prepareEffect,
-  purchaseLockScopesFor,
 } from '../effects/index.js'
-import type { EnemyPurchaseLockParams } from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
@@ -55,6 +53,8 @@ import {
   enemyDebuffTargets,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
+  parsePurchaseLockTarget,
+  purchaseLockTargets,
   RESERVED_TARGET_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
@@ -569,6 +569,19 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `enemyPurchaseLock` targets use the same vocabulary, plus `purchases` for
+  // both scopes; a stale id would author a lock that bars nothing.
+  const lockTargetKeys = new Set(purchaseLockTargets(def).map((f) => f.key))
+  for (const attack of def.attacks) {
+    for (const ref of attack.effects ?? []) {
+      if (ref.type !== 'enemyPurchaseLock') continue
+      if (typeof ref.target === 'string' && !lockTargetKeys.has(ref.target))
+        throw new Error(
+          `[${id}] attack '${attack.id}' enemyPurchaseLock effect references unknown lock target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
+        )
+    }
+  }
+
   // Active-attack cost/timing + `stealResource` integrity. An active attack that
   // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
   // strike), so both fields must be present and well-formed; a passive attack is
@@ -620,23 +633,25 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only ${DEBUFF_EFFECT_NAMES} consume a window`,
         )
-      // Two locks on one attack whose scopes overlap: the collector dedupes
-      // them, so the second is authored dead weight — the same class of mistake
-      // as a window on an all-steal attack, and the editor should not let it
-      // stand. Judged by the authored `target`, as every check here is.
-      const lockedScopes = new Set<string>()
+      // Two locks on one attack that overlap (the same target twice, or a
+      // single entity inside a whole scope another lock already bars) leave the
+      // second authored dead weight — the same class of mistake as a window on
+      // an all-steal attack. Judged by the authored `target`, as every check
+      // here is.
+      const locked: PurchaseLockTarget[] = []
       for (const ref of attack.effects ?? []) {
         if (ref.type !== 'enemyPurchaseLock' || typeof ref.target !== 'string') continue
-        // An unknown target is the schema's to reject (`prepareEffect`, below).
-        if (!['upgrades', 'generators', 'purchases'].includes(ref.target)) continue
-        for (const scope of purchaseLockScopesFor(
-          ref.target as EnemyPurchaseLockParams['target'],
-        )) {
-          if (lockedScopes.has(scope))
+        // An unknown target is rejected by the catalog check above.
+        for (const t of parsePurchaseLockTarget(ref.target) ?? []) {
+          const overlaps = locked.some(
+            (s) =>
+              s.scope === t.scope && (s.id === undefined || t.id === undefined || s.id === t.id),
+          )
+          if (overlaps)
             throw new Error(
-              `[${id}] active attack '${attack.id}' carries two enemyPurchaseLock effects that both lock ${scope}s — one lock per scope is all the window can hold`,
+              `[${id}] active attack '${attack.id}' carries enemyPurchaseLock effects that overlap on ${t.id ?? `all ${t.scope}s`} — the window already bars it once`,
             )
-          lockedScopes.add(scope)
+          locked.push(t)
         }
       }
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
@@ -1483,9 +1498,10 @@ function windowsInForce(
  * host declaration, so the passive pass has nothing to contribute and is
  * skipped rather than walked for nothing.
  *
- * One entry per scope, carrying the latest expiry among the windows locking
- * it, so two overlapping locks read as one lock that lifts when the last
- * closes. **No `power` scaling** — a lock has no magnitude. The result is
+ * One entry per target (a whole scope, or one upgrade / generator), carrying
+ * the latest expiry among the windows locking it, so two overlapping locks read
+ * as one lock that lifts when the last closes. **No `power` scaling** — a lock
+ * has no magnitude. The result is
  * stamped onto the victim's {@link PlayerState.incomingPurchaseLocks} by the
  * server, which is where every purchase path reads it from.
  */
@@ -1493,19 +1509,21 @@ export function collectEnemyPurchaseLocks(
   attacker: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): PurchaseLock[] {
-  const untilByScope = new Map<CostScope, number>()
+  const byTarget = new Map<string, PurchaseLock>()
   for (const { attack, expiresAtSec } of windowsInForce(attacker, mode)) {
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyPurchaseLock') continue
-        for (const scope of out.scopes) {
-          const until = untilByScope.get(scope)
-          if (until === undefined || expiresAtSec > until) untilByScope.set(scope, expiresAtSec)
+        for (const target of out.targets) {
+          const key = `${target.scope}:${target.id ?? ''}`
+          const prev = byTarget.get(key)
+          if (prev === undefined || expiresAtSec > prev.untilSec)
+            byTarget.set(key, { ...target, untilSec: expiresAtSec })
         }
       }
     }
   }
-  return [...untilByScope].map(([scope, untilSec]) => ({ scope, untilSec }))
+  return [...byTarget.values()]
 }
 
 /**

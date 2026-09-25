@@ -60,7 +60,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
   const slotBlocked = isAttackSlotBlocked(state, u)
-  const attackLocked = isPurchaseLockedByAttack(state, 'upgrade')
+  const attackLocked = isPurchaseLockedByAttack(state, 'upgrade', u.id)
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -77,7 +77,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   else if (slotBlocked) lockReason = 'No attack slots left'
   // Last of the reasons, since it is the only one that lifts on its own; the
   // countdown is what tells the player to wait rather than look for a fix.
-  else if (attackLocked) lockReason = `Enemy attack — ${purchaseLockLabel(state, 'upgrade')}`
+  else if (attackLocked) lockReason = `Enemy attack — ${purchaseLockLabel(state, 'upgrade', u.id)}`
 
   const name = getUpgradeName(flavor, u.id)
   const icon = getUpgradeIcon(flavor, u.id)

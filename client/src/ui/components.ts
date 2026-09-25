@@ -167,13 +167,13 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
       const slotBlocked = isAttackSlotBlocked(state, u)
-      const attackLocked = isPurchaseLockedByAttack(state, 'upgrade')
+      const attackLocked = isPurchaseLockedByAttack(state, 'upgrade', u.id)
 
       // State-class derivation (mutually exclusive, in priority order). A
       // slot-blocked node reuses `locked`: like a closed choice group, no amount
       // of income opens it, so `too-expensive` would promise the wrong fix. An
       // enemy purchase lock gets its own class: it is neither permanent nor an
-      // income problem — the whole tree is embargoed for a few seconds, and it
+      // income problem — the node is embargoed for a few seconds, and it
       // should read that way at a glance.
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
