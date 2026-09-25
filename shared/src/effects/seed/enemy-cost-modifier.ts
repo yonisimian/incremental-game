@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { parseEnemyCostTarget } from '../addressable.js'
+import { parsePurchaseTarget } from '../addressable.js'
 import type { EffectDef, EnemyCostOutput } from '../types.js'
 
 /**
@@ -9,8 +9,9 @@ import type { EffectDef, EnemyCostOutput } from '../types.js'
  * An *offensive* cost inflation carried by an attack: while a passive attack is
  * unlocked — or for an active attack's `durationSec` after its strike lands —
  * the opponent pays more for what `target` names. `target` is a key
- * from the enemy-cost catalog — `upgrades` / `generators` for a whole scope, or
- * `upgrade:<id>` / `generator:<id>` for one entity. Like `baseModifier`'s
+ * from the shared purchase-target catalog — `upgrades` / `generators` for a
+ * whole scope, `purchases` for both, or `upgrade:<id>` / `generator:<id>` for
+ * one entity. Like `baseModifier`'s
  * `field` it's a plain `z.string()` so the schema-driven editor form can
  * introspect it; the `/dev.html` picker offers only catalog keys and
  * `validateModeDefinition` rejects the rest at load, so an authored typo fails
@@ -50,16 +51,17 @@ export type EnemyCostModifierParams = z.infer<typeof schema>
  * `collectEnemyCostFactors`, which owns this output. Unlike `baseModifier` there
  * is no owned-count compounding — an attack is unlocked or it isn't.
  */
-function apply(p: EnemyCostModifierParams): EnemyCostOutput | null {
-  const parsed = parseEnemyCostTarget(p.target)
-  if (!parsed) return null
-  return {
+function apply(p: EnemyCostModifierParams): EnemyCostOutput[] | null {
+  const targets = parsePurchaseTarget(p.target)
+  if (!targets) return null
+  // `purchases` names both scopes, so it inflates each as its own output.
+  return targets.map((t) => ({
     kind: 'enemyCost',
-    scope: parsed.scope,
-    id: parsed.id,
+    scope: t.scope,
+    id: t.id,
     costFactor: p.costFactor,
     scalingFactor: p.scalingFactor,
-  }
+  }))
 }
 
 export const enemyCostModifier: EffectDef<EnemyCostModifierParams> = {

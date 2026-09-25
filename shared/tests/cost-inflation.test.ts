@@ -134,7 +134,18 @@ const POWER_UP: UpgradeDefinition = {
   ],
 }
 
-const ATTACKS = [TARIFF_ALL_UPGRADES, TARIFF_G0, STEEPEN_EXPO, STEEPEN_G0, ACTIVE_TARIFF]
+const ATTACKS = [
+  TARIFF_ALL_UPGRADES,
+  TARIFF_G0,
+  STEEPEN_EXPO,
+  STEEPEN_G0,
+  ACTIVE_TARIFF,
+  {
+    id: 'a-purchases',
+    kind: 'passive',
+    effects: [{ type: 'enemyCostModifier', target: 'purchases', costFactor: 1.25 }],
+  } satisfies AttackDefinition,
+]
 const OWN_UPGRADES = [FLAT_UPGRADE, EXPO_UPGRADE, CHEAPER_G0, FLATTER_G0, POWER_UP]
 
 function makeMode(): ModeDefinition {
@@ -221,6 +232,14 @@ describe('collectEnemyCostFactors', () => {
     const mode = makeMode()
     expect(collectEnemyCostFactors(attacker('a-g0'), mode)).toEqual([
       { scope: 'generator', id: 'g0', costFactor: 2 },
+    ])
+  })
+
+  it('inflates both scopes for a `purchases` target', () => {
+    const mode = makeMode()
+    expect(collectEnemyCostFactors(attacker('a-purchases'), mode)).toEqual([
+      { scope: 'upgrade', costFactor: 1.25 },
+      { scope: 'generator', costFactor: 1.25 },
     ])
   })
 
