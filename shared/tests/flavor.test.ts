@@ -649,31 +649,45 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/carries a debuff effect \(.*enemyPurchaseLock.*\) but has no durationSec/)
   })
 
-  it('throws for two locks on one attack whose scopes overlap', () => {
+  it('throws for two locks on one attack that overlap', () => {
     for (const pair of [
       ['upgrades', 'upgrades'],
       ['upgrades', 'purchases'],
       ['purchases', 'generators'],
+      ['upgrade:u0', 'upgrade:u0'],
+      ['upgrades', 'upgrade:u0'],
+      ['upgrade:u0', 'purchases'],
     ]) {
       const def = debuffAttackDef({
         effects: pair.map((target) => ({ type: 'enemyPurchaseLock', target })),
       })
       expect(() => {
         validateModeDefinition('test', def)
-      }).toThrow(/two enemyPurchaseLock effects that both lock/)
+      }).toThrow(/enemyPurchaseLock effects that overlap/)
     }
   })
 
-  it('accepts two locks on one attack whose scopes do not overlap', () => {
-    const def = debuffAttackDef({
-      effects: [
-        { type: 'enemyPurchaseLock', target: 'upgrades' },
-        { type: 'enemyPurchaseLock', target: 'generators' },
-      ],
-    })
-    expect(() => {
-      validateModeDefinition('test', def)
-    }).not.toThrow()
+  it('accepts two locks on one attack that do not overlap', () => {
+    for (const pair of [
+      ['upgrades', 'generators'],
+      ['generators', 'upgrade:u0'],
+    ]) {
+      const def = debuffAttackDef({
+        effects: pair.map((target) => ({ type: 'enemyPurchaseLock', target })),
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  it('throws for a lock target naming an unknown upgrade or generator', () => {
+    for (const target of ['upgrade:u-missing', 'generator:g-missing', 'all']) {
+      const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(/unknown lock target/)
+    }
   })
 
   it('throws for a lock on a passive attack (host declaration)', () => {

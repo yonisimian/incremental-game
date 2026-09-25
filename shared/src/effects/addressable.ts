@@ -17,7 +17,7 @@
  * scope for now (they can be added here without touching the effect).
  */
 
-import type { CostScope, PlayerState } from '../types.js'
+import type { CostScope, PlayerState, PurchaseLockTarget } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
 import {
   ALL_GENERATORS_FIELD,
@@ -215,6 +215,47 @@ export function parseEnemyCostTarget(target: string): { scope: CostScope; id?: s
   if (target.startsWith(GENERATOR_TARGET_PREFIX))
     return { scope: 'generator', id: target.slice(GENERATOR_TARGET_PREFIX.length) }
   return null
+}
+
+/** Target naming every upgrade *and* every generator — a purchase lock's widest form. */
+export const ALL_PURCHASES_TARGET = 'purchases'
+
+/**
+ * Target keys an `enemyPurchaseLock` may bar: the cost-inflation catalog (both
+ * whole scopes, then one key per upgrade and generator) plus
+ * {@link ALL_PURCHASES_TARGET} for both scopes at once.
+ */
+export function purchaseLockTargetsFor(
+  upgradeIds: readonly string[],
+  generatorIds: readonly string[],
+): AddressableField[] {
+  const costTargets = enemyCostTargetsFor(upgradeIds, generatorIds)
+  const isEntity = (f: AddressableField): boolean => parseEnemyCostTarget(f.key)?.id !== undefined
+  return [
+    ...costTargets.filter((f) => !isEntity(f)),
+    { key: ALL_PURCHASES_TARGET, label: 'All upgrades and generators' },
+    ...costTargets.filter(isEntity),
+  ]
+}
+
+/** Purchase-lock target keys for this mode. */
+export function purchaseLockTargets(mode: ModeDefinition): AddressableField[] {
+  return purchaseLockTargetsFor(
+    mode.upgrades.map((u) => u.id),
+    mode.generators.map((g) => g.id),
+  )
+}
+
+/**
+ * What an authored lock target bars — both whole scopes for
+ * {@link ALL_PURCHASES_TARGET}, otherwise the single target
+ * {@link parseEnemyCostTarget} reads. `null` for an unrecognized key, under the
+ * same contract.
+ */
+export function parsePurchaseLockTarget(target: string): PurchaseLockTarget[] | null {
+  if (target === ALL_PURCHASES_TARGET) return [{ scope: 'upgrade' }, { scope: 'generator' }]
+  const one = parseEnemyCostTarget(target)
+  return one ? [one] : null
 }
 
 /** The combined source/target catalog for a mode. */

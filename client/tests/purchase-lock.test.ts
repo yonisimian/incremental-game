@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createInitialState,
   generatorCostCurrency,
+  getGeneratorIcon,
+  getGeneratorName,
   getModeDefinition,
   getModeFlavor,
 } from '@game/shared'
@@ -74,10 +76,10 @@ function makeState(locks?: PurchaseLock[]): GameState {
 describe('helpers', () => {
   it('reads the lock per scope and counts it down on the game clock', () => {
     const state = makeState(LOCK_UPGRADES)
-    expect(isPurchaseLockedByAttack(state, 'upgrade')).toBe(true)
-    expect(isPurchaseLockedByAttack(state, 'generator')).toBe(false)
-    expect(purchaseLockLabel(state, 'upgrade')).toBe('🔒 Locked 7.5s')
-    expect(isPurchaseLockedByAttack(makeState(), 'upgrade')).toBe(false)
+    expect(isPurchaseLockedByAttack(state, 'upgrade', FREE.id)).toBe(true)
+    expect(isPurchaseLockedByAttack(state, 'generator', 'g0')).toBe(false)
+    expect(purchaseLockLabel(state, 'upgrade', FREE.id)).toBe('🔒 Locked 7.5s')
+    expect(isPurchaseLockedByAttack(makeState(), 'upgrade', FREE.id)).toBe(false)
   })
 
   // `canBuy` feeds the `C` buy-all hotkey and the node class, so a buy the
@@ -86,6 +88,15 @@ describe('helpers', () => {
     expect(canBuy(makeState(), FREE)).toBe(true)
     expect(canBuy(makeState(LOCK_UPGRADES), FREE)).toBe(false)
     expect(canBuy(makeState(LOCK_GENERATORS), FREE)).toBe(true)
+  })
+
+  it('reads a single-entity lock for that entity alone', () => {
+    expect(canBuy(makeState([{ scope: 'upgrade', id: FREE.id, untilSec: UNTIL }]), FREE)).toBe(
+      false,
+    )
+    expect(canBuy(makeState([{ scope: 'upgrade', id: 'u-other', untilSec: UNTIL }]), FREE)).toBe(
+      true,
+    )
   })
 })
 
@@ -101,6 +112,12 @@ describe('upgrade tree node', () => {
     expect(nodeClass(makeState(LOCK_UPGRADES))).toBe('locked-by-attack')
     // A generator lock says nothing about the tree.
     expect(nodeClass(makeState(LOCK_GENERATORS))).toBe('')
+  })
+
+  it('marks only the node a single-entity lock names', () => {
+    const lock = (id: string): PurchaseLock[] => [{ scope: 'upgrade', id, untilSec: UNTIL }]
+    expect(nodeClass(makeState(lock(FREE.id)))).toBe('locked-by-attack')
+    expect(nodeClass(makeState(lock('u-other')))).toBe('')
   })
 })
 
@@ -144,6 +161,18 @@ describe('generator card', () => {
     expect(html).not.toContain('🔒 Locked')
     expect(html).toContain(`Buy 1 — ${costIcon}`)
   })
+
+  it('locks only the named card under a single-entity lock', () => {
+    const html = renderWithG0([{ scope: 'generator', id: g0.id, untilSec: UNTIL }])
+    const g0Card = new RegExp(
+      `<article[^>]*data-generator="${g0.id}"[\\s\\S]*?</article>`,
+      'u',
+    ).exec(html)![0]
+    expect(g0Card).toContain('locked-by-attack')
+    expect(g0Card.match(/🔒 Locked 7\.5s/gu)).toHaveLength(2)
+    // No other card carries the countdown.
+    expect(html.match(/🔒 Locked 7\.5s/gu)).toHaveLength(2)
+  })
 })
 
 describe('enemy-data panel — standing lock warning', () => {
@@ -176,6 +205,13 @@ describe('enemy-data panel — standing lock warning', () => {
     )
     expect(html).toContain('🔒 You cannot buy upgrades for 4.0s.')
     expect(html).toContain('🔒 You cannot buy generators for 8.0s.')
+  })
+
+  it('names the entity a single-entity lock bars', () => {
+    const g0 = modeDef.generators[0]
+    const html = render(makeState([{ scope: 'generator', id: g0.id, untilSec: UNTIL }]))
+    const name = `${getGeneratorIcon(flavor, g0.id)} ${getGeneratorName(flavor, g0.id)}`
+    expect(html).toContain(`🔒 You cannot buy ${name} for 7.5s.`)
   })
 
   it('stays silent when no lock is in force', () => {

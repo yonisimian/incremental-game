@@ -14,6 +14,7 @@ import {
   attackStatOpsFor,
   attackStatsFor,
   enemyCostTargetsFor,
+  purchaseLockTargetsFor,
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
@@ -165,12 +166,10 @@ export function effectFieldOptions(
     ).map((f) => ({ value: f.key, label: f.label }))
   }
   if (effectType === 'enemyPurchaseLock' && fieldKey === 'target') {
-    // Same wording as `enemyCostModifier`'s whole-scope targets.
-    return [
-      { value: 'upgrades', label: 'All upgrades' },
-      { value: 'generators', label: 'All generators' },
-      { value: 'purchases', label: 'All upgrades and generators' },
-    ]
+    return purchaseLockTargetsFor(
+      collectIds(tree),
+      tree.generators.map((g) => g.id),
+    ).map((f) => ({ value: f.key, label: f.label }))
   }
   if (
     (effectType === 'generatorCost' || effectType === 'generatorUnlock') &&
