@@ -1,5 +1,5 @@
 /**
- * Plan 38 — attack slots on the client: the `held / limit` line in the attack
+ * Attack slots on the client: the `held / limit` line in the attack
  * panel's section headings, and the slot-blocked node state in the tree.
  *
  * Node tier, not DOM: both render by assigning one HTML string, so a stub

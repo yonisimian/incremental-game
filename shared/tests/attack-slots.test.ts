@@ -1,4 +1,4 @@
-// Plan 38 — attack slots: a budget on how many attacks of each kind a player
+// Attack slots: a budget on how many attacks of each kind a player
 // can hold, enforced as a purchase gate on `unlockAttack` upgrades.
 
 import { describe, expect, it } from 'vitest'
@@ -138,7 +138,7 @@ describe('attackLimit', () => {
   })
 
   it('is Infinity for both kinds in a mode that authors no slots at all', () => {
-    // Every slot grant stripped — the idler before plan 38 was authored.
+    // Every slot grant stripped — the idler as it was before slots were authored.
     const mode = makeMode(
       [],
       UPGRADES.filter((u) => !u.effects.some((e) => e.type === 'attackSlots')),

@@ -329,7 +329,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
-  // `attackSlots` (plan 38): a kind is capped once any grant names it, and the
+  // `attackSlots`: a kind is capped once any grant names it, and the
   // base budget is whatever the mode's own starting effects grant. Starting
   // effects can also *unlock* attacks, each of which fills a slot — so a mode
   // whose starting unlocks of a kind outnumber its base cap would open the round
