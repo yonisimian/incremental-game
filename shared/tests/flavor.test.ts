@@ -923,14 +923,14 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('accepts an attackStat naming no attack at all (every attack)', () => {
+  it('throws for an attackStat naming no attack', () => {
     const def = withAttackStat(
       { type: 'attackStat', stat: 'prepareTime', op: 'mult', value: 0.5 },
-      PASSIVE_A0,
+      ACTIVE_A0,
     )
     expect(() => {
       validateModeDefinition('test', def)
-    }).not.toThrow()
+    }).toThrow(/"attack"/)
   })
 
   it('throws for a prepareCost stat aimed at a passive attack', () => {
@@ -1045,7 +1045,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/moves 'duration' on attack 'a0', which opens no debuff window/)
   })
 
-  it('accepts a duration stat aimed at a duration attack, and an attack-less one anywhere', () => {
+  it('accepts a duration stat aimed at a duration attack', () => {
     expect(() => {
       validateModeDefinition(
         'test',
@@ -1053,13 +1053,6 @@ describe('validateModeDefinition — negative tests', () => {
           { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
           WINDOW_A0,
         ),
-      )
-    }).not.toThrow()
-    // Naming no attack, it applies to whichever attacks can use it.
-    expect(() => {
-      validateModeDefinition(
-        'test',
-        withAttackStat({ type: 'attackStat', stat: 'duration', op: 'offset', value: 2 }, ACTIVE_A0),
       )
     }).not.toThrow()
   })
@@ -1093,7 +1086,13 @@ describe('validateModeDefinition — negative tests', () => {
   ]
 
   it('throws when a reducing add dies inside its own purchase limit', () => {
-    const ref: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'add', value: -0.2 }
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, 5))
     }).toThrow(/reaches a zero multiplier at 5 copies, within the upgrade's purchase limit of 5/)
@@ -1104,7 +1103,13 @@ describe('validateModeDefinition — negative tests', () => {
   })
 
   it('throws for a reducing add on an unlimited upgrade — it always reaches zero', () => {
-    const ref: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'add', value: -0.2 }
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, Infinity))
     }).toThrow(/use 'mult' for a reduction that keeps stacking/)
@@ -1113,8 +1118,20 @@ describe('validateModeDefinition — negative tests', () => {
   it('accepts the ops that never reach zero, however many copies sell', () => {
     // `mult` decays asymptotically and a growing `add` only climbs, so neither
     // has a level at which it stops buying anything.
-    const mult: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'mult', value: 0.9 }
-    const grow: EffectRef = { type: 'attackStat', stat: 'power', op: 'add', value: 0.2 }
+    const mult: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'mult',
+      value: 0.9,
+    }
+    const grow: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'power',
+      op: 'add',
+      value: 0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(mult, ACTIVE_A0, Infinity))
     }).not.toThrow()
@@ -1168,28 +1185,13 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('leaves the all-attacks form alone — it is judged against no one attack', () => {
-    // The same offset that is dead weight on a0 is legal without the id: which
-    // attacks it reaches, and what they author, is not knowable here.
-    expect(() => {
-      validateModeDefinition(
-        'test',
-        withAttackStat(
-          { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -5 },
-          ACTIVE_A0,
-          3,
-        ),
-      )
-    }).not.toThrow()
-  })
-
   it('throws when an attackStat is carried by an attack rather than an upgrade', () => {
     const base = makeValidDef({
       attacks: [
         {
           id: 'a0',
           kind: 'passive',
-          effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
+          effects: [{ type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 }],
         },
       ],
     })

@@ -44,19 +44,19 @@ makes both [37 — duration active attacks](37-duration-active-attacks.md) and
   discounted price, so a `Cost ×0.5` beside it would state the same fact twice;
   the line carries `Power ×N` and `Prep ×N`. Passive cards get the line too —
   their debuff is scaled by `power` just as a strike is — but **only its `power`
-  half**: a passive attack is never activated, and an `attack`-less stat still
-  collects a `prepareTime` for it, so printing one would claim a speed-up the card
-  can never deliver.
+  half**: a passive attack is never activated, so printing a delay would claim a
+  speed-up the card can never deliver.
 - **The panel test is node tier, not a DOM test.** The panel renders by assigning
   one `innerHTML` string, and
   [testing.instructions.md](../../.github/instructions/testing.instructions.md)
   names "a DOM test for pure string-rendering" an anti-pattern. Lives in
   [client/tests/attack-panel-stats.test.ts](../../client/tests/attack-panel-stats.test.ts),
   which re-registers `idler` with synthetic stat upgrades (the tree authors none).
-- **The editor gained a blank option for optional pickers.** §6's open item: the
-  form forced a selection, so an optional id field would have silently persisted
-  the first attack on the next edit of any sibling field. An optional string field
-  with options now leads with `(unset)`.
+- **`attack` is required; there is no "every attack" form.** An omitted id
+  meaning "buff them all" made a forgotten field indistinguishable from the most
+  powerful authoring, and boot could not tell them apart. A ref must name its
+  attack, so a missing one fails the schema at load, and the editor's `attack`
+  picker needs no blank entry.
 - **The editor's `stat` picker is narrowed by the named attack.** §5's kind check
   is a boot-time error, which the author only meets as a failed startup after
   saving. `attackStatsFor(kind)` in [attacks.ts](../../shared/src/attacks.ts) is
@@ -148,17 +148,17 @@ carries.
 export const ATTACK_STATS = ['power', 'prepareCost', 'prepareTime'] as const
 
 const schema = z.strictObject({
-  /** Which attack to buff, or absent for every attack in the mode. */
-  attack: z.string().optional(),
+  /** Which attack to buff. */
+  attack: z.string(),
   stat: z.enum(ATTACK_STATS),
   op: z.enum(['add', 'mult']),
   value: z.number(),
 })
 ```
 
-`attack` optional-means-all mirrors [`EnemyCostOutput.id`](../../shared/src/effects/types.ts#L160)
-("a specific upgrade/generator id, or absent for every entity of the scope"), so
-"+20% to all raids" is one node rather than one node per attack.
+As first drafted, `attack` was optional-means-all, mirroring
+[`EnemyCostOutput.id`](../../shared/src/effects/types.ts#L160), so "+20% to all
+raids" would be one node. As built it is required (see the departures above).
 
 **`power` is deliberately one stat, not four.** An attack's magnitude lives in a
 different field depending on what it does — `fraction`, `amount`, `count`,
@@ -304,12 +304,7 @@ rest of the block depends on: editing it re-resolves every option set and
 first legal option, so the form can't hand the tree file a pairing that refuses to
 boot.
 [editor-effect-options.dom.test.ts](../../client/tests/editor-effect-options.dom.test.ts)
-covers that live-select behavior; the option sets themselves are node tier. The optional `attack` needed the form to offer an empty "all
-attacks" choice, and it did not have one: `buildEffectField` rendered every
-option-bearing string field as a select with no blank entry, so the browser
-pre-selected the first attack and the next edit to a sibling field would persist
-it. As built, an **optional** option-bearing field leads with an `(unset)` entry
-(one branch in `buildEffectField`, so every future optional picker gets it too).
+covers that live-select behavior; the option sets themselves are node tier.
 `attackStat` is also listed in the picker's `Offense` group, which the
 `EFFECT_GROUPS` drift guard requires.
 
@@ -328,8 +323,8 @@ already quotes the discounted price and a factor beside it would restate it.
 `renderStats` takes the attack's `kind`, and a **passive** card shows `power`
 only. Its debuff is scaled by `power` just as a strike is, so the line belongs
 there — but a passive attack is never activated (`validateModeDefinition` forbids
-it from declaring a prepare cost or delay), while an `attackStat` naming no attack
-collects those params for every attack regardless. Gating on the kind is what
+it from declaring a prepare cost or delay, and forbids an `attackStat` from
+moving either on it). Gating on the kind is what
 keeps the card from advertising a delay the attack doesn't have.
 
 The authored description keeps describing the _shape_ of the attack; the derived
@@ -391,7 +386,7 @@ away from the `/dev.html` editor. If attacks ever need _independent_ pacing
 | [shared/src/modes/index.ts](../../shared/src/modes/index.ts)                             | scale in `collectEnemyDebuffs` / `collectEnemyCostFactors`; validation             |
 | [shared/src/modifiers/index.ts](../../shared/src/modifiers/index.ts)                     | export the two scaling helpers + the floor                                         |
 | [client/src/ui/panels/attack-panel.ts](../../client/src/ui/panels/attack-panel.ts)       | params-aware cost, derived power/time line                                         |
-| [client/src/dev/editor/effects-editor.ts](../../client/src/dev/editor/effects-editor.ts) | `attack`/`stat`/`op` pickers, `(unset)`, operator labels, preview row              |
+| [client/src/dev/editor/effects-editor.ts](../../client/src/dev/editor/effects-editor.ts) | `attack`/`stat`/`op` pickers, operator labels, preview row                         |
 | `client/src/dev/editor/effect-preview.ts`                                                | **new** — `describeEffectRef`, the resolved preview line                           |
 | [client/src/dev/dev.css](../../client/src/dev/dev.css)                                   | one class for the preview row                                                      |
 | [client/src/style.css](../../client/src/style.css)                                       | one class for the derived stat line                                                |
@@ -405,8 +400,8 @@ Server: none. Wire: none.
 ```ts
 export interface AttackStatOutput {
   readonly kind: 'attackStat'
-  /** Which attack this moves, or absent for every attack. */
-  readonly attack?: string
+  /** Which attack this moves. */
+  readonly attack: string
   readonly stat: AttackStat
   readonly op: 'add' | 'mult'
   readonly value: number
