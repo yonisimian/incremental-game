@@ -189,18 +189,4 @@ describe('effects editor — attackStat stat picker', () => {
       value: 1,
     })
   })
-
-  it('offers every stat while no attack is named — it buffs all of them', () => {
-    const tree = idler()
-    const { attackSelect, statOptions, saved } = mount(tree, {
-      type: 'attackStat',
-      stat: 'prepareTime',
-      op: 'mult',
-      value: 0.5,
-    })
-    expect(statOptions()).toContain('prepareTime')
-    // The optional picker's blank entry is the way back to "every attack".
-    expect(attackSelect().value).toBe('')
-    expect(saved().stat).toBe('prepareTime')
-  })
 })

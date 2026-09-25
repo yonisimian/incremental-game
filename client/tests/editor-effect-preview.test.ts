@@ -67,13 +67,6 @@ describe('describeEffectRef — attackStat', () => {
     ).toBe(`${def.id} debuff duration: 10s → 12s (L1) · 14s (L2)`)
   })
 
-  it('stays relative for a duration stat when no attack authors a window', () => {
-    const tree = idler()
-    expect(
-      describeEffectRef(tree, { type: 'attackStat', stat: 'duration', op: 'offset', value: 2 }),
-    ).toBe('every attack debuff duration: +2s (L1) · +4s (L2)')
-  })
-
   it('shows an add for the multiplier it is, not the seconds it looks like', () => {
     const tree = idler()
     const def = activeAttack(tree)
@@ -135,19 +128,13 @@ describe('describeEffectRef — attackStat', () => {
     ).toBe(`${def.id} magnitude: ×2 (L1) · ×4 (L2)`)
   })
 
-  it('names every attack, and stays relative, when no attack is set', () => {
+  it('says nothing for another effect, a missing or unknown attack, or invalid params', () => {
     const tree = idler()
-    expect(
-      describeEffectRef(tree, { type: 'attackStat', stat: 'power', op: 'add', value: 0.5 }),
-    ).toBe('every attack magnitude: ×1.5 (L1) · ×2 (L2)')
-    expect(
-      describeEffectRef(tree, { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 }),
-    ).toBe('every attack prepare time: -1s (L1) · -2s (L2)')
-  })
-
-  it('says nothing for another effect, an unknown attack, or invalid params', () => {
-    const tree = idler()
+    const attack = activeAttack(tree).id
     expect(describeEffectRef(tree, { type: 'baseModifier', field: 'r0', value: 1 })).toBeNull()
+    expect(
+      describeEffectRef(tree, { type: 'attackStat', stat: 'power', op: 'mult', value: 2 }),
+    ).toBeNull()
     expect(
       describeEffectRef(tree, {
         type: 'attackStat',
@@ -160,10 +147,16 @@ describe('describeEffectRef — attackStat', () => {
     // An offset on a stat with no unit: rejected by the schema, so the form's
     // error line owns it and the preview stays quiet.
     expect(
-      describeEffectRef(tree, { type: 'attackStat', stat: 'power', op: 'offset', value: 1 }),
+      describeEffectRef(tree, {
+        type: 'attackStat',
+        attack,
+        stat: 'power',
+        op: 'offset',
+        value: 1,
+      }),
     ).toBeNull()
     expect(
-      describeEffectRef(tree, { type: 'attackStat', stat: 'nope', op: 'mult', value: 2 }),
+      describeEffectRef(tree, { type: 'attackStat', attack, stat: 'nope', op: 'mult', value: 2 }),
     ).toBeNull()
   })
 })

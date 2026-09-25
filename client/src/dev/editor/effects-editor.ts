@@ -139,8 +139,8 @@ export function effectFieldOptions(
     ]
   }
   if (effectType === 'attackStat' && fieldKey === 'stat') {
-    // The attack's own kind decides which stats mean anything on it; an
-    // `attack`-less ref buffs every attack, so it keeps the full list.
+    // The attack's own kind decides which stats mean anything on it; until one
+    // is picked, the full list.
     const target = params?.attack
     const attack =
       typeof target === 'string' ? tree.attacks.find((a) => a.id === target) : undefined
@@ -343,11 +343,6 @@ function buildEffectField(
     const selectOptions = rawOptions.map((o) =>
       typeof o === 'string' ? { value: o, label: o } : o,
     )
-    // An *optional* picker needs a way back to "unset" — for `attackStat`'s
-    // `attack` that's the "every attack" authoring, and without a blank entry the
-    // browser would pre-select the first id and the next edit to any sibling
-    // field would silently persist it.
-    if (spec.optional) selectOptions.unshift({ value: '', label: '(unset)' })
     const select = el('select', 'ed-input')
     const value = typeof current === 'string' ? current : ''
     if (value !== '' && !selectOptions.some((o) => o.value === value)) {
