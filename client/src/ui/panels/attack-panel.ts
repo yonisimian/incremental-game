@@ -68,9 +68,8 @@ function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackPar
  *
  * Only `power` is shown for a **passive** attack. A passive attack is never
  * activated, so it has neither a prepare cost nor a prepare delay
- * (`validateModeDefinition` forbids it from declaring either) — but an
- * `attackStat` naming *no* attack collects those params for every attack all the
- * same, and printing one here would claim a speed-up the card can never deliver.
+ * (`validateModeDefinition` forbids it from declaring either, and forbids an
+ * `attackStat` from moving either on it).
  */
 function renderStats(def: AttackDefinition, params: AttackParams): string {
   const parts: string[] = []

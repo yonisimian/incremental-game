@@ -137,8 +137,13 @@ const A0_POWER_MULT = statUpgrade('a0-power-mult', {
   value: 2,
 })
 
-/** Doubles *every* attack's magnitude — no `attack` named. */
-const ALL_POWER_MULT = statUpgrade('all-power-mult', { stat: 'power', op: 'mult', value: 2 })
+/** A second, independent doubling of a0's magnitude. */
+const A0_POWER_MULT_B = statUpgrade('a0-power-mult-b', {
+  attack: 'a0',
+  stat: 'power',
+  op: 'mult',
+  value: 2,
+})
 
 /** Buffs a2 only, so a0 must not see it. */
 const A2_POWER_MULT = statUpgrade('a2-power-mult', {
@@ -217,7 +222,7 @@ const A3_EXTEND = statUpgrade('a3-extend', {
 const STAT_UPGRADES = [
   A0_POWER_ADD,
   A0_POWER_MULT,
-  ALL_POWER_MULT,
+  A0_POWER_MULT_B,
   A2_POWER_MULT,
   A0_POWER_HUGE,
   A0_CHEAP,
@@ -327,7 +332,7 @@ describe('collectAttackParams', () => {
   })
 
   it('stacks two mult upgrades', () => {
-    const state = withStats({ 'a0-power-mult': 1, 'all-power-mult': 1 })
+    const state = withStats({ 'a0-power-mult': 1, 'a0-power-mult-b': 1 })
     expect(collectAttackParams(state, mode, 'a0').power).toBe(4)
   })
 
@@ -337,12 +342,6 @@ describe('collectAttackParams', () => {
       effects: [{ type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 3 }],
     }
     expect(collectAttackParams(makeState(), modeWithStat, 'a0').power).toBe(3)
-  })
-
-  it('lets an attack-less ref buff every attack', () => {
-    const state = withStats({ 'all-power-mult': 1 })
-    expect(collectAttackParams(state, mode, 'a0').power).toBe(2)
-    expect(collectAttackParams(state, mode, 'a2').power).toBe(2)
   })
 
   it('ignores a ref naming a different attack', () => {
