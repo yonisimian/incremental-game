@@ -541,30 +541,55 @@ describe('enemyCostModifier params', () => {
   }
 
   it('splits a whole-scope target into scope + no id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'upgrade',
-      id: undefined,
-      costFactor: 1.25,
-      scalingFactor: undefined,
-    })
-    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: undefined,
-      costFactor: undefined,
-      scalingFactor: 1.1,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
+    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: undefined,
+        scalingFactor: 1.1,
+      },
+    ])
+  })
+
+  it('emits one output per scope for `purchases`', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'purchases', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   it('splits a namespaced target into scope + id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: 'g0',
-      costFactor: 2,
-      scalingFactor: undefined,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: 2,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   // An attack that discounts the victim is never intended authoring — the same

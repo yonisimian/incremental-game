@@ -686,7 +686,7 @@ describe('validateModeDefinition — negative tests', () => {
       const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target }] })
       expect(() => {
         validateModeDefinition('test', def)
-      }).toThrow(/unknown lock target/)
+      }).toThrow(/unknown purchase target/)
     }
   })
 
@@ -723,7 +723,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/unknown cost target 'upgrade:nope'/)
+    }).toThrow(/unknown purchase target 'upgrade:nope'/)
   })
 
   // The scope and the id can't disagree — a single namespaced key makes that
@@ -748,7 +748,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/unknown cost target 'upgrade:g0'/)
+    }).toThrow(/unknown purchase target 'upgrade:g0'/)
   })
 
   it('accepts an enemyCostModifier naming a declared upgrade', () => {

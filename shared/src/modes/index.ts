@@ -15,7 +15,7 @@ import type {
   Goal,
   PlayerState,
   PurchaseLock,
-  PurchaseLockTarget,
+  PurchaseTarget,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -49,12 +49,11 @@ import {
 import {
   addressableSources,
   addressableTargets,
-  enemyCostTargets,
   enemyDebuffTargets,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
-  parsePurchaseLockTarget,
-  purchaseLockTargets,
+  parsePurchaseTarget,
+  purchaseTargets,
   RESERVED_TARGET_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
@@ -532,32 +531,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `enemyCostModifier` effects name a `target` — a whole scope (`upgrades` /
-  // `generators`) or one entity (`upgrade:<id>` / `generator:<id>`). Like the
+  // `enemyCostModifier` and `enemyPurchaseLock` name a `target` from the shared
+  // purchase-target catalog — a whole scope (`upgrades` / `generators`), both
+  // (`purchases`), or one entity (`upgrade:<id>` / `generator:<id>`). Like the
   // debuff `field` above it's a mode-specific string the generic schema only
-  // checks is present, so validate it against the enemy-cost catalog: a typo (or
-  // an id that no longer exists) would otherwise author an attack that silently
-  // does nothing.
-  const costTargetKeys = new Set(enemyCostTargets(def).map((f) => f.key))
+  // checks is present, so validate it against the catalog: a typo (or an id
+  // that no longer exists) would otherwise author an attack that silently does
+  // nothing.
+  const purchaseTargetKeys = new Set(purchaseTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
-      if (ref.type !== 'enemyCostModifier') continue
-      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+      if (ref.type !== 'enemyCostModifier' && ref.type !== 'enemyPurchaseLock') continue
+      if (typeof ref.target === 'string' && !purchaseTargetKeys.has(ref.target))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
-        )
-    }
-  }
-
-  // `enemyPurchaseLock` targets use the same vocabulary, plus `purchases` for
-  // both scopes; a stale id would author a lock that bars nothing.
-  const lockTargetKeys = new Set(purchaseLockTargets(def).map((f) => f.key))
-  for (const attack of def.attacks) {
-    for (const ref of attack.effects ?? []) {
-      if (ref.type !== 'enemyPurchaseLock') continue
-      if (typeof ref.target === 'string' && !lockTargetKeys.has(ref.target))
-        throw new Error(
-          `[${id}] attack '${attack.id}' enemyPurchaseLock effect references unknown lock target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
+          `[${id}] attack '${attack.id}' ${ref.type} effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
         )
     }
   }
@@ -618,11 +605,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       // second authored dead weight — the same class of mistake as a window on
       // an all-steal attack. Judged by the authored `target`, as every check
       // here is.
-      const locked: PurchaseLockTarget[] = []
+      const locked: PurchaseTarget[] = []
       for (const ref of attack.effects ?? []) {
         if (ref.type !== 'enemyPurchaseLock' || typeof ref.target !== 'string') continue
         // An unknown target is rejected by the catalog check above.
-        for (const t of parsePurchaseLockTarget(ref.target) ?? []) {
+        for (const t of parsePurchaseTarget(ref.target) ?? []) {
           const overlaps = locked.some(
             (s) =>
               s.scope === t.scope && (s.id === undefined || t.id === undefined || s.id === t.id),

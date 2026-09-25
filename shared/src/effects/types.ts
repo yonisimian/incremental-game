@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { AttackKind, CostScope, PlayerState, PurchaseLockTarget } from '../types.js'
+import type { AttackKind, CostScope, PlayerState, PurchaseTarget } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -208,7 +208,7 @@ export interface EnemyCostOutput {
 export interface EnemyPurchaseLockOutput {
   readonly kind: 'enemyPurchaseLock'
   /** What the victim is barred from buying: whole scopes or single entities (never empty). */
-  readonly targets: readonly PurchaseLockTarget[]
+  readonly targets: readonly PurchaseTarget[]
 }
 
 /**

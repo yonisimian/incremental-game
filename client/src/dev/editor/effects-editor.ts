@@ -13,8 +13,7 @@ import {
   ATTACK_STATS,
   attackStatOpsFor,
   attackStatsFor,
-  enemyCostTargetsFor,
-  purchaseLockTargetsFor,
+  purchaseTargetsFor,
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
@@ -159,14 +158,11 @@ export function effectFieldOptions(
   if (effectType === 'enemyProductionModifier' && fieldKey === 'field') {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
-  if (effectType === 'enemyCostModifier' && fieldKey === 'target') {
-    return enemyCostTargetsFor(
-      collectIds(tree),
-      tree.generators.map((g) => g.id),
-    ).map((f) => ({ value: f.key, label: f.label }))
-  }
-  if (effectType === 'enemyPurchaseLock' && fieldKey === 'target') {
-    return purchaseLockTargetsFor(
+  if (
+    (effectType === 'enemyCostModifier' || effectType === 'enemyPurchaseLock') &&
+    fieldKey === 'target'
+  ) {
+    return purchaseTargetsFor(
       collectIds(tree),
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))

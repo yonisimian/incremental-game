@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { parsePurchaseLockTarget } from '../addressable.js'
+import { parsePurchaseTarget } from '../addressable.js'
 import type { EffectDef, EnemyPurchaseLockOutput } from '../types.js'
 
 /**
@@ -14,11 +14,11 @@ import type { EffectDef, EnemyPurchaseLockOutput } from '../types.js'
  * worthless otherwise. Selling and attack activation stay open (a lock is on
  * spending, and a locked player must still be able to fire back).
  *
- * `target` is a catalog key, the same vocabulary as `enemyCostModifier`'s:
- * `upgrades` / `generators` for a whole scope, `upgrade:<id>` / `generator:<id>`
- * for one entity, plus `purchases` for both scopes at once. Like the cost
+ * `target` is a purchase-target key, shared with `enemyCostModifier`:
+ * `upgrades` / `generators` for a whole scope, `purchases` for both at once,
+ * `upgrade:<id>` / `generator:<id>` for one entity. Like the cost
  * target it is a mode-specific string the schema only checks is present;
- * `validateModeDefinition` checks it against `purchaseLockTargets`.
+ * `validateModeDefinition` checks it against `purchaseTargets`.
  *
  * A lock has no magnitude, so the attacker's `power` never touches it — the
  * lever for "a stronger lock" is `duration`. `validateModeDefinition` rejects a
@@ -40,7 +40,7 @@ export type EnemyPurchaseLockParams = z.infer<typeof schema>
  * open) is decided by `collectEnemyPurchaseLocks`, which owns this output.
  */
 function apply(p: EnemyPurchaseLockParams): EnemyPurchaseLockOutput | null {
-  const targets = parsePurchaseLockTarget(p.target)
+  const targets = parsePurchaseTarget(p.target)
   return targets ? { kind: 'enemyPurchaseLock', targets } : null
 }
 

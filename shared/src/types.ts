@@ -247,10 +247,13 @@ export interface ActiveDebuff {
 /** Which kind of priced entity a cost factor applies to. */
 export type CostScope = 'upgrade' | 'generator'
 
-/** What one purchase lock bars: a whole scope, or (with `id`) a single entity of it. */
-export interface PurchaseLockTarget {
+/**
+ * What a purchase target names (see `parsePurchaseTarget`): a whole scope, or
+ * (with `id`) a single entity of it.
+ */
+export interface PurchaseTarget {
   readonly scope: CostScope
-  /** The one upgrade / generator locked; absent for the whole scope. */
+  /** The one upgrade / generator named; absent for the whole scope. */
   readonly id?: string
 }
 
@@ -260,7 +263,7 @@ export interface PurchaseLockTarget {
  * target — two windows locking the same target collapse into the one that
  * closes last.
  */
-export interface PurchaseLock extends PurchaseLockTarget {
+export interface PurchaseLock extends PurchaseTarget {
   /**
    * The victim's `meta.gameSec` at which the lock lifts — the latest
    * `expiresAtSec` among the windows locking this target. Both players' game

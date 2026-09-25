@@ -37,15 +37,17 @@
 - **One lock attack authored, as test content.** Contrary to the text below,
   `idler.json` gains 🚫 Embargo (3s prep, 10s window, locks `purchases`),
   unlocked by a free node like the other attacks.
-- **Per-entity targets after all.** `target` is a catalog string, not a
-  three-word enum: `enemyCostModifier`'s vocabulary (`upgrades`, `generators`,
-  `upgrade:<id>`, `generator:<id>`) plus `purchases`, listed by
-  `purchaseLockTargets` and checked against it at boot. `PurchaseLock` carries an
-  optional `id`, `isPurchaseLocked` / `purchaseLockRemainingSec` take the entity
-  id, and the overlap rule treats a single entity inside a locked scope as an
-  overlap.
+- **Per-entity targets after all, from one shared catalog.** `target` is a
+  catalog string, not a three-word enum. `purchaseTargets` (in
+  `addressable.ts`) is the single list both `enemyCostModifier` and
+  `enemyPurchaseLock` use — `upgrades`, `generators`, `purchases` (both),
+  `upgrade:<id>`, `generator:<id>` — and `parsePurchaseTarget` reads it back;
+  `enemyCostModifier` gains `purchases` as a result, emitting one output per
+  scope. `PurchaseLock` carries an optional `id`, `isPurchaseLocked` /
+  `purchaseLockRemainingSec` take the entity id, and the overlap rule treats a
+  single entity inside a locked scope as an overlap.
 
-Full suite green: shared 849, server 164, client 486. `typecheck`, `lint`,
+Full suite green: shared 851, server 164, client 486. `typecheck`, `lint`,
 `lint:css`, `lint:exports`, `format:check` all pass.
 
 ---
