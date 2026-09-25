@@ -1,13 +1,13 @@
 # 35 — Click income: an explicit order for additive and multiplicative
 
-## Status
+## Status: Implemented (Option 3)
 
-Two halves, two statuses:
-
-- **"Where it stands today"** is current behaviour, verified against `tal/main`
-  as of 2026-09-11. Every number in it was produced by running the real idler
-  tree through `collectModifiers` / `collectEnemyDebuffs` / `computeClickIncome`.
-- **"The change"** onward is **proposed, not implemented**.
+"Where it stands today" records the behaviour **before** the fix. Every number
+in it was produced by running the real idler tree through `collectModifiers` /
+`collectEnemyDebuffs` / `computeClickIncome`, and re-checked on `main` before the
+fix landed (8.84 own, 2.42 with both click attacks). "The change" onward is the
+proposal as written; [Decision](#decision-option-3) records what was built and
+where it departs from the recommendation.
 
 ---
 
@@ -145,13 +145,10 @@ the additive one order-dependent.
 
 ### What the player is told
 
-The data panel's Clicking section reports the two stages on separate rows —
-`⚔️ Enemy debuff (flat) -2` and `⚔️ Enemy debuff (mult) ×0.5`
-([data-panel.ts:344-351](../../client/src/ui/panels/data-panel.ts#L344-L351),
-[showClickDebuffs](../../client/src/ui/panels/data-panel.ts#L599)). They are shown
-per stage precisely _because_ no single combined factor is true: any ratio would
-be an artifact of the ordering above. Once this plan lands, a combined figure
-becomes well-defined and the rows could carry one.
+The data panel's Clicking section shows "Per click" with its before/after: the
+debuffed figure in red with the un-debuffed one in parentheses. That already
+folds the debuffs in, so it was correct for whichever order the array happened
+to have, but the strength it reported was an artifact of that order.
 
 ---
 
@@ -233,6 +230,29 @@ identical in shape to the resource track — the same four accumulators, the sam
 incoming debuffs in `global`. Authors and players get one rule to learn, and
 `ResourceLayers` / `finalizeRate` are reused rather than paralleled. Option 3 is
 the pick if "a flat debuff means a flat number" is worth a bespoke formula.
+
+### Decision: Option 3
+
+Built as **Option 3**: `max(0, ownAdd × ownMult × enemyMult + enemyAdd)`. The
+owner preferred that a `−2` click debuff always costs exactly 2, and it keeps
+the idler attack pair close to today's strength.
+
+Where the build departs from "Changes required" below, which was written for
+Option 2:
+
+- **The key** is `INCOMING_CLICK_INCOME_FIELD` (`clickIncome:incoming`) in
+  `modifiers/types.ts`, beside the other pipeline sentinels, and it is in
+  `RESERVED_TARGET_KEYS`. Authors still target `clickIncome`.
+- **The accumulators** are a new `ClickLayers { own, incoming }` rather than a
+  reused `ResourceLayers`: Option 3's formula isn't the resource formula, so
+  borrowing `base`/`global` would have implied a shape it doesn't have.
+- **The data panel** needed no change: "Per click" already shows the debuffed
+  figure beside the un-debuffed one.
+
+Balance check against `main` before the fix: only Click Rush moves (timed score
+33 574 → 40 570, buy-upgrade 49.0 s → 43.5 s), because `sc-pcps` is now
+multiplied. Every envelope still passes. Click Rush was already flagged as an
+exploit candidate on `main`.
 
 ---
 
@@ -320,9 +340,9 @@ is picked.
 - [shared/tests/effects.test.ts:1452-1461](../../shared/tests/effects.test.ts#L1452-L1461)
   asserts `sc-pcps`'s emitted modifier with `toContainEqual` — order-insensitive,
   survives as-is (the emitted list is unchanged; only its consumption differs).
-- [client/tests/click-debuff.dom.test.ts](../../client/tests/click-debuff.dom.test.ts)
-  pins the per-stage rows and the `Per click` values they sit next to; the income
-  figures change, the row values (`-2`, `×0.5`) do not.
+- [client/tests/data-panel.dom.test.ts](../../client/tests/data-panel.dom.test.ts)
+  pins the "Per click" before/after under each debuff stage; its figures use a
+  base click of 1, where both orders agree, so it survives as-is.
 - [server/tests/match.test.ts:350](../../server/tests/match.test.ts#L350),
   [:409](../../server/tests/match.test.ts#L409) drive `enemyProductionModifier`
   through a real match.
@@ -333,14 +353,10 @@ is picked.
 
 ---
 
-## Open questions
+## Resolved questions
 
-1. **Option 2 or 3** — consistency with resources, or "a flat debuff means a flat
-   number"? Everything else in this plan is the same either way.
-2. **Fix `sc-pcps` as part of this, or separately?** The layering fixes it as a
-   side effect. If that balance shift is unwanted right now, the alternative is to
-   land the incoming/own split only and keep own modifiers sequential — but that
-   leaves half the order-sensitivity in place, so it is not recommended.
-3. **Does anything else ride an un-layered track?** `clickIncome` is the only one
-   today ([pipeline.ts:58](../../shared/src/modifiers/pipeline.ts#L58)). Any future
-   standalone track should be layered from the start.
+1. **Option 2 or 3?** Option 3 (see [Decision](#decision-option-3)).
+2. **Fix `sc-pcps` as part of this?** Yes. Own flat bonuses are all multiplied,
+   wherever their node sits in the tree.
+3. **Does anything else ride an un-layered track?** No. `clickIncome` was the
+   only one. Any future standalone track should be layered from the start.

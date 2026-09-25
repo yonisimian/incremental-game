@@ -122,4 +122,24 @@ describe('collectDynamicBonuses', () => {
       { stage: 'multiplicative', field: 'r1', value: 2 },
     ])
   })
+
+  it('expands an aggregate sentinel field into one modifier per concrete target', () => {
+    const allRes: EffectRef = {
+      type: 'relativeModifier',
+      source: 'resource:r0',
+      field: 'allResources',
+      stage: 'multiplicative',
+      factor: 0.00001,
+    }
+    const mode = makeMode({ upgrades: [makeUpgrade('u0', [allRes])] })
+    const state = makeState({ upgrades: { u0: 1 }, resources: { r0: 25_000 } })
+    const [bonus] = collectDynamicBonuses(state, mode)
+    // The sentinel is never reported raw: it expands to one modifier per
+    // resource (identical shape to a multi-target effect), so the panel's
+    // "all resources" collapse fires just as it does for balancedGenerators.
+    expect(bonus.modifiers).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 1.25 },
+      { stage: 'multiplicative', field: 'r1', value: 1.25 },
+    ])
+  })
 })

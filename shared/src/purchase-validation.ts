@@ -79,7 +79,8 @@ export function generatorBlockReason(
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return 'unknown'
   if (!isGeneratorUnlocked(state, def, mode)) return 'locked'
-  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode))) return 'unaffordable'
+  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode, 'buy')))
+    return 'unaffordable'
   return null
 }
 
