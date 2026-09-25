@@ -14,6 +14,8 @@ import type {
   GeneratorDefinition,
   Goal,
   PlayerState,
+  PurchaseLock,
+  PurchaseTarget,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -47,10 +49,11 @@ import {
 import {
   addressableSources,
   addressableTargets,
-  enemyCostTargets,
   enemyDebuffTargets,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
+  parsePurchaseTarget,
+  purchaseTargets,
   RESERVED_TARGET_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
@@ -85,7 +88,11 @@ const HOST_LABELS: Record<EffectHost, string> = {
 const DEBUFF_EFFECT_TYPES: ReadonlySet<string> = new Set([
   'enemyProductionModifier',
   'enemyCostModifier',
+  'enemyPurchaseLock',
 ])
+
+/** The debuff effect types as they read in an authoring error message. */
+const DEBUFF_EFFECT_NAMES = [...DEBUFF_EFFECT_TYPES].join(' / ')
 
 /**
  * Validate that a single flavor's display data covers exactly the mode's
@@ -294,6 +301,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (ref.stat === 'duration' && windowSec <= 0)
       throw new Error(
         `[${id}] ${where} attackStat moves 'duration' on attack '${target}', which opens no debuff window`,
+      )
+    // A purchase lock has no magnitude, so `power` has nothing to scale on an
+    // attack whose effects are all locks — `duration` is that attack's lever.
+    // An attack with *any* other effect keeps `power` legal, since a raid that
+    // steals and locks still has a steal to scale.
+    const effects = attack.effects ?? []
+    const lockOnly = effects.length > 0 && effects.every((e) => e.type === 'enemyPurchaseLock')
+    if (ref.stat === 'power' && lockOnly)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'power' on attack '${target}', whose only effects are purchase locks — a lock has no magnitude to scale (use 'duration')`,
       )
     // An offset at least as deep as the authored delay floors it to zero at a
     // single copy, so every later copy is bought and does nothing — the absolute
@@ -514,19 +531,20 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `enemyCostModifier` effects name a `target` — a whole scope (`upgrades` /
-  // `generators`) or one entity (`upgrade:<id>` / `generator:<id>`). Like the
+  // `enemyCostModifier` and `enemyPurchaseLock` name a `target` from the shared
+  // purchase-target catalog — a whole scope (`upgrades` / `generators`), both
+  // (`purchases`), or one entity (`upgrade:<id>` / `generator:<id>`). Like the
   // debuff `field` above it's a mode-specific string the generic schema only
-  // checks is present, so validate it against the enemy-cost catalog: a typo (or
-  // an id that no longer exists) would otherwise author an attack that silently
-  // does nothing.
-  const costTargetKeys = new Set(enemyCostTargets(def).map((f) => f.key))
+  // checks is present, so validate it against the catalog: a typo (or an id
+  // that no longer exists) would otherwise author an attack that silently does
+  // nothing.
+  const purchaseTargetKeys = new Set(purchaseTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
-      if (ref.type !== 'enemyCostModifier') continue
-      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+      if (ref.type !== 'enemyCostModifier' && ref.type !== 'enemyPurchaseLock') continue
+      if (typeof ref.target === 'string' && !purchaseTargetKeys.has(ref.target))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+          `[${id}] attack '${attack.id}' ${ref.type} effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
         )
     }
   }
@@ -576,12 +594,33 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       // programmatically built mode, as the `prepareTimeSec < 0` check does.
       if (hasDebuff && attack.durationSec === undefined)
         throw new Error(
-          `[${id}] active attack '${attack.id}' carries a debuff effect (enemyProductionModifier / enemyCostModifier) but has no durationSec — on an active attack a debuff applies for a window, and without one it would never apply`,
+          `[${id}] active attack '${attack.id}' carries a debuff effect (${DEBUFF_EFFECT_NAMES}) but has no durationSec — on an active attack a debuff applies for a window, and without one it would never apply`,
         )
       if (!hasDebuff && attack.durationSec !== undefined)
         throw new Error(
-          `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only enemyProductionModifier / enemyCostModifier consume a window`,
+          `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only ${DEBUFF_EFFECT_NAMES} consume a window`,
         )
+      // Two locks on one attack that overlap (the same target twice, or a
+      // single entity inside a whole scope another lock already bars) leave the
+      // second authored dead weight — the same class of mistake as a window on
+      // an all-steal attack. Judged by the authored `target`, as every check
+      // here is.
+      const locked: PurchaseTarget[] = []
+      for (const ref of attack.effects ?? []) {
+        if (ref.type !== 'enemyPurchaseLock' || typeof ref.target !== 'string') continue
+        // An unknown target is rejected by the catalog check above.
+        for (const t of parsePurchaseTarget(ref.target) ?? []) {
+          const overlaps = locked.some(
+            (s) =>
+              s.scope === t.scope && (s.id === undefined || t.id === undefined || s.id === t.id),
+          )
+          if (overlaps)
+            throw new Error(
+              `[${id}] active attack '${attack.id}' carries enemyPurchaseLock effects that overlap on ${t.id ?? `all ${t.scope}s`} — the window already bars it once`,
+            )
+          locked.push(t)
+        }
+      }
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
         throw new Error(
           `[${id}] active attack '${attack.id}' has a non-positive durationSec (a window no tick could gather)`,
@@ -1392,13 +1431,66 @@ function attacksInForce(attacker: Readonly<PlayerState>, mode: ModeDefinition): 
     const attack = attackById.get(attackId)
     if (attack?.kind === 'passive') inForce.push(attack)
   }
+  for (const { attack } of windowsInForce(attacker, mode)) inForce.push(attack)
+  return inForce
+}
+
+/**
+ * The window pass of {@link attacksInForce} on its own: every **active** attack
+ * with an open debuff window, paired with when that window closes, in the order
+ * the windows were opened. Split out so a collector that needs the expiry (the
+ * purchase lock's victim-side countdown) reads it from the same walk rather
+ * than re-deriving "which windows are open" on its own.
+ */
+function windowsInForce(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): { attack: AttackDefinition; expiresAtSec: number }[] {
+  const attackById = new Map(mode.attacks.map((a) => [a.id, a]))
   const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  const open: { attack: AttackDefinition; expiresAtSec: number }[] = []
   for (const window of attacker.activeDebuffs ?? []) {
     if (window.expiresAtSec <= gameSec) continue
     const attack = attackById.get(window.attack)
-    if (attack?.kind === 'active') inForce.push(attack)
+    if (attack?.kind === 'active') open.push({ attack, expiresAtSec: window.expiresAtSec })
   }
-  return inForce
+  return open
+}
+
+/**
+ * Collect the *purchase embargo* a player's attacks currently inflict on the
+ * **opponent** — the third `attacksInForce` consumer, beside
+ * {@link collectEnemyDebuffs} and {@link collectEnemyCostFactors}. Gathered
+ * from `attacker`'s open windows only: `enemyPurchaseLock` is active-only by
+ * host declaration, so the passive pass has nothing to contribute and is
+ * skipped rather than walked for nothing.
+ *
+ * One entry per target (a whole scope, or one upgrade / generator), carrying
+ * the latest expiry among the windows locking it, so two overlapping locks read
+ * as one lock that lifts when the last closes. **No `power` scaling** — a lock
+ * has no magnitude. The result is
+ * stamped onto the victim's {@link PlayerState.incomingPurchaseLocks} by the
+ * server, which is where every purchase path reads it from.
+ */
+export function collectEnemyPurchaseLocks(
+  attacker: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): PurchaseLock[] {
+  const byTarget = new Map<string, PurchaseLock>()
+  for (const { attack, expiresAtSec } of windowsInForce(attacker, mode)) {
+    for (const ref of attack.effects ?? []) {
+      for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
+        if (!('kind' in out) || out.kind !== 'enemyPurchaseLock') continue
+        for (const target of out.targets) {
+          const key = `${target.scope}:${target.id ?? ''}`
+          const prev = byTarget.get(key)
+          if (prev === undefined || expiresAtSec > prev.untilSec)
+            byTarget.set(key, { ...target, untilSec: expiresAtSec })
+        }
+      }
+    }
+  }
+  return [...byTarget.values()]
 }
 
 /**

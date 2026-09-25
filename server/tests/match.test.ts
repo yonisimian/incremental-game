@@ -1648,6 +1648,97 @@ describe('Match', () => {
       }
     })
 
+    // ── Purchase lock ──────────────────────────────────────────────
+
+    /** `a3` re-authored as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
+    function withLockAttack(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                kind: 'active' as const,
+                prepareCost: { r0: { baseCost: 10 } },
+                prepareTimeSec: 1,
+                durationSec: WINDOW_SEC,
+                effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }],
+              }
+            : a,
+        ),
+      }
+    }
+
+    function sellGenMsg(generatorId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'sell_generator', timestamp: Date.now(), generatorId }],
+      })
+    }
+
+    it('embargoes the victim’s buys for the window, leaving selling and attacking open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withLockAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        // p2 before the strike: generators unlocked and one g0 held (so there is
+        // something to sell), the attack panel + a0 unlocked (so there is
+        // something to fire back), and funds for all of it.
+        m.handleMessage('p2', buyMsg('g1-g2', 1))
+        m.grantResourcesForTest('p2', { r0: 5000, r1: 100 })
+        m.handleMessage('p2', buyGenMsg('g0', 2))
+        m.handleMessage('p2', buyMsg(panelUpgrade.id, 3))
+        m.handleMessage('p2', buyMsg(a0Upgrade.id, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(1)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
+
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+
+        // The stamp lands on the victim only, both scopes, one expiry.
+        const window = latestUpdate(ws1).player.activeDebuffs?.[0]
+        expect(window).toBeDefined()
+        expect(latestUpdate(ws2).player.incomingPurchaseLocks).toEqual([
+          { scope: 'upgrade', untilSec: window!.expiresAtSec },
+          { scope: 'generator', untilSec: window!.expiresAtSec },
+        ])
+        expect(latestUpdate(ws1).player.incomingPurchaseLocks).toBeUndefined()
+        // It is a plain debuff on the wire — nothing new for the toast to learn.
+        expect(debuffEvents(ws2)).toEqual([
+          expect.objectContaining({ attack: 'a3', direction: 'incoming' }),
+        ])
+
+        // Mid-window: a *free* upgrade and an affordable generator are both
+        // dropped — this is not affordability — while a sale and an attack
+        // activation go through.
+        m.handleMessage('p2', buyMsg('sh-unlock', 5))
+        m.handleMessage('p2', buyGenMsg('g0', 6))
+        m.handleMessage('p2', sellGenMsg('g0', 7))
+        m.handleMessage('p2', activateMsg('a0', 8))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(0)
+        expect(latestUpdate(ws2).player.pendingAttacks).toHaveLength(1)
+
+        // Past the window: the stamp is gone and the same buys land.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws2).player.incomingPurchaseLocks).toBeUndefined()
+        m.handleMessage('p2', buyMsg('sh-unlock', 9))
+        m.handleMessage('p2', buyGenMsg('g0', 10))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(1)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('rejects an activation the player cannot afford', () => {
       const m = enterPlaying()
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))

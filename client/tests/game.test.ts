@@ -988,6 +988,60 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: enemy purchase lock ─────────────────────────────────────
+
+  describe('idler purchase lock', () => {
+    /** A server snapshot: funded, `sh-unlock` (free) unbought, optionally locked. */
+    function snapshot(locked: boolean, ackSeq = 0): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 1000, r1: 1000 },
+          upgrades: { ...defaultUpgrades },
+          generators: {},
+          pendingAttacks: [],
+          ...(locked ? { incomingPurchaseLocks: [{ scope: 'upgrade', untilSec: 30 }] } : {}),
+          meta: { highlight: 'r0', gameSec: 20 },
+        },
+      })
+    }
+
+    it('refuses to predict a buy while the server-stamped lock is in force', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(true))
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(0)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('predicts the buy again once the stamp is gone', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(true))
+      game.handleServerMessage(snapshot(false))
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(1)
+    })
+
+    it('drops a replayed buy the server’s snapshot has since locked', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(false))
+
+      // Optimistic: unlocked, so the free upgrade is predicted.
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(1)
+
+      // The server has not seen that buy (ackSeq 0) and reports a lock in
+      // force: the replay must drop the pending buy — the server will — rather
+      // than show it owned until the next snapshot corrects it.
+      game.handleServerMessage(snapshot(true, 0))
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(0)
+    })
+  })
+
   // ── Idler: doClick ─────────────────────────────────────────────────
 
   describe('idler doClick', () => {

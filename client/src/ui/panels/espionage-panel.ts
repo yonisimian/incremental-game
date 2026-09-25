@@ -18,7 +18,7 @@ import {
   highlightDebuffFactor,
   HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
-import type { ModeFlavor, PurchaseEvent } from '@game/shared'
+import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -60,22 +60,25 @@ function formatPercentChange(factor: number): string {
 }
 
 /**
+ * What an incoming cost factor or purchase lock hits: "upgrades" / "generators"
+ * for a whole scope, or the entity's flavor name, so the line matches the card
+ * the player sees it on.
+ */
+function describeTarget(flavor: ModeFlavor, scope: CostScope, id: string | undefined): string {
+  if (id === undefined) return scope === 'upgrade' ? 'upgrades' : 'generators'
+  return scope === 'upgrade'
+    ? `${getUpgradeIcon(flavor, id)} ${getUpgradeName(flavor, id)}`
+    : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
+}
+
+/**
  * One line per cost inflation the opponent's passive attacks inflict, naming
- * what got dearer and by how much. A whole-scope entry reads as "your upgrades";
- * a single-entity one uses its flavor name, so the line matches the card the
- * player sees the price on.
+ * what got dearer and by how much.
  */
 function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   const lines: string[] = []
   for (const entry of state.player.incomingCostFactors ?? []) {
-    const what =
-      entry.id === undefined
-        ? entry.scope === 'upgrade'
-          ? 'upgrades'
-          : 'generators'
-        : entry.scope === 'upgrade'
-          ? `${getUpgradeIcon(flavor, entry.id)} ${getUpgradeName(flavor, entry.id)}`
-          : `${getGeneratorIcon(flavor, entry.id)} ${getGeneratorName(flavor, entry.id)}`
+    const what = describeTarget(flavor, entry.scope, entry.id)
     // Base-price and growth inflation are separate sentences: they compound
     // differently over a run, so summing them into one percentage would lie.
     if (entry.costFactor !== undefined && entry.costFactor !== 1)
@@ -84,6 +87,29 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
       lines.push(
         `📈 Your ${what} price growth is ${formatPercentChange(entry.scalingFactor)}% steeper.`,
       )
+  }
+  return lines
+}
+
+/**
+ * One line per enemy purchase lock in force, naming what is embargoed and for
+ * how much longer. Both whole scopes locked with the same expiry collapse into
+ * one sentence; everything else gets its own line, since the countdowns differ.
+ */
+function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
+  const locks = state.player.incomingPurchaseLocks ?? []
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  const span = (untilSec: number) => `${Math.max(0, untilSec - gameSec).toFixed(1)}s`
+  const allUpgrades = locks.find((l) => l.scope === 'upgrade' && l.id === undefined)
+  const allGenerators = locks.find((l) => l.scope === 'generator' && l.id === undefined)
+  const combined = allUpgrades !== undefined && allUpgrades.untilSec === allGenerators?.untilSec
+  const lines: string[] = []
+  if (combined)
+    lines.push(`🔒 You cannot buy upgrades or generators for ${span(allUpgrades.untilSec)}.`)
+  for (const lock of locks) {
+    if (combined && (lock === allUpgrades || lock === allGenerators)) continue
+    const what = describeTarget(flavor, lock.scope, lock.id)
+    lines.push(`🔒 You cannot buy ${what} for ${span(lock.untilSec)}.`)
   }
   return lines
 }
@@ -122,6 +148,7 @@ function renderIncomingDebuffs(state: Readonly<GameState>, flavor: ModeFlavor): 
     lines.push('⚔️ Your ✨ highlight bonus takes a flat cut while the enemy holds this attack.')
   }
   lines.push(...describeCostInflation(state, flavor))
+  lines.push(...describePurchaseLocks(state, flavor))
   if (lines.length === 0) return ''
   const body = lines.map((line) => `<p class="espionage-warning">${line}</p>`).join('')
   return `

@@ -13,7 +13,7 @@ import {
   ATTACK_STATS,
   attackStatOpsFor,
   attackStatsFor,
-  enemyCostTargetsFor,
+  purchaseTargetsFor,
   enemyDataKeysFor,
   enemyDebuffTargetsFor,
   NON_RESOURCE_INTEL_KEYS,
@@ -158,8 +158,11 @@ export function effectFieldOptions(
   if (effectType === 'enemyProductionModifier' && fieldKey === 'field') {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
   }
-  if (effectType === 'enemyCostModifier' && fieldKey === 'target') {
-    return enemyCostTargetsFor(
+  if (
+    (effectType === 'enemyCostModifier' || effectType === 'enemyPurchaseLock') &&
+    fieldKey === 'target'
+  ) {
+    return purchaseTargetsFor(
       collectIds(tree),
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))
@@ -550,7 +553,14 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
   },
   {
     label: 'Offense',
-    types: ['stealResource', 'stealGenerator', 'enemyCostModifier', 'attackStat', 'attackSlots'],
+    types: [
+      'stealResource',
+      'stealGenerator',
+      'enemyCostModifier',
+      'enemyPurchaseLock',
+      'attackStat',
+      'attackSlots',
+    ],
   },
   {
     label: 'Time clock',

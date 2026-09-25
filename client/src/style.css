@@ -1182,6 +1182,15 @@ body {
   filter: grayscale(0.7) brightness(0.55);
 }
 
+/* An enemy purchase lock is in force: this node is embargoed
+   for a few seconds. Distinct from `locked` (permanent) and `too-expensive`
+   (an income problem) — a danger ring says "attack", and the popup counts it
+   down. Same filter approach as `locked`, for the same SVG-edge reason. */
+.upgrade-btn.tree-node.locked-by-attack {
+  filter: grayscale(0.4) brightness(0.7);
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
 /* Upgrade detail popup — overlays the tree viewport with Buy/Cancel actions. */
 .upgrade-detail-backdrop {
   position: absolute;
@@ -1675,6 +1684,12 @@ body {
 
 .generator-card.too-expensive {
   opacity: 0.5;
+}
+
+/* An enemy purchase lock bars buying this card for a few seconds.
+   The buy buttons carry the countdown; the border says why they are dark. */
+.generator-card.locked-by-attack {
+  border-color: var(--danger);
 }
 
 .generator-summary {

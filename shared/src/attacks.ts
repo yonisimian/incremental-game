@@ -444,11 +444,24 @@ export interface DebuffStrikeResult {
 }
 
 /**
+ * The output kinds the enemy-debuff collectors gather — the outputs that
+ * consume an active attack's `durationSec`. The runtime twin of the validator's
+ * `DEBUFF_EFFECT_TYPES` (which judges refs by *type*); an effect must join
+ * both lists, or its attack would be authorable with no window, land, and
+ * silently do nothing.
+ */
+const DEBUFF_OUTPUT_KINDS: ReadonlySet<string> = new Set([
+  'enemyModifier',
+  'enemyCost',
+  'enemyPurchaseLock',
+])
+
+/**
  * Whether an effect output is one the enemy-debuff collectors gather — the
  * outputs that consume an active attack's `durationSec`.
  */
 export function isDebuffOutput(out: EffectOutput): boolean {
-  return 'kind' in out && (out.kind === 'enemyModifier' || out.kind === 'enemyCost')
+  return 'kind' in out && DEBUFF_OUTPUT_KINDS.has(out.kind)
 }
 
 /**

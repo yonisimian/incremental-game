@@ -201,6 +201,19 @@ export interface PlayerState {
    */
   incomingCostFactors?: EnemyCostFactor[]
   /**
+   * Purchase scopes the opponent's open attack windows currently bar this
+   * player from buying (see `collectEnemyPurchaseLocks`), stamped by the server
+   * beside `incomingCostFactors` and absent when none, which is the default.
+   *
+   * Read by every purchase path — server validation, the client's optimistic
+   * buy and its reconcile replay, the card — so both sides refuse the same
+   * buys (`purchaseBlockReason` / `generatorBlockReason` → `'locked-by-attack'`).
+   * Presence is what blocks; `untilSec` is for the victim's countdown only, so
+   * a client whose clock has drifted still agrees with the server on *whether*
+   * a buy goes through. Selling and attack activation never consult it.
+   */
+  incomingPurchaseLocks?: PurchaseLock[]
+  /**
    * Debuff windows this player's *landed* active attacks are currently
    * inflicting on the opponent (see `resolveAttackStrike`). Absent when none is
    * open, which is the default — the same convention as `incomingCostFactors`.
@@ -233,6 +246,32 @@ export interface ActiveDebuff {
 
 /** Which kind of priced entity a cost factor applies to. */
 export type CostScope = 'upgrade' | 'generator'
+
+/**
+ * What a purchase target names (see `parsePurchaseTarget`): a whole scope, or
+ * (with `id`) a single entity of it.
+ */
+export interface PurchaseTarget {
+  readonly scope: CostScope
+  /** The one upgrade / generator named; absent for the whole scope. */
+  readonly id?: string
+}
+
+/**
+ * One purchase embargo an opponent's open attack window inflicts, as stamped on
+ * the victim (see {@link PlayerState.incomingPurchaseLocks}). One entry per
+ * target — two windows locking the same target collapse into the one that
+ * closes last.
+ */
+export interface PurchaseLock extends PurchaseTarget {
+  /**
+   * The victim's `meta.gameSec` at which the lock lifts — the latest
+   * `expiresAtSec` among the windows locking this target. Both players' game
+   * clocks advance together, so the attacker's window expiry reads directly as
+   * the victim's countdown. Display only; presence is what blocks.
+   */
+  readonly untilSec: number
+}
 
 /**
  * One cost inflation inflicted by an opponent's passive attack, resolved from an

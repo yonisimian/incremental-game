@@ -1,4 +1,4 @@
-import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
+import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
   getResourceIcon,
@@ -9,9 +9,11 @@ import {
   isMaxed,
   isNeutralCostFactors,
   isPrerequisiteSatisfied,
+  isPurchaseLocked,
   isUnlimited,
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
+  purchaseLockRemainingSec,
   upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
@@ -157,6 +159,34 @@ export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefini
   return !hasAttackSlotsFor(state.player, u, getModeDefinition(state.mode))
 }
 
+/**
+ * Is an opponent's open attack window barring this player from buying `id` of
+ * `scope`? The client-side face of the `'locked-by-attack'` block reason,
+ * reading the same server-stamped field the server validates against.
+ */
+export function isPurchaseLockedByAttack(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): boolean {
+  return isPurchaseLocked(state.player, scope, id)
+}
+
+/**
+ * The `🔒 Locked Ns` label a buy control shows under an enemy purchase lock —
+ * one string for the tree node title, the detail popup, and the generator
+ * card, so the three agree. Omits the seconds when the countdown is unknown
+ * (`null`), which cannot happen for a stamped lock but keeps the helper total.
+ */
+export function purchaseLockLabel(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): string {
+  const remaining = purchaseLockRemainingSec(state.player, scope, id)
+  return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
+}
+
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
 export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
   if (!state.mode) return false
@@ -165,6 +195,7 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
     !isAttackSlotBlocked(state, u) &&
+    !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
     canAfford(state, u)
   )
 }

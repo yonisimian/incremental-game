@@ -292,6 +292,26 @@
           "value": 0.78
         }
       ]
+    },
+    {
+      "id": "embargo",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 600
+        },
+        "r1": {
+          "baseCost": 30
+        }
+      },
+      "prepareTimeSec": 3,
+      "durationSec": 10,
+      "effects": [
+        {
+          "type": "enemyPurchaseLock",
+          "target": "purchases"
+        }
+      ]
     }
   ],
   "pacts": [
@@ -829,6 +849,12 @@
           "name": "🏰 Siege Camp",
           "icon": "🏰",
           "description": "+1 more active attack slot."
+        },
+        {
+          "id": "unlock-embargo",
+          "name": "🚫 Embargo",
+          "icon": "🚫",
+          "description": "Unlock Embargo: the enemy can buy nothing for 10s."
         }
       ],
       "generators": [
@@ -931,6 +957,12 @@
           "name": "Termite Swarm",
           "icon": "🐛",
           "description": "Enemy Wood production −22% for 67s."
+        },
+        {
+          "id": "embargo",
+          "name": "Embargo",
+          "icon": "🚫",
+          "description": "The enemy cannot buy upgrades or generators for 10s. Time it for when they are saving up."
         }
       ],
       "pacts": [
@@ -2537,6 +2569,25 @@
           ],
           "offset": {
             "x": -48,
+            "y": 672
+          }
+        },
+        {
+          "id": "unlock-embargo",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "embargo"
+            }
+          ],
+          "offset": {
+            "x": 48,
             "y": 672
           }
         }

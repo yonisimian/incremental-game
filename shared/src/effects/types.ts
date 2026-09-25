@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { AttackKind, CostScope, PlayerState } from '../types.js'
+import type { AttackKind, CostScope, PlayerState, PurchaseTarget } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -186,6 +186,32 @@ export interface EnemyCostOutput {
 }
 
 /**
+ * An *offensive embargo*: the opponent cannot buy the named scopes while the
+ * owning active attack's debuff window is open. Emitted by the
+ * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
+ * third `attacksInForce` consumer beside `collectEnemyDebuffs` and
+ * `collectEnemyCostFactors`; the server stamps the result onto the victim's
+ * {@link PlayerState.incomingPurchaseLocks}, which every purchase path reads.
+ *
+ * Deliberately **not** an {@link EnemyCostOutput} with an infinite factor,
+ * tempting as the zero-plumbing route is: `power` scaling and the stat ceiling
+ * would turn `Infinity` into `NaN` or a finite price, the victim's cards would
+ * quote `∞` instead of "locked", and the simulator would classify the block as
+ * a *transient* "unaffordable" and wait for income that can never suffice. The
+ * distinct `kind` is what lets every consumer say "locked" rather than "too
+ * expensive".
+ *
+ * Attacks the victim's *timing* rather than their income or their prices —
+ * nothing is taken and nothing is repriced; the stockpile simply cannot be
+ * spent until the window closes. Selling and attack activation are untouched.
+ */
+export interface EnemyPurchaseLockOutput {
+  readonly kind: 'enemyPurchaseLock'
+  /** What the victim is barred from buying: whole scopes or single entities (never empty). */
+  readonly targets: readonly PurchaseTarget[]
+}
+
+/**
  * An instantaneous transfer from the *victim's* stockpile to the attacker,
  * emitted by the `stealResource` effect on an active attack. Unlike
  * {@link EnemyModifierOutput} (continuous, merged into the opponent's pipeline),
@@ -347,7 +373,7 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
- * {@link EnemyCostOutput}, one of the
+ * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
  * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, or
  * one of the time-clock outputs ({@link TimeFactorBoostOutput}, {@link
@@ -355,8 +381,9 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `resolveAttackStrike` / `collectAttackParams` / `attackLimit` /
- * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
+ * `collectEnemyPurchaseLocks` / `resolveAttackStrike` / `collectAttackParams` /
+ * `attackLimit` / `timeBonusFraction`); every consumer ignores the outputs it
+ * doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -371,6 +398,7 @@ export type EffectOutput =
   | EnemyDataAccessOutput
   | EnemyModifierOutput
   | EnemyCostOutput
+  | EnemyPurchaseLockOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -390,11 +418,14 @@ export type EffectOutput =
  *   (`collectModifiers`).
  * - `passiveAttack` — a passive attack's `effects`: continuous, against the
  *   opponent, and only the debuff outputs (`enemyModifier`, `enemyCost`)
- *   survive (`collectEnemyDebuffs` / `collectEnemyCostFactors`).
+ *   survive (`collectEnemyDebuffs` / `collectEnemyCostFactors`). The third
+ *   debuff output, `enemyPurchaseLock`, declares itself active-only: a
+ *   permanent embargo is a loss condition, not a debuff.
  * - `activeAttack` — an active attack's `effects`: resolved when the strike
  *   lands. The steal outputs (`resourceSteal`, `generatorSteal`) move something
- *   once (`resolveAttackStrike`); the debuff outputs open a window of the
- *   attack's `durationSec`, during which the same collectors gather them.
+ *   once (`resolveAttackStrike`); the debuff outputs (`enemyModifier`,
+ *   `enemyCost`, `enemyPurchaseLock`) open a window of the attack's
+ *   `durationSec`, during which their collectors gather them.
  */
 export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
 

@@ -17,6 +17,7 @@ import {
   isAttackUnlocked,
   isClickUnlocked,
   isDynamicEffect,
+  isEffectAllowedOn,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
   isPactUnlocked,
@@ -74,6 +75,7 @@ describe('effect registry', () => {
       'dominantGenerator',
       'enemyCostModifier',
       'enemyProductionModifier',
+      'enemyPurchaseLock',
       'generatorCost',
       'generatorUnlock',
       'highlightMultiplier',
@@ -539,30 +541,55 @@ describe('enemyCostModifier params', () => {
   }
 
   it('splits a whole-scope target into scope + no id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'upgrade',
-      id: undefined,
-      costFactor: 1.25,
-      scalingFactor: undefined,
-    })
-    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: undefined,
-      costFactor: undefined,
-      scalingFactor: 1.1,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
+    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: undefined,
+        scalingFactor: 1.1,
+      },
+    ])
+  })
+
+  it('emits one output per scope for `purchases`', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'purchases', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   it('splits a namespaced target into scope + id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: 'g0',
-      costFactor: 2,
-      scalingFactor: undefined,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: 2,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   // An attack that discounts the victim is never intended authoring — the same
@@ -591,6 +618,54 @@ describe('enemyCostModifier params', () => {
   // inert rather than emit an output naming nothing.
   it('is inert on an unparseable target', () => {
     expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
+  })
+})
+
+// ─── enemyPurchaseLock ───────────────────────────────────────────────
+
+describe('enemyPurchaseLock params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('maps each target to what it bars', () => {
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrades' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generators' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'purchases' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade' }, { scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrade:u0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade', id: 'u0' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generator:g0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator', id: 'g0' }],
+    })
+  })
+
+  // A catalog string like `enemyCostModifier`'s: the schema only checks it is a
+  // string, `apply` stays inert on an unrecognized key, and boot rejects it.
+  it('is inert for an unrecognized target and rejects a missing one', () => {
+    for (const target of ['all', '']) {
+      expect(apply({ type: 'enemyPurchaseLock', target })).toBeNull()
+    }
+    expect(() => apply({ type: 'enemyPurchaseLock' })).toThrow()
+  })
+
+  it('is authorable on an active attack only', () => {
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'activeAttack')).toBe(true)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'passiveAttack')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'mode')).toBe(false)
   })
 })
 

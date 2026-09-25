@@ -52,6 +52,23 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
+  it('offers one purchase-target list for both enemyCostModifier and enemyPurchaseLock', () => {
+    const tree = idler()
+    const pairs = (type: string) =>
+      (effectFieldOptions(tree, type, 'target') ?? []).map((o) =>
+        typeof o === 'string' ? { value: o, label: o } : o,
+      )
+    const lock = pairs('enemyPurchaseLock')
+    expect(lock.slice(0, 3)).toEqual([
+      { value: 'upgrades', label: 'All upgrades' },
+      { value: 'generators', label: 'All generators' },
+      { value: 'purchases', label: 'All upgrades and generators' },
+    ])
+    // One authored key means the same thing on both attack effects.
+    expect(pairs('enemyCostModifier')).toEqual(lock)
+    expect(lock.some((o) => o.value === `generator:${tree.generators[0].id}`)).toBe(true)
+  })
+
   it('leaves an unmapped effect/field pair as free text', () => {
     expect(effectFieldOptions(idler(), 'stealResource', 'fraction')).toBeUndefined()
     expect(effectFieldOptions(idler(), 'highlightMultiplier', 'multiplier')).toBeUndefined()
@@ -129,10 +146,13 @@ describe('effect hosts', () => {
   it('offers only offensive effects on attacks, steals on active ones only', () => {
     expect(typesFor('passiveAttack')).toEqual(['enemyCostModifier', 'enemyProductionModifier'])
     // The debuff pair rides both kinds: always-on on a passive attack, a timed
-    // window (`durationSec`) on an active one (plan 37).
+    // window (`durationSec`) on an active one. The purchase lock
+    // is active-only — a permanent embargo is a loss condition, not a
+    // debuff — so it appears here and nowhere else.
     expect(typesFor('activeAttack')).toEqual([
       'enemyCostModifier',
       'enemyProductionModifier',
+      'enemyPurchaseLock',
       'stealGenerator',
       'stealResource',
     ])
