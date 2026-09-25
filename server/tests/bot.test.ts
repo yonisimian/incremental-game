@@ -339,7 +339,7 @@ describe('Bot', () => {
       expect(bot.decide(state)).toContainEqual({ type: 'buy', upgradeId: 'sc-unlock' })
     })
 
-    // Plan 41 §8: the bot fires one active attack so a solo player meets the
+    // The bot fires one active attack so a solo player meets the
     // early warning. The stub keeps the real idler's attacks (a0 costs 1000 r0)
     // and swaps in a tiny tree: the base plan step, the attack's unlock chain,
     // and an expensive trophy to make "don't starve the plan" observable.

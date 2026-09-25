@@ -718,7 +718,7 @@ export function hasAttackSlotsFor(
   return true
 }
 
-// ─── Attack alert (plan 41) ──────────────────────────────────────────
+// ─── Attack alert ────────────────────────────────────────────────────
 //
 // An early warning of enemy active strikes. Purely a *viewer-side* grant: the
 // server reads it for the victim and projects the attacker's pending strikes

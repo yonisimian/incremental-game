@@ -1487,8 +1487,8 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a5', direction: 'incoming', kind: 'none' }),
       )
-      // A miss is not a hit: the victim's counter stays unstamped.
-      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBeUndefined()
+      // Being attacked is what the defensive gate asks about, so a miss counts too.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
     })
 
     // ── Duration attacks (plan 37) ─────────────────────────────────
@@ -1763,7 +1763,7 @@ describe('Match', () => {
       }
     })
 
-    // ── Attack alert (plan 41) ─────────────────────────────────────
+    // ── Attack alert ───────────────────────────────────────────────
 
     describe('attack alert', () => {
       /**

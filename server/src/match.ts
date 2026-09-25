@@ -593,6 +593,11 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        // Every landed active strike counts toward the `meta` prerequisites that
+        // unlock defensive nodes, even one that moved nothing — being attacked
+        // is what the gate asks about. A passive attack never passes through here.
+        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
+          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         if (moved.length === 0) {
           // The strike landed but moved nothing (the victim owned none of the
           // target). Report it to both sides: the attacker gets feedback that
@@ -612,12 +617,6 @@ export class Match {
           })
           continue
         }
-        // The victim has now been *hit* — count it for the `meta` prerequisites
-        // that unlock defensive nodes (plan 41). A strike that moved nothing is
-        // deliberately not counted (it `continue`d above), nor is a passive
-        // attack, which never passes through here.
-        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
-          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         for (const result of moved) {
           // The same result, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.
@@ -860,7 +859,7 @@ export class Match {
 
   /**
    * Warn `viewer` of the opponent's pending strikes due within the viewer's
-   * `attackAlert` lead (plan 41). Unlike the purchase feed this is *state*, not
+   * `attackAlert` lead. Unlike the purchase feed this is *state*, not
    * a delta: the full list of strikes inside the lead goes out every broadcast
    * and the client replaces, never accumulates — so no watermark, no per-viewer
    * bookkeeping. `readyAtSec` is on the attacker's clock, which advances in

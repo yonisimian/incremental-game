@@ -622,64 +622,6 @@ body {
   border-color: var(--danger);
 }
 
-/* Quit + the attack-alert badge stack in the header's left column */
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.3rem;
-}
-
-/* Attack-alert badge (plan 41) — countdown to the soonest inbound enemy strike */
-
-.attack-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 60%, transparent);
-  border-radius: 4px;
-  padding: 0.15rem 0.5rem;
-  white-space: nowrap;
-}
-
-.attack-alert-icon {
-  line-height: 1;
-}
-
-.attack-alert-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 10em;
-}
-
-.attack-alert-time {
-  min-width: 2.6em;
-  text-align: right;
-}
-
-.attack-alert--imminent {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 15%, transparent);
-  animation: alert-pulse 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes alert-pulse {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0.55;
-  }
-}
-
 /* Pause button (bot matches only) */
 
 .pause-btn {

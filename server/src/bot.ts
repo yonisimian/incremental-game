@@ -80,9 +80,8 @@ function unlocksGenerator(upgrade: UpgradeDefinition): boolean {
   return (upgrade.effects ?? []).some((e) => e.type === 'generatorUnlock')
 }
 
-/** Does owning this upgrade unlock the named player-action system? */
 /**
- * The active attack the bot learns to fire (plan 41 §8): the first *armed*
+ * The active attack the bot learns to fire: the first *armed*
  * active attack — one with effects and a prepare cost — whose unlock upgrade is
  * available, preferring `a0` (the idler's steal) so a bot match exercises the
  * alert against the attack it was designed around. `null` when the mode has no
@@ -105,6 +104,7 @@ function botAttackTarget(
   return null
 }
 
+/** Does owning this upgrade unlock the named player-action system? */
 function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'): boolean {
   return (upgrade.effects ?? []).some(
     (effect) => effect.type === 'systemUnlock' && effect.system === system,
@@ -190,7 +190,7 @@ export class IdlerBot implements BotStrategy {
     }
 
     // One active attack, so a bot match exercises the offence — and the
-    // victim's early warning (plan 41). Its unlock chain (the attack panel,
+    // victim's early warning. Its unlock chain (the attack panel,
     // then the free unlock node) rides the plan like the generator unlocks.
     const target = botAttackTarget(modeDef, availableUpgrades)
     if (target) {
