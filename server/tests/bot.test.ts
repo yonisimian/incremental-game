@@ -189,7 +189,7 @@ describe('Bot', () => {
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
     })
 
-    // Plan 40: the plan advances on *emitting* a buy, so a buy the server would
+    // The plan advances on *emitting* a buy, so a buy the server would
     // drop for an enemy purchase lock has to be held back, or the bot steps
     // past the upgrade for good.
     it('holds its plan step under an enemy purchase lock and buys once it lifts', () => {

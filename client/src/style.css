@@ -1240,7 +1240,7 @@ body {
   filter: grayscale(0.7) brightness(0.55);
 }
 
-/* An enemy purchase lock is in force (plan 40): every buyable node is embargoed
+/* An enemy purchase lock is in force: every buyable node is embargoed
    for a few seconds. Distinct from `locked` (permanent) and `too-expensive`
    (an income problem) — a danger ring says "attack", and the popup counts it
    down. Same filter approach as `locked`, for the same SVG-edge reason. */
@@ -1744,7 +1744,7 @@ body {
   opacity: 0.5;
 }
 
-/* An enemy purchase lock bars buying this card for a few seconds (plan 40).
+/* An enemy purchase lock bars buying this card for a few seconds.
    The buy buttons carry the countdown; the border says why they are dark. */
 .generator-card.locked-by-attack {
   border-color: var(--danger);

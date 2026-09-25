@@ -4,7 +4,7 @@ import type { CostScope } from '../../types.js'
 import type { EffectDef, EnemyPurchaseLockOutput } from '../types.js'
 
 /**
- * Schema for the `enemyPurchaseLock` effect's params (plan 40).
+ * Schema for the `enemyPurchaseLock` effect's params.
  *
  * An *offensive embargo* carried by an active attack: for the attack's
  * `durationSec` after its strike lands, the opponent cannot **buy** what

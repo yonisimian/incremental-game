@@ -34,10 +34,12 @@
   toast: the strike emits the existing `debuff` event.
 - **Validator messages derive from `DEBUFF_EFFECT_TYPES`** instead of naming
   the two original effects, so a fourth member needs no message edit.
+- **One lock attack authored, as test content.** Contrary to the text below,
+  `idler.json` gains 🚫 Embargo (3s prep, 10s window, locks `purchases`),
+  unlocked by a free node like the other attacks.
 
-Full suite green: shared 814, server 163, client 478. `typecheck`, `lint`,
-`lint:css`, `lint:exports`, `format:check` all pass. Nothing authored on the
-idler tree.
+Full suite green: shared 843, server 164, client 481. `typecheck`, `lint`,
+`lint:css`, `lint:exports`, `format:check` all pass.
 
 ---
 
