@@ -237,13 +237,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `attackStat` effects scale an attack's numbers, naming the attack by id (or
-  // omitting it for every attack). Validate the id the same way — a typo would
-  // silently buff nothing — and reject a stat aimed at an attack that has no such
-  // field: `prepareCost`/`prepareTime` are forbidden on a passive attack (see
-  // below), so a stat pointed at one is authored dead weight. A ref naming *no*
-  // attack stays legal whatever its stat: it applies to those attacks that can
-  // use it.
+  // `attackStat` effects scale an attack's numbers, naming the attack by id.
+  // Validate the id the same way — a typo would silently buff nothing — and
+  // reject a stat aimed at an attack that has no such field:
+  // `prepareCost`/`prepareTime` are forbidden on a passive attack (see below), so
+  // a stat pointed at one is authored dead weight.
   //
   // The schema (`guardScaledStatValue`) has already judged each value on its
   // own; what it cannot see is the *context* — how many copies the owning
@@ -271,6 +269,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
 
     const target = ref.attack
+    // A missing id is the schema's to reject (`prepareEffect`, below).
     if (typeof target !== 'string') return
     const attack = attacksById.get(target)
     if (!attack)
@@ -289,9 +288,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     // A stat must have something to move. Both fields are optional on an active
     // attack (a free attack, an attack that strikes on the next tick), and
     // scaling a zero cost or a zero delay is arithmetic on nothing — the same
-    // dead weight the kind check above rejects, one level finer. Only checkable
-    // for a ref that names its attack; the all-attacks form is judged against no
-    // single definition.
+    // dead weight the kind check above rejects, one level finer.
     const delaySec = attack.prepareTimeSec ?? 0
     if (ref.stat === 'prepareTime' && delaySec <= 0)
       throw new Error(
