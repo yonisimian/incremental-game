@@ -11,6 +11,7 @@ import {
   isPrerequisiteSatisfied,
   isUnlimited,
   getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
   upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
@@ -98,9 +99,10 @@ export const INFLATED_COST_MARKER = '⬆'
  * the cost map plus the owned count for an unlimited upgrade.
  *
  * Priced with the factors in force, so it matches what a buy will actually
- * charge, and marked with {@link INFLATED_COST_MARKER} while an opponent is
- * inflating it — otherwise a price above the tree's authored number reads as a
- * bug rather than as an attack.
+ * charge, and marked with {@link INFLATED_COST_MARKER} when an opponent's
+ * inflation actually raised it — otherwise a price above the tree's authored
+ * number reads as a bug rather than as an attack. A free upgrade, or a
+ * growth-only factor on a flat cost, is left unmarked: nothing moved.
  */
 export function formatUpgradeCost(
   state: Readonly<GameState>,
@@ -110,9 +112,22 @@ export function formatUpgradeCost(
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return 'Maxed'
   const factors = upgradeCostFactors(state.player, u.id)
+  const cost = getUpgradeNextCost(u, owned, factors)
   const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-  const marker = isNeutralCostFactors(factors) ? '' : ` ${INFLATED_COST_MARKER}`
-  return `${formatCostLabel(getUpgradeNextCost(u, owned, factors), flavor)}${countLabel}${marker}`
+  const marker =
+    !isNeutralCostFactors(factors) &&
+    costRaised(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
+      ? ` ${INFLATED_COST_MARKER}`
+      : ''
+  return `${formatCostLabel(cost, flavor)}${countLabel}${marker}`
+}
+
+/** Whether any currency in `cost` exceeds its amount in `authored`. */
+function costRaised(
+  cost: Readonly<Record<string, number>>,
+  authored: Readonly<Record<string, number>>,
+): boolean {
+  return Object.entries(cost).some(([currency, amount]) => amount > (authored[currency] ?? 0))
 }
 
 /**

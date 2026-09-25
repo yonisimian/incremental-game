@@ -54,7 +54,7 @@ function passiveRates(state: Readonly<GameState>): Record<string, number> {
   return computePassiveRates(
     [
       ...collectModifiers(state.player, activeModeDef),
-      ...resolveEnemyDebuffs(state.debuffs, state.player),
+      ...resolveEnemyDebuffs(state.debuffs, state.player, activeModeDef),
     ],
     activeModeDef.resources,
   )

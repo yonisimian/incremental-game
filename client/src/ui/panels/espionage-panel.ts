@@ -16,6 +16,7 @@ import {
   getUpgradeName,
   hasEnemyDataAccess,
   highlightDebuffFactor,
+  HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
 import type { ModeFlavor, PurchaseEvent } from '@game/shared'
 
@@ -96,20 +97,30 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
  * this is something being done *to* you, and a player who can't see it has no way
  * to explain why their highlight underperforms the number on its own upgrades, or
  * why a card costs more than the tree says. The highlight line also shows while
- * the highlight is released — that's when the warning matters most, since
- * releasing is what dodges the debuff.
+ * the highlight is released, so a player deciding whether to hold knows the bonus
+ * is worth less than its own upgrades advertise.
+ *
+ * The multiplicative highlight part is summarised as a percentage
+ * (`highlightDebuffFactor` means the same thing at every factor). An additive
+ * part can't be — its bite depends on the live factor — so it's named as "a flat
+ * cut" rather than folded in, which would understate the true reduction.
  */
 function renderIncomingDebuffs(state: Readonly<GameState>, flavor: ModeFlavor): string {
   const factor = highlightDebuffFactor(state.debuffs)
-  // Percentage only, no `(×N)` alongside it: `formatMultiplier` rounds to two
-  // decimals, so a compounded ×0.855 would print as "14.5% (×0.85)" and read as
-  // self-contradictory. The exact factor has its own row under Highlight.
-  const lines =
-    factor === 1
-      ? []
-      : [
-          `⚔️ Your ✨ highlight factor is reduced by ${formatPercentChange(factor)}% while the enemy holds this attack.`,
-        ]
+  const hasFlat = state.debuffs.some(
+    (d) => d.field === HIGHLIGHT_FACTOR_TARGET && d.stage === 'additive',
+  )
+  // Percentage only, no `(×N)`: `formatMultiplier` rounds to two decimals, so a
+  // compounded ×0.855 would print "14.5% (×0.85)" and read as self-contradictory.
+  const lines: string[] = []
+  if (factor !== 1) {
+    const flat = hasFlat ? ', plus a flat cut on top,' : ''
+    lines.push(
+      `⚔️ Your ✨ highlight bonus is cut by ${formatPercentChange(factor)}%${flat} while the enemy holds this attack.`,
+    )
+  } else if (hasFlat) {
+    lines.push('⚔️ Your ✨ highlight bonus takes a flat cut while the enemy holds this attack.')
+  }
   lines.push(...describeCostInflation(state, flavor))
   if (lines.length === 0) return ''
   const body = lines.map((line) => `<p class="espionage-warning">${line}</p>`).join('')

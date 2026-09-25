@@ -2,11 +2,9 @@
 
 ## Status: Implemented
 
-Branch: `feat/4-enemy-cost-inflation` (branched from `tal/main`, the fourth
-branch on that integration line). Sections below are the plan as built; where the
-implementation departed from the draft, the change and its reason are marked
-inline. Nothing is authored on the idler tree — this is the mechanic, its
-reporting, and its tests.
+Sections below are the plan as built; where the implementation departed from the
+draft, the change and its reason are marked inline. Nothing is authored on the
+idler tree — this is the mechanic, its reporting, and its tests.
 
 ---
 
@@ -99,10 +97,10 @@ const schema = z
   .strictObject({
     /** `upgrades` / `generators`, or `upgrade:<id>` / `generator:<id>`. */
     target: z.string(),
-    /** Multiplies the base cost. `1.25` = 25% dearer. */
-    costFactor: z.number().min(1).optional(),
+    /** Multiplies the price at every level. `1.25` = 25% dearer. */
+    costFactor: z.number().gt(1).optional(),
     /** Multiplies the growth portion of the cost curve. */
-    scalingFactor: z.number().min(1).optional(),
+    scalingFactor: z.number().gt(1).optional(),
   })
   .refine((p) => p.costFactor !== undefined || p.scalingFactor !== undefined)
 ```
@@ -138,10 +136,10 @@ either do nothing or silently debuff production. The distinct `kind` is what
 keeps it off the wrong subsystem — the same argument the `enemyModifier` kind
 already makes for itself.
 
-`min(1)` rather than `positive()`: on a _friendly_ upgrade a factor below 1 is
+`gt(1)` rather than `positive()`: on a _friendly_ upgrade a factor below 1 is
 the whole point, but on an attack it would gift the victim a discount, which is
-never intended authoring. (`guardModifierValue` is the precedent for guarding a
-value's sign/range in an effect schema.)
+never intended authoring, and exactly 1 would be a no-op. (`guardModifierValue`
+is the precedent for guarding a value's sign/range in an effect schema.)
 
 New collector beside `collectEnemyDebuffs`, same walk:
 
@@ -425,8 +423,8 @@ needs no change, since the picker already filters by declared host.
    compiler enumerates every call site.
 4. **Sell refund** → prices at the victim's own factors only; `resolveGeneratorDef`
    gains a `purpose` flag.
-5. **Value range** → `>= 1` on an attack (no accidental gifts); the friendly
-   `generatorCost` keeps `positive()`.
+5. **Value range** → `> 1` on an attack (no accidental gifts or no-ops); the
+   friendly `generatorCost` keeps `positive()`.
 6. **Bot** → fixed, unlike the battery precedent: ignoring inflation would make
    it attempt purchases the server rejects.
 7. **Authoring** → mechanic only; nothing on `idler.json` this plan.
