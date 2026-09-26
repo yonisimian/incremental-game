@@ -80,9 +80,8 @@ function unlocksGenerator(upgrade: UpgradeDefinition): boolean {
   return (upgrade.effects ?? []).some((e) => e.type === 'generatorUnlock')
 }
 
-/** Does owning this upgrade unlock the named player-action system? */
 /**
- * The active attack the bot learns to fire (plan 41 §8): the first *armed*
+ * The active attack the bot learns to fire: the first *armed*
  * active attack — one with effects and a prepare cost — whose unlock upgrade is
  * available, preferring `a0` (the idler's steal) so a bot match exercises the
  * alert against the attack it was designed around. `null` when the mode has no
@@ -129,6 +128,7 @@ function botPactUnlocks(
   )
 }
 
+/** Does owning this upgrade unlock the named player-action system? */
 function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'): boolean {
   return (upgrade.effects ?? []).some(
     (effect) => effect.type === 'systemUnlock' && effect.system === system,
@@ -215,7 +215,7 @@ export class IdlerBot implements BotStrategy {
     }
 
     // One active attack, so a bot match exercises the offence — and the
-    // victim's early warning (plan 41). Its unlock chain (the attack panel,
+    // victim's early warning. Its unlock chain (the attack panel,
     // then the free unlock node) rides the plan like the generator unlocks.
     const target = botAttackTarget(modeDef, availableUpgrades)
     if (target) {
@@ -314,8 +314,8 @@ export class IdlerBot implements BotStrategy {
     // server drops for an enemy purchase lock would be skipped for good. Hold
     // the step until the window closes (the stamp is refreshed before every
     // bot turn, so this reads the windows open right now).
-    if (isPurchaseLocked(state, 'upgrade')) return
     const next = this.plan[this.planIndex]
+    if (isPurchaseLocked(state, 'upgrade', next.id)) return
     const def = this.upgradeMap.get(next.id)
     if (!def) return
     const owned = state.upgrades[next.id] ?? 0
@@ -341,15 +341,17 @@ export class IdlerBot implements BotStrategy {
     actions: BotAction[],
   ): void {
     // Stateless per tick, so a lock costs the bot nothing but the doomed
-    // actions it would otherwise emit; skip them.
-    if (isPurchaseLocked(state, 'generator')) return
-    const unlocked = this.generators.filter((g) => isGeneratorUnlocked(state, g, this.modeDef))
+    // actions it would otherwise emit; skip the locked generators.
+    const unlocked = this.generators.filter(
+      (g) =>
+        isGeneratorUnlocked(state, g, this.modeDef) && !isPurchaseLocked(state, 'generator', g.id),
+    )
     if (unlocked.length === 0) return
 
     // Cost-reduction factors depend on owned upgrades, not generator counts, so
     // the resolved defs are stable across this tick's buys.
     const resolved = new Map(
-      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef)]),
+      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef, 'buy')]),
     )
     const owned: Record<string, number> = { ...state.generators }
 

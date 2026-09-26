@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { AttackKind, CostScope, PlayerState } from '../types.js'
+import type { AttackKind, CostScope, PlayerState, PurchaseTarget } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -111,7 +111,7 @@ export interface AttackUnlockOutput {
 /**
  * Grants attack slots — room to hold attacks of one kind — while the owning
  * upgrade is held, or for the whole round when authored on the mode. Emitted by
- * the `attackSlots` effect (plan 38).
+ * the `attackSlots` effect.
  *
  * Consumed by `attackLimit`, which sums `value × owned` across every grant for
  * the kind; `hasAttackSlotsFor` then refuses a purchase that would unlock more
@@ -131,7 +131,7 @@ export interface AttackSlotsOutput {
 /**
  * Grants an early warning of enemy active strikes while the owning upgrade is
  * held (or for the whole round when authored on the mode). Emitted by the
- * `attackAlert` effect (plan 41).
+ * `attackAlert` effect.
  *
  * Consumed by `collectAttackAlert`, which sums `leadSec × owned` across every
  * grant and ORs `revealAttack`; the server then projects the opponent's pending
@@ -279,8 +279,8 @@ export interface MirrorModifierOutput {
  */
 export interface EnemyPurchaseLockOutput {
   readonly kind: 'enemyPurchaseLock'
-  /** Which purchase scopes the victim is barred from (never empty). */
-  readonly scopes: readonly CostScope[]
+  /** What the victim is barred from buying: whole scopes or single entities (never empty). */
+  readonly targets: readonly PurchaseTarget[]
 }
 
 /**
@@ -362,8 +362,8 @@ export interface BatteryBandOutput {
  */
 export interface AttackStatOutput {
   readonly kind: 'attackStat'
-  /** Which attack this moves, or absent for every attack. */
-  readonly attack?: string
+  /** Which attack this moves. */
+  readonly attack: string
   /** Which attack parameter to move (see `ATTACK_STATS`). */
   readonly stat: AttackStat
   /** `add` shifts the multiplier; `mult` scales it. */

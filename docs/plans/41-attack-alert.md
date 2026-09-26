@@ -26,6 +26,15 @@
   `role="status"`, so it tests at the DOM tier without mocking the game. It
   anchors on a change of the snapshot's `meta.gameSec` (a local click notifies
   the UI but moves no clock, so it re-anchors nothing).
+- **Later revised: no badge; the warning is a sticky toast.** The header badge
+  (§6) was removed. Each strike in view gets one `warning` toast from the
+  ordinary toast system, created with `sticky: true`: it is never auto-dismissed
+  or evicted by the stack cap, its countdown is rewritten on every snapshot, and
+  it is dismissed when the strike leaves `incomingAttacks` (it landed) or the
+  round starts / ends. So a warning never vanishes before its attack does.
+- **Later revised: a miss counts as being attacked.** `attacksSuffered` is
+  stamped for every landed active strike, including one that moved nothing
+  — the defensive gate asks "have you been attacked", not "did it hurt".
 - **The editor checkbox** reads and writes three shapes: a bare gate, `all` of
   `[upgrades…, gate]`, and `all` of `[any(upgrades…), gate]`; anything else
   still falls through to the JSON textarea. Its `isHitByAttack` does not
@@ -467,8 +476,9 @@ No new client → server message. `PlayerState` gains no field — the counter i
 
 **server/tests/match.test.ts** (extend)
 
-- A landed steal increments the **victim's** `meta.attacksSuffered`; a strike
-  that moved nothing does not; the attacker's counter is untouched.
+- A landed steal increments the **victim's** `meta.attacksSuffered`, and so
+  does a strike that moved nothing (as built: being attacked is what the gate
+  asks about); the attacker's counter is untouched.
 - `incomingAttacks` is absent for a viewer with no grant; absent when the
   pending strike is outside the lead; present, with the right `readyAtSec`, once
   inside; carries `attack` only with the reveal grant. Assert on the serialized

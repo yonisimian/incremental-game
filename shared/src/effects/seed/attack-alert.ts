@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { AttackAlertOutput, EffectDef } from '../types.js'
 
 /**
- * Schema for the `attackAlert` effect's params (plan 41).
+ * Schema for the `attackAlert` effect's params.
  *
  * Grants the owner an early warning of enemy active strikes: while a pending
  * enemy strike is due within `leadSec` game seconds, the server includes it in

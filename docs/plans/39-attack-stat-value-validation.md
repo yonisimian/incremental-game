@@ -220,8 +220,7 @@ that today, and a stat that is dead on its own is worth refusing to boot over.
 **(b) A named-attack `offset` must not be dead at level one.** For
 `stat: 'prepareTime'`, `op: 'offset'`, a named `attack`, and
 `value <= -(def.prepareTimeSec ?? 0)`: the first copy already floors the delay to
-`0` and every later copy is dead weight. Skipped for the all-attacks form, which
-cannot be resolved against one delay.
+`0` and every later copy is dead weight.
 
 **(c) A stat must have something to move.** For a named attack:
 
@@ -229,9 +228,9 @@ cannot be resolved against one delay.
 - `prepareCost` with `add`/`mult` against an absent or empty `prepareCost` —
   scaling an empty map.
 
-Besides catching dead authoring, (c) closes §5's `NaN` path for every ref that
-names an attack. The all-attacks form can still reach it, which is why layer 3
-is not optional.
+Besides catching dead authoring, (c) closes §5's `NaN` path for every ref. (As
+built, `attack` is required, so there is no all-attacks form left to slip past
+it; layer 3 stays as the backstop for products of several refs.)
 
 ### Layer 3 — `collectAttackParams`: a total clamp, not just a floor
 
@@ -249,7 +248,7 @@ the doc comment rather than overselling it. The direction rule already bounds
 `prepareCost` and `prepareTime` multipliers to `(0, 1]`, so the only stat that
 can still overflow is `power`, and the only `NaN` it reaches is §5's
 `scaleCostFactor` path. The clamp is worth the four lines anyway: it costs
-nothing per call, it covers the all-attacks refs layer 2 cannot inspect, and it
+nothing per call, it covers the stacked products layer 2 cannot inspect, and it
 is what keeps "no authored tree produces a non-finite attack param" true when a
 later plan adds a stat or an op — `duration` (plan 37) being the next one.
 
@@ -368,7 +367,7 @@ first authored node).
   `NaN` prices.
 - [shared/tests/flavor.test.ts](../../shared/tests/flavor.test.ts) — where the
   other `validateModeDefinition` cases live: each context check throws with the
-  attack/upgrade named, the all-attacks form stays legal, and a `mult`-based
+  attack/upgrade named, and a `mult`-based
   reduction on an unlimited upgrade is accepted where the `add` equivalent is
   rejected.
 - [client/tests/editor-effect-fields.test.ts](../../client/tests/editor-effect-fields.test.ts)

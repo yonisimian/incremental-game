@@ -30,11 +30,6 @@ import {
   refreshTabLocks,
 } from './panels.js'
 import { getModeUI, type ModeUI } from './mode-ui.js'
-import {
-  renderAttackAlertBadge,
-  resetAttackAlertBadge,
-  updateAttackAlertBadge,
-} from './attack-alert.js'
 
 // ─── Render ──────────────────────────────────────────────────────────
 
@@ -56,7 +51,10 @@ function passiveRates(state: Readonly<GameState>): Record<string, number> {
   // resolve them, since they arrive unresolved and a highlight-factor entry has
   // to land on the resource we're holding right now.
   return computePassiveRates(
-    [...collectModifiers(state.player, activeModeDef), ...externalModifiers(state.player)],
+    [
+      ...collectModifiers(state.player, activeModeDef),
+      ...externalModifiers(state.player, activeModeDef),
+    ],
     activeModeDef.resources,
   )
 }
@@ -136,16 +134,12 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   configurePanels(activeModeUI?.panels ?? [])
 
   const themeClass = activeFlavor?.themeClass ?? ''
-  resetAttackAlertBadge()
 
   app.innerHTML = `
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          <div class="header-left">
-            <button class="quit-btn" id="quit-btn">← Quit</button>
-            ${renderAttackAlertBadge()}
-          </div>
+          <button class="quit-btn" id="quit-btn">← Quit</button>
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -268,10 +262,6 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBtn.setAttribute('aria-label', label)
     pauseBtn.setAttribute('title', label)
   }
-
-  // The attack-alert badge under Quit — anchors to this snapshot and keeps its
-  // own countdown loop alive only while a strike is inbound.
-  if (activeFlavor) updateAttackAlertBadge(state, activeFlavor)
 
   // Update resource bar (visible across all tabs)
   if (activeFlavor) {

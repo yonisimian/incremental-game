@@ -17,8 +17,8 @@ import {
   collectModifiers,
   computeClickIncome,
   computeRateBreakdown,
+  debuffedHighlightFactor,
   getHighlightMultiplier,
-  highlightDebuffFactor,
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
@@ -342,14 +342,6 @@ function renderSkeleton(
             <span class="data-stat-label">Per click</span>
             <span class="data-stat-value" id="data-click-income">—</span>
           </div>
-          <div class="data-stat" id="data-click-debuff-add-row" hidden>
-            <span class="data-stat-label">⚔️ Enemy debuff (flat)</span>
-            <span class="data-stat-value data-debuff" id="data-click-debuff-add">—</span>
-          </div>
-          <div class="data-stat" id="data-click-debuff-mult-row" hidden>
-            <span class="data-stat-label">⚔️ Enemy debuff (mult)</span>
-            <span class="data-stat-value data-debuff" id="data-click-debuff-mult">—</span>
-          </div>
           <div class="data-stat">
             <span class="data-stat-label">Peak CPS</span>
             <span class="data-stat-value" id="data-click-peak">—</span>
@@ -429,10 +421,6 @@ function renderSkeleton(
             <span class="data-stat-label">Multiplier</span>
             <span class="data-stat-value" id="data-hl-mult">—</span>
           </div>
-          <div class="data-stat" id="data-hl-debuff-row" hidden>
-            <span class="data-stat-label">⚔️ Enemy debuff</span>
-            <span class="data-stat-value data-debuff" id="data-hl-debuff">—</span>
-          </div>
         </div>
         ${battery}
         <p class="data-subhead">Time highlighted</p>
@@ -484,9 +472,9 @@ function updateNumbers(state: Readonly<GameState>): void {
   // Incoming debuffs, resolved once against this player — every figure below that
   // folds them in reads from here (see `resolveEnemyDebuffs`). The pact bonuses
   // in force (plan 42) ride beside them into every total, but not into the
-  // debuff rows, which report what the enemy is *taking*.
-  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player)
-  const bonuses = resolveEnemyDebuffs(pactModifiers(state.pactBonuses), state.player)
+  // before/after pairs, which report what the enemy is *taking*.
+  const debuffs = resolveEnemyDebuffs(state.debuffs, state.player, modeDef)
+  const bonuses = resolveEnemyDebuffs(pactModifiers(state.pactBonuses), state.player, modeDef)
 
   // Production + source breakdown (debuffs and bonuses folded in so totals match the header).
   const breakdown = computeRateBreakdown(state.player, modeDef, [...debuffs, ...bonuses])
@@ -523,19 +511,23 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
-    const own = collectModifiers(state.player, modeDef)
-    const clickIncome = computeClickIncome([...own, ...debuffs, ...bonuses])
-    setText('data-click-income', formatNumber(clickIncome, Number.isInteger(clickIncome) ? 0 : 1))
-    // What the incoming `clickIncome` debuffs cost each click. These rows exist
-    // because the number above them is already debuffed and so looks like the
-    // player's honest click power — nothing else on the client says otherwise.
-    // Reported per stage, as authored: a flat drain and a multiplier compose
-    // differently, and the click track applies them in plain list order — fixed
-    // by the mode data (`allAttackIds`), not by anything the player did. So one
-    // combined figure would name a factor neither attack actually applies.
-    // Shown only once clicking pays at all — an attack against a locked click
-    // track takes nothing.
-    showClickDebuffs(debuffs, computeClickIncome(own) > 0)
+    const ownModifiers = collectModifiers(state.player, modeDef)
+    // The un-debuffed figure keeps the pact bonuses in: they are this player's
+    // to enjoy, so the before/after pair below isolates what the enemy takes.
+    const baseClick = computeClickIncome([...ownModifiers, ...bonuses])
+    const clickIncome = computeClickIncome([...ownModifiers, ...debuffs, ...bonuses])
+    const fmt = (n: number) => formatNumber(n, Number.isInteger(n) ? 0 : 1)
+    const clickEl = document.getElementById('data-click-income')
+    if (clickEl) {
+      // While an enemy debuff is dragging the figure below its un-debuffed
+      // worth, show the debuffed value in red with the base value alongside in
+      // parentheses; otherwise just the plain figure.
+      if (clickIncome !== baseClick) {
+        clickEl.innerHTML = `<span class="data-value-debuffed">${fmt(clickIncome)}</span> <span class="data-value-base">(${fmt(baseClick)})</span>`
+      } else {
+        clickEl.textContent = fmt(clickIncome)
+      }
+    }
     setText('data-click-peak', formatNumber(roundStats.peakCps, 1))
     setText('data-click-avg', formatNumber(roundStats.averageCps(state.player), 1))
     setText('data-click-total', formatNumber(roundStats.totalClicks))
@@ -555,20 +547,22 @@ function updateNumbers(state: Readonly<GameState>): void {
         ? 'Released'
         : `${getResourceIcon(flavor, current)} ${getResourceName(flavor, current)}`,
     )
-    // The multiplier reads *debuffed*, so it matches the production it actually
-    // buys. Applied only while a resource is held: released, the factor lands
-    // nowhere and so does the debuff, and `getHighlightMultiplier` already
-    // reports a neutral ×1.
-    const debuffFactor = highlightDebuffFactor(state.debuffs)
+    // The multiplier reads *debuffed* while a resource is held: incoming
+    // highlight debuffs scale its bonus (see `debuffedHighlightFactor`), so it
+    // matches the production it buys. When a debuff drags it below its
+    // un-debuffed worth, show the debuffed value in red with the base alongside
+    // in parentheses — the same before/after the clicking section uses. Released,
+    // the factor lands nowhere and `getHighlightMultiplier` reports a neutral ×1.
+    const factor = getHighlightMultiplier(state.player, modeDef)
     const held = current !== null
-    const mult = getHighlightMultiplier(state.player, modeDef) * (held ? debuffFactor : 1)
-    setText('data-hl-mult', `×${formatMultiplier(mult)}`)
-    // Shown only while highlighted — the enemy-data panel carries the standing
-    // warning, this row explains the number sitting directly above it.
-    const debuffRow = document.getElementById('data-hl-debuff-row')
-    if (debuffRow) debuffRow.hidden = !held || debuffFactor === 1
-    if (held && debuffFactor !== 1) {
-      setText('data-hl-debuff', `×${formatMultiplier(debuffFactor)}`)
+    const mult = held ? debuffedHighlightFactor(factor, state.debuffs) : factor
+    const multEl = document.getElementById('data-hl-mult')
+    if (multEl) {
+      if (held && mult !== factor) {
+        multEl.innerHTML = `<span class="data-value-debuffed">×${formatMultiplier(mult)}</span> <span class="data-value-base">(×${formatMultiplier(factor)})</span>`
+      } else {
+        multEl.textContent = `×${formatMultiplier(mult)}`
+      }
     }
     updateBattery(state, modeDef)
     for (const r of modeDef.resources) {
@@ -584,39 +578,6 @@ function updateNumbers(state: Readonly<GameState>): void {
   setText('data-inv-score', formatNumber(state.player.score))
   setText('data-inv-generators', formatNumber(sumCounts(state.player.generators)))
   setText('data-inv-upgrades', formatNumber(sumCounts(state.player.upgrades)))
-}
-
-/**
- * Report the incoming `clickIncome` debuffs, one row per pipeline stage: the
- * flat drain ("-2") and the multiplier ("×0.5"). Each row shows only while that
- * stage is in play, so a single-stage attack produces a single row.
- *
- * Figures are the authored ones — flat drains summed, factors multiplied,
- * verbatim (an attack is unlocked or it isn't). What they work out to together
- * is the "Per click" value above, which already has them folded in; deriving one
- * ratio here instead would hide that the flat part's bite depends on the click
- * power it lands on.
- *
- * `paying` gates both rows: with no click income there is nothing for an attack
- * to take, and the flat row would advertise a drain the floor at 0 already ate.
- */
-function showClickDebuffs(debuffs: readonly Modifier[], paying: boolean): void {
-  let flat = 0
-  let factor = 1
-  for (const d of debuffs) {
-    if (d.field !== 'clickIncome') continue
-    if (d.stage === 'additive') flat += d.value
-    else factor *= d.value
-  }
-  setClickDebuffRow('add', paying && flat !== 0, formatAmount(flat))
-  setClickDebuffRow('mult', paying && factor !== 1, `×${formatMultiplier(factor)}`)
-}
-
-/** Show or hide one click-debuff row, filling it while shown. */
-function setClickDebuffRow(stage: 'add' | 'mult', show: boolean, value: string): void {
-  const row = document.getElementById(`data-click-debuff-${stage}-row`)
-  if (row) row.hidden = !show
-  if (show) setText(`data-click-debuff-${stage}`, value)
 }
 
 /**

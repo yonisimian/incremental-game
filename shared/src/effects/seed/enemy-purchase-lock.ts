@@ -1,24 +1,24 @@
 import { z } from 'zod'
 
-import type { CostScope } from '../../types.js'
+import { parsePurchaseTarget } from '../addressable.js'
 import type { EffectDef, EnemyPurchaseLockOutput } from '../types.js'
 
 /**
- * Schema for the `enemyPurchaseLock` effect's params (plan 40).
+ * Schema for the `enemyPurchaseLock` effect's params.
  *
  * An *offensive embargo* carried by an active attack: for the attack's
  * `durationSec` after its strike lands, the opponent cannot **buy** what
- * `target` names — `upgrades`, `generators`, or `purchases` for both. It takes
- * nothing and slows nothing; it takes away the victim's *timing*, which is
+ * `target` names. It takes nothing and slows nothing; it takes away the
+ * victim's *timing*, which is
  * decisive when fired at a player one purchase from a milestone and nearly
  * worthless otherwise. Selling and attack activation stay open (a lock is on
  * spending, and a locked player must still be able to fire back).
  *
- * The three words are a real enum rather than a catalog string like
- * `enemyCostModifier`'s `target`: there is no per-entity form, so the vocabulary
- * is closed and the editor's form gets its dropdown from the schema. The two
- * scope words match `ALL_UPGRADES_TARGET` / `ALL_GENERATORS_TARGET`, so one
- * authored word means the same thing across the two attack effects.
+ * `target` is a purchase-target key, shared with `enemyCostModifier`:
+ * `upgrades` / `generators` for a whole scope, `purchases` for both at once,
+ * `upgrade:<id>` / `generator:<id>` for one entity. Like the cost
+ * target it is a mode-specific string the schema only checks is present;
+ * `validateModeDefinition` checks it against `purchaseTargets`.
  *
  * A lock has no magnitude, so the attacker's `power` never touches it — the
  * lever for "a stronger lock" is `duration`. `validateModeDefinition` rejects a
@@ -27,34 +27,21 @@ import type { EffectDef, EnemyPurchaseLockOutput } from '../types.js'
  */
 const schema = z.strictObject({
   /** What the victim is barred from buying. */
-  target: z.enum(['upgrades', 'generators', 'purchases']),
+  target: z.string(),
 })
 
 /** Params for the `enemyPurchaseLock` effect (inferred from its schema). */
 export type EnemyPurchaseLockParams = z.infer<typeof schema>
 
-/** The scopes each authored target bars. `purchases` is both. */
-const SCOPES_FOR_TARGET: Record<EnemyPurchaseLockParams['target'], readonly CostScope[]> = {
-  upgrades: ['upgrade'],
-  generators: ['generator'],
-  purchases: ['upgrade', 'generator'],
-}
-
-/** The purchase scopes an `enemyPurchaseLock` ref's `target` bars. */
-export function purchaseLockScopesFor(
-  target: EnemyPurchaseLockParams['target'],
-): readonly CostScope[] {
-  return SCOPES_FOR_TARGET[target]
-}
-
 /**
  * State-independent: echoes the authored target as an
- * {@link EnemyPurchaseLockOutput}. Whether it actually applies (the owning
- * attack's window is open) is decided by `collectEnemyPurchaseLocks`, which
- * owns this output.
+ * {@link EnemyPurchaseLockOutput}, or `null` for an unrecognized one (boot
+ * rejects it first). Whether it actually applies (the owning attack's window is
+ * open) is decided by `collectEnemyPurchaseLocks`, which owns this output.
  */
-function apply(p: EnemyPurchaseLockParams): EnemyPurchaseLockOutput {
-  return { kind: 'enemyPurchaseLock', scopes: purchaseLockScopesFor(p.target) }
+function apply(p: EnemyPurchaseLockParams): EnemyPurchaseLockOutput | null {
+  const targets = parsePurchaseTarget(p.target)
+  return targets ? { kind: 'enemyPurchaseLock', targets } : null
 }
 
 export const enemyPurchaseLock: EffectDef<EnemyPurchaseLockParams> = {

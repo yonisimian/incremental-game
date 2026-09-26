@@ -25,7 +25,7 @@ export function isFlatCost(entry: CostEntry): boolean {
 // ─── Cost factors ────────────────────────────────────────────────────
 
 /**
- * A reshaping of a cost curve: one multiplier on its base price and one on its
+ * A reshaping of a cost curve: one multiplier on its price and one on its
  * growth. `1` is neutral on both, below 1 makes the entity cheaper (a friendly
  * `generatorCost` upgrade) and above 1 dearer (an `enemyCostModifier` attack).
  *
@@ -33,7 +33,10 @@ export function isFlatCost(entry: CostEntry): boolean {
  * currencies they take, not in how a factor bends their curve.
  */
 export interface CostFactors {
-  /** Multiplies the entry's base cost (e.g. `0.95` = 5% cheaper, `1.25` = 25% dearer). */
+  /**
+   * Multiplies the price at every level (e.g. `0.95` = 5% cheaper, `1.25` = 25%
+   * dearer), on both exponential and linear curves.
+   */
   readonly costFactor: number
   /** Multiplies the growth portion (`scaleFactor - 1`) of the cost curve. */
   readonly scalingFactor: number
@@ -63,10 +66,11 @@ export function combineCostFactors(a: CostFactors, b: CostFactors): CostFactors 
 
 /**
  * Apply cost factors to a single {@link CostEntry}, returning a reshaped copy
- * (the entry itself when the factors are neutral). `baseCost` is scaled by
- * `costFactor`; the *growth* portion of the curve by `scalingFactor`
- * (exponential: `1 + (scaleFactor-1)*sf`, so a neutral 1.0 curve stays flat;
- * linear: `scaleFactor*sf`).
+ * (the entry itself when the factors are neutral). `costFactor` scales the price
+ * at every level — `baseCost` alone for exponential (the multiplier carries
+ * through `base · rⁿ`), `baseCost` and the per-level increment for linear. The
+ * *growth* is scaled by `scalingFactor` (exponential: `1 + (scaleFactor-1)*sf`,
+ * so a neutral 1.0 curve stays flat; linear: the increment `× sf`).
  *
  * Callers apply this to the curve **before** rounding the scaled price, so the
  * factor is folded in once and both sides of the network land on the same
@@ -83,7 +87,7 @@ export function applyCostFactors(entry: CostEntry, factors: CostFactors): CostEn
     scaleFactor:
       entry.scaleType === 'exponential'
         ? 1 + (entry.scaleFactor - 1) * factors.scalingFactor
-        : entry.scaleFactor * factors.scalingFactor,
+        : entry.scaleFactor * factors.costFactor * factors.scalingFactor,
   }
 }
 

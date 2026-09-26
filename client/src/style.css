@@ -622,64 +622,6 @@ body {
   border-color: var(--danger);
 }
 
-/* Quit + the attack-alert badge stack in the header's left column */
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.3rem;
-}
-
-/* Attack-alert badge (plan 41) — countdown to the soonest inbound enemy strike */
-
-.attack-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 60%, transparent);
-  border-radius: 4px;
-  padding: 0.15rem 0.5rem;
-  white-space: nowrap;
-}
-
-.attack-alert-icon {
-  line-height: 1;
-}
-
-.attack-alert-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 10em;
-}
-
-.attack-alert-time {
-  min-width: 2.6em;
-  text-align: right;
-}
-
-.attack-alert--imminent {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 15%, transparent);
-  animation: alert-pulse 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes alert-pulse {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0.55;
-  }
-}
-
 /* Pause button (bot matches only) */
 
 .pause-btn {
@@ -1240,7 +1182,7 @@ body {
   filter: grayscale(0.7) brightness(0.55);
 }
 
-/* An enemy purchase lock is in force (plan 40): every buyable node is embargoed
+/* An enemy purchase lock is in force: this node is embargoed
    for a few seconds. Distinct from `locked` (permanent) and `too-expensive`
    (an income problem) — a danger ring says "attack", and the popup counts it
    down. Same filter approach as `locked`, for the same SVG-edge reason. */
@@ -1493,7 +1435,7 @@ body {
   color: var(--text-muted, var(--text));
 }
 
-/* `held / limit` attack slots beside a section heading (plan 38). */
+/* `held / limit` attack slots beside a section heading. */
 .attack-slots {
   margin-left: 0.4rem;
   font-variant-numeric: tabular-nums;
@@ -1789,7 +1731,7 @@ body {
   opacity: 0.5;
 }
 
-/* An enemy purchase lock bars buying this card for a few seconds (plan 40).
+/* An enemy purchase lock bars buying this card for a few seconds.
    The buy buttons carry the countdown; the border says why they are dark. */
 .generator-card.locked-by-attack {
   border-color: var(--danger);
@@ -2673,8 +2615,13 @@ body {
   color: var(--text);
 }
 
-/* A stat value that reports something working against the player (an incoming
-   enemy debuff), so it doesn't read as one of their own bonuses. */
-.data-debuff {
+/* A stat value under an enemy debuff: the debuffed figure in red, the
+   un-debuffed worth beside it in the normal colour. Shared by the clicking
+   section's "Per click" and the highlight section's "Multiplier". */
+.data-value-debuffed {
   color: var(--danger);
+}
+
+.data-value-base {
+  color: var(--text);
 }

@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { costFactorMarker, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
+import { costChangeMarker, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -17,7 +17,6 @@ import {
   canSellGenerator,
   isGeneratorUnlocked,
   resolveGeneratorDef,
-  stampedCostFactors,
   getResourceIcon,
   getGeneratorName,
   getGeneratorIcon,
@@ -40,7 +39,7 @@ export interface GeneratorCardNums {
   /**
    * The marker for a buy price bent off the authored curve — an opponent's
    * attack inflating it (`⬆`) or a pact discounting it (`⬇`), see
-   * `costFactorMarker`. Marks the buy button, so a cost off the authored one
+   * `costChangeMarker`. Marks the buy button, so a cost off the authored one
    * reads as an attack or a treaty rather than a bug. Defaults to none. The sell
    * refund is never inflated (see `getGeneratorSellRefund`), so the marker sits
    * on the buy side only.
@@ -54,8 +53,8 @@ export interface GeneratorCardNums {
    */
   readonly locked?: boolean
   /**
-   * An opponent's open attack window is barring every generator purchase
-   * (plan 40). The buy buttons show this label — `🔒 Locked N.Ns` — in place of
+   * An opponent's open attack window is barring every generator purchase.
+   * The buy buttons show this label — `🔒 Locked N.Ns` — in place of
    * the price, since a price the player cannot pay for a few seconds reads as
    * a bug without the reason. Selling stays live: the lock is on spending.
    * Absent when no lock is in force.
@@ -143,13 +142,13 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         (state.player.generators[def.id] ?? 0) > 0,
     )
     .map((def) => {
-      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+      const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
       const owned = state.player.generators[def.id] ?? 0
       const unlocked = isGeneratorUnlocked(state.player, def, modeDef)
       const nextCost = getGeneratorCost(effectiveDef, owned)
       // Buying is gated exactly as `generatorBlockReason` gates it: unlocked,
       // no enemy purchase lock, then affordable.
-      const attackLocked = isPurchaseLockedByAttack(state, 'generator')
+      const attackLocked = isPurchaseLockedByAttack(state, 'generator', def.id)
       const buyable = unlocked && !attackLocked
       const affordable = buyable && canAffordGenerator(state.player, effectiveDef)
       const maxAffordable = buyable ? getMaxAffordableGeneratorCount(state.player, effectiveDef) : 0
@@ -165,7 +164,13 @@ function renderAllGenerators(state: Readonly<GameState>): string {
           ? getGeneratorSellRefund(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned)
           : 0
       const canSell = canSellGenerator(state.player, effectiveDef)
-      const costMarker = costFactorMarker(stampedCostFactors(state.player, 'generator', def.id))
+      // Marked only when the factors in force actually moved this price off the
+      // player's own-factor one (which is what `'sell'` resolves): up for an
+      // attack's inflation, down for a pact's discount.
+      const costMarker = costChangeMarker(
+        nextCost,
+        getGeneratorCost(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned),
+      )
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
@@ -176,7 +181,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         costMarker,
         locked: !unlocked,
-        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator') } : {}),
+        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator', def.id) } : {}),
       })
     })
     .join('')

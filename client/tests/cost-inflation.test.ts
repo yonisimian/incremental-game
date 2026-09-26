@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  applyGeneratorCostFactors,
   createInitialState,
   generatorCostCurrency,
   getGeneratorCost,
@@ -96,6 +97,20 @@ describe('upgrade price label', () => {
     expect(label).not.toContain(INFLATED_COST_MARKER)
   })
 
+  // A whole-scope attack names every upgrade, but a price it didn't move has
+  // nothing to explain — a free upgrade must not render as a bare "⬆".
+  it('leaves a price the attack did not move unmarked', () => {
+    const free: UpgradeDefinition = { id: 'u-free', cost: {}, purchaseLimit: 1 }
+    expect(formatUpgradeCost(makeState(DOUBLE_ALL), free, flavor)).not.toContain(
+      INFLATED_COST_MARKER,
+    )
+    // Growth-only inflation on a flat cost: the curve has no growth to steepen.
+    const growthOnly: EnemyCostFactor[] = [{ scope: 'upgrade', scalingFactor: 2 }]
+    expect(formatUpgradeCost(makeState(growthOnly), UPGRADE, flavor)).not.toContain(
+      INFLATED_COST_MARKER,
+    )
+  })
+
   // The card's affordability shading has to agree with the quote, or a node
   // reads as buyable at a price the server will refuse.
   it('shades affordability against the inflated price', () => {
@@ -113,10 +128,31 @@ describe('upgrade price label', () => {
     expect(label).not.toContain(INFLATED_COST_MARKER)
   })
 
-  it('marks an item that is both inflated and discounted as inflated', () => {
+  // Both in force: the mark follows where the price landed.
+  it('marks an item that is both inflated and discounted by where it landed', () => {
     const label = formatUpgradeCost(makeState(DOUBLE_ALL, MIRRORED), UPGRADE, flavor)
     expect(label).toContain('150') // 100 × 2 × 0.75
     expect(label).toContain(INFLATED_COST_MARKER)
+    expect(label).not.toContain(DISCOUNTED_COST_MARKER)
+  })
+
+  // Growth-only inflation leaves level 0 alone and bites from level 1 on.
+  it('marks a growth-inflated price only once it has actually moved', () => {
+    const expo: UpgradeDefinition = {
+      id: 'u-expo',
+      cost: { r0: { baseCost: 100, scaleType: 'exponential', scaleFactor: 2 } },
+      purchaseLimit: 5,
+    }
+    const steepen = makeState([{ scope: 'upgrade', scalingFactor: 2 }])
+    const atLevel0 = formatUpgradeCost(steepen, expo, flavor)
+    expect(atLevel0).toContain('100')
+    expect(atLevel0).not.toContain(INFLATED_COST_MARKER)
+
+    steepen.player.upgrades[expo.id] = 1
+    // ×2 growth doubled → ×3: level 1 costs 300 rather than the authored 200.
+    const atLevel1 = formatUpgradeCost(steepen, expo, flavor)
+    expect(atLevel1).toContain('300')
+    expect(atLevel1).toContain(INFLATED_COST_MARKER)
   })
 })
 
@@ -169,6 +205,30 @@ describe('generator card', () => {
     expect(html).not.toContain(INFLATED_COST_MARKER)
     expect(html).toContain(`+${costIcon}${formatNumber(baseRefund)}`)
   })
+
+  // Growth-only inflation can't move the first copy's price (`base · r⁰`), so
+  // an unowned card has nothing to mark yet.
+  it('leaves an unmoved price unmarked under a growth-only attack', () => {
+    const state = makeState([{ scope: 'generator', scalingFactor: 2 }])
+    state.player.upgrades[unlockId] = 1
+    state.player.resources[generatorCostCurrency(g0)] = 1e6
+    const container = { innerHTML: '' } as HTMLElement
+    generatorsPanel.render(container, state)
+    expect(container.innerHTML).toContain(`Buy 1 — ${costIcon}${formatNumber(basePrice)}`)
+    expect(container.innerHTML).not.toContain(INFLATED_COST_MARKER)
+  })
+
+  it('quotes the steepened next copy, marked, while refunding along the authored curve', () => {
+    const html = renderWithG0([{ scope: 'generator', scalingFactor: 2 }])
+    const steepened = getGeneratorCost(
+      applyGeneratorCostFactors(g0, { costFactor: 1, scalingFactor: 2 }),
+      1,
+    )
+    expect(steepened).toBeGreaterThan(getGeneratorCost(g0, 1))
+    expect(html).toContain(`Buy 1 — ${costIcon}${formatNumber(steepened)}`)
+    expect(html).toContain(INFLATED_COST_MARKER)
+    expect(html).toContain(`+${costIcon}${formatNumber(baseRefund)}`)
+  })
 })
 
 describe('enemy-data panel — standing inflation warning', () => {
@@ -198,6 +258,13 @@ describe('enemy-data panel — standing inflation warning', () => {
     const html = render(makeState([{ scope: 'upgrade', costFactor: 1.5, scalingFactor: 1.2 }]))
     expect(html).toContain('cost 50% more')
     expect(html).toContain('price growth is 20% steeper')
+  })
+
+  it('reports a growth-only inflation as growth alone', () => {
+    const html = render(makeState([{ scope: 'generator', id: 'g0', scalingFactor: 1.5 }]))
+    expect(html).toContain('price growth is 50% steeper')
+    expect(html).toContain(flavor.generators[0].name)
+    expect(html).not.toContain('% more')
   })
 
   it('stays silent when no attack is in force', () => {

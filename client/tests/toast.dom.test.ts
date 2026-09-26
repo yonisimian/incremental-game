@@ -100,6 +100,48 @@ describe('spawnToast (DOM)', () => {
     expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
   })
 
+  it('keeps a sticky toast until it is dismissed, and rewrites its text in place', () => {
+    const layer = mountToastLayer()
+
+    const toast = spawnToast('in 4.0s', 'warning', { sticky: true, icon: '⚠️' })
+    vi.advanceTimersByTime(60_000)
+    expect(layer.querySelectorAll('.toast-slot')).toHaveLength(1)
+
+    toast.update('in 1.0s')
+    expect(layer.querySelector('.toast')?.textContent).toBe('⚠️ in 1.0s')
+
+    toast.dismiss()
+    vi.advanceTimersByTime(300)
+    expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    // Idempotent, like the eviction/auto-dismiss race.
+    expect(() => {
+      toast.dismiss()
+    }).not.toThrow()
+  })
+
+  it('never evicts a sticky toast to make room — the stack grows past the cap instead', () => {
+    const layer = mountToastLayer()
+
+    spawnToast('alert', 'warning', { sticky: true })
+    for (const label of ['1', '2', '3', '4', '5']) spawnToast(label, 'info')
+    vi.advanceTimersByTime(300)
+
+    const texts = [...layer.querySelectorAll('.toast')].map((t) => t.textContent)
+    expect(texts[0]).toBe('alert')
+    // The cap still holds for ordinary toasts: the oldest of those went instead.
+    expect(texts).toEqual(['alert', '3', '4', '5'])
+
+    // With every visible slot sticky, a new spawn exceeds the cap rather than
+    // evicting one of them.
+    const stickies = ['s1', 's2', 's3', 's4'].map((t) => spawnToast(t, 'warning', { sticky: true }))
+    vi.advanceTimersByTime(3_000)
+    const left = [...layer.querySelectorAll('.toast-slot:not([data-removing])')].map(
+      (s) => s.textContent,
+    )
+    expect(left).toEqual(['alert', 's1', 's2', 's3', 's4'])
+    for (const s of stickies) s.dismiss()
+  })
+
   it('falls back to the global vfx layer when no #toast-layer exists', () => {
     // Deliberately do not mountToastLayer(): the play screen is absent, so the
     // toast targets getLayer() — the test/non-play-screen path.

@@ -1,4 +1,4 @@
-import type { CostFactors, CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
+import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
   getResourceIcon,
@@ -12,6 +12,7 @@ import {
   isPurchaseLocked,
   isUnlimited,
   getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
   purchaseLockRemainingSec,
   upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
@@ -98,16 +99,30 @@ export const INFLATED_COST_MARKER = '⬆'
 export const DISCOUNTED_COST_MARKER = '⬇'
 
 /**
- * The marker for a price bent by the factors stamped on the player: up while
- * anything inflates it, down while it is only discounted, none when it is the
- * tree's own number. An inflation and a discount on the same item read as
- * inflated — the enemy's mark is the one the player needs explained.
+ * The marker for a price bent off the authored one: up when the factors in
+ * force actually raised it, down when they only lowered it, none when it landed
+ * on the tree's own number — a free upgrade, or a growth-only factor on a flat
+ * cost, is left unmarked: nothing moved. An inflation and a discount on the
+ * same item are marked by where the price landed, since that is the number the
+ * player needs explained.
  */
-export function costFactorMarker(factors: CostFactors): string {
-  if (isNeutralCostFactors(factors)) return ''
-  return factors.costFactor > 1 || factors.scalingFactor > 1
-    ? INFLATED_COST_MARKER
-    : DISCOUNTED_COST_MARKER
+export function costChangeMarker(cost: number, authored: number): string {
+  if (cost > authored) return INFLATED_COST_MARKER
+  if (cost < authored) return DISCOUNTED_COST_MARKER
+  return ''
+}
+
+/** {@link costChangeMarker} over a cost map: up if any currency rose, else down if any fell. */
+function costMapChangeMarker(
+  cost: Readonly<Record<string, number>>,
+  authored: Readonly<Record<string, number>>,
+): string {
+  const marks = Object.entries(cost).map(([currency, amount]) =>
+    costChangeMarker(amount, authored[currency] ?? 0),
+  )
+  if (marks.includes(INFLATED_COST_MARKER)) return INFLATED_COST_MARKER
+  if (marks.includes(DISCOUNTED_COST_MARKER)) return DISCOUNTED_COST_MARKER
+  return ''
 }
 
 /**
@@ -115,9 +130,10 @@ export function costFactorMarker(factors: CostFactors): string {
  * the cost map plus the owned count for an unlimited upgrade.
  *
  * Priced with the factors in force, so it matches what a buy will actually
- * charge, and marked (see {@link costFactorMarker}) while an opponent is
- * inflating it or a pact is discounting it — otherwise a price off the tree's
- * authored number reads as a bug rather than as an attack or a treaty.
+ * charge, and marked (see {@link costChangeMarker}) when an opponent's
+ * inflation actually raised it or a pact's discount actually lowered it —
+ * otherwise a price off the tree's authored number reads as a bug rather than
+ * as an attack or a treaty.
  */
 export function formatUpgradeCost(
   state: Readonly<GameState>,
@@ -127,10 +143,13 @@ export function formatUpgradeCost(
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return 'Maxed'
   const factors = upgradeCostFactors(state.player, u.id)
+  const cost = getUpgradeNextCost(u, owned, factors)
   const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-  const mark = costFactorMarker(factors)
+  const mark = isNeutralCostFactors(factors)
+    ? ''
+    : costMapChangeMarker(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
   const marker = mark === '' ? '' : ` ${mark}`
-  return `${formatCostLabel(getUpgradeNextCost(u, owned, factors), flavor)}${countLabel}${marker}`
+  return `${formatCostLabel(cost, flavor)}${countLabel}${marker}`
 }
 
 /**
@@ -152,7 +171,7 @@ export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): bo
 /**
  * Would buying this upgrade unlock more attacks of a kind than the player has
  * slots for? The client-side face of `purchaseBlockReason`'s `'attack-slots'`
- * rule (plan 38); false for an upgrade that unlocks nothing, or in an uncapped
+ * rule; false for an upgrade that unlocks nothing, or in an uncapped
  * mode.
  */
 export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
@@ -161,12 +180,16 @@ export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefini
 }
 
 /**
- * Is an opponent's open attack window barring this player from buying `scope`
- * (plan 40)? The client-side face of the `'locked-by-attack'` block reason,
+ * Is an opponent's open attack window barring this player from buying `id` of
+ * `scope`? The client-side face of the `'locked-by-attack'` block reason,
  * reading the same server-stamped field the server validates against.
  */
-export function isPurchaseLockedByAttack(state: Readonly<GameState>, scope: CostScope): boolean {
-  return isPurchaseLocked(state.player, scope)
+export function isPurchaseLockedByAttack(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): boolean {
+  return isPurchaseLocked(state.player, scope, id)
 }
 
 /**
@@ -175,8 +198,12 @@ export function isPurchaseLockedByAttack(state: Readonly<GameState>, scope: Cost
  * card, so the three agree. Omits the seconds when the countdown is unknown
  * (`null`), which cannot happen for a stamped lock but keeps the helper total.
  */
-export function purchaseLockLabel(state: Readonly<GameState>, scope: CostScope): string {
-  const remaining = purchaseLockRemainingSec(state.player, scope)
+export function purchaseLockLabel(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): string {
+  const remaining = purchaseLockRemainingSec(state.player, scope, id)
   return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
 }
 
@@ -188,7 +215,7 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
     !isAttackSlotBlocked(state, u) &&
-    !isPurchaseLockedByAttack(state, 'upgrade') &&
+    !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
     canAfford(state, u)
   )
 }

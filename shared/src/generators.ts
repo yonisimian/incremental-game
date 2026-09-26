@@ -60,7 +60,7 @@ function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
 export function collectGeneratorCostFactors(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
-  purpose: CostPurpose = 'buy',
+  purpose: CostPurpose,
 ): Map<string, CostFactors> {
   const factors = new Map<string, { costFactor: number; scalingFactor: number }>()
   for (const upgrade of mode.upgrades) {
@@ -117,13 +117,14 @@ export function applyGeneratorCostFactors(
  * for single-generator call sites.
  *
  * `purpose` decides whether the opponent's cost inflation is folded in: a price
- * being paid (the default) carries it, a refund does not.
+ * being paid carries it, a refund does not. Required rather than defaulted so a
+ * new refund site can't silently price at `'buy'` and reopen the money pump.
  */
 export function resolveGeneratorDef(
   def: GeneratorDefinition,
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
-  purpose: CostPurpose = 'buy',
+  purpose: CostPurpose,
 ): GeneratorDefinition {
   const factors = collectGeneratorCostFactors(state, mode, purpose).get(def.id)
   return applyGeneratorCostFactors(def, factors)
@@ -257,7 +258,7 @@ export function applyGeneratorPurchase(
 ): void {
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return
-  const effectiveDef = resolveGeneratorDef(def, state, mode)
+  const effectiveDef = resolveGeneratorDef(def, state, mode, 'buy')
   const owned = state.generators[def.id] ?? 0
   const cost = getGeneratorCost(effectiveDef, owned)
   state.resources[generatorCostCurrency(def)] -= cost

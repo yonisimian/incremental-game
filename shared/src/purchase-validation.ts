@@ -20,35 +20,45 @@ import { getUpgradeNextCost, isCostAffordable, upgradeCostFactors } from './upgr
 import { canAffordGenerator, isGeneratorUnlocked, resolveGeneratorDef } from './generators.js'
 import { hasAttackSlotsFor } from './attacks.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { CostScope, PlayerState, UpgradeDefinition } from './types.js'
+import type { CostScope, PlayerState, PurchaseLock, UpgradeDefinition } from './types.js'
 
-/**
- * Whether an opponent's open attack window currently bars this player from
- * buying anything of `scope` (plan 40). Reads the server-stamped
- * {@link PlayerState.incomingPurchaseLocks} by *presence* — not by comparing
- * `untilSec` against the clock — so a client whose game clock has drifted a
- * tick still agrees with the server on whether a buy goes through. The lock
- * lifts when the next stamp omits the scope.
- */
-export function isPurchaseLocked(state: Readonly<PlayerState>, scope: CostScope): boolean {
-  return state.incomingPurchaseLocks?.some((lock) => lock.scope === scope) ?? false
+/** Whether `lock` bars buying `id` of `scope` — a whole-scope lock, or one naming `id`. */
+function locksEntity(lock: PurchaseLock, scope: CostScope, id: string): boolean {
+  return lock.scope === scope && (lock.id === undefined || lock.id === id)
 }
 
 /**
- * Seconds until the lock on `scope` lifts, or `null` when none is stamped —
- * the victim-side countdown, the twin of `activeDebuffRemainingSec` on the
- * attacker's side. Reads `meta.gameSec` off `state` as every attack-timing path
- * does, and floors at `0` so a stamp the server has not refreshed yet never
- * reads as a negative wait.
+ * Whether an opponent's open attack window currently bars this player from
+ * buying `id` of `scope`. Reads the server-stamped
+ * {@link PlayerState.incomingPurchaseLocks} by *presence* — not by comparing
+ * `untilSec` against the clock — so a client whose game clock has drifted a
+ * tick still agrees with the server on whether a buy goes through. The lock
+ * lifts when the next stamp omits it.
+ */
+export function isPurchaseLocked(
+  state: Readonly<PlayerState>,
+  scope: CostScope,
+  id: string,
+): boolean {
+  return state.incomingPurchaseLocks?.some((lock) => locksEntity(lock, scope, id)) ?? false
+}
+
+/**
+ * Seconds until every lock barring `id` of `scope` lifts, or `null` when none
+ * is stamped — the victim-side countdown, the twin of `activeDebuffRemainingSec`
+ * on the attacker's side. Reads `meta.gameSec` off `state` as every
+ * attack-timing path does, and floors at `0` so a stamp the server has not
+ * refreshed yet never reads as a negative wait.
  */
 export function purchaseLockRemainingSec(
   state: Readonly<PlayerState>,
   scope: CostScope,
+  id: string,
 ): number | null {
-  const lock = state.incomingPurchaseLocks?.find((l) => l.scope === scope)
-  if (!lock) return null
+  const locks = (state.incomingPurchaseLocks ?? []).filter((l) => locksEntity(l, scope, id))
+  if (locks.length === 0) return null
   const gameSec = (state.meta.gameSec as number | undefined) ?? 0
-  return Math.max(0, lock.untilSec - gameSec)
+  return Math.max(0, Math.max(...locks.map((l) => l.untilSec)) - gameSec)
 }
 
 /**
@@ -94,7 +104,7 @@ export function purchaseBlockReason(
   // After the structural reasons, before the transient one: a player who is
   // locked *and* broke is told they are locked, since that is the thing no
   // income of theirs can fix right now.
-  if (isPurchaseLocked(state, 'upgrade')) return 'locked-by-attack'
+  if (isPurchaseLocked(state, 'upgrade', upgradeId)) return 'locked-by-attack'
   const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, upgradeId))
   if (!isCostAffordable(state.resources, cost)) return 'unaffordable'
   return null
@@ -135,8 +145,9 @@ export function generatorBlockReason(
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return 'unknown'
   if (!isGeneratorUnlocked(state, def, mode)) return 'locked'
-  if (isPurchaseLocked(state, 'generator')) return 'locked-by-attack'
-  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode))) return 'unaffordable'
+  if (isPurchaseLocked(state, 'generator', generatorId)) return 'locked-by-attack'
+  if (!canAffordGenerator(state, resolveGeneratorDef(def, state, mode, 'buy')))
+    return 'unaffordable'
   return null
 }
 

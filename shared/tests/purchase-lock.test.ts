@@ -1,4 +1,4 @@
-// Plan 40 — enemy purchase lock: the collector, the two block reasons, what
+// Enemy purchase lock: the collector, the two block reasons, what
 // the lock deliberately leaves open (selling, attacking), the strike that opens
 // it, and the simulator's reading of the reason.
 
@@ -30,16 +30,20 @@ const FLAT_UPGRADE: UpgradeDefinition = {
   purchaseLimit: 5,
 }
 
+const OTHER_UPGRADE: UpgradeDefinition = { ...FLAT_UPGRADE, id: 'u-other' }
+
 const G0: GeneratorDefinition = {
   id: 'g0',
   cost: { r0: { baseCost: 100 } },
   production: { resource: 'r0', rate: 1 },
 }
 
+const G1: GeneratorDefinition = { ...G0, id: 'g1' }
+
 const WINDOW_SEC = 10
 
 /** An active attack carrying the lock `target` and nothing else. */
-function lockAttack(id: string, target: 'upgrades' | 'generators' | 'purchases'): AttackDefinition {
+function lockAttack(id: string, target: string): AttackDefinition {
   return {
     id,
     kind: 'active',
@@ -53,6 +57,8 @@ function lockAttack(id: string, target: 'upgrades' | 'generators' | 'purchases')
 const LOCK_UPGRADES = lockAttack('a-up', 'upgrades')
 const LOCK_GENERATORS = lockAttack('a-gen', 'generators')
 const LOCK_ALL = lockAttack('a-all', 'purchases')
+const LOCK_ONE_UPGRADE = lockAttack('a-one-up', 'upgrade:u-flat')
+const LOCK_ONE_GENERATOR = lockAttack('a-one-gen', 'generator:g0')
 
 /** A raid: take 10% of the stockpile *and* lock upgrades, one window. */
 const RAID_LOCK: AttackDefinition = {
@@ -63,7 +69,14 @@ const RAID_LOCK: AttackDefinition = {
   ],
 }
 
-const ATTACKS = [LOCK_UPGRADES, LOCK_GENERATORS, LOCK_ALL, RAID_LOCK]
+const ATTACKS = [
+  LOCK_UPGRADES,
+  LOCK_GENERATORS,
+  LOCK_ALL,
+  LOCK_ONE_UPGRADE,
+  LOCK_ONE_GENERATOR,
+  RAID_LOCK,
+]
 
 /** The free upgrade that unlocks `attackId`. */
 function gate(attackId: string): UpgradeDefinition {
@@ -75,7 +88,7 @@ function gate(attackId: string): UpgradeDefinition {
   }
 }
 
-const UPGRADES = [FLAT_UPGRADE, ...ATTACKS.map((a) => gate(a.id))]
+const UPGRADES = [FLAT_UPGRADE, OTHER_UPGRADE, ...ATTACKS.map((a) => gate(a.id))]
 
 function makeMode(): ModeDefinition {
   return {
@@ -87,7 +100,7 @@ function makeMode(): ModeDefinition {
     highlightEnabled: false,
     initialResources: { r0: 0 },
     initialMeta: {},
-    generators: [G0],
+    generators: [G0, G1],
     attacks: ATTACKS,
     pacts: [],
     flavors: [
@@ -99,7 +112,10 @@ function makeMode(): ModeDefinition {
         showClickStats: false,
         resources: [{ key: 'r0', displayName: 'Res', icon: '🔵' }],
         upgrades: UPGRADES.map((u) => ({ id: u.id, name: u.id, icon: '🔧', description: '' })),
-        generators: [{ id: 'g0', name: 'Gen', icon: '🏭' }],
+        generators: [
+          { id: 'g0', name: 'Gen', icon: '🏭' },
+          { id: 'g1', name: 'Gen 2', icon: '🏭' },
+        ],
         attacks: ATTACKS.map((a) => ({ id: a.id, name: a.id, icon: '🔒', description: '' })),
         pacts: [],
       },
@@ -184,6 +200,28 @@ describe('collectEnemyPurchaseLocks', () => {
       { scope: 'generator', untilSec: 28 },
     ])
   })
+
+  it('carries the id of a single-entity target', () => {
+    const attacker = attackerWith(
+      { attack: 'a-one-up', expiresAtSec: 24 },
+      { attack: 'a-one-gen', expiresAtSec: 28 },
+    )
+    expect(collectEnemyPurchaseLocks(attacker, mode)).toEqual([
+      { scope: 'upgrade', id: 'u-flat', untilSec: 24 },
+      { scope: 'generator', id: 'g0', untilSec: 28 },
+    ])
+  })
+
+  it('keeps a whole-scope lock and a single-entity one as separate entries', () => {
+    const attacker = attackerWith(
+      { attack: 'a-up', expiresAtSec: 24 },
+      { attack: 'a-one-up', expiresAtSec: 28 },
+    )
+    expect(collectEnemyPurchaseLocks(attacker, mode)).toEqual([
+      { scope: 'upgrade', untilSec: 24 },
+      { scope: 'upgrade', id: 'u-flat', untilSec: 28 },
+    ])
+  })
 })
 
 // ─── Reading the stamp ───────────────────────────────────────────────
@@ -193,20 +231,40 @@ describe('isPurchaseLocked / purchaseLockRemainingSec', () => {
     // A stale stamp whose expiry has passed still blocks until the server
     // re-stamps: both sides then agree, whatever their clocks say.
     const stale = makeState({ incomingPurchaseLocks: [{ scope: 'upgrade', untilSec: 10 }] })
-    expect(isPurchaseLocked(stale, 'upgrade')).toBe(true)
-    expect(isPurchaseLocked(stale, 'generator')).toBe(false)
-    expect(purchaseLockRemainingSec(stale, 'upgrade')).toBe(0)
+    expect(isPurchaseLocked(stale, 'upgrade', 'u-flat')).toBe(true)
+    expect(isPurchaseLocked(stale, 'generator', 'g0')).toBe(false)
+    expect(purchaseLockRemainingSec(stale, 'upgrade', 'u-flat')).toBe(0)
   })
 
   it('counts down against the victim’s own game clock', () => {
     const state = makeState({ incomingPurchaseLocks: [{ scope: 'generator', untilSec: 27.5 }] })
-    expect(purchaseLockRemainingSec(state, 'generator')).toBe(7.5)
-    expect(purchaseLockRemainingSec(state, 'upgrade')).toBeNull()
+    expect(purchaseLockRemainingSec(state, 'generator', 'g0')).toBe(7.5)
+    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-flat')).toBeNull()
+  })
+
+  it('locks only the named entity for a single-entity lock', () => {
+    const state = makeState({
+      incomingPurchaseLocks: [{ scope: 'upgrade', id: 'u-flat', untilSec: 25 }],
+    })
+    expect(isPurchaseLocked(state, 'upgrade', 'u-flat')).toBe(true)
+    expect(isPurchaseLocked(state, 'upgrade', 'u-other')).toBe(false)
+    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-other')).toBeNull()
+  })
+
+  it('counts down to the last lock covering the entity', () => {
+    const state = makeState({
+      incomingPurchaseLocks: [
+        { scope: 'upgrade', untilSec: 24 },
+        { scope: 'upgrade', id: 'u-flat', untilSec: 28 },
+      ],
+    })
+    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-flat')).toBe(8)
+    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-other')).toBe(4)
   })
 
   it('is unlocked with no stamp at all', () => {
-    expect(isPurchaseLocked(makeState(), 'upgrade')).toBe(false)
-    expect(purchaseLockRemainingSec(makeState(), 'upgrade')).toBeNull()
+    expect(isPurchaseLocked(makeState(), 'upgrade', 'u-flat')).toBe(false)
+    expect(purchaseLockRemainingSec(makeState(), 'upgrade', 'u-flat')).toBeNull()
   })
 })
 
@@ -232,6 +290,18 @@ describe('purchase block reasons under a lock', () => {
     const victim = victimOf(attackerWith({ attack: 'a-all', expiresAtSec: 30 }), mode)
     expect(purchaseBlockReason(victim, 'u-flat', upgradeMap(mode), mode)).toBe('locked-by-attack')
     expect(generatorBlockReason(victim, 'g0', mode)).toBe('locked-by-attack')
+  })
+
+  it('refuses only the named upgrade or generator under a single-entity lock', () => {
+    const attacker = attackerWith(
+      { attack: 'a-one-up', expiresAtSec: 30 },
+      { attack: 'a-one-gen', expiresAtSec: 30 },
+    )
+    const victim = victimOf(attacker, mode)
+    expect(purchaseBlockReason(victim, 'u-flat', upgradeMap(mode), mode)).toBe('locked-by-attack')
+    expect(purchaseBlockReason(victim, 'u-other', upgradeMap(mode), mode)).toBeNull()
+    expect(generatorBlockReason(victim, 'g0', mode)).toBe('locked-by-attack')
+    expect(generatorBlockReason(victim, 'g1', mode)).toBeNull()
   })
 
   // A player who is locked *and* broke is told they are locked: that is the

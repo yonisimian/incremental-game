@@ -1,9 +1,10 @@
 /**
- * Plan 41 — the client side of the attack alert: `incomingAttacks` is replaced
- * from each snapshot and cleared at round start, a strike is toasted once when
- * it first comes into view, and the espionage panel lists what is inbound.
+ * The client side of the attack alert: `incomingAttacks` is replaced from each
+ * snapshot and cleared at round start, each strike in view keeps one sticky
+ * toast that counts down and is dismissed once the strike lands, and the
+ * espionage panel lists what is inbound.
  *
- * Node tier: the VFX module is mocked, so the toast assertion is on *what* the
+ * Node tier: the VFX module is mocked, so the toast assertions are on *what* the
  * game layer asked to show (the toast's rendering is `toast.dom.test.ts`'s).
  */
 
@@ -31,9 +32,16 @@ vi.mock('../src/network.js', () => ({
   sendBotRequest: vi.fn(),
 }))
 
-const { spawnToast } = vi.hoisted(() => ({
-  spawnToast: vi.fn<(text: string, tone: string) => void>(),
-}))
+/** One mocked toast handle per spawn, so each warning's updates and dismissal are visible. */
+const { spawnToast, handles } = vi.hoisted(() => {
+  const handles: { update: ReturnType<typeof vi.fn>; dismiss: ReturnType<typeof vi.fn> }[] = []
+  const spawnToast = vi.fn((_text: string, _tone: string, _opts?: { sticky?: boolean }) => {
+    const handle = { update: vi.fn(), dismiss: vi.fn() }
+    handles.push(handle)
+    return handle
+  })
+  return { spawnToast, handles }
+})
 vi.mock('../src/ui/vfx/index.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/ui/vfx/index.js')>()),
   spawnToast,
@@ -91,6 +99,7 @@ describe('incomingAttacks — state and toasts', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     spawnToast.mockClear()
+    handles.length = 0
     game = await loadGame()
     game.handleServerMessage(roundStart)
     vi.advanceTimersByTime(Math.max(COUNTDOWN_SEC, 1) * 1000)
@@ -109,22 +118,38 @@ describe('incomingAttacks — state and toasts', () => {
     expect(game.getState().incomingAttacks).toEqual([])
   })
 
-  it('toasts a strike once, when it first comes into view, with the time left', () => {
+  it('keeps one sticky toast per strike, counting down on each snapshot', () => {
     game.handleServerMessage(snapshot(10, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
-    const [text, tone] = spawnToast.mock.calls[0]
+    const [text, tone, opts] = spawnToast.mock.calls[0]
     expect(text).toBe('⚠️ Incoming attack in 4.0s')
     expect(tone).toBe('warning')
+    // Sticky: no timer of its own, so it cannot vanish before the strike lands.
+    expect(opts).toEqual({ sticky: true })
 
-    // The same strike, rebroadcast as it counts down: no second toast.
+    // The same strike, rebroadcast as it counts down: the one toast is rewritten.
     game.handleServerMessage(snapshot(10.5, [{ readyAtSec: 14 }]))
     game.handleServerMessage(snapshot(11, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
+    expect(handles[0].update).toHaveBeenLastCalledWith('⚠️ Incoming attack in 3.0s')
 
-    // A second strike joining the list is announced on its own.
+    // A second strike joining the list gets its own toast.
     game.handleServerMessage(snapshot(11.5, [{ readyAtSec: 14 }, { readyAtSec: 20 }]))
     expect(spawnToast).toHaveBeenCalledTimes(2)
     expect(spawnToast.mock.calls[1][0]).toBe('⚠️ Incoming attack in 8.5s')
+  })
+
+  it('dismisses a warning only once its strike leaves the list', () => {
+    game.handleServerMessage(snapshot(10, [{ readyAtSec: 14 }, { readyAtSec: 20 }]))
+    // However long the wall-clock wait, the toast stays while the strike is inbound.
+    vi.advanceTimersByTime(60_000)
+    game.handleServerMessage(snapshot(13.5, [{ readyAtSec: 14 }, { readyAtSec: 20 }]))
+    expect(handles[0].dismiss).not.toHaveBeenCalled()
+
+    // The first strike landed: its toast goes, the other stays.
+    game.handleServerMessage(snapshot(14.5, [{ readyAtSec: 20 }]))
+    expect(handles[0].dismiss).toHaveBeenCalledTimes(1)
+    expect(handles[1].dismiss).not.toHaveBeenCalled()
   })
 
   it('names the attack when the warning carries its id', () => {
@@ -140,11 +165,12 @@ describe('incomingAttacks — state and toasts', () => {
     expect(spawnToast.mock.calls[0][0]).toBe('⚠️ Incoming attack in 0.0s')
   })
 
-  it('clears the list at the start of a new round', () => {
+  it('clears the list, and its toasts, at the start of a new round', () => {
     game.handleServerMessage(snapshot(10, [{ readyAtSec: 14 }]))
     expect(game.getState().incomingAttacks).toHaveLength(1)
     game.handleServerMessage(roundStart)
     expect(game.getState().incomingAttacks).toEqual([])
+    expect(handles[0].dismiss).toHaveBeenCalledTimes(1)
   })
 })
 

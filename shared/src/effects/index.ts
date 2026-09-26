@@ -137,7 +137,6 @@ export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { EnemyPurchaseLockParams } from './seed/enemy-purchase-lock.js'
-export { purchaseLockScopesFor } from './seed/enemy-purchase-lock.js'
 export type { MirrorCostModifierParams } from './seed/mirror-cost-modifier.js'
 export type { MirrorStatModifierParams } from './seed/mirror-stat-modifier.js'
 export type { StealResourceParams } from './seed/steal-resource.js'
@@ -149,15 +148,16 @@ export {
   addressableTargets,
   addressableTargetsFor,
   ALL_GENERATORS_TARGET,
+  ALL_PURCHASES_TARGET,
   ALL_UPGRADES_TARGET,
-  enemyCostTargets,
-  enemyCostTargetsFor,
   enemyDebuffTargets,
   enemyDebuffTargetsFor,
   entityCostTargetKey,
   HIGHLIGHT_FACTOR_TARGET,
   listAddressableFields,
-  parseEnemyCostTarget,
+  parsePurchaseTarget,
+  purchaseTargets,
+  purchaseTargetsFor,
   readSourceValue,
   RESERVED_TARGET_KEYS,
 } from './addressable.js'

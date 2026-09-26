@@ -906,7 +906,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: attack slots (plan 38) ──────────────────────────────────
+  // ── Idler: attack slots ────────────────────────────────────────────
 
   describe('idler attack slots', () => {
     /** The idler's free unlock node for `attack`. */
@@ -988,7 +988,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: enemy purchase lock (plan 40) ───────────────────────────
+  // ── Idler: enemy purchase lock ─────────────────────────────────────
 
   describe('idler purchase lock', () => {
     /** A server snapshot: funded, `sh-unlock` (free) unbought, optionally locked. */

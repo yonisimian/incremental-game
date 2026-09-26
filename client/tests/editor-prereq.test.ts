@@ -3,7 +3,7 @@ import { asSimplePrereq, fromSimplePrereq, type SimplePrereq } from '../src/dev/
 
 // The inspector's simple prerequisite form models "all/any of N upgrade ids,
 // each with an optional minLevel", plus one checkbox for the tree's `meta` gate
-// ("hit by an enemy attack", plan 41). These two pure functions are the boundary
+// ("hit by an enemy attack"). These two pure functions are the boundary
 // between that form state and the engine's prerequisite expression — the
 // round-trip below is what keeps authored JSON faithful to the form.
 

@@ -11,8 +11,8 @@ import type {
  * would lock its node forever, and that should fail at boot, not in play.
  *
  * - `attacksSuffered` — how many enemy *active* strikes have landed on this
- *   player (moved something or opened a window; a miss does not count).
- *   Stamped by the server's strike resolution.
+ *   player, whether or not they moved anything. Stamped by the server's strike
+ *   resolution.
  */
 export const PREREQUISITE_META_KEYS = ['attacksSuffered'] as const
 

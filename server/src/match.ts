@@ -578,7 +578,7 @@ export class Match {
         rates: computePassiveRates(
           [
             ...collectModifiers(player.state, mode),
-            ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, mode), player.state),
+            ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, mode), player.state, mode),
           ],
           mode.resources,
         ),
@@ -601,7 +601,7 @@ export class Match {
    */
   private pactModifiersFor(player: MatchPlayer): Modifier[] {
     if (player.pactBonuses.length === 0) return []
-    return resolveEnemyDebuffs(pactModifiers(player.pactBonuses), player.state)
+    return resolveEnemyDebuffs(pactModifiers(player.pactBonuses), player.state, this.modeDef)
   }
 
   private applyPassiveIncome(player: MatchPlayer, opponent: MatchPlayer): void {
@@ -617,7 +617,11 @@ export class Match {
     // worth to them this tick.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...resolveEnemyDebuffs(collectEnemyDebuffs(opponent.state, this.modeDef), player.state),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(opponent.state, this.modeDef),
+        player.state,
+        this.modeDef,
+      ),
       ...this.pactModifiersFor(player),
     ]
     applyPassiveTick(
@@ -665,6 +669,11 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        // Every landed active strike counts toward the `meta` prerequisites that
+        // unlock defensive nodes, even one that moved nothing — being attacked
+        // is what the gate asks about. A passive attack never passes through here.
+        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
+          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         if (moved.length === 0) {
           // The strike landed but moved nothing (the victim owned none of the
           // target). Report it to both sides: the attacker gets feedback that
@@ -684,12 +693,6 @@ export class Match {
           })
           continue
         }
-        // The victim has now been *hit* — count it for the `meta` prerequisites
-        // that unlock defensive nodes (plan 41). A strike that moved nothing is
-        // deliberately not counted (it `continue`d above), nor is a passive
-        // attack, which never passes through here.
-        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
-          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         for (const result of moved) {
           // The same result, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.
@@ -749,14 +752,15 @@ export class Match {
     player.state.meta.peakCps = player.stats.peakCps
 
     // The clicker's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict — appended after so a `clickIncome` debuff
-    // scales the finished figure, matching `applyPassiveIncome` — plus the pact
-    // bonuses cached by the last tick.
+    // unlocked passive attacks inflict — resolving tags a `clickIncome` debuff as
+    // incoming, which is what orders it after the clicker's own click power —
+    // plus the pact bonuses cached by the last tick.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
       ...resolveEnemyDebuffs(
         collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
         player.state,
+        this.modeDef,
       ),
       ...this.pactModifiersFor(player),
     ]
@@ -917,7 +921,7 @@ export class Match {
         rates ??= computePassiveRates(
           [
             ...collectModifiers(opponent.state, mode),
-            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state),
+            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state, mode),
           ],
           mode.resources,
         )
@@ -947,7 +951,7 @@ export class Match {
 
   /**
    * Warn `viewer` of the opponent's pending strikes due within the viewer's
-   * `attackAlert` lead (plan 41). Unlike the purchase feed this is *state*, not
+   * `attackAlert` lead. Unlike the purchase feed this is *state*, not
    * a delta: the full list of strikes inside the lead goes out every broadcast
    * and the client replaces, never accumulates — so no watermark, no per-viewer
    * bookkeeping. `readyAtSec` is on the attacker's clock, which advances in

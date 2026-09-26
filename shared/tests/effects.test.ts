@@ -411,6 +411,57 @@ describe('collectModifiers effect wiring', () => {
     expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
   })
 
+  it('fans out an allResources baseModifier to every resource, with compounding', () => {
+    const base = getModeDefinition('idler')
+    const up: UpgradeDefinition = {
+      id: 'uAllRes',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'allResources', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const state = createInitialState(def)
+    state.upgrades.uAllRes = 2
+    const mods = collectModifiers(state, def)
+
+    // The sentinel is expanded away: 3 ** 2 = 9 lands on every declared
+    // resource's global layer, and never as the sentinel field itself.
+    expect(mods.some((m) => m.field === 'allResources')).toBe(false)
+    for (const resource of def.resources) {
+      expect(mods).toContainEqual({ stage: 'multiplicative', field: resource, value: 9 })
+    }
+  })
+
+  it('fans out an allGenerators baseModifier into every owned generator output', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0]
+    const up: UpgradeDefinition = {
+      id: 'uAllGen',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'allGenerators', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const sumAdditive = (mods: readonly { field: string; stage: string; value: number }[]) =>
+      mods
+        .filter((m) => m.field === gen.production.resource && m.stage === 'additive')
+        .reduce((s, m) => s + m.value, 0)
+
+    const withUp = createInitialState(def)
+    withUp.upgrades.uAllGen = 2
+    withUp.generators[gen.id] = 4
+    const withMods = collectModifiers(withUp, def)
+
+    const without = createInitialState(def)
+    without.generators[gen.id] = 4
+    const withoutMods = collectModifiers(without, def)
+
+    // The sentinel never leaks; the bonus folds into each owned generator's output.
+    expect(withMods.some((m) => m.field === 'allGenerators')).toBe(false)
+    // Only gen is owned: per-unit (3) × upgrade owned (2) × generator owned (4) = 24.
+    expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
+  })
+
   it('applies mode-level effects regardless of upgrade ownership', () => {
     const base = getModeDefinition('idler')
     // A mode-level effect is ungated by upgrade ownership — it always runs.
@@ -493,36 +544,71 @@ describe('enemyCostModifier params', () => {
   }
 
   it('splits a whole-scope target into scope + no id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'upgrade',
-      id: undefined,
-      costFactor: 1.25,
-      scalingFactor: undefined,
-    })
-    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: undefined,
-      costFactor: undefined,
-      scalingFactor: 1.1,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
+    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: undefined,
+        scalingFactor: 1.1,
+      },
+    ])
+  })
+
+  it('emits one output per scope for `purchases`', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'purchases', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   it('splits a namespaced target into scope + id', () => {
-    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual({
-      kind: 'enemyCost',
-      scope: 'generator',
-      id: 'g0',
-      costFactor: 2,
-      scalingFactor: undefined,
-    })
+    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: 2,
+        scalingFactor: undefined,
+      },
+    ])
   })
 
   // An attack that discounts the victim is never intended authoring — the same
   // reasoning as `guardModifierValue`'s debuff intent, in the other direction.
   it('rejects a factor below 1 (a gift, not an attack)', () => {
     for (const params of [{ costFactor: 0.9 }, { scalingFactor: 0.5 }]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a factor of exactly 1 (a no-op)', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { scalingFactor: 1 },
+      { costFactor: 1.5, scalingFactor: 1 },
+    ]) {
       expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
     }
   })
@@ -547,22 +633,31 @@ describe('mirrorCostModifier params', () => {
   }
 
   it('splits the target like enemyCostModifier does, under its own kind', () => {
-    expect(apply({ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 })).toEqual({
-      kind: 'mirrorCost',
-      scope: 'upgrade',
-      id: undefined,
-      costFactor: 0.75,
-      scalingFactor: undefined,
-    })
+    expect(apply({ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 })).toEqual([
+      {
+        kind: 'mirrorCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 0.75,
+        scalingFactor: undefined,
+      },
+    ])
     expect(
       apply({ type: 'mirrorCostModifier', target: 'generator:g0', scalingFactor: 0.5 }),
-    ).toEqual({
-      kind: 'mirrorCost',
-      scope: 'generator',
-      id: 'g0',
-      costFactor: undefined,
-      scalingFactor: 0.5,
-    })
+    ).toEqual([
+      {
+        kind: 'mirrorCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: undefined,
+        scalingFactor: 0.5,
+      },
+    ])
+    // `purchases` discounts both scopes, one output each.
+    const both = apply({ type: 'mirrorCostModifier', target: 'purchases', costFactor: 0.9 }) as {
+      scope: string
+    }[]
+    expect(both.map((o) => o.scope)).toEqual(['upgrade', 'generator'])
   })
 
   // A pact is a buff by definition: a factor at or above 1 would penalize its
@@ -660,26 +755,34 @@ describe('enemyPurchaseLock params', () => {
     return applyEffect(ref, createInitialState(mode), mode)
   }
 
-  it('maps each target to the scopes it bars', () => {
+  it('maps each target to what it bars', () => {
     expect(apply({ type: 'enemyPurchaseLock', target: 'upgrades' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['upgrade'],
+      targets: [{ scope: 'upgrade' }],
     })
     expect(apply({ type: 'enemyPurchaseLock', target: 'generators' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['generator'],
+      targets: [{ scope: 'generator' }],
     })
     expect(apply({ type: 'enemyPurchaseLock', target: 'purchases' })).toEqual({
       kind: 'enemyPurchaseLock',
-      scopes: ['upgrade', 'generator'],
+      targets: [{ scope: 'upgrade' }, { scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrade:u0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade', id: 'u0' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generator:g0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator', id: 'g0' }],
     })
   })
 
-  // A closed enum, unlike `enemyCostModifier`'s catalog string: there is no
-  // per-entity form, so anything else is a typo the schema itself can reject.
-  it('rejects any other target, including a per-entity one', () => {
-    for (const target of ['upgrade:u0', 'generator:g0', 'all', '']) {
-      expect(() => apply({ type: 'enemyPurchaseLock', target })).toThrow()
+  // A catalog string like `enemyCostModifier`'s: the schema only checks it is a
+  // string, `apply` stays inert on an unrecognized key, and boot rejects it.
+  it('is inert for an unrecognized target and rejects a missing one', () => {
+    for (const target of ['all', '']) {
+      expect(apply({ type: 'enemyPurchaseLock', target })).toBeNull()
     }
     expect(() => apply({ type: 'enemyPurchaseLock' })).toThrow()
   })
@@ -987,25 +1090,37 @@ describe('attackStat params', () => {
     ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 })
   })
 
-  it('omits the attack key entirely when none is authored', () => {
-    expect(
+  it('rejects a ref naming no attack', () => {
+    expect(() =>
       applyEffect({ type: 'attackStat', stat: 'power', op: 'add', value: 1 }, state, mode),
-    ).toEqual({ kind: 'attackStat', stat: 'power', op: 'add', value: 1 })
+    ).toThrow(/"attack"/)
   })
 
   it('rejects an unknown stat', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'nope', op: 'add', value: 1 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'nope', op: 'add', value: 1 },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
   it('accepts the duration stat, factor and offset alike (plan 37)', () => {
     expect(
-      applyEffect({ type: 'attackStat', stat: 'duration', op: 'mult', value: 2 }, state, mode),
-    ).toEqual({ kind: 'attackStat', attack: undefined, stat: 'duration', op: 'mult', value: 2 })
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 })
     expect(
-      applyEffect({ type: 'attackStat', stat: 'duration', op: 'offset', value: 3 }, state, mode),
-    ).toEqual({ kind: 'attackStat', attack: undefined, stat: 'duration', op: 'offset', value: 3 })
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 })
   })
 
   it('rejects a duration stat pointing the wrong way — a shorter window helps nobody', () => {
@@ -1014,13 +1129,19 @@ describe('attackStat params', () => {
       { stat: 'duration', op: 'add', value: -0.2 },
       { stat: 'duration', op: 'offset', value: -1 },
     ]) {
-      expect(() => applyEffect({ type: 'attackStat', ...ref }, state, mode)).toThrow(/duration/u)
+      expect(() => applyEffect({ type: 'attackStat', attack: 'a0', ...ref }, state, mode)).toThrow(
+        /duration/u,
+      )
     }
   })
 
   it('rejects an unknown op', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'divide', value: 2 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'divide', value: 2 },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
@@ -1028,22 +1149,26 @@ describe('attackStat params', () => {
   it('accepts an offset on prepareTime', () => {
     expect(
       applyEffect(
-        { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 },
+        { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 },
         state,
         mode,
       ),
-    ).toEqual({ kind: 'attackStat', stat: 'prepareTime', op: 'offset', value: -1 })
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 })
   })
 
   it('rejects an offset on a stat with no single unit', () => {
     // `power` has no unit (fraction / amount / count / debuff distance) and
     // `prepareCost` has one per currency, so neither can take a flat shift.
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'offset', value: 1 }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'offset', value: 1 },
+        state,
+        mode,
+      ),
     ).toThrow(/does not apply to stat 'power'/u)
     expect(() =>
       applyEffect(
-        { type: 'attackStat', stat: 'prepareCost', op: 'offset', value: -100 },
+        { type: 'attackStat', attack: 'a0', stat: 'prepareCost', op: 'offset', value: -100 },
         state,
         mode,
       ),
@@ -1052,7 +1177,11 @@ describe('attackStat params', () => {
 
   it('rejects a non-numeric value', () => {
     expect(() =>
-      applyEffect({ type: 'attackStat', stat: 'power', op: 'mult', value: 'lots' }, state, mode),
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 'lots' },
+        state,
+        mode,
+      ),
     ).toThrow()
   })
 
@@ -1061,7 +1190,7 @@ describe('attackStat params', () => {
       ...mode,
       effects: [
         ...(mode.effects ?? []),
-        { type: 'attackStat', stat: 'power', op: 'mult', value: 2 },
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
       ],
     }
     const fresh = createInitialState(withEffect)
@@ -1082,7 +1211,7 @@ describe('attackStat value direction', () => {
   const state = createInitialState(mode)
 
   const attempt = (stat: string, op: string, value: unknown): (() => unknown) => {
-    return () => applyEffect({ type: 'attackStat', stat, op, value }, state, mode)
+    return () => applyEffect({ type: 'attackStat', attack: 'a0', stat, op, value }, state, mode)
   }
 
   it('lets an increasing stat only increase', () => {
@@ -1626,6 +1755,54 @@ describe('production field mode validation', () => {
     }).toThrow(/baseModifier targets unknown production field 'nope'/u)
   })
 
+  it('accepts the aggregate target fields (allResources / allGenerators)', () => {
+    for (const field of ['allResources', 'allGenerators']) {
+      expect(() => {
+        validateModeDefinition(
+          'idler',
+          withUpgrade({ type: 'baseModifier', field, stage: 'additive', value: 1 }),
+        )
+      }).not.toThrow()
+    }
+  })
+
+  it('throws when a resource id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'allResources'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'allResources', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
+  it('throws when a generator id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        {
+          id: 'allGenerators',
+          cost: { r0: { baseCost: 1 } },
+          production: { resource: 'r0', rate: 1 },
+        },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'allGenerators', name: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
   it('throws on a mode-level baseModifier targeting an unknown field', () => {
     const base = getModeDefinition('idler')
     const def: ModeDefinition = {
@@ -1726,6 +1903,8 @@ describe('addressable-field catalog', () => {
       { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },
       { key: 'g1', label: 'g1 (output)' },
+      { key: 'allResources', label: 'All resources (rate)' },
+      { key: 'allGenerators', label: 'All generators (output)' },
     ])
   })
 
@@ -1749,6 +1928,12 @@ describe('addressable-field catalog', () => {
       else expect(full).toContainEqual(target)
     }
     expect(full.map((f) => f.key)).not.toContain(HIGHLIGHT_FACTOR_TARGET)
+  })
+
+  it('omits allGenerators when a mode has no generators', () => {
+    const keys = addressableTargetsFor(['r0'], []).map((f) => f.key)
+    expect(keys).toContain('allResources')
+    expect(keys).not.toContain('allGenerators')
   })
 
   it('the mode-level helpers delegate to the primitive ones', () => {

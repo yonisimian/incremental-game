@@ -22,7 +22,7 @@
 import type { PlayerState } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
 import type { AddressableField } from './addressable.js'
-import { enemyCostTargetsFor, parseEnemyCostTarget } from './addressable.js'
+import { parsePurchaseTarget, purchaseTargetsFor } from './addressable.js'
 import {
   ENEMY_DATA_CPS_KEY,
   ENEMY_DATA_RATE_SUFFIX,
@@ -64,8 +64,11 @@ export function enemyStatKeysFor(
   upgradeIds: readonly string[],
   generatorIds: readonly string[],
 ): AddressableField[] {
-  const entities = enemyCostTargetsFor(upgradeIds, generatorIds).map(({ key }) => {
-    const target = parseEnemyCostTarget(key)!
+  const entities = purchaseTargetsFor(upgradeIds, generatorIds).map(({ key }) => {
+    const targets = parsePurchaseTarget(key)!
+    // `purchases` names both scopes at once: the sum of every level and count.
+    if (targets.length > 1) return { key, label: 'Upgrades and generators (total)' }
+    const [target] = targets
     if (target.id === undefined) {
       return {
         key,
@@ -122,10 +125,14 @@ export function readEnemyStat(snapshot: PartnerSnapshot, key: string): number {
     return typeof cps === 'number' ? cps : 0
   }
   if (key.endsWith(ENEMY_DATA_RATE_SUFFIX)) return snapshot.rates[enemyDataResourceKey(key)] ?? 0
-  const target = parseEnemyCostTarget(key)
-  if (target) {
-    const counts = target.scope === 'upgrade' ? state.upgrades : state.generators
-    return target.id === undefined ? total(counts) : (counts[target.id] ?? 0)
+  const targets = parsePurchaseTarget(key)
+  if (targets) {
+    let sum = 0
+    for (const target of targets) {
+      const counts = target.scope === 'upgrade' ? state.upgrades : state.generators
+      sum += target.id === undefined ? total(counts) : (counts[target.id] ?? 0)
+    }
+    return sum
   }
   return state.resources[key] ?? 0
 }

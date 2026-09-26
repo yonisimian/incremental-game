@@ -19,7 +19,7 @@ import {
   enemyDataResourceKey,
   entityCostTargetKey,
   isTimeEffectType,
-  parseEnemyCostTarget,
+  parsePurchaseTarget,
 } from '@game/shared'
 
 /** A node's display-flavor entry, as stored in the mode flavor table. */
@@ -523,9 +523,9 @@ function namedEntity(
   if (!param) return null
   const value = ref[param]
   if (typeof value !== 'string') return null
-  const parsed = parseEnemyCostTarget(value)
-  if (parsed?.id === undefined) return null
-  return { param, scope: parsed.scope, id: parsed.id }
+  const parsed = parsePurchaseTarget(value)
+  if (parsed?.length !== 1 || parsed[0].id === undefined) return null
+  return { param, scope: parsed[0].scope, id: parsed[0].id }
 }
 
 /** Whether `ref` names entity `id` of `scope` through a namespaced key; the naming param if so. */

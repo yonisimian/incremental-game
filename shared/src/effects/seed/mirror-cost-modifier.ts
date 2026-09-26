@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { parseEnemyCostTarget } from '../addressable.js'
+import { parsePurchaseTarget } from '../addressable.js'
 import type { EffectDef, MirrorCostOutput } from '../types.js'
 
 /**
@@ -9,9 +9,10 @@ import type { EffectDef, MirrorCostOutput } from '../types.js'
  * A *mirrored discount* carried by a pact: while the pact is in force, what
  * `target` names is cheaper for the beneficiary **for as long as the enemy is
  * ahead of them on it** — "they already bought what you are about to buy".
- * `target` is a key from the enemy-cost catalog — `upgrades` / `generators` for
- * a whole scope, or `upgrade:<id>` / `generator:<id>` for one entity — the same
- * vocabulary `enemyCostModifier` inflates with. Like that effect's `target` it
+ * `target` is a key from the purchase-target catalog — `upgrades` /
+ * `generators` for a whole scope, `purchases` for both, or `upgrade:<id>` /
+ * `generator:<id>` for one entity — the same vocabulary `enemyCostModifier`
+ * inflates with. Like that effect's `target` it
  * is a plain `z.string()` so the schema-driven editor form can introspect it;
  * the `/dev.html` picker offers only catalog keys and `validateModeDefinition`
  * rejects the rest at load.
@@ -52,16 +53,17 @@ export type MirrorCostModifierParams = z.infer<typeof schema>
  * the one place that can compare both players' levels. `apply` receives the
  * beneficiary's state by contract but has no use for it.
  */
-function apply(p: MirrorCostModifierParams): MirrorCostOutput | null {
-  const parsed = parseEnemyCostTarget(p.target)
-  if (!parsed) return null
-  return {
+function apply(p: MirrorCostModifierParams): MirrorCostOutput[] | null {
+  const targets = parsePurchaseTarget(p.target)
+  if (!targets) return null
+  // `purchases` names both scopes, so it discounts each as its own output.
+  return targets.map((t) => ({
     kind: 'mirrorCost',
-    scope: parsed.scope,
-    id: parsed.id,
+    scope: t.scope,
+    id: t.id,
     costFactor: p.costFactor,
     scalingFactor: p.scalingFactor,
-  }
+  }))
 }
 
 export const mirrorCostModifier: EffectDef<MirrorCostModifierParams> = {

@@ -1,9 +1,13 @@
-import type { Modifier } from '../modifiers/types.js'
+import type { Modifier, ModifierStage } from '../modifiers/types.js'
 import { computePassiveRates } from '../modifiers/pipeline.js'
+import {
+  ALL_GENERATORS_FIELD,
+  ALL_RESOURCES_FIELD,
+  INCOMING_CLICK_INCOME_FIELD,
+} from '../modifiers/types.js'
 import type {
   AttackDefinition,
   AttackKind,
-  CostScope,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -11,6 +15,7 @@ import type {
   Goal,
   PlayerState,
   PurchaseLock,
+  PurchaseTarget,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -40,18 +45,17 @@ import {
   isEffectAllowedOn,
   normalizeEffectOutputs,
   prepareEffect,
-  purchaseLockScopesFor,
 } from '../effects/index.js'
-import type { EnemyPurchaseLockParams } from '../effects/index.js'
 import {
   addressableSources,
   addressableTargets,
   ENEMY_STAT_SCORE_KEY,
-  enemyCostTargets,
   enemyDebuffTargets,
   enemyStatKeys,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
+  parsePurchaseTarget,
+  purchaseTargets,
   RESERVED_TARGET_KEYS,
   enemyDataResourceKey,
 } from '../effects/index.js'
@@ -211,6 +215,17 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
 
+  // A resource or generator id equal to an aggregate sentinel would be shadowed
+  // by the fan-out branch in `collectRawModifiers`, making a modifier ambiguous
+  // between "this one target" and "all of them". Reject it like the `bK`
+  // collision above.
+  for (const key of [...def.resources, ...def.generators.map((g) => g.id)]) {
+    if (key === ALL_RESOURCES_FIELD || key === ALL_GENERATORS_FIELD)
+      throw new Error(
+        `[${id}] id '${key}' collides with an aggregate-target sentinel (allResources/allGenerators); rename it`,
+      )
+  }
+
   // `unlockAttack` effects name an attack by id; validate against the mode's
   // attacks so an authored typo fails loudly instead of unlocking nothing.
   const attackIds = new Set(def.attacks.map((a) => a.id))
@@ -225,13 +240,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `attackStat` effects scale an attack's numbers, naming the attack by id (or
-  // omitting it for every attack). Validate the id the same way — a typo would
-  // silently buff nothing — and reject a stat aimed at an attack that has no such
-  // field: `prepareCost`/`prepareTime` are forbidden on a passive attack (see
-  // below), so a stat pointed at one is authored dead weight. A ref naming *no*
-  // attack stays legal whatever its stat: it applies to those attacks that can
-  // use it.
+  // `attackStat` effects scale an attack's numbers, naming the attack by id.
+  // Validate the id the same way — a typo would silently buff nothing — and
+  // reject a stat aimed at an attack that has no such field:
+  // `prepareCost`/`prepareTime` are forbidden on a passive attack (see below), so
+  // a stat pointed at one is authored dead weight.
   //
   // The schema (`guardScaledStatValue`) has already judged each value on its
   // own; what it cannot see is the *context* — how many copies the owning
@@ -259,6 +272,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
 
     const target = ref.attack
+    // A missing id is the schema's to reject (`prepareEffect`, below).
     if (typeof target !== 'string') return
     const attack = attacksById.get(target)
     if (!attack)
@@ -277,9 +291,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     // A stat must have something to move. Both fields are optional on an active
     // attack (a free attack, an attack that strikes on the next tick), and
     // scaling a zero cost or a zero delay is arithmetic on nothing — the same
-    // dead weight the kind check above rejects, one level finer. Only checkable
-    // for a ref that names its attack; the all-attacks form is judged against no
-    // single definition.
+    // dead weight the kind check above rejects, one level finer.
     const delaySec = attack.prepareTimeSec ?? 0
     if (ref.stat === 'prepareTime' && delaySec <= 0)
       throw new Error(
@@ -320,7 +332,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
-  // `attackSlots` (plan 38): a kind is capped once any grant names it, and the
+  // `attackSlots`: a kind is capped once any grant names it, and the
   // base budget is whatever the mode's own starting effects grant. Starting
   // effects can also *unlock* attacks, each of which fills a slot — so a mode
   // whose starting unlocks of a kind outnumber its base cap would open the round
@@ -361,7 +373,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       )
   }
 
-  // `attackAlert` (plan 41): a reveal grant shows the *name* on a warning, so a
+  // `attackAlert`: a reveal grant shows the *name* on a warning, so a
   // mode whose grants reveal but never grant a lead has a node that is bought
   // and does nothing — there is no warning to put the name on. Judged by ref
   // fields; a lead on the mode or on any upgrade (owned or not) is enough.
@@ -457,7 +469,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   const checkProductionField = (where: string, field: unknown): void => {
     if (typeof field === 'string' && !targetKeys.has(field))
       throw new Error(
-        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, or 'clickIncome')`,
+        `[${id}] ${where} targets unknown production field '${field}' (expected a resource rate 'rK', base producer 'bK', generator id, 'allResources'/'allGenerators', or 'clickIncome')`,
       )
   }
   const checkBaseModifier = (where: string, ref: EffectRef): void => {
@@ -543,7 +555,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // *enemy-debuff* target catalog (resource rates, `clickIncome`, and the virtual
   // highlight-factor target). Generator-id targets are rejected here because the
   // debuff merges into the opponent's pipeline after generator output is folded,
-  // so they'd silently do nothing (see `enemyDebuffTargetsFor`).
+  // so they'd silently do nothing (see `enemyDebuffTargetsFor`). Both stages are
+  // legal on `highlightFactor`: a multiplicative debuff scales the highlight
+  // bonus, an additive one subtracts from the factor (clamped at neutral by
+  // `resolveEnemyDebuffs`, which reads the composite either way).
   const debuffTargetKeys = new Set(enemyDebuffTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
@@ -552,29 +567,23 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] attack '${attack.id}' enemyProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be debuffed)`,
         )
-      // The highlight factor is a *multiplier*, and `resolveEnemyDebuffs`
-      // deliberately never reads the composite — so an additive debuff on it has
-      // nothing to subtract from and would be silently mistranslated as a scale.
-      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
-        throw new Error(
-          `[${id}] attack '${attack.id}' enemyProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
-        )
     }
   }
 
-  // `enemyCostModifier` effects name a `target` — a whole scope (`upgrades` /
-  // `generators`) or one entity (`upgrade:<id>` / `generator:<id>`). Like the
+  // `enemyCostModifier` and `enemyPurchaseLock` name a `target` from the shared
+  // purchase-target catalog — a whole scope (`upgrades` / `generators`), both
+  // (`purchases`), or one entity (`upgrade:<id>` / `generator:<id>`). Like the
   // debuff `field` above it's a mode-specific string the generic schema only
-  // checks is present, so validate it against the enemy-cost catalog: a typo (or
-  // an id that no longer exists) would otherwise author an attack that silently
-  // does nothing.
-  const costTargetKeys = new Set(enemyCostTargets(def).map((f) => f.key))
+  // checks is present, so validate it against the catalog: a typo (or an id
+  // that no longer exists) would otherwise author an attack that silently does
+  // nothing.
+  const purchaseTargetKeys = new Set(purchaseTargets(def).map((f) => f.key))
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) {
-      if (ref.type !== 'enemyCostModifier') continue
-      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+      if (ref.type !== 'enemyCostModifier' && ref.type !== 'enemyPurchaseLock') continue
+      if (typeof ref.target === 'string' && !purchaseTargetKeys.has(ref.target))
         throw new Error(
-          `[${id}] attack '${attack.id}' enemyCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+          `[${id}] attack '${attack.id}' ${ref.type} effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
         )
     }
   }
@@ -586,9 +595,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   for (const pact of def.pacts) {
     for (const ref of pact.effects ?? []) {
       if (ref.type !== 'mirrorCostModifier') continue
-      if (typeof ref.target === 'string' && !costTargetKeys.has(ref.target))
+      if (typeof ref.target === 'string' && !purchaseTargetKeys.has(ref.target))
         throw new Error(
-          `[${id}] pact '${pact.id}' mirrorCostModifier effect references unknown cost target '${ref.target}' (expected 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+          `[${id}] pact '${pact.id}' mirrorCostModifier effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
         )
       for (const knob of ['costFactor', 'scalingFactor'] as const) {
         const factor = ref[knob]
@@ -685,23 +694,25 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] active attack '${attack.id}' declares durationSec but carries no debuff effect — only ${DEBUFF_EFFECT_NAMES} consume a window`,
         )
-      // Two locks on one attack whose scopes overlap: the collector dedupes
-      // them, so the second is authored dead weight — the same class of mistake
-      // as a window on an all-steal attack, and the editor should not let it
-      // stand. Judged by the authored `target`, as every check here is.
-      const lockedScopes = new Set<string>()
+      // Two locks on one attack that overlap (the same target twice, or a
+      // single entity inside a whole scope another lock already bars) leave the
+      // second authored dead weight — the same class of mistake as a window on
+      // an all-steal attack. Judged by the authored `target`, as every check
+      // here is.
+      const locked: PurchaseTarget[] = []
       for (const ref of attack.effects ?? []) {
         if (ref.type !== 'enemyPurchaseLock' || typeof ref.target !== 'string') continue
-        // An unknown target is the schema's to reject (`prepareEffect`, below).
-        if (!['upgrades', 'generators', 'purchases'].includes(ref.target)) continue
-        for (const scope of purchaseLockScopesFor(
-          ref.target as EnemyPurchaseLockParams['target'],
-        )) {
-          if (lockedScopes.has(scope))
+        // An unknown target is rejected by the catalog check above.
+        for (const t of parsePurchaseTarget(ref.target) ?? []) {
+          const overlaps = locked.some(
+            (s) =>
+              s.scope === t.scope && (s.id === undefined || t.id === undefined || s.id === t.id),
+          )
+          if (overlaps)
             throw new Error(
-              `[${id}] active attack '${attack.id}' carries two enemyPurchaseLock effects that both lock ${scope}s — one lock per scope is all the window can hold`,
+              `[${id}] active attack '${attack.id}' carries enemyPurchaseLock effects that overlap on ${t.id ?? `all ${t.scope}s`} — the window already bars it once`,
             )
-          lockedScopes.add(scope)
+          locked.push(t)
         }
       }
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
@@ -1053,6 +1064,20 @@ interface CollectedModifiers {
 }
 
 /**
+ * Expand an aggregate sentinel `field` into the concrete targets it stands for
+ * ({@link ALL_RESOURCES_FIELD} → every resource, {@link ALL_GENERATORS_FIELD} →
+ * every generator id), or `null` if `field` isn't a sentinel. The single source
+ * of truth for what "all resources"/"all generators" means, shared by the
+ * pipeline routing (which *applies* each target) and the dynamic-bonus report
+ * (which *lists* them), so the two can never disagree.
+ */
+function expandAggregateField(field: string, mode: ModeDefinition): readonly string[] | null {
+  if (field === ALL_RESOURCES_FIELD) return mode.resources
+  if (field === ALL_GENERATORS_FIELD) return mode.generators.map((g) => g.id)
+  return null
+}
+
+/**
  * Run the modifier pass: mode-level effects + owned upgrades, with
  * generator-targeted modifiers held back in their own accumulators rather than
  * folded into resource rates. Shared by {@link collectModifiers} (which folds
@@ -1070,13 +1095,26 @@ function collectRawModifiers(
     generatorModifiers.set(gen.id, { additive: 0, multiplicative: 1 })
   }
 
-  // Route a single state-derived modifier: generator-targeted ones accumulate
-  // into the per-generator totals; everything else is pushed directly.
+  // Route a single state-derived modifier: an aggregate sentinel fans out into
+  // one call per concrete target; generator-targeted ones accumulate into the
+  // per-generator totals; everything else is pushed directly. Sentinels are
+  // expanded here, so the pure pipeline never sees one.
+  const applyToGenerator = (
+    acc: GeneratorAccumulator,
+    stage: ModifierStage,
+    value: number,
+  ): void => {
+    if (stage === 'additive') acc.additive += value
+    else acc.multiplicative *= value
+  }
   const routeModifier = (mod: Modifier): void => {
+    const expanded = expandAggregateField(mod.field, mode)
+    if (expanded) {
+      for (const field of expanded) routeModifier({ ...mod, field })
+      return
+    }
     if (generatorIds.has(mod.field)) {
-      const genState = generatorModifiers.get(mod.field)!
-      if (mod.stage === 'additive') genState.additive += mod.value
-      else genState.multiplicative *= mod.value
+      applyToGenerator(generatorModifiers.get(mod.field)!, mod.stage, mod.value)
     } else {
       modifiers.push(mod)
     }
@@ -1084,17 +1122,20 @@ function collectRawModifiers(
 
   // Route a `baseModifier` output with the owning upgrade's owned-count
   // compounding: additive scales linearly (× owned), multiplicative compounds
-  // (^ owned). Generator-targeted bonuses feed the per-generator
-  // accumulator (additive per-unit × owned, applied again per generator below);
-  // everything else is pushed to the pipeline. Reproduces the legacy per-upgrade
-  // `modifiers` array exactly.
+  // (^ owned). An aggregate sentinel fans out after compounding; generator-
+  // targeted bonuses feed the per-generator accumulator (additive per-unit ×
+  // owned, applied again per generator below); everything else is pushed to the
+  // pipeline. Reproduces the legacy per-upgrade `modifiers` array exactly.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
+    const expanded = expandAggregateField(o.field, mode)
+    if (expanded) {
+      for (const field of expanded) routeBaseModifier({ ...o, field }, owned)
+      return
+    }
+    const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
     if (generatorIds.has(o.field)) {
-      const genState = generatorModifiers.get(o.field)!
-      if (o.stage === 'additive') genState.additive += o.value * owned
-      else genState.multiplicative *= o.value ** owned
+      applyToGenerator(generatorModifiers.get(o.field)!, o.stage, value)
     } else {
-      const value = o.stage === 'additive' ? o.value * owned : o.value ** owned
       modifiers.push({ stage: o.stage, field: o.field, value })
     }
   }
@@ -1374,7 +1415,12 @@ export function collectDynamicBonuses(
         // returns a *kinded* output (e.g. a `baseModifier`) is skipped — the UI
         // has no owned-count-compounded value to show for it. Keep dynamic
         // effects emitting raw `Modifier`s if their live worth should surface.
-        if (!('kind' in out) && 'stage' in out) modifiers.push(out)
+        if ('kind' in out || !('stage' in out)) continue
+        // Fan out an aggregate sentinel to its concrete targets so the report
+        // matches the pipeline (and the panel can collapse "all resources").
+        const expanded = expandAggregateField(out.field, mode)
+        if (expanded) for (const field of expanded) modifiers.push({ ...out, field })
+        else modifiers.push(out)
       }
     }
     if (modifiers.length > 0) bonuses.push({ upgradeId: upgrade.id, modifiers })
@@ -1421,6 +1467,46 @@ export function collectEnemyDebuffs(
     }
   }
   return debuffs
+}
+
+/**
+ * The floor a highlight debuff can drag the effective factor down to. Held at
+ * neutral (×1) on purpose: an incoming debuff can cancel the highlight bonus but
+ * never invert it into a penalty, so a debuffed highlight is never *worse* than
+ * releasing.
+ */
+export const HIGHLIGHT_DEBUFF_FLOOR = 1
+
+/**
+ * The victim's effective highlight factor once incoming highlight debuffs scale
+ * its **bonus**, not the whole factor.
+ *
+ * `factor` is the composite F (`getHighlightMultiplier`: battery × every
+ * `highlightMultiplier`). The highlight-factor debuffs fold as
+ *
+ *   F' = max(1, 1 + (F − 1)·∏vₘ + Σvₐ)
+ *
+ * over their multiplicative values (vₘ ∈ (0,1)) and additive ones (vₐ < 0).
+ * Scaling the bonus above neutral — rather than the whole factor — makes one
+ * authored value mean "your highlight investment is worth N% less" at every
+ * point on the curve, instead of erasing a small factor while barely denting a
+ * large one. A multiplicative debuff shrinks the bonus (F' stays > 1); an
+ * additive one subtracts from the factor and can cancel the bonus entirely, but
+ * the {@link HIGHLIGHT_DEBUFF_FLOOR} clamps it at neutral — never a penalty.
+ *
+ * Returns `factor` unchanged when there is no bonus to cut (F ≤ 1) — an
+ * uninvested highlight takes no debuff, and it keeps the F' / F ratio safe.
+ */
+export function debuffedHighlightFactor(factor: number, debuffs: readonly Modifier[]): number {
+  if (factor <= 1) return factor
+  let mult = 1
+  let add = 0
+  for (const debuff of debuffs) {
+    if (debuff.field !== HIGHLIGHT_FACTOR_TARGET) continue
+    if (debuff.stage === 'additive') add += debuff.value
+    else mult *= debuff.value
+  }
+  return Math.max(HIGHLIGHT_DEBUFF_FLOOR, 1 + (factor - 1) * mult + add)
 }
 
 /**
@@ -1480,9 +1566,10 @@ function windowsInForce(
  * host declaration, so the passive pass has nothing to contribute and is
  * skipped rather than walked for nothing.
  *
- * One entry per scope, carrying the latest expiry among the windows locking
- * it, so two overlapping locks read as one lock that lifts when the last
- * closes. **No `power` scaling** — a lock has no magnitude. The result is
+ * One entry per target (a whole scope, or one upgrade / generator), carrying
+ * the latest expiry among the windows locking it, so two overlapping locks read
+ * as one lock that lifts when the last closes. **No `power` scaling** — a lock
+ * has no magnitude. The result is
  * stamped onto the victim's {@link PlayerState.incomingPurchaseLocks} by the
  * server, which is where every purchase path reads it from.
  */
@@ -1490,19 +1577,21 @@ export function collectEnemyPurchaseLocks(
   attacker: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): PurchaseLock[] {
-  const untilByScope = new Map<CostScope, number>()
+  const byTarget = new Map<string, PurchaseLock>()
   for (const { attack, expiresAtSec } of windowsInForce(attacker, mode)) {
     for (const ref of attack.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, attacker, mode))) {
         if (!('kind' in out) || out.kind !== 'enemyPurchaseLock') continue
-        for (const scope of out.scopes) {
-          const until = untilByScope.get(scope)
-          if (until === undefined || expiresAtSec > until) untilByScope.set(scope, expiresAtSec)
+        for (const target of out.targets) {
+          const key = `${target.scope}:${target.id ?? ''}`
+          const prev = byTarget.get(key)
+          if (prev === undefined || expiresAtSec > prev.untilSec)
+            byTarget.set(key, { ...target, untilSec: expiresAtSec })
         }
       }
     }
   }
-  return [...untilByScope].map(([scope, untilSec]) => ({ scope, untilSec }))
+  return [...byTarget.values()]
 }
 
 /**
@@ -1550,60 +1639,66 @@ export function collectEnemyCostFactors(
  * Resolve authored enemy debuffs against the player they land on, turning them
  * into modifiers the production pipeline can consume.
  *
- * Real pipeline targets pass through untouched. A {@link
- * HIGHLIGHT_FACTOR_TARGET} entry names no field, so the pipeline would silently
- * drop it; it becomes an equivalent multiplicative modifier on whichever
- * resource `victim` is currently highlighting.
+ * Real pipeline targets pass through untouched, except `clickIncome`, which is
+ * rewritten to {@link INCOMING_CLICK_INCOME_FIELD} so the click track can tell
+ * the victim's own click power from the enemy's drain (see `ClickLayers`). Every
+ * {@link
+ * HIGHLIGHT_FACTOR_TARGET} entry names no field — it scales the victim's
+ * *highlight bonus* (see {@link debuffedHighlightFactor}), which the pipeline
+ * can't express directly — so they are folded into a single multiplicative
+ * modifier on whichever resource `victim` is holding: the ratio F' / F between
+ * the debuffed and live composite factor. One modifier, not one per entry, so
+ * the bonus is scaled once rather than re-dividing the ratio against F.
  *
- * That substitution is exact, not an approximation: the highlight factor is one
- * term in the highlighted resource's product, so scaling the factor and scaling
- * that resource's rate are the same arithmetic. Neither the victim's own
- * highlight multipliers nor the battery's share is read here — a 10% debuff
- * against a base ×5 with the battery at ×2 lands as 4.5 × 2 = 9, which is what
- * 10 × 0.9 already gives. (This is why only `multiplicative` is a legal stage for
- * the target: subtracting from the factor *would* require reading the composite,
- * and `validateModeDefinition` rejects that authoring.)
+ * Unlike a plain rate debuff this reads the victim's live composite F, so it
+ * must run against the state each side actually holds — which is why the wire
+ * carries debuffs *unresolved* and every call site passes `mode`.
  *
- * A released highlight drops the entry — nothing for the factor to apply to, so
- * the debuff doesn't pay. Releasing therefore dodges it, at the cost of the
- * entire highlight bonus.
- *
- * Called wherever debuffs enter a pipeline, on **both** sides: each resolves
- * against the victim state it already holds, so the client stays exact across a
- * mid-tick highlight switch. The wire deliberately carries the *unresolved* form
- * — once translated to a resource, a highlight debuff is indistinguishable from
- * a plain rate debuff, and the victim's UI could no longer report it.
+ * A released highlight (or an uninvested one, F ≤ 1) drops the entry — there is
+ * no bonus for the factor to scale. The debuff is clamped at neutral, so a held
+ * highlight is never worse than a released one.
  */
 export function resolveEnemyDebuffs(
   debuffs: readonly Modifier[],
   victim: Readonly<PlayerState>,
+  mode: ModeDefinition,
 ): Modifier[] {
   const highlight = readHighlight(victim)
   const resolved: Modifier[] = []
+  let hasHighlightDebuff = false
   for (const debuff of debuffs) {
-    if (debuff.field !== HIGHLIGHT_FACTOR_TARGET) {
-      resolved.push(debuff)
-      continue
-    }
-    if (highlight === null) continue
-    resolved.push({ stage: debuff.stage, field: highlight, value: debuff.value })
+    if (debuff.field === HIGHLIGHT_FACTOR_TARGET) hasHighlightDebuff = true
+    else if (debuff.field === 'clickIncome')
+      resolved.push({ ...debuff, field: INCOMING_CLICK_INCOME_FIELD })
+    else resolved.push(debuff)
+  }
+  if (hasHighlightDebuff && highlight !== null) {
+    const factor = getHighlightMultiplier(victim, mode)
+    const debuffed = debuffedHighlightFactor(factor, debuffs)
+    if (debuffed !== factor)
+      resolved.push({ stage: 'multiplicative', field: highlight, value: debuffed / factor })
   }
   return resolved
 }
 
 /**
- * The combined factor that incoming {@link HIGHLIGHT_FACTOR_TARGET} debuffs
- * apply to this player's highlight, or `1` when none do.
+ * The multiplicative bonus-scale incoming highlight debuffs apply to this
+ * player's highlight — ∏ of the *multiplicative* {@link HIGHLIGHT_FACTOR_TARGET}
+ * values, or `1` when none.
  *
- * For reporting, not for income — {@link resolveEnemyDebuffs} owns the pipeline
- * path. Deliberately independent of whether a highlight is currently held, so
- * the UI can warn about the threat while it isn't paying (a player who has
- * released still needs to know holding is worth less than the tree claims).
+ * For the espionage panel's release-independent warning ("your highlight bonus
+ * is cut by N%", N = (1 − this)·100): the multiplicative scale means the same
+ * thing whether or not a resource is held, so it can warn a released player that
+ * holding is worth less than the tree claims. Additive highlight debuffs are
+ * excluded — their bite depends on the live factor, so they have no
+ * release-independent percentage and surface in the data panel's held factor
+ * instead. Not for income; {@link resolveEnemyDebuffs} owns the pipeline path.
  */
 export function highlightDebuffFactor(debuffs: readonly Modifier[]): number {
   let factor = 1
   for (const debuff of debuffs) {
-    if (debuff.field === HIGHLIGHT_FACTOR_TARGET) factor *= debuff.value
+    if (debuff.field === HIGHLIGHT_FACTOR_TARGET && debuff.stage === 'multiplicative')
+      factor *= debuff.value
   }
   return factor
 }

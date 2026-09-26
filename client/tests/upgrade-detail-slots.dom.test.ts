@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 //
-// Plan 38 — the upgrade detail popup names the slot budget as the lock reason.
+// The upgrade detail popup names the slot budget as the lock reason.
 // Without it a slot-blocked node looks affordable and does nothing on click,
 // which reads as a bug. DOM tier because the popup is mounted into a live host
 // and its Buy button's `disabled` state is what the player actually meets.

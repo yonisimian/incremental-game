@@ -456,9 +456,9 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  // The highlight factor is a multiplier and `resolveEnemyDebuffs` never reads
-  // the composite, so an additive debuff has nothing to subtract from.
-  it('throws when a highlight-factor debuff is authored additive', () => {
+  // An additive highlight debuff subtracts from the composite factor (floored by
+  // `resolveEnemyDebuffs`), so — unlike before — it is a legal authoring.
+  it('accepts an additive enemyProductionModifier targeting the highlight factor', () => {
     const base = makeValidDef({
       highlightEnabled: true,
       initialMeta: { highlight: null },
@@ -482,7 +482,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/only 'multiplicative' is supported/)
+    }).not.toThrow()
   })
 
   it('throws when a resource key collides with a reserved modifier target', () => {
@@ -628,7 +628,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/carries effects but has no prepareCost/)
   })
 
-  // ── Purchase lock (plan 40): the third member of the debuff family ──
+  // ── Purchase lock: the third member of the debuff family ──
 
   it('accepts a lock-only active attack that declares a duration', () => {
     const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }] })
@@ -649,31 +649,45 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/carries a debuff effect \(.*enemyPurchaseLock.*\) but has no durationSec/)
   })
 
-  it('throws for two locks on one attack whose scopes overlap', () => {
+  it('throws for two locks on one attack that overlap', () => {
     for (const pair of [
       ['upgrades', 'upgrades'],
       ['upgrades', 'purchases'],
       ['purchases', 'generators'],
+      ['upgrade:u0', 'upgrade:u0'],
+      ['upgrades', 'upgrade:u0'],
+      ['upgrade:u0', 'purchases'],
     ]) {
       const def = debuffAttackDef({
         effects: pair.map((target) => ({ type: 'enemyPurchaseLock', target })),
       })
       expect(() => {
         validateModeDefinition('test', def)
-      }).toThrow(/two enemyPurchaseLock effects that both lock/)
+      }).toThrow(/enemyPurchaseLock effects that overlap/)
     }
   })
 
-  it('accepts two locks on one attack whose scopes do not overlap', () => {
-    const def = debuffAttackDef({
-      effects: [
-        { type: 'enemyPurchaseLock', target: 'upgrades' },
-        { type: 'enemyPurchaseLock', target: 'generators' },
-      ],
-    })
-    expect(() => {
-      validateModeDefinition('test', def)
-    }).not.toThrow()
+  it('accepts two locks on one attack that do not overlap', () => {
+    for (const pair of [
+      ['upgrades', 'generators'],
+      ['generators', 'upgrade:u0'],
+    ]) {
+      const def = debuffAttackDef({
+        effects: pair.map((target) => ({ type: 'enemyPurchaseLock', target })),
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  it('throws for a lock target naming an unknown upgrade or generator', () => {
+    for (const target of ['upgrade:u-missing', 'generator:g-missing', 'all']) {
+      const def = debuffAttackDef({ effects: [{ type: 'enemyPurchaseLock', target }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(/unknown purchase target/)
+    }
   })
 
   it('throws for a lock on a passive attack (host declaration)', () => {
@@ -709,7 +723,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/unknown cost target 'upgrade:nope'/)
+    }).toThrow(/unknown purchase target 'upgrade:nope'/)
   })
 
   // The scope and the id can't disagree — a single namespaced key makes that
@@ -734,7 +748,7 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/unknown cost target 'upgrade:g0'/)
+    }).toThrow(/unknown purchase target 'upgrade:g0'/)
   })
 
   it('accepts an enemyCostModifier naming a declared upgrade', () => {
@@ -923,14 +937,14 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('accepts an attackStat naming no attack at all (every attack)', () => {
+  it('throws for an attackStat naming no attack', () => {
     const def = withAttackStat(
       { type: 'attackStat', stat: 'prepareTime', op: 'mult', value: 0.5 },
-      PASSIVE_A0,
+      ACTIVE_A0,
     )
     expect(() => {
       validateModeDefinition('test', def)
-    }).not.toThrow()
+    }).toThrow(/"attack"/)
   })
 
   it('throws for a prepareCost stat aimed at a passive attack', () => {
@@ -987,7 +1001,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/moves 'duration' on passive attack 'a0'/)
   })
 
-  // Plan 40: a lock has no magnitude, so `power` has nothing to scale on an
+  // A lock has no magnitude, so `power` has nothing to scale on an
   // attack whose effects are all locks — `duration` is that attack's lever.
   it('throws for a power stat aimed at a lock-only attack, and accepts one on a raid', () => {
     const lockOnly: ModeDefinition['attacks'] = [
@@ -1045,7 +1059,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/moves 'duration' on attack 'a0', which opens no debuff window/)
   })
 
-  it('accepts a duration stat aimed at a duration attack, and an attack-less one anywhere', () => {
+  it('accepts a duration stat aimed at a duration attack', () => {
     expect(() => {
       validateModeDefinition(
         'test',
@@ -1053,13 +1067,6 @@ describe('validateModeDefinition — negative tests', () => {
           { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
           WINDOW_A0,
         ),
-      )
-    }).not.toThrow()
-    // Naming no attack, it applies to whichever attacks can use it.
-    expect(() => {
-      validateModeDefinition(
-        'test',
-        withAttackStat({ type: 'attackStat', stat: 'duration', op: 'offset', value: 2 }, ACTIVE_A0),
       )
     }).not.toThrow()
   })
@@ -1093,7 +1100,13 @@ describe('validateModeDefinition — negative tests', () => {
   ]
 
   it('throws when a reducing add dies inside its own purchase limit', () => {
-    const ref: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'add', value: -0.2 }
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, 5))
     }).toThrow(/reaches a zero multiplier at 5 copies, within the upgrade's purchase limit of 5/)
@@ -1104,7 +1117,13 @@ describe('validateModeDefinition — negative tests', () => {
   })
 
   it('throws for a reducing add on an unlimited upgrade — it always reaches zero', () => {
-    const ref: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'add', value: -0.2 }
+    const ref: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'add',
+      value: -0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(ref, ACTIVE_A0, Infinity))
     }).toThrow(/use 'mult' for a reduction that keeps stacking/)
@@ -1113,8 +1132,20 @@ describe('validateModeDefinition — negative tests', () => {
   it('accepts the ops that never reach zero, however many copies sell', () => {
     // `mult` decays asymptotically and a growing `add` only climbs, so neither
     // has a level at which it stops buying anything.
-    const mult: EffectRef = { type: 'attackStat', stat: 'prepareCost', op: 'mult', value: 0.9 }
-    const grow: EffectRef = { type: 'attackStat', stat: 'power', op: 'add', value: 0.2 }
+    const mult: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'prepareCost',
+      op: 'mult',
+      value: 0.9,
+    }
+    const grow: EffectRef = {
+      type: 'attackStat',
+      attack: 'a0',
+      stat: 'power',
+      op: 'add',
+      value: 0.2,
+    }
     expect(() => {
       validateModeDefinition('test', withAttackStat(mult, ACTIVE_A0, Infinity))
     }).not.toThrow()
@@ -1168,28 +1199,13 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
-  it('leaves the all-attacks form alone — it is judged against no one attack', () => {
-    // The same offset that is dead weight on a0 is legal without the id: which
-    // attacks it reaches, and what they author, is not knowable here.
-    expect(() => {
-      validateModeDefinition(
-        'test',
-        withAttackStat(
-          { type: 'attackStat', stat: 'prepareTime', op: 'offset', value: -5 },
-          ACTIVE_A0,
-          3,
-        ),
-      )
-    }).not.toThrow()
-  })
-
   it('throws when an attackStat is carried by an attack rather than an upgrade', () => {
     const base = makeValidDef({
       attacks: [
         {
           id: 'a0',
           kind: 'passive',
-          effects: [{ type: 'attackStat', stat: 'power', op: 'mult', value: 2 }],
+          effects: [{ type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 }],
         },
       ],
     })
@@ -1290,7 +1306,7 @@ describe('validateModeDefinition — negative tests', () => {
     )
   })
 
-  it('rejects a mirrorCostModifier whose target is not in the cost catalog', () => {
+  it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {
     const def = defWithPact({
       id: 'p0',
       kind: 'passive',
@@ -1298,7 +1314,9 @@ describe('validateModeDefinition — negative tests', () => {
     })
     expect(() => {
       validateModeDefinition('test', def)
-    }).toThrow(/pact 'p0' mirrorCostModifier effect references unknown cost target 'upgrade:nope'/)
+    }).toThrow(
+      /pact 'p0' mirrorCostModifier effect references unknown purchase target 'upgrade:nope'/,
+    )
   })
 
   it('accepts a mirrorCostModifier naming a real upgrade or a whole scope', () => {

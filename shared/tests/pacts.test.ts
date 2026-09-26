@@ -52,6 +52,7 @@ describe('enemyStatKeys', () => {
       'score',
       'upgrades',
       'generators',
+      'purchases',
       'upgrade:u0',
       'generator:g0',
     ])
@@ -492,7 +493,7 @@ describe('prices under a pact discount', () => {
     expect(collectGeneratorCostFactors(owner, MODE, 'sell').has('g0')).toBe(false)
 
     // 100 × 0.5 at copy 0; growth 1 + (2 − 1) × 0.5 = 1.5 → 75 at copy 1.
-    const buy = resolveGeneratorDef(G0, owner, MODE)
+    const buy = resolveGeneratorDef(G0, owner, MODE, 'buy')
     expect(getGeneratorCost(buy, 0)).toBe(50)
     expect(getGeneratorCost(buy, 1)).toBe(75)
     const before = owner.resources.r0
@@ -562,14 +563,30 @@ describe('collectPactBonuses', () => {
     expect(bonus.modifiers).toEqual([
       { stage: 'multiplicative', field: 'highlightFactor', value: 1.25 },
     ])
-    // Resolved against the beneficiary exactly as a debuff is: onto whatever
-    // they hold, or nothing while released.
+    // Resolved against the beneficiary exactly as a debuff is (see
+    // `debuffedHighlightFactor`): it scales the *bonus* of their own highlight
+    // and lands on whatever they hold. Nothing while released — or with no
+    // highlight bonus to scale, so the bare test mode reads as neutral.
     owner.meta.highlight = 'r0'
-    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner)).toEqual([
-      { stage: 'multiplicative', field: 'r0', value: 1.25 },
+    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner, MODE)).toEqual([])
+    const glow: UpgradeDefinition = {
+      id: 'u-glow',
+      cost: {},
+      purchaseLimit: 1,
+      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
+    }
+    const glowMode: ModeDefinition = {
+      ...MODE,
+      highlightEnabled: true,
+      upgrades: [...MODE.upgrades, glow],
+    }
+    owner.upgrades[glow.id] = 1
+    // F = 2 → F' = 1 + (2 − 1) × 1.25 = 2.25, shipped as the ratio F' / F.
+    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner, glowMode)).toEqual([
+      { stage: 'multiplicative', field: 'r0', value: 1.125 },
     ])
     owner.meta.highlight = null
-    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner)).toEqual([])
+    expect(resolveEnemyDebuffs(pactModifiers([bonus]), owner, glowMode)).toEqual([])
   })
 
   it('grants a partner-held mutual pact to the owner, reading the holder', () => {

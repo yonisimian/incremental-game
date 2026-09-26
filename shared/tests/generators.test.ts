@@ -400,7 +400,7 @@ describe('collectGeneratorCostFactors', () => {
       ],
     )
     const state = makeState({ upgrades: {} }) // u0 not owned
-    expect(collectGeneratorCostFactors(state, mode).size).toBe(0)
+    expect(collectGeneratorCostFactors(state, mode, 'buy').size).toBe(0)
   })
 
   it('aggregates factors from an owned upgrade', () => {
@@ -416,7 +416,7 @@ describe('collectGeneratorCostFactors', () => {
       ],
     )
     const state = makeState({ upgrades: { u0: 1 } })
-    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    const factors = collectGeneratorCostFactors(state, mode, 'buy').get('g0')!
     expect(factors.costFactor).toBeCloseTo(0.9)
     expect(factors.scalingFactor).toBeCloseTo(0.98)
   })
@@ -433,7 +433,7 @@ describe('collectGeneratorCostFactors', () => {
       ],
     )
     const state = makeState({ upgrades: { u0: 3 } })
-    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    const factors = collectGeneratorCostFactors(state, mode, 'buy').get('g0')!
     expect(factors.costFactor).toBeCloseTo(0.9 ** 3)
   })
 
@@ -452,7 +452,7 @@ describe('collectGeneratorCostFactors', () => {
       ],
     )
     const state = makeState({ upgrades: { u0: 1, u1: 1 } })
-    const factors = collectGeneratorCostFactors(state, mode).get('g0')!
+    const factors = collectGeneratorCostFactors(state, mode, 'buy').get('g0')!
     expect(factors.costFactor).toBeCloseTo(0.45)
   })
 })
@@ -471,7 +471,7 @@ describe('resolveGeneratorDef', () => {
         }),
       ],
     )
-    const resolved = resolveGeneratorDef(def, makeState({ upgrades: { u0: 1 } }), mode)
+    const resolved = resolveGeneratorDef(def, makeState({ upgrades: { u0: 1 } }), mode, 'buy')
     expect(entry(resolved).baseCost).toBeCloseTo(95)
     expect(entry(resolved).scaleFactor).toBeCloseTo(1.49)
   })
@@ -479,7 +479,7 @@ describe('resolveGeneratorDef', () => {
   it('returns the original definition when no reduction applies', () => {
     const def = makeDef()
     const mode = makeModeWithUpgrades([def], [])
-    expect(resolveGeneratorDef(def, makeState(), mode)).toBe(def)
+    expect(resolveGeneratorDef(def, makeState(), mode, 'buy')).toBe(def)
   })
 })
 

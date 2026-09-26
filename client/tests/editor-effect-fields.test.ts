@@ -46,16 +46,16 @@ describe('effectFieldOptions', () => {
     ])
   })
 
-  it('offers every stat when the attackStat names no attack (it buffs all of them)', () => {
+  it('offers every stat until the attackStat names an attack', () => {
     const tree = idler()
     expect(effectFieldOptions(tree, 'attackStat', 'stat')).toEqual([...ATTACK_STATS])
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
   // The pact effects (plan 42) borrow their vocabularies: a mirrored discount
-  // names what the enemy bought from the enemy-cost catalog, a mirrored bonus
-  // reads an enemy stat and lands on a debuff target.
-  it('offers the cost-target catalog for a mirrorCostModifier target', () => {
+  // names what the enemy bought from the purchase-target catalog, a mirrored
+  // bonus reads an enemy stat and lands on a debuff target.
+  it('offers the purchase-target catalog for a mirrorCostModifier target', () => {
     const options = effectFieldOptions(idler(), 'mirrorCostModifier', 'target')!
     const values = options.map((o) => (typeof o === 'string' ? o : o.value))
     expect(values).toContain('upgrades')
@@ -75,6 +75,25 @@ describe('effectFieldOptions', () => {
       typeof o === 'string' ? o : o.value,
     )
     expect(fields).toEqual(['clickIncome', 'highlightFactor', ...tree.resources])
+  })
+
+  it('offers one purchase-target list for both enemyCostModifier and enemyPurchaseLock', () => {
+    const tree = idler()
+    const pairs = (type: string) =>
+      (effectFieldOptions(tree, type, 'target') ?? []).map((o) =>
+        typeof o === 'string' ? { value: o, label: o } : o,
+      )
+    const lock = pairs('enemyPurchaseLock')
+    expect(lock.slice(0, 3)).toEqual([
+      { value: 'upgrades', label: 'All upgrades' },
+      { value: 'generators', label: 'All generators' },
+      { value: 'purchases', label: 'All upgrades and generators' },
+    ])
+    // One authored key means the same thing on both attack effects.
+    expect(pairs('enemyCostModifier')).toEqual(lock)
+    expect(lock.some((o) => o.value === `generator:${tree.generators[0].id}`)).toBe(true)
+    // A pact's mirrored discount picks from the same list.
+    expect(pairs('mirrorCostModifier')).toEqual(lock)
   })
 
   it('leaves an unmapped effect/field pair as free text', () => {
@@ -154,8 +173,8 @@ describe('effect hosts', () => {
   it('offers only offensive effects on attacks, steals on active ones only', () => {
     expect(typesFor('passiveAttack')).toEqual(['enemyCostModifier', 'enemyProductionModifier'])
     // The debuff pair rides both kinds: always-on on a passive attack, a timed
-    // window (`durationSec`) on an active one (plan 37). The purchase lock
-    // (plan 40) is active-only — a permanent embargo is a loss condition, not a
+    // window (`durationSec`) on an active one. The purchase lock
+    // is active-only — a permanent embargo is a loss condition, not a
     // debuff — so it appears here and nowhere else.
     expect(typesFor('activeAttack')).toEqual([
       'enemyCostModifier',

@@ -17,9 +17,26 @@ export type ToastVariant = 'info' | 'success' | 'warning' | 'danger'
 export interface ToastOptions {
   /** Leading icon (emoji), prepended to the text. */
   icon?: string
-  /** Auto-dismiss delay in ms. Defaults to {@link TOAST_DEFAULT_MS}. */
+  /** Auto-dismiss delay in ms. Defaults to {@link TOAST_DEFAULT_MS}. Ignored when `sticky`. */
   durationMs?: number
+  /**
+   * Stay until the caller dismisses it: no auto-dismiss timer, and never evicted
+   * by the visible-stack cap — for a notification tied to something still in
+   * progress (an inbound attack).
+   */
+  sticky?: boolean
 }
+
+/** A live toast, for the caller of a sticky one to rewrite or dismiss. */
+export interface ToastHandle {
+  /** Replace the banner's text (the icon, if any, is kept). */
+  update(text: string): void
+  /** Fade the toast out; a no-op once it is already leaving. */
+  dismiss(): void
+}
+
+/** The handle returned when there is no DOM to toast into. */
+const NO_TOAST: ToastHandle = { update: () => undefined, dismiss: () => undefined }
 
 const TOAST_DEFAULT_MS = 2500
 /** Soft cap on visible toasts — a flurry evicts the oldest instead of walling the screen. */
@@ -42,7 +59,8 @@ function toastLayer(): HTMLElement {
  * Transient banner announcing a game event. Toasts stack downward from the top of
  * the panel region and fade out; purely cosmetic, no state. `variant` tints the
  * border/text. The visible stack is soft-capped at {@link TOAST_MAX_VISIBLE}: a
- * spawn past the cap evicts the oldest first.
+ * spawn past the cap evicts the oldest non-sticky toast first (sticky ones may
+ * push the stack past the cap rather than vanish early).
  *
  * Each toast lives in a clipping slot (`.toast-slot`, `overflow: hidden`) whose
  * height animates. On exit the slot collapses to zero and normal document flow
@@ -50,25 +68,28 @@ function toastLayer(): HTMLElement {
  * per-element bookkeeping, and no content squish since the toast keeps its full
  * size inside the shrinking slot.
  */
-export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOptions): void {
-  if (!hasDom()) return
+export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOptions): ToastHandle {
+  if (!hasDom()) return NO_TOAST
   const layer = toastLayer()
 
   // Evict oldest until under the cap so a burst can't build a wall of banners.
   // Match only slots not already collapsing: removeToast defers the actual
   // node removal to an animation callback, so a removing slot lingers in the
   // DOM — counting it would spin this loop forever (it can never be re-removed).
+  const evictable = '.toast-slot:not([data-removing]):not([data-sticky])'
   while (layer.querySelectorAll('.toast-slot:not([data-removing])').length >= TOAST_MAX_VISIBLE) {
-    const oldest = layer.querySelector<HTMLElement>('.toast-slot:not([data-removing])')
+    const oldest = layer.querySelector<HTMLElement>(evictable)
     if (!oldest) break
     removeToast(oldest)
   }
 
   const slot = document.createElement('div')
   slot.className = 'toast-slot'
+  if (opts?.sticky) slot.dataset.sticky = 'true'
   const el = document.createElement('div')
   el.className = `toast toast--${variant}`
-  el.textContent = opts?.icon ? `${opts.icon} ${text}` : text
+  const render = (t: string): string => (opts?.icon ? `${opts.icon} ${t}` : t)
+  el.textContent = render(text)
   slot.appendChild(el)
   layer.appendChild(slot)
 
@@ -82,9 +103,20 @@ export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOpti
     { duration: TOAST_ENTER_MS, easing: 'ease-out' },
   )
 
-  setTimeout(() => {
-    removeToast(slot)
-  }, opts?.durationMs ?? TOAST_DEFAULT_MS)
+  if (!opts?.sticky) {
+    setTimeout(() => {
+      removeToast(slot)
+    }, opts?.durationMs ?? TOAST_DEFAULT_MS)
+  }
+
+  return {
+    update: (next) => {
+      el.textContent = render(next)
+    },
+    dismiss: () => {
+      removeToast(slot)
+    },
+  }
 }
 
 /**
