@@ -186,13 +186,17 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // at runtime. These are the effects that point at another mechanic, so the
   // check is targeted by type.
   const generatorIds = new Set(def.generators.map((g) => g.id))
-  for (const u of def.upgrades) {
-    for (const ref of u.effects ?? []) {
+  const generatorHosts = [
+    { where: 'mode', refs: def.effects },
+    ...def.upgrades.map((u) => ({ where: `upgrade '${u.id}'`, refs: u.effects })),
+  ]
+  for (const { where, refs } of generatorHosts) {
+    for (const ref of refs ?? []) {
       if (ref.type !== 'generatorCost' && ref.type !== 'generatorUnlock') continue
       const target = ref.generator
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
-          `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
+          `[${id}] ${where} ${ref.type} effect references unknown generator '${target}'`,
         )
     }
   }

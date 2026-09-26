@@ -1476,6 +1476,15 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/upgrade 'u0' generatorCost effect references unknown generator 'g-missing'/)
   })
 
+  it('throws when a mode-level generatorCost effect references an unknown generator', () => {
+    const def = makeValidDef({
+      effects: [{ type: 'generatorCost', generator: 'g-missing', costFactor: 0.95 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/mode generatorCost effect references unknown generator 'g-missing'/)
+  })
+
   it('accepts a generatorCost effect that references a real generator', () => {
     const base = makeValidDef()
     const def = withFlavor(
