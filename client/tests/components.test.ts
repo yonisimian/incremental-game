@@ -10,6 +10,7 @@ import {
 import type { GameState } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
 import { attackPanel } from '../src/ui/panels/attack-panel.js'
+import { formatNumber } from '../src/ui/format-number.js'
 import { stubMode, stubUpgrades } from './_stub-mode.js'
 
 // ─── Test fixture helpers ───────────────────────────────────
@@ -237,12 +238,35 @@ describe('attackPanel', () => {
     expect(html).not.toContain('attack-status--blocked')
   })
 
-  it('disables an unaffordable active attack with a blocked status', () => {
-    const html = renderHtml(withA0Unlocked(Math.max(0, a0WoodCost - 1)))
+  it('disables an unaffordable active attack and quotes held/needed', () => {
+    const held = Math.max(0, a0WoodCost - 1)
+    const html = renderHtml(withA0Unlocked(held))
     expect(html).toContain('data-attack="a0"')
     expect(html).toContain('disabled')
     expect(html).toContain('attack-status--blocked')
-    expect(html).toContain('Not enough resources')
+    expect(html).toContain(
+      `<span class="attack-cost-part">${formatNumber(held)}/${formatNumber(a0WoodCost)} `,
+    )
+  })
+
+  it('bolds only the currencies already covered when several are needed', () => {
+    const a1 = idlerDef.attacks.find((a) => a.id === 'a1')!
+    const a1Upgrade = idlerDef.upgrades.find((u) =>
+      u.effects?.some(
+        (e) => e.type === 'unlockAttack' && (e as { attack?: string }).attack === 'a1',
+      ),
+    )!
+    const cost = getAttackPrepareCost(a1, NEUTRAL_ATTACK_PARAMS)
+    const html = renderHtml(
+      makeIdlerState({
+        resources: { r0: cost.r0, r1: cost.r1 - 1 },
+        upgrades: { [panelUpgrade.id]: 1, [a1Upgrade.id]: 1 },
+      }),
+    )
+    const met = `${formatNumber(cost.r0)}/${formatNumber(cost.r0)} `
+    const short = `${formatNumber(cost.r1 - 1)}/${formatNumber(cost.r1)} `
+    expect(html).toContain(`<span class="attack-cost-part attack-cost-part--met">${met}`)
+    expect(html).toContain(`<span class="attack-cost-part">${short}`)
   })
 
   it('shows a countdown while an activation is preparing', () => {

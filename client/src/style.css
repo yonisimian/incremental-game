@@ -1528,6 +1528,14 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+.attack-cost-part {
+  font-weight: 400;
+}
+
+.attack-cost-part--met {
+  font-weight: 700;
+}
+
 .attack-icon {
   grid-row: 1 / span 2;
   font-size: 1.4rem;

@@ -55,6 +55,28 @@ function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackPar
 }
 
 /**
+ * The prepare cost of an unaffordable attack as `held/needed` per currency, so
+ * the player sees the shortfall. Currencies already covered are bolded, which
+ * leaves the ones still being saved for as the plain entries.
+ */
+function renderShortfall(
+  resources: Readonly<Record<string, number>>,
+  flavor: ModeFlavor,
+  def: AttackDefinition,
+  params: AttackParams,
+): string {
+  const parts = Object.entries(getAttackPrepareCost(def, params))
+    .map(([res, amt]) => {
+      const held = resources[res] ?? 0
+      const cls = held >= amt ? 'attack-cost-part attack-cost-part--met' : 'attack-cost-part'
+      const icon = getResourceIcon(flavor, res)
+      return `<span class="${cls}">${formatNumber(held)}/${formatNumber(amt)} ${icon}</span>`
+    })
+    .join(' + ')
+  return `<span class="attack-status attack-status--blocked">${parts}</span>`
+}
+
+/**
  * The attack's *current* numbers, where owned `attackStat` upgrades have moved
  * them off the authored ones.
  *
@@ -101,12 +123,10 @@ function pendingRemaining(state: Readonly<GameState>, id: string): number | null
 /** Short label describing why an active attack can't be activated right now. */
 function blockLabel(reason: AttackBlockReason): string {
   switch (reason) {
-    case 'unaffordable':
-      return 'Not enough resources'
     case 'no-effects':
       return 'No effect yet'
-    // `already-active` (and `already-preparing`) are rendered as countdowns by
-    // the caller, which has the remaining seconds in hand.
+    // `unaffordable` is rendered as a shortfall, and `already-active` (and
+    // `already-preparing`) as countdowns, by the caller.
     default:
       return ''
   }
@@ -136,9 +156,11 @@ function renderActiveAttack(
     ? `<span class="attack-status attack-status--preparing">Striking in ${remaining.toFixed(1)}s</span>`
     : activeFor !== null
       ? `<span class="attack-status attack-status--active">Active for ${activeFor.toFixed(1)}s</span>`
-      : reason
-        ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
-        : renderCost(flavor, def, params)
+      : reason === 'unaffordable'
+        ? renderShortfall(state.player.resources, flavor, def, params)
+        : reason
+          ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
+          : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
       <button class="attack-btn${preparing ? ' preparing' : activeFor !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
