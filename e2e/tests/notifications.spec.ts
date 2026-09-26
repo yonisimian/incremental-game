@@ -23,8 +23,11 @@ test('NOTIF-01 wide-screen toasts sit beside the panels, pause on hover, and clo
 
   const toastBox = await toast.boundingBox()
   const panelBox = await viewer.page.locator('#panel-container').boundingBox()
+  const screenBox = await viewer.page.locator('.playing-screen').boundingBox()
   expect(toastBox!.x).toBeGreaterThanOrEqual(panelBox!.x + panelBox!.width)
   expect(toastBox!.x + toastBox!.width).toBeLessThanOrEqual(1080)
+  // Level with the header row, not floating beside the panel.
+  expect(Math.abs(toastBox!.y - screenBox!.y)).toBeLessThanOrEqual(1)
   expect(
     await viewer.page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

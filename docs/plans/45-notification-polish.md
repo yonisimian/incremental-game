@@ -41,25 +41,37 @@ reads as a prototype:
 
 `#app` is capped at `max-width: 420px`, so on desktop the game is a narrow
 centred column with empty gutters. On wide screens, move the layer into the
-**right gutter** (decided), aligned to the top of the panel region. There it
-overlaps nothing clickable, so it can become interactive.
+**right gutter** (decided), level with the top of the game frame, beside the
+timer. There it overlaps nothing clickable, so it can become interactive.
 
 Pure CSS, no DOM move, no JS branch:
 
 ```css
 @media (min-width: 1080px) {
+  .panel-region {
+    position: static; /* containing block becomes .playing-screen */
+  }
   .toast-layer {
     inset: 0 auto auto calc(100% + 1.5rem); /* right of the column */
     width: 18rem;
     padding: 0;
     overflow: visible;
     pointer-events: auto;
+    align-items: stretch; /* one even column */
   }
   .toast {
     cursor: pointer;
   }
 }
 ```
+
+- **Vertical anchor: the frame's top, not the panel's.** A first cut aligned the
+  stack with the top of the panel region. That edge isn't visible, so on an empty
+  or short panel the toast floated in mid-air. The frame's top row is a real
+  edge, and it's where the timer and score sit, which players glance at
+  constantly. That's the game-HUD convention. The viewport's top-right corner
+  (the web-app convention) was rejected: on a 1440–1920px screen it's
+  500–750px from the 420px play column, which is peripheral during a race.
 
 - **The layer itself takes the pointer, not just each toast.** The gap between
   toasts is slot padding. If only `.toast` were hit-testable, moving the cursor
@@ -71,14 +83,14 @@ Pure CSS, no DOM move, no JS branch:
   (≥ 1080px, coarse pointer) gets the gutter plus tap-to-dismiss rather than a
   toast over its buttons.
 
-- **Why `absolute` off `.panel-region`, not `position: fixed`:** `shakeScreen`
+- **Why `absolute` off `.playing-screen`, not `position: fixed`:** `shakeScreen`
   animates `transform` on `.playing-screen`, and a transformed ancestor becomes
   the containing block for `fixed` descendants. A fixed toast would jump from
   the viewport corner into the column for 300 ms on every incoming hit —
-  exactly when a danger toast spawns. Anchoring to `.panel-region` (the full
+  exactly when a danger toast spawns. Anchoring to `.playing-screen` (the full
   column width) with `left: calc(100% + gap)` puts the toast in the gutter
   _and_ shakes it with the scene, which is coherent.
-- **1080px threshold:** `.panel-region` is the column minus `#app`'s padding,
+- **1080px threshold:** `.playing-screen` is the column minus `#app`'s padding,
   388px wide. The toast's right edge sits at centre + 194 + 24 + 288 = centre +
   506px, so it fits once vw / 2 ≥ 506, i.e. vw ≥ 1012. 1080 leaves about 34px
   of margin and no horizontal scrollbar.

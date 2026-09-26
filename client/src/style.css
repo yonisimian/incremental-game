@@ -1613,12 +1613,18 @@ body {
   min-width: 0;
 }
 
-/* Wide screens: move the stack into the empty gutter right of the 420px column.
-   Nothing clickable sits under it there, so it takes the pointer (hover pauses,
-   click dismisses). Anchored to .panel-region rather than `position: fixed`,
+/* Wide screens: move the stack into the empty gutter right of the 420px column,
+   level with the header (the timer and score players keep glancing at). Nothing
+   clickable sits under it there, so it takes the pointer (hover pauses, click
+   dismisses). Anchored to .playing-screen rather than `position: fixed`,
    because the screen shake transforms .playing-screen, which would re-anchor a
    fixed layer mid-shake. */
 @media (min-width: 1080px) {
+  /* Hand the containing block up to .playing-screen (a positioned .screen). */
+  .panel-region {
+    position: static;
+  }
+
   .toast-layer {
     inset: 0 auto auto calc(100% + 1.5rem);
     width: 18rem;
