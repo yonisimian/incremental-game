@@ -20,8 +20,8 @@ type BalanceSubtab = 'queue' | 'live' | 'envelopes'
 export function initDevPanel(root: HTMLElement): void {
   root.innerHTML = buildLayout()
 
-  const tabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab')
-  const subtabs = root.querySelectorAll<HTMLButtonElement>('.ed-section-tab[data-subtab]')
+  const tabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab[data-tab]')
+  const subtabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab[data-subtab]')
   const balancePane = root.querySelector<HTMLDivElement>('#pane-balance')!
   const livePane = root.querySelector<HTMLDivElement>('#pane-live')!
   const editorPane = root.querySelector<HTMLDivElement>('#pane-editor')!
@@ -138,10 +138,10 @@ function buildLayout(): string {
       <button class="dev-tab" data-tab="editor">Editor</button>
     </nav>
     <div id="pane-balance" class="hidden">
-      <nav class="ed-section-tabs">
-        <button class="ed-section-tab" data-subtab="queue">🧪 Queue</button>
-        <button class="ed-section-tab" data-subtab="live">🔴 Live</button>
-        <button class="ed-section-tab" data-subtab="envelopes">🎯 Envelopes</button>
+      <nav class="dev-tabs dev-tabs--sub">
+        <button class="dev-tab" data-subtab="queue">🧪 Queue</button>
+        <button class="dev-tab" data-subtab="live">🔴 Live</button>
+        <button class="dev-tab" data-subtab="envelopes">🎯 Envelopes</button>
       </nav>
       <div id="pane-queue" class="hidden"></div>
       <div id="pane-live" class="hidden">
