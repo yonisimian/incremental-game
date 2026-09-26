@@ -3,7 +3,7 @@ import type { ModeDefinition } from './modes/types.js'
 import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 // Importing from the effects barrel ensures seed effects (incl. `generatorCost`)
 // are registered whenever cost factors are collected.
-import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
+import { forEachHeldEffectOutput } from './effects/index.js'
 import type { CostFactors } from './cost.js'
 import {
   applyCostFactors,
@@ -45,10 +45,11 @@ function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
 }
 
 /**
- * Aggregate every owned upgrade's `generatorCost` effects into per-generator
- * cost factors, then — when a price is being *paid* (`purpose: 'buy'`) — fold in
- * what the server has stamped on this player: the inflation the opponent's
- * attacks inflict and the discounts the pacts in force grant.
+ * Aggregate every held `generatorCost` effect (the mode's own, and owned
+ * upgrades') into per-generator cost factors, then — when a price is being *paid*
+ * (`purpose: 'buy'`) — fold in what the server has stamped on this player: the
+ * inflation the opponent's attacks inflict and the discounts the pacts in force
+ * grant.
  *
  * Own factors stack multiplicatively and compound with the owning upgrade's
  * owned count (`factor ** owned`); the stamped factors carry no owned count (an
@@ -63,22 +64,13 @@ export function collectGeneratorCostFactors(
   purpose: CostPurpose,
 ): Map<string, CostFactors> {
   const factors = new Map<string, { costFactor: number; scalingFactor: number }>()
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned <= 0) continue
-    for (const ref of upgrade.effects ?? []) {
-      // Skip non-cost effects without running them: only `generatorCost` yields
-      // a cost output, so there's no need to evaluate production effects here.
-      if (ref.type !== 'generatorCost') continue
-      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (!isCostOutput(o)) continue
-        const entry = factors.get(o.generator) ?? { costFactor: 1, scalingFactor: 1 }
-        if (o.costFactor !== undefined) entry.costFactor *= o.costFactor ** owned
-        if (o.scalingFactor !== undefined) entry.scalingFactor *= o.scalingFactor ** owned
-        factors.set(o.generator, entry)
-      }
-    }
-  }
+  forEachHeldEffectOutput(state, mode, 'generatorCost', (o, owned) => {
+    if (!isCostOutput(o)) return
+    const entry = factors.get(o.generator) ?? { costFactor: 1, scalingFactor: 1 }
+    if (o.costFactor !== undefined) entry.costFactor *= o.costFactor ** owned
+    if (o.scalingFactor !== undefined) entry.scalingFactor *= o.scalingFactor ** owned
+    factors.set(o.generator, entry)
+  })
   if (
     purpose === 'sell' ||
     (state.incomingCostFactors === undefined && state.pactCostFactors === undefined)

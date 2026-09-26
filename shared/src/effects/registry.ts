@@ -113,3 +113,27 @@ export function normalizeEffectOutputs(
   if (!out) return []
   return 'stage' in out || 'kind' in out ? [out] : out
 }
+
+/**
+ * Visit every output of the `type` effects a player holds: the mode's own effects
+ * (at `owned = 1`), then each owned upgrade's (at its owned count). Refs of any
+ * other type are skipped without running them.
+ */
+export function forEachHeldEffectOutput(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  type: string,
+  visit: (out: EffectOutput, owned: number) => void,
+): void {
+  const scan = (refs: readonly EffectRef[] | undefined, owned: number): void => {
+    for (const ref of refs ?? []) {
+      if (ref.type !== type) continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) visit(out, owned)
+    }
+  }
+  scan(mode.effects, 1)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) scan(upgrade.effects, owned)
+  }
+}

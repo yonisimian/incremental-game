@@ -11,7 +11,7 @@ import { scaledCost } from './cost.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import { creditResource } from './modifiers/pipeline.js'
 import { createInitialState, isAttackUnlocked, unlockedAttacks } from './modes/index.js'
-import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
+import { applyEffect, forEachHeldEffectOutput, normalizeEffectOutputs } from './effects/registry.js'
 import { ATTACK_STATS } from './effects/seed/attack-stat.js'
 import type { AttackStat } from './effects/seed/attack-stat.js'
 import type {
@@ -201,31 +201,15 @@ export function collectAttackParams(
     offsets[stat] = 0
   }
 
-  const accumulate = (out: AttackStatOutput, owned: number): void => {
-    if (out.attack !== attackId) return
+  const accumulate = (out: EffectOutput, owned: number): void => {
+    if (!isAttackStatOutput(out) || out.attack !== attackId) return
     // `offset` is absolute (the stat's own unit) and so never touches the
     // multiplier; like `add` it scales linearly with the owned count.
     if (out.op === 'offset') offsets[out.stat] += out.value * owned
     else if (out.op === 'add') adds[out.stat] += out.value * owned
     else mults[out.stat] *= out.value ** owned
   }
-
-  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      // Skip non-stat effects without running them, matching
-      // `collectBatteryParams`.
-      if (ref.type !== 'attackStat') continue
-      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (isAttackStatOutput(o)) accumulate(o, owned)
-      }
-    }
-  }
-
-  collect(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) collect(upgrade.effects, owned)
-  }
+  forEachHeldEffectOutput(state, mode, 'attackStat', accumulate)
 
   const resolved = {} as Record<AttackStat, number>
   for (const stat of ATTACK_STATS) {
@@ -755,22 +739,11 @@ export function collectAttackAlert(
 ): AttackAlert {
   let leadSec = 0
   let revealAttack = false
-  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      // Skip non-alert effects without running them, matching `collectAttackParams`.
-      if (ref.type !== 'attackAlert') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (!isAttackAlertOutput(out)) continue
-        leadSec += out.leadSec * owned
-        if (out.revealAttack) revealAttack = true
-      }
-    }
-  }
-  collect(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) collect(upgrade.effects, owned)
-  }
+  forEachHeldEffectOutput(state, mode, 'attackAlert', (out, owned) => {
+    if (!isAttackAlertOutput(out)) return
+    leadSec += out.leadSec * owned
+    if (out.revealAttack) revealAttack = true
+  })
   if (leadSec <= 0) return NO_ATTACK_ALERT
   return { leadSec, revealAttack }
 }

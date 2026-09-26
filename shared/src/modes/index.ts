@@ -41,6 +41,7 @@ import {
 import {
   applyEffect,
   effectHosts,
+  forEachHeldEffectOutput,
   isDynamicEffect,
   isEffectAllowedOn,
   normalizeEffectOutputs,
@@ -951,23 +952,11 @@ export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeD
   // battery factor alone (which has no resource to multiply).
   if (readHighlight(state) === null) return 1
   let mult = batteryFactor(state, mode)
-
-  const accumulate = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      if (ref.type !== 'highlightMultiplier') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if ('kind' in out && out.kind === 'baseModifier' && out.stage === 'multiplicative') {
-          mult *= out.value ** owned
-        }
-      }
+  forEachHeldEffectOutput(state, mode, 'highlightMultiplier', (out, owned) => {
+    if ('kind' in out && out.kind === 'baseModifier' && out.stage === 'multiplicative') {
+      mult *= out.value ** owned
     }
-  }
-
-  accumulate(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) accumulate(upgrade.effects, owned)
-  }
+  })
   return mult
 }
 
