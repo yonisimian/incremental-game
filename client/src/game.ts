@@ -931,9 +931,9 @@ function showAttackEvents(
       // nothing — valuable intel about their intentions (warning), no shake
       // since you lost nothing.
       if (ev.direction === 'outgoing') {
-        spawnToast(`${icon} ${name}: nothing to steal`, 'info')
+        spawnToast(`${name}: nothing to steal`, 'info', { icon })
       } else {
-        spawnToast(`${icon} ${name}: attack repelled`, 'warning')
+        spawnToast(`${name}: attack repelled`, 'warning', { icon })
       }
       continue
     }
@@ -944,9 +944,9 @@ function showAttackEvents(
       // is hitting them but not for how much longer.
       const span = `${formatDecimal(ev.durationSec, 1)}s`
       if (ev.direction === 'outgoing') {
-        spawnToast(`${icon} ${name}: enemy debuffed for ${span}`, 'success')
+        spawnToast(`${name}: enemy debuffed for ${span}`, 'success', { icon })
       } else {
-        spawnToast(`${icon} ${name}: debuffed for ${span}`, 'danger')
+        spawnToast(`${name}: debuffed for ${span}`, 'danger', { icon })
         shakeScreen('medium')
       }
       continue
@@ -958,9 +958,9 @@ function showAttackEvents(
         ? `${formatNumber(ev.amount)} ${getResourceIcon(flavor, ev.resource)}`
         : `×${ev.count} ${getGeneratorIcon(flavor, ev.generator)} ${getGeneratorName(flavor, ev.generator)}`
     if (ev.direction === 'outgoing') {
-      spawnToast(`${icon} ${name}: stole ${what}`, 'success')
+      spawnToast(`${name}: stole ${what}`, 'success', { icon })
     } else {
-      spawnToast(`${icon} ${name}: lost ${what}`, 'danger')
+      spawnToast(`${name}: lost ${what}`, 'danger', { icon })
       shakeScreen('medium')
     }
   }
@@ -980,7 +980,7 @@ const incomingAttackToasts = new Map<string, ToastHandle>()
  * once the strike leaves the list (it landed) — so the warning never vanishes
  * before the attack does, however long the lead. The remaining time is read
  * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
- * the attack, otherwise a generic "Incoming attack".
+ * the attack, otherwise a generic "Enemy attack" — the espionage panel's wording.
  */
 function syncIncomingAttackToasts(
   next: readonly IncomingAttack[],
@@ -997,13 +997,13 @@ function syncIncomingAttackToasts(
       // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
       // toast reading "4s" beside them would look like a different clock.
       const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
-      const what = a.attack
-        ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
-        : 'Incoming attack'
-      const text = `⚠️ ${what} in ${inSec}s`
+      const text = `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in ${inSec}s`
       const toast = incomingAttackToasts.get(key)
       if (toast) toast.update(text)
-      else incomingAttackToasts.set(key, spawnToast(text, 'warning', { sticky: true }))
+      else {
+        const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
+        incomingAttackToasts.set(key, spawnToast(text, 'warning', { icon, sticky: true }))
+      }
     }
   }
   for (const [key, toast] of incomingAttackToasts) {
@@ -1035,10 +1035,9 @@ function showSharedPactsSigned(
   const flavor = getModeFlavor(modeDef)
   for (const id of next) {
     if (seen.has(id)) continue
-    spawnToast(
-      `🤝 ${getPactIcon(flavor, id)} ${getPactName(flavor, id)} signed by the enemy`,
-      'info',
-    )
+    spawnToast(`${getPactName(flavor, id)} signed by the enemy`, 'info', {
+      icon: getPactIcon(flavor, id),
+    })
   }
 }
 

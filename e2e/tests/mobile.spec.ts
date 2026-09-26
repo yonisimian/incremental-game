@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test.js'
-import { buyUpgrade, openPanel, startBotMatch } from './fixtures/journeys.js'
+import { buyUpgrade, openPanel, startBotMatch, startRoomMatch } from './fixtures/journeys.js'
 
 test('MOB-01 touch controls operate a real bot match', async ({ players }) => {
   const player = await players.create('Mobile')
@@ -81,4 +81,23 @@ test('MOB-04 desktop hotkeys are disabled on coarse pointer', async ({ players }
   await player.page.keyboard.press('Space')
   await player.page.keyboard.press('Control+2')
   await expect(player.page.locator('#tab-0')).toHaveAttribute('aria-selected', 'true')
+})
+
+test('MOB-05 taps pass through a toast to the panel beneath', async ({ players }) => {
+  const signer = await players.create('MobNotif-A')
+  const viewer = await players.create('MobNotif-B')
+  await Promise.all([signer.open(), viewer.open()])
+  await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 35 })
+
+  await buyUpgrade(signer.page, 'ir-unlock')
+  await buyUpgrade(signer.page, 'pact-node-2')
+
+  const toast = viewer.page.locator('#toast-layer .toast')
+  await expect(toast).toHaveCount(1)
+  const hitsToastLayer = await toast.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+    return hit?.closest('#toast-layer') !== null
+  })
+  expect(hitsToastLayer).toBe(false)
 })

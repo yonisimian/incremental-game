@@ -152,7 +152,8 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
       ${renderTabGrid(state)}
       <div class="panel-region">
         ${renderPanelContainer()}
-        <div class="toast-layer" id="toast-layer" aria-live="polite"></div>
+        <div class="toast-layer" id="toast-layer" aria-hidden="true"></div>
+        <div class="sr-only" id="toast-announcer" aria-live="polite"></div>
       </div>
     </div>
   `

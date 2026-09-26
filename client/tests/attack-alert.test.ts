@@ -14,7 +14,9 @@ import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   createInitialState,
+  getAttackIcon,
   getModeDefinition,
+  getModeFlavor,
 } from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import type { GameState } from '../src/game.js'
@@ -35,11 +37,13 @@ vi.mock('../src/network.js', () => ({
 /** One mocked toast handle per spawn, so each warning's updates and dismissal are visible. */
 const { spawnToast, handles } = vi.hoisted(() => {
   const handles: { update: ReturnType<typeof vi.fn>; dismiss: ReturnType<typeof vi.fn> }[] = []
-  const spawnToast = vi.fn((_text: string, _tone: string, _opts?: { sticky?: boolean }) => {
-    const handle = { update: vi.fn(), dismiss: vi.fn() }
-    handles.push(handle)
-    return handle
-  })
+  const spawnToast = vi.fn(
+    (_text: string, _tone: string, _opts?: { icon?: string; sticky?: boolean }) => {
+      const handle = { update: vi.fn(), dismiss: vi.fn() }
+      handles.push(handle)
+      return handle
+    },
+  )
   return { spawnToast, handles }
 })
 vi.mock('../src/ui/vfx/index.js', async (importOriginal) => ({
@@ -122,21 +126,21 @@ describe('incomingAttacks — state and toasts', () => {
     game.handleServerMessage(snapshot(10, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
     const [text, tone, opts] = spawnToast.mock.calls[0]
-    expect(text).toBe('⚠️ Incoming attack in 4.0s')
+    expect(text).toBe('Enemy attack lands in 4.0s')
     expect(tone).toBe('warning')
     // Sticky: no timer of its own, so it cannot vanish before the strike lands.
-    expect(opts).toEqual({ sticky: true })
+    expect(opts).toEqual({ icon: '⚠️', sticky: true })
 
     // The same strike, rebroadcast as it counts down: the one toast is rewritten.
     game.handleServerMessage(snapshot(10.5, [{ readyAtSec: 14 }]))
     game.handleServerMessage(snapshot(11, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
-    expect(handles[0].update).toHaveBeenLastCalledWith('⚠️ Incoming attack in 3.0s')
+    expect(handles[0].update).toHaveBeenLastCalledWith('Enemy attack lands in 3.0s')
 
     // A second strike joining the list gets its own toast.
     game.handleServerMessage(snapshot(11.5, [{ readyAtSec: 14 }, { readyAtSec: 20 }]))
     expect(spawnToast).toHaveBeenCalledTimes(2)
-    expect(spawnToast.mock.calls[1][0]).toBe('⚠️ Incoming attack in 8.5s')
+    expect(spawnToast.mock.calls[1][0]).toBe('Enemy attack lands in 8.5s')
   })
 
   it('dismisses a warning only once its strike leaves the list', () => {
@@ -152,17 +156,18 @@ describe('incomingAttacks — state and toasts', () => {
     expect(handles[1].dismiss).not.toHaveBeenCalled()
   })
 
-  it('names the attack when the warning carries its id', () => {
+  it('names the attack, with its own icon, when the warning carries its id', () => {
     game.handleServerMessage(snapshot(10, [{ readyAtSec: 12.25, attack: 'a0' }]))
-    const [text] = spawnToast.mock.calls[0]
+    const [text, , opts] = spawnToast.mock.calls[0]
     expect(text).toContain('Steal') // the idler's a0 flavor name
-    expect(text).not.toContain('Incoming attack')
-    expect(text).toContain('in 2.3s')
+    expect(text).not.toContain('Enemy attack')
+    expect(text).toContain('lands in 2.3s')
+    expect(opts?.icon).toBe(getAttackIcon(getModeFlavor(getModeDefinition('idler')), 'a0'))
   })
 
   it('never shows a negative countdown', () => {
     game.handleServerMessage(snapshot(15, [{ readyAtSec: 14 }]))
-    expect(spawnToast.mock.calls[0][0]).toBe('⚠️ Incoming attack in 0.0s')
+    expect(spawnToast.mock.calls[0][0]).toBe('Enemy attack lands in 0.0s')
   })
 
   it('clears the list, and its toasts, at the start of a new round', () => {
