@@ -12,6 +12,7 @@ import {
   formatNumber,
   formatNumberAs,
 } from './format-number.js'
+import { openModal } from './modal.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
@@ -32,30 +33,14 @@ const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string }[] = 
   { value: 'comma', label: 'Comma' },
 ]
 
-// ─── State ───────────────────────────────────────────────────────────
-
-let overlayEl: HTMLElement | null = null
-let openingFrame: number | null = null
-
 // ─── Render ──────────────────────────────────────────────────────────
 
-function renderContent(): string {
+function renderBody(): string {
   const settings = getNumberFormatSettings()
   const preview = formatNumber(SAMPLE_VALUE)
 
   return `
-    <div class="settings-overlay" id="settings-overlay">
-      <div class="settings-modal">
-        <header class="settings-header">
-          <h2>Settings</h2>
-          <button class="settings-close" id="settings-close" aria-label="Close">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </header>
-
-        <div class="settings-body">
+        <div class="modal-body">
           <section class="settings-section">
             <h3 class="settings-section-title">Number Notation</h3>
             <div class="settings-chips" id="notation-chips">
@@ -89,83 +74,33 @@ function renderContent(): string {
             <span class="preview-value" id="settings-preview">${preview}</span>
           </div>
         </div>
-      </div>
-    </div>
   `
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
 
 export function openSettings(): void {
-  if (overlayEl) return // already open
-
-  document.body.insertAdjacentHTML('beforeend', renderContent())
-  overlayEl = document.getElementById('settings-overlay')!
-
-  // Animate in
-  openingFrame = requestAnimationFrame(() => {
-    openingFrame = null
-    overlayEl?.classList.add('visible')
-  })
-
-  // Bind events
-  document.getElementById('settings-close')!.addEventListener('click', closeSettings)
-  overlayEl.addEventListener('click', (e) => {
-    if (e.target === overlayEl) closeSettings()
-  })
+  const overlay = openModal('settings-overlay', 'Settings', renderBody())
+  if (!overlay) return
 
   document.getElementById('notation-chips')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-notation]')
     if (!btn) return
     setNotation(btn.dataset.notation as NotationMode)
-    refreshModal()
+    refreshModal(overlay)
   })
 
   document.getElementById('decimal-chips')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-decimal]')
     if (!btn) return
     setDecimalSeparator(btn.dataset.decimal as DecimalSeparator)
-    refreshModal()
+    refreshModal(overlay)
   })
-
-  // Escape key closes
-  document.addEventListener('keydown', handleEscape)
-}
-
-function closeSettings(): void {
-  if (!overlayEl) return
-  if (openingFrame !== null) {
-    cancelAnimationFrame(openingFrame)
-    openingFrame = null
-  }
-  const closingEl = overlayEl
-  let removalTimer: number | null = null
-  const remove = (): void => {
-    if (removalTimer !== null) clearTimeout(removalTimer)
-    closingEl.remove()
-    if (overlayEl === closingEl) overlayEl = null
-  }
-  if (closingEl.classList.contains('visible')) {
-    closingEl.addEventListener('transitionend', remove, { once: true })
-    closingEl.classList.remove('visible')
-    removalTimer = window.setTimeout(remove, 250)
-  } else {
-    remove()
-  }
-  document.removeEventListener('keydown', handleEscape)
 }
 
 // ─── Internals ───────────────────────────────────────────────────────
 
-function handleEscape(e: KeyboardEvent): void {
-  if (e.key === 'Escape') closeSettings()
-}
-
-function refreshModal(): void {
-  if (!overlayEl) return
-  const modal = overlayEl.querySelector('.settings-modal')
-  if (!modal) return
-
+function refreshModal(modal: HTMLElement): void {
   const settings = getNumberFormatSettings()
   const preview = formatNumber(SAMPLE_VALUE)
 

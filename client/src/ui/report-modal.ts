@@ -6,25 +6,13 @@
 import { liveActionsToStrategy } from '@game/shared'
 import { getRecordedRound } from '../dev-recorder.js'
 import { saveStrategyToFile } from '../strategy-file.js'
+import { openModal } from './modal.js'
 
 // Replace with the real invite before publishing.
 const DISCORD_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 
-let overlayEl: HTMLElement | null = null
-
 export function openReportModal(): void {
-  if (overlayEl) return // already open
-
-  document.body.insertAdjacentHTML('beforeend', renderContent())
-  overlayEl = document.getElementById('report-overlay')!
-
-  requestAnimationFrame(() => overlayEl?.classList.add('visible'))
-
-  document.getElementById('report-close')!.addEventListener('click', closeReportModal)
-  overlayEl.addEventListener('click', (e) => {
-    if (e.target === overlayEl) closeReportModal()
-  })
-  document.addEventListener('keydown', handleEscape)
+  if (!openModal('report-overlay', 'Found a bug?', renderBody())) return
 
   const exportBtn = document.getElementById('report-export-btn') as HTMLButtonElement
   if (!getRecordedRound()) {
@@ -54,43 +42,17 @@ function timestampName(): string {
   ].join('-')
 }
 
-function renderContent(): string {
+function renderBody(): string {
   return `
-    <div class="report-overlay" id="report-overlay">
-      <div class="report-modal" role="dialog" aria-modal="true" aria-label="Report a bug">
-        <header class="report-header">
-          <h2>Found a bug?</h2>
-          <button class="report-close" id="report-close" aria-label="Close">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </header>
-        <div class="report-body">
-          <p>
-            Want to report an issue? Reach us on our
-            <a href="${DISCORD_URL}" target="_blank" rel="noopener noreferrer">Discord server</a>.
-          </p>
-          <p>
-            We recommend attaching the game's log; it'll help us identify and fix the bug faster.
-          </p>
-          <button id="report-export-btn" class="report-export-btn">⤓ Export log</button>
-        </div>
-      </div>
+    <div class="modal-body report-body">
+      <p>
+        Want to report an issue? Reach us on our
+        <a href="${DISCORD_URL}" target="_blank" rel="noopener noreferrer">Discord server</a>.
+      </p>
+      <p>
+        We recommend attaching the game's log; it'll help us identify and fix the bug faster.
+      </p>
+      <button id="report-export-btn" class="report-export-btn">⤓ Export log</button>
     </div>
   `
-}
-
-function closeReportModal(): void {
-  if (!overlayEl) return
-  overlayEl.classList.remove('visible')
-  overlayEl.addEventListener('transitionend', () => {
-    overlayEl?.remove()
-    overlayEl = null
-  })
-  document.removeEventListener('keydown', handleEscape)
-}
-
-function handleEscape(e: KeyboardEvent): void {
-  if (e.key === 'Escape') closeReportModal()
 }
