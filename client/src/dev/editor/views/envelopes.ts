@@ -6,9 +6,9 @@
  *
  * Envelopes live in the balance sidecar (`shared/balance/<mode>.json`), a
  * separate document from the tree — they are dev/CI metadata, not gameplay data.
- * So this section reads/writes the shell's `balance` working copy (not `tree`)
- * and carries its own export/copy toolbar; the file-level toolbar handles the
- * tree.
+ * So this view is hosted by the dev panel's Balance tab (not the tree editor),
+ * edits the `balance` working copy it is created with, and carries its own
+ * export/copy toolbar. `ctx.tree` is only read, for the mode's goal types.
  *
  * The two kinds carry different checkpoints: the score-paced `timed` kind bands
  * a **score** at each `timeSec`; the time-paced `target-score` / `buy-upgrade`
@@ -17,6 +17,7 @@
  * lacks an envelope for — the same constraints the runtime validates on load.
  */
 
+import type { BalanceFile } from '@game/shared'
 import {
   addCheckpoint,
   addEnvelope,
@@ -42,25 +43,25 @@ const GOAL_LABELS: Record<EnvelopeGoalType, string> = {
 }
 
 /** The balance-sidecar export/copy toolbar (mirrors the shell's tree toolbar). */
-function buildFileToolbar(ctx: EditorContext): HTMLElement {
+function buildFileToolbar(ctx: EditorContext, balance: BalanceFile): HTMLElement {
   const bar = el('div', 'ed-form-toolbar')
 
   const exportBtn = el('button', 'ed-btn', '💾 Export balance')
   exportBtn.addEventListener('click', () => {
     try {
-      exportBalance(ctx.balance)
+      exportBalance(balance)
     } catch (err) {
       ctx.setStatus(err instanceof Error ? err.message : 'Export failed', true)
       return
     }
-    ctx.setStatus(`Exported ${ctx.balance.mode}.json`)
+    ctx.setStatus(`Exported ${balance.mode}.json`)
   })
 
   const copyBtn = el('button', 'ed-btn', '📋 Copy balance JSON')
   copyBtn.addEventListener('click', () => {
     let json: string
     try {
-      json = balanceToJson(ctx.balance)
+      json = balanceToJson(balance)
     } catch (err) {
       ctx.setStatus(err instanceof Error ? err.message : 'Copy failed', true)
       return
@@ -68,7 +69,7 @@ function buildFileToolbar(ctx: EditorContext): HTMLElement {
     void navigator.clipboard
       .writeText(json)
       .then(() => {
-        ctx.setStatus(`Copied ${ctx.balance.mode}.json to clipboard`)
+        ctx.setStatus(`Copied ${balance.mode}.json to clipboard`)
       })
       .catch(() => {
         ctx.setStatus('Copy to clipboard failed', true)
@@ -79,7 +80,7 @@ function buildFileToolbar(ctx: EditorContext): HTMLElement {
   return bar
 }
 
-export function createEnvelopesView(): EditorView {
+export function createEnvelopesView(balance: BalanceFile): EditorView {
   let host: HTMLElement | null = null
   let ctx: EditorContext | null = null
 
@@ -90,15 +91,15 @@ export function createEnvelopesView(): EditorView {
 
     const root = el('div', 'ed-form-root')
 
-    root.append(buildFileToolbar(c))
+    root.append(buildFileToolbar(c, balance))
 
     const toolbar = el('div', 'ed-form-toolbar')
-    for (const goalType of addableEnvelopeGoalTypes(c.balance, c.tree)) {
+    for (const goalType of addableEnvelopeGoalTypes(balance, c.tree)) {
       toolbar.append(
         addButton(
           c,
           `➕ ${GOAL_LABELS[goalType]}`,
-          () => addEnvelope(c.balance, goalType),
+          () => addEnvelope(balance, goalType),
           (id) => `Added ${id} envelope`,
           render,
         ),
@@ -109,11 +110,11 @@ export function createEnvelopesView(): EditorView {
     }
     root.append(toolbar)
 
-    const envelopes = listEnvelopes(c.balance)
+    const envelopes = listEnvelopes(balance)
     if (envelopes.length === 0) {
       root.append(el('div', 'ed-env-empty', 'No envelopes yet.'))
     }
-    for (const env of envelopes) root.append(buildCard(c, env, render))
+    for (const env of envelopes) root.append(buildCard(c, balance, env, render))
 
     host.append(root)
   }
@@ -136,10 +137,10 @@ export function createEnvelopesView(): EditorView {
 /** One envelope card: header + remove, checkpoint table, then the two scalars. */
 function buildCard(
   ctx: EditorContext,
+  balance: BalanceFile,
   env: ReturnType<typeof listEnvelopes>[number],
   render: () => void,
 ): HTMLElement {
-  const balance = ctx.balance
   const goalType = env.goalType
   const isTimed = env.goalType === 'timed'
 
@@ -150,7 +151,7 @@ function buildCard(
   const remove = el('button', 'ed-btn ed-btn-danger', '🗑 Remove envelope')
   remove.addEventListener('click', () => {
     removeEnvelope(balance, goalType)
-    ctx.markBalanceDirty()
+    ctx.markDirty()
     ctx.setStatus(`Removed ${goalType} envelope`)
     render()
   })
@@ -223,7 +224,7 @@ function buildCard(
     phase.value = cp.phase
     phase.addEventListener('change', () => {
       setCheckpointField(balance, goalType, index, { phase: phase.value })
-      ctx.markBalanceDirty()
+      ctx.markDirty()
     })
     row.append(cell(phase))
 
@@ -231,7 +232,7 @@ function buildCard(
     del.disabled = env.checkpoints.length <= 1
     del.addEventListener('click', () => {
       removeCheckpoint(balance, goalType, index)
-      ctx.markBalanceDirty()
+      ctx.markDirty()
       render()
     })
     row.append(cell(del))

@@ -8,18 +8,25 @@ import { updateChart } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
 import { initEditor } from './editor/index.js'
+import { initEnvelopes } from './envelopes.js'
 import { initQueueSim, importStrategyToQueue } from './queue-sim.js'
 import { saveStrategyToFile } from './strategy-io.js'
 
-// ─── Init ────────────────────────────────────────────────────
+type Tab = 'balance' | 'editor'
+type BalanceSubtab = 'queue' | 'live' | 'envelopes'
+
+// ─── Init ────────────────────────────────────────────────────────────
 
 export function initDevPanel(root: HTMLElement): void {
   root.innerHTML = buildLayout()
 
   const tabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab')
+  const subtabs = root.querySelectorAll<HTMLButtonElement>('.ed-section-tab[data-subtab]')
+  const balancePane = root.querySelector<HTMLDivElement>('#pane-balance')!
   const livePane = root.querySelector<HTMLDivElement>('#pane-live')!
   const editorPane = root.querySelector<HTMLDivElement>('#pane-editor')!
   const queuePane = root.querySelector<HTMLDivElement>('#pane-queue')!
+  const envelopesPane = root.querySelector<HTMLDivElement>('#pane-envelopes')!
 
   // ── Live pane elements ──
   const liveStatus = root.querySelector<HTMLDivElement>('#live-status')!
@@ -50,16 +57,24 @@ export function initDevPanel(root: HTMLElement): void {
   // The editor is mounted lazily on first entry and torn down on leave (it owns
   // pan/zoom listeners); `editorTeardown` is non-null only while it is mounted.
   let editorTeardown: (() => void) | null = null
-  // The queue editor is mounted once, lazily, on first entry.
+  // The queue and envelopes panes are each mounted once, lazily, on first entry.
   let queueMounted = false
+  let envelopesMounted = false
+  let activeTab: Tab = 'balance'
+  let activeSubtab: BalanceSubtab = 'queue'
 
-  function switchTab(tab: 'live' | 'editor' | 'queue'): void {
-    tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab))
-    livePane.classList.toggle('hidden', tab !== 'live')
-    editorPane.classList.toggle('hidden', tab !== 'editor')
-    queuePane.classList.toggle('hidden', tab !== 'queue')
+  function render(): void {
+    tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === activeTab))
+    subtabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.subtab === activeSubtab))
+    const inBalance = activeTab === 'balance'
+    const sub = inBalance ? activeSubtab : null
+    balancePane.classList.toggle('hidden', !inBalance)
+    editorPane.classList.toggle('hidden', activeTab !== 'editor')
+    livePane.classList.toggle('hidden', sub !== 'live')
+    queuePane.classList.toggle('hidden', sub !== 'queue')
+    envelopesPane.classList.toggle('hidden', sub !== 'envelopes')
 
-    if (tab === 'live') {
+    if (sub === 'live') {
       startLiveListener((state) => {
         renderLiveStatus(liveStatus, state)
         renderLiveCharts(state, liveScoreChart, liveIncomeChart, liveResourceCharts)
@@ -74,7 +89,7 @@ export function initDevPanel(root: HTMLElement): void {
       stopLiveListener()
     }
 
-    if (tab === 'editor') {
+    if (activeTab === 'editor') {
       // Mount only once the pane is visible so pan/zoom sees real dimensions.
       editorTeardown ??= initEditor(editorPane)
     } else if (editorTeardown) {
@@ -82,20 +97,33 @@ export function initDevPanel(root: HTMLElement): void {
       editorTeardown = null
     }
 
-    if (tab === 'queue' && !queueMounted) {
+    if (sub === 'queue' && !queueMounted) {
       queueMounted = true
       initQueueSim(queuePane)
+    }
+
+    if (sub === 'envelopes' && !envelopesMounted) {
+      envelopesMounted = true
+      initEnvelopes(envelopesPane)
     }
   }
 
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
-      switchTab(btn.dataset.tab as 'live' | 'editor' | 'queue')
+      activeTab = btn.dataset.tab as Tab
+      render()
     })
   })
 
-  // Open the Queue tab by default.
-  switchTab('queue')
+  subtabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeSubtab = btn.dataset.subtab as BalanceSubtab
+      render()
+    })
+  })
+
+  // Open Balance › Queue by default.
+  render()
 }
 
 // ─── Layout ──────────────────────────────────────────────────────────
@@ -106,29 +134,36 @@ function buildLayout(): string {
       <h1>incremenTal — Dev Panel</h1>
     </header>
     <nav class="dev-tabs">
-      <button class="dev-tab" data-tab="queue">Queue</button>
-      <button class="dev-tab" data-tab="live">Live</button>
+      <button class="dev-tab" data-tab="balance">Balance</button>
       <button class="dev-tab" data-tab="editor">Editor</button>
     </nav>
-    <div id="pane-live" class="hidden">
-      <section class="dev-live-info">
-        <div id="live-status" class="live-status">
-          <span class="live-dot waiting"></span>
-          Waiting for game… Open the game with <code>?dev</code> in the URL.
-        </div>
-        <div class="live-export">
-          <button id="live-export-btn" disabled>⤓ Export as strategy</button>
-          <span id="live-export-status" class="live-export-status"></span>
-        </div>
-      </section>
-      <section class="dev-charts">
-        <div id="live-chart-score"></div>
-        <div id="live-chart-income"></div>
-        <div id="live-chart-resources"></div>
-      </section>
+    <div id="pane-balance" class="hidden">
+      <nav class="ed-section-tabs">
+        <button class="ed-section-tab" data-subtab="queue">🧪 Queue</button>
+        <button class="ed-section-tab" data-subtab="live">🔴 Live</button>
+        <button class="ed-section-tab" data-subtab="envelopes">🎯 Envelopes</button>
+      </nav>
+      <div id="pane-queue" class="hidden"></div>
+      <div id="pane-live" class="hidden">
+        <section class="dev-live-info">
+          <div id="live-status" class="live-status">
+            <span class="live-dot waiting"></span>
+            Waiting for game… Open the game with <code>?dev</code> in the URL.
+          </div>
+          <div class="live-export">
+            <button id="live-export-btn" disabled>⤓ Export as strategy</button>
+            <span id="live-export-status" class="live-export-status"></span>
+          </div>
+        </section>
+        <section class="dev-charts">
+          <div id="live-chart-score"></div>
+          <div id="live-chart-income"></div>
+          <div id="live-chart-resources"></div>
+        </section>
+      </div>
+      <div id="pane-envelopes" class="hidden"></div>
     </div>
     <div id="pane-editor" class="hidden"></div>
-    <div id="pane-queue" class="hidden"></div>
   `
 }
 
