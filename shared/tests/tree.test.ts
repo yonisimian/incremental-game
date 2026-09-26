@@ -577,3 +577,46 @@ describe('tree codec — envelopes are no longer tree data', () => {
     expect(def).toEqual(getModeDefinition('idler'))
   })
 })
+
+// ─── Pacts ───────────────────────────────────────────────────────────
+
+describe('tree codec — pacts', () => {
+  /** The minimal tree plus one pact (and its flavor entry), as authored. */
+  function treeWithPact(pact: Record<string, unknown>): unknown {
+    const tree = minimalTree()
+    const flavor = { id: 'p0', name: 'Pact', icon: '🤝', description: '' }
+    return {
+      ...tree,
+      pacts: [{ id: 'p0', kind: 'passive', ...pact }],
+      flavors: [{ ...tree.flavors[0], pacts: [flavor] }],
+    }
+  }
+
+  it('accepts a bare pact, and one carrying mutual + effects', () => {
+    expect(parseTreeFile(treeWithPact({})).pacts[0]).toEqual({ id: 'p0', kind: 'passive' })
+    const parsed = parseTreeFile(
+      treeWithPact({
+        mutual: true,
+        effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }],
+      }),
+    )
+    expect(parsed.pacts[0]).toEqual({
+      id: 'p0',
+      kind: 'passive',
+      mutual: true,
+      effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }],
+    })
+  })
+
+  // The active-only fields are not authored yet (plans 43/44), so declaring one
+  // is a schema error — the strict object catches it as an unknown key.
+  it('rejects the active-only fields until they exist', () => {
+    expect(() => parseTreeFile(treeWithPact({ durationSec: 10 }))).toThrow()
+    expect(() => parseTreeFile(treeWithPact({ activationCost: { r0: { baseCost: 1 } } }))).toThrow()
+    expect(() => parseTreeFile(treeWithPact({ cooldownSec: 5 }))).toThrow()
+  })
+
+  it('rejects a non-boolean mutual', () => {
+    expect(() => parseTreeFile(treeWithPact({ mutual: 'yes' }))).toThrow()
+  })
+})

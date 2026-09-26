@@ -22,6 +22,7 @@ import {
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
+  pactModifiers,
   resolveEnemyDebuffs,
   getModeDefinition,
   getModeFlavor,
@@ -469,11 +470,14 @@ function updateNumbers(state: Readonly<GameState>): void {
   const modeDef = getModeDefinition(state.mode)
 
   // Incoming debuffs, resolved once against this player — every figure below that
-  // folds them in reads from here (see `resolveEnemyDebuffs`).
+  // folds them in reads from here (see `resolveEnemyDebuffs`). The pact bonuses
+  // in force ride beside them into every total, but not into the
+  // before/after pairs, which report what the enemy is *taking*.
   const debuffs = resolveEnemyDebuffs(state.debuffs, state.player, modeDef)
+  const bonuses = resolveEnemyDebuffs(pactModifiers(state.pactBonuses), state.player, modeDef)
 
-  // Production + source breakdown (debuffs folded in so totals match the header).
-  const breakdown = computeRateBreakdown(state.player, modeDef, debuffs)
+  // Production + source breakdown (debuffs and bonuses folded in so totals match the header).
+  const breakdown = computeRateBreakdown(state.player, modeDef, [...debuffs, ...bonuses])
   const outputs = collectGeneratorOutputs(state.player, modeDef)
   for (const r of modeDef.resources) {
     const bd: ResourceRateBreakdown = breakdown[r]
@@ -508,8 +512,10 @@ function updateNumbers(state: Readonly<GameState>): void {
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
     const ownModifiers = collectModifiers(state.player, modeDef)
-    const baseClick = computeClickIncome(ownModifiers)
-    const clickIncome = computeClickIncome([...ownModifiers, ...debuffs])
+    // The un-debuffed figure keeps the pact bonuses in: they are this player's
+    // to enjoy, so the before/after pair below isolates what the enemy takes.
+    const baseClick = computeClickIncome([...ownModifiers, ...bonuses])
+    const clickIncome = computeClickIncome([...ownModifiers, ...debuffs, ...bonuses])
     const fmt = (n: number) => formatNumber(n, Number.isInteger(n) ? 0 : 1)
     const clickEl = document.getElementById('data-click-income')
     if (clickEl) {

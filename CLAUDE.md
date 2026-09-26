@@ -52,6 +52,8 @@ All mechanics use abstract IDs — resources `r0/r1`, upgrades `u0…`, generato
 
 Every system that affects income funnels through one pipeline ([shared/src/modifiers/pipeline.ts](shared/src/modifiers/pipeline.ts)): base → mode starting effects → tiers (additive) → upgrades/cards → perks/prestige (multiplicative). Adding a system means registering a modifier stage, not editing existing code.
 
+Cross-player systems keep effects pure and single-player: an attack or pact effect only _describes_ a debuff or buff, and a resolver that holds both states turns it into numbers — `collectEnemyDebuffs`/`collectEnemyCostFactors` in [shared/src/modes/index.ts](shared/src/modes/index.ts) for attacks, [shared/src/pacts.ts](shared/src/pacts.ts) for pacts. Only the server has both states, so it resolves and ships results (`debuffs`, `pactBonuses`, the stamped `incomingCostFactors`/`pactCostFactors`).
+
 Upgrade behavior is **data-driven via effects**. Effect implementations are registered by name in [shared/src/effects/registry.ts](shared/src/effects/registry.ts); the seed set (`highlightMultiplier`, `lowerTierBoost`, `generatorCost`, `panelUnlock`, etc.) lives in `shared/src/effects/seed/` and is registered at module load by importing the effects barrel. Mode/upgrade data references effects by `{type, params}` refs, validated and cached per-ref-identity at startup.
 
 ### The idler mode is authored as JSON

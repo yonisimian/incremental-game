@@ -17,9 +17,14 @@ import {
   getModeFlavor,
   getResourceIcon,
 } from '@game/shared'
-import type { EnemyCostFactor, UpgradeDefinition } from '@game/shared'
+import type { EnemyCostFactor, PactCostFactor, UpgradeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
-import { canAfford, formatUpgradeCost, INFLATED_COST_MARKER } from '../src/ui/helpers.js'
+import {
+  canAfford,
+  DISCOUNTED_COST_MARKER,
+  formatUpgradeCost,
+  INFLATED_COST_MARKER,
+} from '../src/ui/helpers.js'
 import { formatNumber } from '../src/ui/format-number.js'
 import { espionagePanel } from '../src/ui/panels/espionage-panel.js'
 import { generatorsPanel } from '../src/ui/panels/generators-panel.js'
@@ -39,10 +44,17 @@ const UPGRADE: UpgradeDefinition = {
   purchaseLimit: 1,
 }
 
-function makeState(incoming?: EnemyCostFactor[]): GameState {
+/** A pact discount on the test upgrade and on the first generator. */
+const MIRRORED: PactCostFactor[] = [
+  { pact: 'p2', scope: 'upgrade', id: 'u-test', costFactor: 0.75 },
+  { pact: 'p3', scope: 'generator', id: 'g0', costFactor: 0.5 },
+]
+
+function makeState(incoming?: EnemyCostFactor[], discounts?: PactCostFactor[]): GameState {
   const player = createInitialState(modeDef)
   player.resources.r0 = 150
   if (incoming) player.incomingCostFactors = incoming
+  if (discounts) player.pactCostFactors = discounts
   return {
     screen: 'playing',
     mode: 'idler',
@@ -51,6 +63,8 @@ function makeState(incoming?: EnemyCostFactor[]): GameState {
     opponent: { resources: {}, rates: {} },
     opponentPurchaseFeed: [],
     incomingAttacks: [],
+    pactBonuses: [],
+    opponentPacts: [],
     debuffs: [],
     timeLeft: 60,
     paused: false,
@@ -104,6 +118,24 @@ describe('upgrade price label', () => {
     expect(canAfford(makeState(DOUBLE_ALL), UPGRADE)).toBe(false)
   })
 
+  // A pact discount is the same seam in the other direction: the
+  // quote drops, and the marker points the other way so a price *below* the
+  // tree's number reads as a treaty rather than a bug.
+  it('quotes the discounted price, marked down', () => {
+    const label = formatUpgradeCost(makeState(undefined, MIRRORED), UPGRADE, flavor)
+    expect(label).toContain('75')
+    expect(label).toContain(DISCOUNTED_COST_MARKER)
+    expect(label).not.toContain(INFLATED_COST_MARKER)
+  })
+
+  // Both in force: the mark follows where the price landed.
+  it('marks an item that is both inflated and discounted by where it landed', () => {
+    const label = formatUpgradeCost(makeState(DOUBLE_ALL, MIRRORED), UPGRADE, flavor)
+    expect(label).toContain('150') // 100 × 2 × 0.75
+    expect(label).toContain(INFLATED_COST_MARKER)
+    expect(label).not.toContain(DISCOUNTED_COST_MARKER)
+  })
+
   // Growth-only inflation leaves level 0 alone and bites from level 1 on.
   it('marks a growth-inflated price only once it has actually moved', () => {
     const expo: UpgradeDefinition = {
@@ -137,8 +169,8 @@ describe('generator card', () => {
   )!.id
 
   /** The panel's markup for a player owning one `g0` (so buy *and* sell show). */
-  function renderWithG0(incoming?: EnemyCostFactor[]): string {
-    const state = makeState(incoming)
+  function renderWithG0(incoming?: EnemyCostFactor[], discounts?: PactCostFactor[]): string {
+    const state = makeState(incoming, discounts)
     state.player.upgrades[unlockId] = 1
     state.player.generators[g0.id] = 1
     // Enough of g0's currency to afford the inflated copy, so the price shows
@@ -161,6 +193,15 @@ describe('generator card', () => {
   it('leaves both figures authored when nobody is attacking', () => {
     const html = renderWithG0()
     expect(html).toContain(`Buy 1 — ${costIcon}${formatNumber(basePrice)}`)
+    expect(html).not.toContain(INFLATED_COST_MARKER)
+    expect(html).not.toContain(DISCOUNTED_COST_MARKER)
+    expect(html).toContain(`+${costIcon}${formatNumber(baseRefund)}`)
+  })
+
+  it('quotes a pact-discounted buy price, marked down, while refunding the authored one', () => {
+    const html = renderWithG0(undefined, MIRRORED)
+    expect(html).toContain(`Buy 1 — ${costIcon}${formatNumber(basePrice * 0.5)}`)
+    expect(html).toContain(DISCOUNTED_COST_MARKER)
     expect(html).not.toContain(INFLATED_COST_MARKER)
     expect(html).toContain(`+${costIcon}${formatNumber(baseRefund)}`)
   })

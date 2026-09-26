@@ -4,6 +4,7 @@ import {
   NEUTRAL_ATTACK_PARAMS,
   parseBalanceFile,
   parseTreeFile,
+  serializeTree,
   toModeDefinition,
   type TreeFile,
   type TreeUpgradeNode,
@@ -55,6 +56,16 @@ import {
   addAttackPrepareCurrency,
   removeAttackPrepareCurrency,
   type AttackCostRow,
+  listPacts,
+  addPact,
+  renamePact,
+  removePact,
+  pactReferences,
+  setPactKind,
+  setPactMutual,
+  pactEffects,
+  setPactEffects,
+  setPactFlavor,
   listEnvelopes,
   addableEnvelopeGoalTypes,
   addEnvelope,
@@ -1093,5 +1104,146 @@ describe('envelope model helpers', () => {
     const cp = listEnvelopes(balance).find((e) => e.goalType === 'timed')!.checkpoints[0]
     expect('minScore' in cp && cp.minScore).toBe(123)
     expect(cp.phase).toBe('Renamed')
+  })
+})
+
+// ─── Pact effects ride every cascade ─────────────────────────────────
+
+describe('pact effect references', () => {
+  /** The idler's trade route: `mirrorStatModifier` reading `generator:g0`, feeding `r0`. */
+  const route = (tree: TreeFile) => tree.pacts.find((p) => p.id === 'p3')!.effects![0]
+
+  it('renameGenerator rewrites a pact mirror’s namespaced source', () => {
+    const tree = idler()
+    expect(route(tree).source).toBe('generator:g0')
+    expect(renameGenerator(tree, 'g0', 'gmega')).toBe(true)
+    expect(route(tree).source).toBe('generator:gmega')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renameResource rewrites a pact mirror’s field, and a :rate source', () => {
+    const tree = idler()
+    tree.pacts
+      .find((p) => p.id === 'p3')!
+      .effects!.push({
+        type: 'mirrorStatModifier',
+        source: 'r0:rate',
+        field: 'r1',
+        stage: 'additive',
+        perUnit: 0.1,
+      })
+    expect(renameResource(tree, 'r0', 'wood')).toBe(true)
+    const [first, second] = tree.pacts.find((p) => p.id === 'p3')!.effects!
+    expect(first.field).toBe('wood')
+    expect(second.source).toBe('wood:rate')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('blocks deleting a generator or resource a pact mirror still names', () => {
+    const tree = idler()
+    expect(removeGenerator(tree, 'g0')).toMatchObject({ ok: false })
+    expect(resourceReferences(tree, 'r0')).toContain('a mirrorStatModifier field')
+  })
+
+  it('renameNode rewrites an upgrade:<id> key on a cost effect or a pact source, and removeNode drops it', () => {
+    const tree = idler()
+    const [target] = collectIds(tree).filter((id) => id !== 'ir-unlock' && id !== 'pact-node-3')
+    tree.pacts
+      .find((p) => p.id === 'p2')!
+      .effects!.push(
+        { type: 'mirrorCostModifier', target: `upgrade:${target}`, costFactor: 0.5 },
+        {
+          type: 'mirrorStatModifier',
+          source: `upgrade:${target}`,
+          field: 'r0',
+          stage: 'additive',
+          perUnit: 1,
+        },
+      )
+    expect(renameNode(tree, target, 'renamed')).toBe(true)
+    const effects = () => tree.pacts.find((p) => p.id === 'p2')!.effects!
+    expect(effects()[1].target).toBe('upgrade:renamed')
+    expect(effects()[2].source).toBe('upgrade:renamed')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Removing the node takes the two refs that named it with it; the
+    // whole-scope research discount stays.
+    removeNode(tree, 'renamed')
+    expect(effects()).toHaveLength(1)
+    expect(effects()[0].target).toBe('upgrades')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+})
+
+// ─── Pacts ───────────────────────────────────────────────────────────
+
+describe('pacts', () => {
+  it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {
+    const rows = listPacts(idler())
+    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3'])
+    const route = rows.find((r) => r.id === 'p3')!
+    expect(route.mutual).toBe(true)
+    expect(route.kind).toBe('passive')
+    expect(route.name).toBe('Trade route')
+    expect(rows.find((r) => r.id === 'p2')!.mutual).toBe(false)
+  })
+
+  it('addPact appends a passive pact with a flavor entry in every flavor, and stays loadable', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    for (const f of tree.flavors) expect(f.pacts.some((p) => p.id === id)).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('renamePact cascades unlockPact references and the flavor entry', () => {
+    const tree = idler()
+    expect(pactReferences(tree, 'p3')).toEqual(['an unlockPact effect'])
+    expect(renamePact(tree, 'p3', 'trade')).toBe(true)
+    expect(tree.pacts.some((p) => p.id === 'trade')).toBe(true)
+    expect(findNode(tree, 'pact-node-4')!.effects![0].pact).toBe('trade')
+    expect(tree.flavors[0].pacts.some((p) => p.id === 'trade')).toBe(true)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(renamePact(tree, 'trade', '')).toBe(false)
+    expect(renamePact(tree, 'trade', 'p1')).toBe(false)
+  })
+
+  it('removePact is blocked while an unlockPact names it, and cascades otherwise', () => {
+    const tree = idler()
+    expect(removePact(tree, 'p3')).toMatchObject({ ok: false })
+    const id = addPact(tree)
+    expect(removePact(tree, id)).toEqual({ ok: true })
+    expect(tree.pacts.some((p) => p.id === id)).toBe(false)
+    for (const f of tree.flavors) expect(f.pacts.some((p) => p.id === id)).toBe(false)
+  })
+
+  it('round-trips kind, mutual and effects through the codec', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactMutual(tree, id, true)
+    setPactEffects(tree, id, [
+      { type: 'mirrorCostModifier', target: 'generators', scalingFactor: 0.5 },
+    ])
+    setPactFlavor(tree, id, { name: 'Ceasefire', icon: '🕊️', description: 'd' })
+    const reparsed = parseTreeFile(JSON.parse(serializeTree(tree)))
+    expect(reparsed.pacts.at(-1)).toEqual({
+      id,
+      kind: 'active',
+      mutual: true,
+      effects: [{ type: 'mirrorCostModifier', target: 'generators', scalingFactor: 0.5 }],
+    })
+    expect(listPacts(reparsed).at(-1)).toMatchObject({
+      name: 'Ceasefire',
+      icon: '🕊️',
+      mutual: true,
+    })
+
+    // `mutual: false` and an empty effects list are written as absent.
+    setPactMutual(tree, id, false)
+    setPactEffects(tree, id, [])
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
+    expect(pactEffects(tree, id)).toEqual([])
+    expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

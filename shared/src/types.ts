@@ -179,15 +179,32 @@ export interface AttackDefinition {
 export type PactKind = 'active' | 'passive'
 
 /**
- * Static definition of a pact. Pacts have no behavior yet — they only exist to
- * be unlocked (via an `unlockPact` effect) and shown in the international
- * relationship panel — so a pact is a stable id plus its kind for now. Display
- * data lives in `PactFlavor`. `kind` groups pacts into separate blocks in the
- * panel.
+ * Static definition of a pact: a stable id, its kind, and the buffs it carries.
+ * Pacts are unlocked via an `unlockPact` effect and shown in the international
+ * relationship panel. A `passive` pact's effects apply continuously while it is
+ * unlocked — gathered by the collectors in `pacts.ts` — and describe a benefit
+ * the owner draws *from the opponent*: a discount on what the enemy already
+ * bought (`mirrorCostModifier`), a production bonus scaled by an enemy stat
+ * (`mirrorStatModifier`). An `active` pact has no behavior yet.
+ * Display data lives in `PactFlavor`. `kind` groups pacts into separate blocks
+ * in the panel.
  */
 export interface PactDefinition {
   readonly id: string
   readonly kind: PactKind
+  /**
+   * Whether the pact's effects also resolve for the partner, reading the owner
+   * as *their* enemy — a treaty both sides benefit from. A one-sided pact
+   * benefits its owner only. Default false.
+   */
+  readonly mutual?: boolean
+  /**
+   * The buffs this pact carries. On a passive pact each `mirrorCost`-emitting
+   * effect applies to the owner's prices and each `mirrorModifier`-emitting one
+   * to the owner's production, continuously while unlocked (and, if `mutual`,
+   * to the partner's too). Optional — an effect-less pact is a placeholder.
+   */
+  readonly effects?: readonly EffectRef[]
 }
 
 /** Full state of a single player within a match. */
@@ -231,6 +248,20 @@ export interface PlayerState {
    * a buy goes through. Selling and attack activation never consult it.
    */
   incomingPurchaseLocks?: PurchaseLock[]
+  /**
+   * Discounts the pacts in force grant on this player's prices (see
+   * `collectPactCostFactors`), stamped by the server on the same cadence as
+   * `incomingCostFactors` and read by every price path through
+   * `pactCostFactors`. Absent when nothing is in force, which is the default.
+   *
+   * The friendly twin of `incomingCostFactors`: same wire-stable, reconciled
+   * treatment (a replayed optimistic buy is priced as the server priced it),
+   * and the two commute on the same item since both are multiplicative. Always
+   * concrete `{ scope, id }` entries — a whole-scope pact target is expanded at
+   * stamp time to the entities the partner is ahead on — and tagged with the
+   * granting pact so the relations panel can say which treaty is paying.
+   */
+  pactCostFactors?: PactCostFactor[]
   /**
    * Debuff windows this player's *landed* active attacks are currently
    * inflicting on the opponent (see `resolveAttackStrike`). Absent when none is
@@ -308,6 +339,20 @@ export interface EnemyCostFactor {
   readonly costFactor?: number
   /** Multiplies the growth portion of the cost curve. */
   readonly scalingFactor?: number
+}
+
+/**
+ * One discount a pact in force grants on the beneficiary's prices, as stamped on
+ * them (see {@link PlayerState.pactCostFactors}). The same structural form as an
+ * {@link EnemyCostFactor} — the price paths fold both the same way — with the
+ * entity always named (a scope-wide pact target is expanded at stamp time) and
+ * the granting pact recorded for display.
+ */
+export interface PactCostFactor extends EnemyCostFactor {
+  /** The upgrade/generator this discount is in force on. */
+  readonly id: string
+  /** Pact id (matches {@link PactDefinition.id}) this discount comes from. */
+  readonly pact: string
 }
 
 /**

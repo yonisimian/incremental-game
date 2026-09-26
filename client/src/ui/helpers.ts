@@ -95,16 +95,45 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
 
 /** Marker appended to a price an opponent's passive attack is inflating. */
 export const INFLATED_COST_MARKER = '⬆'
+/** Marker appended to a price a pact in force is discounting. */
+export const DISCOUNTED_COST_MARKER = '⬇'
+
+/**
+ * The marker for a price bent off the authored one: up when the factors in
+ * force actually raised it, down when they only lowered it, none when it landed
+ * on the tree's own number — a free upgrade, or a growth-only factor on a flat
+ * cost, is left unmarked: nothing moved. An inflation and a discount on the
+ * same item are marked by where the price landed, since that is the number the
+ * player needs explained.
+ */
+export function costChangeMarker(cost: number, authored: number): string {
+  if (cost > authored) return INFLATED_COST_MARKER
+  if (cost < authored) return DISCOUNTED_COST_MARKER
+  return ''
+}
+
+/** {@link costChangeMarker} over a cost map: up if any currency rose, else down if any fell. */
+function costMapChangeMarker(
+  cost: Readonly<Record<string, number>>,
+  authored: Readonly<Record<string, number>>,
+): string {
+  const marks = Object.entries(cost).map(([currency, amount]) =>
+    costChangeMarker(amount, authored[currency] ?? 0),
+  )
+  if (marks.includes(INFLATED_COST_MARKER)) return INFLATED_COST_MARKER
+  if (marks.includes(DISCOUNTED_COST_MARKER)) return DISCOUNTED_COST_MARKER
+  return ''
+}
 
 /**
  * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
  * the cost map plus the owned count for an unlimited upgrade.
  *
  * Priced with the factors in force, so it matches what a buy will actually
- * charge, and marked with {@link INFLATED_COST_MARKER} when an opponent's
- * inflation actually raised it — otherwise a price above the tree's authored
- * number reads as a bug rather than as an attack. A free upgrade, or a
- * growth-only factor on a flat cost, is left unmarked: nothing moved.
+ * charge, and marked (see {@link costChangeMarker}) when an opponent's
+ * inflation actually raised it or a pact's discount actually lowered it —
+ * otherwise a price off the tree's authored number reads as a bug rather than
+ * as an attack or a treaty.
  */
 export function formatUpgradeCost(
   state: Readonly<GameState>,
@@ -116,20 +145,11 @@ export function formatUpgradeCost(
   const factors = upgradeCostFactors(state.player, u.id)
   const cost = getUpgradeNextCost(u, owned, factors)
   const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-  const marker =
-    !isNeutralCostFactors(factors) &&
-    costRaised(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
-      ? ` ${INFLATED_COST_MARKER}`
-      : ''
+  const mark = isNeutralCostFactors(factors)
+    ? ''
+    : costMapChangeMarker(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
+  const marker = mark === '' ? '' : ` ${mark}`
   return `${formatCostLabel(cost, flavor)}${countLabel}${marker}`
-}
-
-/** Whether any currency in `cost` exceeds its amount in `authored`. */
-function costRaised(
-  cost: Readonly<Record<string, number>>,
-  authored: Readonly<Record<string, number>>,
-): boolean {
-  return Object.entries(cost).some(([currency, amount]) => amount > (authored[currency] ?? 0))
 }
 
 /**

@@ -1,17 +1,18 @@
 import type { PlayerState, UpgradeDefinition } from './types.js'
 import type { CostFactors } from './cost.js'
-import { applyCostFactors, incomingCostFactors, scaledCost } from './cost.js'
+import { applyCostFactors, scaledCost, stampedCostFactors } from './cost.js'
 
 /**
  * The cost factors in force for one upgrade — the upgrade-side twin of
  * `collectGeneratorCostFactors`, and the seam every upgrade price goes through.
  *
- * Today that is exactly the inflation an opponent's passive attacks inflict
- * (upgrades have no friendly cost-reduction effect yet; a `generatorCost`-style
- * one would compose here).
+ * Today that is what the server has stamped on the player: the inflation an
+ * opponent's attacks inflict composed with the discounts the pacts in force
+ * grant (upgrades have no friendly cost-reduction effect of their own yet; a
+ * `generatorCost`-style one would compose here too).
  */
 export function upgradeCostFactors(state: Readonly<PlayerState>, upgradeId: string): CostFactors {
-  return incomingCostFactors(state, 'upgrade', upgradeId)
+  return stampedCostFactors(state, 'upgrade', upgradeId)
 }
 
 /**

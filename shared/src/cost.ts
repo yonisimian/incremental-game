@@ -1,4 +1,4 @@
-import type { CostEntry, CostScope, PlayerState } from './types.js'
+import type { CostEntry, CostScope, EnemyCostFactor, PlayerState } from './types.js'
 
 /**
  * Scaled price of a single {@link CostEntry} at `level` (`baseCost` is the
@@ -92,25 +92,22 @@ export function applyCostFactors(entry: CostEntry, factors: CostFactors): CostEn
 }
 
 /**
- * The cost inflation the opponent's passive attacks currently inflict on this
- * player for one entity — the victim-side read of
- * {@link PlayerState.incomingCostFactors}.
- *
- * Entries naming no `id` apply to every entity of their scope; entries naming
- * one apply only to it. Several stack multiplicatively, matching how friendly
- * `generatorCost` reductions stack. Neutral when nothing is inflicted, which is
- * the overwhelmingly common case (no allocation, no work).
+ * Fold a stamped list of per-entity factors down to the pair in force on one
+ * entity. Entries naming no `id` apply to every entity of their scope; entries
+ * naming one apply only to it. Several stack multiplicatively, matching how
+ * friendly `generatorCost` reductions stack. Neutral when the list is absent or
+ * nothing matches, which is the overwhelmingly common case (no allocation, no
+ * work). Shared by the two stamped lists a `PlayerState` carries.
  */
-export function incomingCostFactors(
-  state: Readonly<PlayerState>,
+function foldStampedFactors(
+  entries: readonly EnemyCostFactor[] | undefined,
   scope: CostScope,
   id: string,
 ): CostFactors {
-  const incoming = state.incomingCostFactors
-  if (incoming === undefined || incoming.length === 0) return NEUTRAL_COST_FACTORS
+  if (entries === undefined || entries.length === 0) return NEUTRAL_COST_FACTORS
   let costFactor = 1
   let scalingFactor = 1
-  for (const entry of incoming) {
+  for (const entry of entries) {
     if (entry.scope !== scope) continue
     if (entry.id !== undefined && entry.id !== id) continue
     costFactor *= entry.costFactor ?? 1
@@ -119,4 +116,48 @@ export function incomingCostFactors(
   return costFactor === 1 && scalingFactor === 1
     ? NEUTRAL_COST_FACTORS
     : { costFactor, scalingFactor }
+}
+
+/**
+ * The cost inflation the opponent's passive attacks currently inflict on this
+ * player for one entity — the victim-side read of
+ * {@link PlayerState.incomingCostFactors}.
+ */
+export function incomingCostFactors(
+  state: Readonly<PlayerState>,
+  scope: CostScope,
+  id: string,
+): CostFactors {
+  return foldStampedFactors(state.incomingCostFactors, scope, id)
+}
+
+/**
+ * The discount the pacts in force currently grant this player on one entity —
+ * the beneficiary-side read of {@link PlayerState.pactCostFactors}, and the
+ * exact twin of {@link incomingCostFactors} over the other stamped list. The
+ * two compose by multiplication (see `combineCostFactors`), so an inflated and
+ * mirrored item lands on the same price whichever is folded first.
+ */
+export function pactCostFactors(
+  state: Readonly<PlayerState>,
+  scope: CostScope,
+  id: string,
+): CostFactors {
+  return foldStampedFactors(state.pactCostFactors, scope, id)
+}
+
+/**
+ * Everything stamped on the player that bends one entity's price — the enemy's
+ * inflation composed with the pacts' discounts. The one read both priced
+ * entities share, so neither can forget a list.
+ */
+export function stampedCostFactors(
+  state: Readonly<PlayerState>,
+  scope: CostScope,
+  id: string,
+): CostFactors {
+  return combineCostFactors(
+    incomingCostFactors(state, scope, id),
+    pactCostFactors(state, scope, id),
+  )
 }

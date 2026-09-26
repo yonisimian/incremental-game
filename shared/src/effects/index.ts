@@ -15,6 +15,8 @@ import { generatorCost } from './seed/generator-cost.js'
 import { generatorUnlock } from './seed/generator-unlock.js'
 import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
+import { mirrorCostModifier } from './seed/mirror-cost-modifier.js'
+import { mirrorStatModifier } from './seed/mirror-stat-modifier.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { stealGenerator } from './seed/steal-generator.js'
@@ -48,6 +50,8 @@ registerEffect('unlockPact', unlockPact)
 registerEffect('enemyProductionModifier', enemyProductionModifier)
 registerEffect('enemyCostModifier', enemyCostModifier)
 registerEffect('enemyPurchaseLock', enemyPurchaseLock)
+registerEffect('mirrorCostModifier', mirrorCostModifier)
+registerEffect('mirrorStatModifier', mirrorStatModifier)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
 registerEffect('timeScaledModifier', timeScaledModifier)
@@ -73,6 +77,8 @@ export type {
   EnemyModifierOutput,
   EnemyCostOutput,
   EnemyPurchaseLockOutput,
+  MirrorCostOutput,
+  MirrorModifierOutput,
   ResourceStealOutput,
   GeneratorStealOutput,
   TimeFactorBoostOutput,
@@ -131,6 +137,8 @@ export type { UnlockPactParams } from './seed/unlock-pact.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { EnemyPurchaseLockParams } from './seed/enemy-purchase-lock.js'
+export type { MirrorCostModifierParams } from './seed/mirror-cost-modifier.js'
+export type { MirrorStatModifierParams } from './seed/mirror-stat-modifier.js'
 export type { StealResourceParams } from './seed/steal-resource.js'
 export type { StealGeneratorParams } from './seed/steal-generator.js'
 export type { AddressableField, AddressableFields } from './addressable.js'
@@ -144,6 +152,7 @@ export {
   ALL_UPGRADES_TARGET,
   enemyDebuffTargets,
   enemyDebuffTargetsFor,
+  entityCostTargetKey,
   HIGHLIGHT_FACTOR_TARGET,
   listAddressableFields,
   parsePurchaseTarget,
@@ -152,3 +161,10 @@ export {
   readSourceValue,
   RESERVED_TARGET_KEYS,
 } from './addressable.js'
+export type { PartnerSnapshot } from './enemy-stats.js'
+export {
+  ENEMY_STAT_SCORE_KEY,
+  enemyStatKeys,
+  enemyStatKeysFor,
+  readEnemyStat,
+} from './enemy-stats.js'

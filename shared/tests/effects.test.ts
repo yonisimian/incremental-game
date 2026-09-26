@@ -81,6 +81,8 @@ describe('effect registry', () => {
       'generatorUnlock',
       'highlightMultiplier',
       'lowerTierBoost',
+      'mirrorCostModifier',
+      'mirrorStatModifier',
       'panelUnlock',
       'relativeModifier',
       'stealGenerator',
@@ -619,6 +621,129 @@ describe('enemyCostModifier params', () => {
   // inert rather than emit an output naming nothing.
   it('is inert on an unparseable target', () => {
     expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
+  })
+})
+
+// ─── mirrorCostModifier ──────────────────────────────────────────────
+
+describe('mirrorCostModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('splits the target like enemyCostModifier does, under its own kind', () => {
+    expect(apply({ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 })).toEqual([
+      {
+        kind: 'mirrorCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 0.75,
+        scalingFactor: undefined,
+      },
+    ])
+    expect(
+      apply({ type: 'mirrorCostModifier', target: 'generator:g0', scalingFactor: 0.5 }),
+    ).toEqual([
+      {
+        kind: 'mirrorCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: undefined,
+        scalingFactor: 0.5,
+      },
+    ])
+    // `purchases` discounts both scopes, one output each.
+    const both = apply({ type: 'mirrorCostModifier', target: 'purchases', costFactor: 0.9 }) as {
+      scope: string
+    }[]
+    expect(both.map((o) => o.scope)).toEqual(['upgrade', 'generator'])
+  })
+
+  // A pact is a buff by definition: a factor at or above 1 would penalize its
+  // own signatory — the mirror image of `enemyCostModifier`'s `>= 1`.
+  it('rejects a factor at or above 1, or at or below 0', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { costFactor: 1.25 },
+      { scalingFactor: 1 },
+      { costFactor: 0 },
+      { scalingFactor: -0.5 },
+    ]) {
+      expect(() => apply({ type: 'mirrorCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a ref that sets neither factor (inert)', () => {
+    expect(() => apply({ type: 'mirrorCostModifier', target: 'upgrades' })).toThrow(/costFactor/u)
+  })
+
+  it('is inert on an unparseable target', () => {
+    expect(apply({ type: 'mirrorCostModifier', target: 'nope', costFactor: 0.5 })).toBeNull()
+  })
+
+  it('lives on passive pacts only', () => {
+    expect(isEffectAllowedOn('mirrorCostModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(false)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'passiveAttack')).toBe(false)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'upgrade')).toBe(false)
+  })
+})
+
+// ─── mirrorStatModifier ──────────────────────────────────────────────
+
+describe('mirrorStatModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+  const rule = {
+    type: 'mirrorStatModifier',
+    source: 'generator:g0',
+    field: 'r0',
+    stage: 'multiplicative',
+    perUnit: 0.02,
+  }
+
+  it('echoes the rule as a mirrorModifier output, cap optional', () => {
+    expect(apply(rule)).toEqual({
+      kind: 'mirrorModifier',
+      source: 'generator:g0',
+      field: 'r0',
+      stage: 'multiplicative',
+      perUnit: 0.02,
+      cap: undefined,
+    })
+    expect(apply({ ...rule, cap: 0.5 })).toMatchObject({ cap: 0.5 })
+  })
+
+  it('requires every field of the rule', () => {
+    for (const key of ['source', 'field', 'stage', 'perUnit'] as const) {
+      const { [key]: _dropped, ...rest } = rule
+      expect(() => apply(rest)).toThrow()
+    }
+  })
+
+  // A pact is a bonus: a zero or negative rule would author a treaty that
+  // penalizes its own signatory.
+  it('rejects a non-positive perUnit or cap', () => {
+    expect(() => apply({ ...rule, perUnit: 0 })).toThrow()
+    expect(() => apply({ ...rule, perUnit: -0.1 })).toThrow()
+    expect(() => apply({ ...rule, cap: 0 })).toThrow()
+  })
+
+  it('rejects an unknown stage', () => {
+    expect(() => apply({ ...rule, stage: 'global' })).toThrow()
+  })
+
+  it('lives on passive pacts only, and is not dynamic', () => {
+    expect(isEffectAllowedOn('mirrorStatModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(false)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'passiveAttack')).toBe(false)
+    // It reads the *partner's* state, which the data panel's live-bonus
+    // section (owner-side) cannot show; the relations panel reports it instead.
+    expect(isDynamicEffect('mirrorStatModifier')).toBe(false)
   })
 })
 

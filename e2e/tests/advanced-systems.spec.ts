@@ -52,7 +52,9 @@ test('SYS-01 free Attack and Relations branches unlock their rendered cards', as
   await buyUpgrade(actor.page, 'pact-node')
   await openPanel(actor.page, 4)
   await expect(actor.page.locator('.pact-item')).toHaveCount(1)
-  await expect(actor.page.locator('.pact-btn')).toBeDisabled()
+  // A passive pact is a card, not a button: it applies while signed.
+  await expect(actor.page.locator('.pact-item[data-pact="highlighted-clicks"]')).toBeVisible()
+  await expect(actor.page.locator('.pact-btn')).toHaveCount(0)
 })
 
 test('SYS-02 espionage reveals only purchased resource, rate, and CPS tiers', async ({

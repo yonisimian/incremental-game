@@ -52,6 +52,31 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
+  // The pact effects borrow their vocabularies: a mirrored discount
+  // names what the enemy bought from the purchase-target catalog, a mirrored
+  // bonus reads an enemy stat and lands on a debuff target.
+  it('offers the purchase-target catalog for a mirrorCostModifier target', () => {
+    const options = effectFieldOptions(idler(), 'mirrorCostModifier', 'target')!
+    const values = options.map((o) => (typeof o === 'string' ? o : o.value))
+    expect(values).toContain('upgrades')
+    expect(values).toContain('generator:g0')
+    expect(values).toContain('upgrade:be-af-mr')
+  })
+
+  it('offers the enemy-stat catalog for a mirrorStatModifier source and the debuff targets for its field', () => {
+    const tree = idler()
+    const sources = effectFieldOptions(tree, 'mirrorStatModifier', 'source')!.map((o) =>
+      typeof o === 'string' ? o : o.value,
+    )
+    expect(sources).toEqual(
+      expect.arrayContaining(['r0', 'r0:rate', 'peakCps', 'score', 'generator:g0', 'upgrades']),
+    )
+    const fields = effectFieldOptions(tree, 'mirrorStatModifier', 'field')!.map((o) =>
+      typeof o === 'string' ? o : o.value,
+    )
+    expect(fields).toEqual(['clickIncome', 'highlightFactor', ...tree.resources])
+  })
+
   it('offers one purchase-target list for both enemyCostModifier and enemyPurchaseLock', () => {
     const tree = idler()
     const pairs = (type: string) =>
@@ -67,6 +92,8 @@ describe('effectFieldOptions', () => {
     // One authored key means the same thing on both attack effects.
     expect(pairs('enemyCostModifier')).toEqual(lock)
     expect(lock.some((o) => o.value === `generator:${tree.generators[0].id}`)).toBe(true)
+    // A pact's mirrored discount picks from the same list.
+    expect(pairs('mirrorCostModifier')).toEqual(lock)
   })
 
   it('leaves an unmapped effect/field pair as free text', () => {
@@ -158,6 +185,15 @@ describe('effect hosts', () => {
     ])
   })
 
+  // The pact effects are passive-only until active pacts have a lifecycle.
+  it('offers only the pact effects on passive pacts, and none on active ones', () => {
+    expect(typesFor('passivePact')).toEqual(['mirrorCostModifier', 'mirrorStatModifier'])
+    expect(typesFor('activePact')).toEqual([])
+    expect(typesFor('upgrade')).not.toContain('mirrorCostModifier')
+    expect(typesFor('upgrade')).not.toContain('mirrorStatModifier')
+    expect(typesFor('passiveAttack')).not.toContain('mirrorCostModifier')
+  })
+
   it('offers every production effect on upgrades and the mode, and no offensive one', () => {
     const upgrade = typesFor('upgrade')
     expect(upgrade).toEqual(typesFor('mode'))
@@ -178,6 +214,8 @@ describe('effect hosts', () => {
       ...typesFor('upgrade'),
       ...typesFor('passiveAttack'),
       ...typesFor('activeAttack'),
+      ...typesFor('passivePact'),
+      ...typesFor('activePact'),
     ])
     expect([...listEffectTypes()].filter((t) => !reachable.has(t))).toEqual([])
   })

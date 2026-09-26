@@ -17,7 +17,7 @@
  * scope for now (they can be added here without touching the effect).
  */
 
-import type { PlayerState, PurchaseTarget } from '../types.js'
+import type { CostScope, PlayerState, PurchaseTarget } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
 import {
   ALL_GENERATORS_FIELD,
@@ -188,12 +188,25 @@ export function purchaseTargetsFor(
     { key: ALL_UPGRADES_TARGET, label: 'All upgrades' },
     { key: ALL_GENERATORS_TARGET, label: 'All generators' },
     { key: ALL_PURCHASES_TARGET, label: 'All upgrades and generators' },
-    ...upgradeIds.map((id) => ({ key: `${UPGRADE_TARGET_PREFIX}${id}`, label: `${id} (upgrade)` })),
+    ...upgradeIds.map((id) => ({
+      key: entityCostTargetKey('upgrade', id),
+      label: `${id} (upgrade)`,
+    })),
     ...generatorIds.map((id) => ({
-      key: `${GENERATOR_TARGET_PREFIX}${id}`,
+      key: entityCostTargetKey('generator', id),
       label: `${id} (generator)`,
     })),
   ]
+}
+
+/**
+ * The namespaced key naming one entity — `upgrade:<id>` / `generator:<id>` —
+ * the inverse of {@link parsePurchaseTarget} for a single-entity target. The
+ * editor rebuilds keys through this when an id is renamed, so the prefix
+ * spelling lives here alone.
+ */
+export function entityCostTargetKey(scope: CostScope, id: string): string {
+  return `${scope === 'upgrade' ? UPGRADE_TARGET_PREFIX : GENERATOR_TARGET_PREFIX}${id}`
 }
 
 /** Purchase-target keys for this mode. */

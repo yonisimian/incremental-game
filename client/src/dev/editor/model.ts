@@ -7,8 +7,20 @@
  * mutable); `io.ts` is the only boundary that validates it against the schema.
  */
 
-import type { AuthoredEnvelope, BalanceFile, TreeFile, TreeUpgradeNode } from '@game/shared'
-import { ENEMY_DATA_RATE_SUFFIX, enemyDataResourceKey, isTimeEffectType } from '@game/shared'
+import type {
+  AuthoredEnvelope,
+  BalanceFile,
+  CostScope,
+  TreeFile,
+  TreeUpgradeNode,
+} from '@game/shared'
+import {
+  ENEMY_DATA_RATE_SUFFIX,
+  enemyDataResourceKey,
+  entityCostTargetKey,
+  isTimeEffectType,
+  parsePurchaseTarget,
+} from '@game/shared'
 
 /** A node's display-flavor entry, as stored in the mode flavor table. */
 export type NodeFlavor = TreeFile['flavors'][number]['upgrades'][number]
@@ -248,9 +260,11 @@ export function renameNode(tree: TreeFile, oldId: string, newId: string): boolea
   }
   // A time clock is addressed by upgrade id too, so the `clock` param cascades
   // exactly like a prerequisite — left dangling it would stop the clock from ever
-  // starting, and `validateModeDefinition` refuses to boot on it.
+  // starting, and `validateModeDefinition` refuses to boot on it. So does an
+  // `upgrade:<id>` key on a cost effect's `target` or a pact mirror's `source`.
   for (const ref of allEffectRefs(tree)) {
     if (isTimeEffectType(ref.type) && ref.clock === oldId) ref.clock = newId
+    renameEntityKey(ref, 'upgrade', oldId, newId)
   }
   return true
 }
@@ -298,10 +312,10 @@ function renamePrereqRef(expr: Prereq, oldId: string, newId: string): Prereq {
 
 /**
  * Strip references to any of `removed` across the whole tree: prerequisite
- * expressions, plus the time-clock effects that address an upgrade by id. A
- * clock-less `timeScaledModifier` / `timeFactorBoost` / `timeRetroactive` would
- * refuse to boot, and there is nothing sensible to re-point it at, so the whole
- * ref goes.
+ * expressions, plus the effects that address an upgrade by id — a time clock's
+ * `clock`, and an `upgrade:<id>` key on a cost effect's `target` or a pact
+ * mirror's `source`. A ref left pointing at a gone upgrade would refuse to
+ * boot, and there is nothing sensible to re-point it at, so the whole ref goes.
  */
 function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
   for (const { node } of walkPositioned(tree)) {
@@ -311,13 +325,17 @@ function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
       else delete (node as { prerequisites?: Prereq }).prerequisites
     }
   }
-  pruneTimeClockRefs(tree, removed)
+  pruneDanglingUpgradeRefs(tree, removed)
 }
 
-/** Drop every time-clock effect ref whose `clock` upgrade is gone. */
-function pruneTimeClockRefs(tree: TreeFile, removed: ReadonlySet<string>): void {
-  const dangling = (ref: EffectRefMut): boolean =>
-    isTimeEffectType(ref.type) && typeof ref.clock === 'string' && removed.has(ref.clock)
+/** Drop every effect ref that names a gone upgrade (by clock or by entity key). */
+function pruneDanglingUpgradeRefs(tree: TreeFile, removed: ReadonlySet<string>): void {
+  const dangling = (ref: EffectRefMut): boolean => {
+    if (isTimeEffectType(ref.type) && typeof ref.clock === 'string' && removed.has(ref.clock))
+      return true
+    const entity = namedEntity(ref)
+    return entity !== null && entity.scope === 'upgrade' && removed.has(entity.id)
+  }
 
   tree.startingEffects = tree.startingEffects.filter((ref) => !dangling(ref))
   for (const { node } of walkPositioned(tree)) {
@@ -325,6 +343,9 @@ function pruneTimeClockRefs(tree: TreeFile, removed: ReadonlySet<string>): void 
   }
   for (const attack of tree.attacks) {
     if (attack.effects) attack.effects = attack.effects.filter((ref) => !dangling(ref))
+  }
+  for (const pact of tree.pacts) {
+    if (pact.effects) pact.effects = pact.effects.filter((ref) => !dangling(ref))
   }
 }
 
@@ -463,10 +484,11 @@ type EffectRefMut = { type: string } & Record<string, unknown>
 
 /**
  * Every effect ref in the tree, mutable in place: the mode-level
- * `tree.startingEffects`, every upgrade's `effects`, **and** every attack's
- * `effects`. All three are validated by the runtime, so a cascade that misses any
- * location would let an export fail (e.g. an attack's
- * `enemyProductionModifier.field` left dangling after a resource rename).
+ * `tree.startingEffects`, every upgrade's `effects`, every attack's `effects`,
+ * **and** every pact's `effects`. All four are validated by the runtime, so a
+ * cascade that misses any location would let an export fail (e.g. an attack's
+ * `enemyProductionModifier.field` or a pact's `mirrorStatModifier.source` left
+ * dangling after a resource rename).
  */
 function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
   for (const ref of tree.startingEffects) yield ref
@@ -476,6 +498,57 @@ function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
   for (const attack of tree.attacks) {
     for (const ref of attack.effects ?? []) yield ref
   }
+  for (const pact of tree.pacts) {
+    for (const ref of pact.effects ?? []) yield ref
+  }
+}
+
+/**
+ * The param through which `ref` may name one upgrade or generator by a
+ * namespaced key (`upgrade:<id>` / `generator:<id>`): the cost effects'
+ * `target` (an attack's inflation, a pact's mirrored discount) and the pact
+ * mirror's `source`. `null` for every other effect.
+ */
+function entityKeyParam(ref: EffectRefMut): 'target' | 'source' | null {
+  if (ref.type === 'enemyCostModifier' || ref.type === 'mirrorCostModifier') return 'target'
+  if (ref.type === 'mirrorStatModifier') return 'source'
+  return null
+}
+
+/** The single entity `ref` names through a namespaced key, if any (a whole-scope key names none). */
+function namedEntity(
+  ref: EffectRefMut,
+): { param: 'target' | 'source'; scope: CostScope; id: string } | null {
+  const param = entityKeyParam(ref)
+  if (!param) return null
+  const value = ref[param]
+  if (typeof value !== 'string') return null
+  const parsed = parsePurchaseTarget(value)
+  if (parsed?.length !== 1 || parsed[0].id === undefined) return null
+  return { param, scope: parsed[0].scope, id: parsed[0].id }
+}
+
+/** Whether `ref` names entity `id` of `scope` through a namespaced key; the naming param if so. */
+function entityKeyNaming(
+  ref: EffectRefMut,
+  scope: CostScope,
+  id: string,
+): 'target' | 'source' | null {
+  const entity = namedEntity(ref)
+  if (entity?.scope !== scope || entity.id !== id) return null
+  return entity.param
+}
+
+/** Rewrite `ref`'s namespaced entity key from `oldId` to `newId` within `scope`, if it names it. */
+function renameEntityKey(ref: EffectRefMut, scope: CostScope, oldId: string, newId: string): void {
+  const param = entityKeyNaming(ref, scope, oldId)
+  if (param) ref[param] = entityCostTargetKey(scope, newId)
+}
+
+/** Human label for an effect ref that names `id` through a namespaced key, or `null`. */
+function entityKeyReference(ref: EffectRefMut, scope: CostScope, id: string): string | null {
+  const param = entityKeyNaming(ref, scope, id)
+  return param ? `a ${ref.type} ${param}` : null
 }
 
 /**
@@ -575,6 +648,11 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
       enemyDataResourceKey(ref.data) === key
     ) {
       refs.push('an accessEnemyData effect')
+    } else if (ref.type === 'mirrorStatModifier') {
+      // A pact mirror reads a resource (stockpile or `:rate`) and feeds one.
+      if (typeof ref.source === 'string' && enemyDataResourceKey(ref.source) === key)
+        refs.push('a mirrorStatModifier source')
+      if (ref.field === key) refs.push('a mirrorStatModifier field')
     }
   }
   return refs
@@ -645,6 +723,12 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       ref.data = ref.data.endsWith(ENEMY_DATA_RATE_SUFFIX)
         ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
         : newKey
+    } else if (ref.type === 'mirrorStatModifier') {
+      if (typeof ref.source === 'string' && enemyDataResourceKey(ref.source) === oldKey)
+        ref.source = ref.source.endsWith(ENEMY_DATA_RATE_SUFFIX)
+          ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
+          : newKey
+      if (ref.field === oldKey) ref.field = newKey
     }
   }
   for (const f of tree.flavors) {
@@ -745,9 +829,10 @@ export function addGenerator(tree: TreeFile): string {
 
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
- * `generatorUnlock` / `stealGenerator` effects naming it, and `relativeModifier` /
- * `baseModifier` / `timeScaledModifier` fields targeting its output — across every
- * effect location.
+ * `generatorUnlock` / `stealGenerator` effects naming it, `relativeModifier` /
+ * `baseModifier` / `timeScaledModifier` fields targeting its output, and the
+ * `generator:<id>` keys of a cost effect's `target` or a pact mirror's `source`
+ * — across every effect location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
@@ -763,6 +848,9 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
       refs.push('a relativeModifier field')
     } else if (targetsProductionField(ref, id)) {
       refs.push(`a ${ref.type} field`)
+    } else {
+      const keyed = entityKeyReference(ref, 'generator', id)
+      if (keyed) refs.push(keyed)
     }
   }
   return refs
@@ -798,6 +886,8 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
       ref.field = newId
     } else if (targetsProductionField(ref, oldId)) {
       ref.field = newId
+    } else {
+      renameEntityKey(ref, 'generator', oldId, newId)
     }
   }
   return true
@@ -1130,6 +1220,152 @@ export function setAttackFlavor(
   values: { name: string; icon: string; description: string },
 ): void {
   const entry = tree.flavors[0]?.attacks.find((a) => a.id === id)
+  if (!entry) return
+  entry.name = values.name
+  entry.icon = values.icon
+  entry.description = values.description
+}
+
+// ─── Pacts ───────────────────────────────────────────────────────────
+
+/** Default icon for a new pact, before the author picks one. */
+const DEFAULT_PACT_ICON = '🤝'
+
+/** An editable pact row: mechanics (id, kind, mutual) + primary-flavor display. */
+export interface PactRow {
+  readonly id: string
+  readonly kind: 'active' | 'passive'
+  /** Whether the partner benefits too (default false). */
+  readonly mutual: boolean
+  readonly name: string
+  readonly icon: string
+  readonly description: string
+}
+
+/** The next free `pN` pact id. */
+function uniquePactId(tree: TreeFile): string {
+  const used = new Set(tree.pacts.map((p) => p.id))
+  let n = 0
+  while (used.has(`p${n}`)) n++
+  return `p${n}`
+}
+
+/** Pact rows for the editor (primary flavor joined, in declaration order). */
+export function listPacts(tree: TreeFile): PactRow[] {
+  const flavor = new Map((tree.flavors[0]?.pacts ?? []).map((p) => [p.id, p]))
+  return tree.pacts.map((p) => {
+    const f = flavor.get(p.id)
+    return {
+      id: p.id,
+      kind: p.kind,
+      mutual: p.mutual === true,
+      name: f?.name ?? p.id,
+      icon: f?.icon ?? DEFAULT_PACT_ICON,
+      description: f?.description ?? '',
+    }
+  })
+}
+
+/**
+ * Append a new passive pact with a unique `pN` id and a default flavor entry
+ * in every flavor (the runtime requires matching keys across flavors). Returns
+ * the new id. Passive is the default since it is the only kind with behavior.
+ */
+export function addPact(tree: TreeFile): string {
+  const id = uniquePactId(tree)
+  tree.pacts.push({ id, kind: 'passive' })
+  for (const f of tree.flavors) {
+    f.pacts.push({ id, name: id, icon: DEFAULT_PACT_ICON, description: '' })
+  }
+  return id
+}
+
+/** Human-readable references that block deleting pact `id`: `unlockPact` effects naming it. */
+export function pactReferences(tree: TreeFile, id: string): string[] {
+  const refs: string[] = []
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockPact' && ref.pact === id) refs.push('an unlockPact effect')
+  }
+  return refs
+}
+
+/**
+ * Rename pact `oldId → newId`, rewriting every `unlockPact` reference and each
+ * flavor's pact entry. Fails (no mutation) when the new id is blank, in use, or
+ * the old id is absent.
+ */
+export function renamePact(tree: TreeFile, oldId: string, newId: string): boolean {
+  if (oldId === newId) return true
+  if (newId === '' || tree.pacts.some((p) => p.id === newId)) return false
+  const pact = tree.pacts.find((p) => p.id === oldId)
+  if (!pact) return false
+
+  pact.id = newId
+  for (const f of tree.flavors) {
+    for (const fp of f.pacts) if (fp.id === oldId) fp.id = newId
+  }
+  for (const ref of allEffectRefs(tree)) {
+    if (ref.type === 'unlockPact' && ref.pact === oldId) ref.pact = newId
+  }
+  return true
+}
+
+/**
+ * Remove pact `id` and its flavor entries. Blocked when an `unlockPact` effect
+ * still references it (see {@link pactReferences}).
+ */
+export function removePact(tree: TreeFile, id: string): MutationResult {
+  if (!tree.pacts.some((p) => p.id === id)) return { ok: false, reason: `unknown pact '${id}'` }
+  const refs = pactReferences(tree, id)
+  if (refs.length > 0) return { ok: false, reason: `referenced by ${refs.join(', ')}` }
+  tree.pacts = tree.pacts.filter((p) => p.id !== id)
+  for (const f of tree.flavors) {
+    f.pacts = f.pacts.filter((fp) => fp.id !== id)
+  }
+  return { ok: true }
+}
+
+/**
+ * Set pact `id`'s kind. Unknown id is a no-op. Both kinds carry the same
+ * fields today; active pacts will add the active-only ones (and clears them here on a
+ * switch to passive, as `setAttackKind` does for attacks).
+ */
+export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (pact) pact.kind = kind
+}
+
+/**
+ * Set whether pact `id` is mutual. Written as absent rather than `false` so the
+ * serialized file stays minimal (absent is the default). Unknown id is a no-op.
+ */
+export function setPactMutual(tree: TreeFile, id: string, mutual: boolean): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (mutual) pact.mutual = true
+  else delete pact.mutual
+}
+
+/** The effect refs on pact `id` (empty when none / unknown id). */
+export function pactEffects(tree: TreeFile, id: string): EffectRefMut[] {
+  return tree.pacts.find((p) => p.id === id)?.effects ?? []
+}
+
+/** Replace pact `id`'s effects (clearing the field when empty). Unknown id is a no-op. */
+export function setPactEffects(tree: TreeFile, id: string, effects: EffectRefMut[]): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (effects.length > 0) pact.effects = effects
+  else delete pact.effects
+}
+
+/** Upsert the primary flavor's display data for pact `id`. No-op if absent. */
+export function setPactFlavor(
+  tree: TreeFile,
+  id: string,
+  values: { name: string; icon: string; description: string },
+): void {
+  const entry = tree.flavors[0]?.pacts.find((p) => p.id === id)
   if (!entry) return
   entry.name = values.name
   entry.icon = values.icon

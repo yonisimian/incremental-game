@@ -49,7 +49,9 @@ import {
 import {
   addressableSources,
   addressableTargets,
+  ENEMY_STAT_SCORE_KEY,
   enemyDebuffTargets,
+  enemyStatKeys,
   HIGHLIGHT_FACTOR_TARGET,
   NON_RESOURCE_INTEL_KEYS,
   parsePurchaseTarget,
@@ -77,6 +79,8 @@ const HOST_LABELS: Record<EffectHost, string> = {
   upgrade: 'an upgrade',
   passiveAttack: 'a passive attack',
   activeAttack: 'an active attack',
+  passivePact: 'a passive pact',
+  activePact: 'an active pact',
 }
 
 /**
@@ -415,6 +419,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] resource key '${intelKey}' collides with a reserved non-resource intel key`,
       )
   }
+  // The enemy-stat catalog's `score` key names no resource either.
+  if (resourceKeys.has(ENEMY_STAT_SCORE_KEY))
+    throw new Error(
+      `[${id}] resource key '${ENEMY_STAT_SCORE_KEY}' collides with a reserved enemy-stat key`,
+    )
   const nonResourceIntel = new Set(NON_RESOURCE_INTEL_KEYS)
   for (const u of def.upgrades) {
     for (const ref of u.effects ?? []) {
@@ -521,6 +530,16 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       attack.effects ?? [],
     )
   }
+  // A pact that doesn't involve the enemy is an upgrade: a `baseModifier` here
+  // is a placement error by the effect's own default hosts, and the offensive
+  // effects are attack-only by theirs — one generic check covers both.
+  for (const pact of def.pacts) {
+    checkHost(
+      `${pact.kind} pact '${pact.id}'`,
+      pact.kind === 'passive' ? 'passivePact' : 'activePact',
+      pact.effects ?? [],
+    )
+  }
 
   // A reserved target names something that isn't a resource, so a mode declaring
   // a resource by that name would make an authored target ambiguous — the same
@@ -566,6 +585,61 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] attack '${attack.id}' ${ref.type} effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
         )
+    }
+  }
+
+  // `mirrorCostModifier` (on a pact) names a `target` from the same catalog;
+  // checked the same way, worded for pacts. Its factors are `(0, 1)` by schema —
+  // a pact is a discount by definition — and that bound is re-checked here for a
+  // programmatically built mode, as `durationSec <= 0` is for attacks.
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'mirrorCostModifier') continue
+      if (typeof ref.target === 'string' && !purchaseTargetKeys.has(ref.target))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorCostModifier effect references unknown purchase target '${ref.target}' (expected 'upgrades', 'generators', 'purchases', 'upgrade:<id>' or 'generator:<id>')`,
+        )
+      for (const knob of ['costFactor', 'scalingFactor'] as const) {
+        const factor = ref[knob]
+        if (typeof factor === 'number' && !(factor > 0 && factor < 1))
+          throw new Error(
+            `[${id}] pact '${pact.id}' mirrorCostModifier ${knob} must be between 0 and 1 (a pact is a discount); got ${factor}`,
+          )
+      }
+    }
+  }
+
+  // `mirrorStatModifier` (on a pact) names a `source` — an enemy stat — and a
+  // `field` — the beneficiary's pipeline target. Both are mode-specific strings
+  // the schema only checks are present; validate them against the enemy-stat
+  // catalog and the enemy-debuff target catalog (the same set a debuff may hit,
+  // for the same reason: a pact bonus merges in after generator output is
+  // folded). The highlight-factor rule is copied from the attack check. The
+  // positivity of `perUnit` / `cap` is the schema's on the file path and
+  // re-checked here for a programmatically built mode.
+  const statKeys = new Set(enemyStatKeys(def).map((f) => f.key))
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'mirrorStatModifier') continue
+      if (typeof ref.source === 'string' && !statKeys.has(ref.source))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect references unknown enemy stat '${ref.source}' (expected a resource key, '<resource>:rate', 'peakCps', 'score', 'upgrades', 'generators', 'upgrade:<id>' or 'generator:<id>')`,
+        )
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be boosted from a pact)`,
+        )
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] pact '${pact.id}' mirrorStatModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+      for (const knob of ['perUnit', 'cap'] as const) {
+        const value = ref[knob]
+        if (typeof value === 'number' && !(value > 0))
+          throw new Error(
+            `[${id}] pact '${pact.id}' mirrorStatModifier ${knob} must be positive (a pact is a bonus); got ${value}`,
+          )
+      }
     }
   }
 
@@ -715,6 +789,9 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   }
   for (const attack of def.attacks) {
     for (const ref of attack.effects ?? []) prepareEffect(ref)
+  }
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) prepareEffect(ref)
   }
 }
 
@@ -937,8 +1014,9 @@ export function unlockedAttacks(state: Readonly<PlayerState>, mode: ModeDefiniti
  * Whether a pact is available to this player. Granted by an `unlockPact` effect
  * naming it — an owned upgrade's, or one of the mode's starting effects. Unlike
  * `isPanelUnlocked`, a pact nothing unlocks is *hidden* by default (pacts only
- * appear once unlocked). The pact itself has no behavior yet — this gates its
- * appearance in the international relationship panel.
+ * appear once unlocked). Unlocking is what puts a passive pact in force (see
+ * `pactsInForce`), so this gates both its appearance in the international
+ * relationship panel and its buffs.
  */
 export function isPactUnlocked(
   state: Readonly<PlayerState>,
@@ -1074,7 +1152,10 @@ function collectRawModifiers(
     for (const o of normalizeEffectOutputs(out)) {
       if ('kind' in o && o.kind === 'baseModifier') {
         routeBaseModifier(o, owned ?? 1)
-      } else if ('stage' in o) {
+      } else if (!('kind' in o)) {
+        // A raw pipeline modifier is the one output with no `kind` tag. (A
+        // kinded output that also carries a `stage` — a pact's `mirrorModifier`
+        // rule — is not a modifier yet; its collector resolves it.)
         routeModifier(o)
       }
     }

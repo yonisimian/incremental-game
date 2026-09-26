@@ -1042,6 +1042,109 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: pact discount ───────────────────────────────────────────
+
+  describe('idler pact discount', () => {
+    /**
+     * A server snapshot with 7 🪵 — enough for Axe Handling (10 🪵) only at the
+     * stamped half price — and `be-af-mr` unbought.
+     */
+    function snapshot(ackSeq = 0): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 7, r1: 0 },
+          upgrades: { ...defaultUpgrades, 'be-af-mr': 0 },
+          generators: {},
+          pendingAttacks: [],
+          pactCostFactors: [{ pact: 'p2', scope: 'upgrade', id: 'be-af-mr', costFactor: 0.5 }],
+          meta: { highlight: 'r0', gameSec: 20 },
+        },
+      })
+    }
+
+    it('predicts the buy at the stamped discount', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot())
+      game.doBuy('be-af-mr')
+      expect(game.getState().player.upgrades['be-af-mr']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(2)
+    })
+
+    it('replays an unacknowledged buy at the same discount the server charged', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot())
+      game.doBuy('be-af-mr')
+
+      // The server has not seen the buy (ackSeq 0): the replay must price it
+      // off the snapshot's stamp, not the authored 10 it could not afford —
+      // otherwise the predicted purchase would flicker away until the ack.
+      game.handleServerMessage(snapshot(0))
+      expect(game.getState().player.upgrades['be-af-mr']).toBe(1)
+      expect(game.getState().player.resources.r0).toBe(2)
+    })
+  })
+
+  // ── Idler: pact bonuses on the wire ────────────────────────────────
+
+  describe('idler pact bonuses', () => {
+    const ROUTE = {
+      pact: 'p3',
+      modifiers: [{ stage: 'multiplicative' as const, field: 'r0', value: 1.2 }],
+    }
+
+    it('replaces the bonuses and shared pacts from each snapshot, and clears them on round start', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          pactBonuses: [ROUTE],
+          opponent: { resources: {}, rates: {}, pacts: ['p3'] },
+        }),
+      )
+      expect(game.getState().pactBonuses).toEqual([ROUTE])
+      expect(game.getState().opponentPacts).toEqual(['p3'])
+
+      // State, not a delta: a snapshot without them empties both.
+      game.handleServerMessage(makeStateUpdate())
+      expect(game.getState().pactBonuses).toEqual([])
+      expect(game.getState().opponentPacts).toEqual([])
+
+      game.handleServerMessage(
+        makeStateUpdate({
+          pactBonuses: [ROUTE],
+          opponent: { resources: {}, rates: {}, pacts: ['p3'] },
+        }),
+      )
+      game.handleServerMessage(makeRoundStart())
+      expect(game.getState().pactBonuses).toEqual([])
+      expect(game.getState().opponentPacts).toEqual([])
+    })
+
+    it('credits a predicted click with the pact bonus the server will apply', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            pendingAttacks: [],
+            meta: { highlight: 'r0' },
+          },
+          // Each click pays +4 🪵 more (an enemy-peak-CPS mirror, resolved).
+          pactBonuses: [
+            { pact: 'p3', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 4 }] },
+          ],
+        }),
+      )
+      game.doClick()
+      // sc-unlock's +1 plus the mirrored 4.
+      expect(game.getState().player.resources.r0).toBe(5)
+    })
+  })
+
   // ── Idler: doClick ─────────────────────────────────────────────────
 
   describe('idler doClick', () => {

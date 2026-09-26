@@ -8,11 +8,11 @@ import type { CostFactors } from './cost.js'
 import {
   applyCostFactors,
   combineCostFactors,
-  incomingCostFactors,
   isFlatCost,
   isNeutralCostFactors,
   NEUTRAL_COST_FACTORS,
   scaledCost,
+  stampedCostFactors,
 } from './cost.js'
 import { generatorGate, isGranted } from './unlock-gates.js'
 import { GENERATOR_SELL_REFUND_RATE } from './game-config.js'
@@ -47,13 +47,15 @@ function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
 /**
  * Aggregate every owned upgrade's `generatorCost` effects into per-generator
  * cost factors, then — when a price is being *paid* (`purpose: 'buy'`) — fold in
- * the inflation the opponent's passive attacks inflict on this player.
+ * what the server has stamped on this player: the inflation the opponent's
+ * attacks inflict and the discounts the pacts in force grant.
  *
  * Own factors stack multiplicatively and compound with the owning upgrade's
- * owned count (`factor ** owned`); incoming inflation carries no owned count (an
- * attack is unlocked or it isn't) and multiplies in afterwards, so a reduction
- * and an inflation on the same generator commute. Generators with neither are
- * absent from the map (callers fall back to `NEUTRAL_COST_FACTORS`).
+ * owned count (`factor ** owned`); the stamped factors carry no owned count (an
+ * attack or pact is in force or it isn't) and multiply in afterwards, so a
+ * reduction, an inflation and a discount on the same generator all commute.
+ * Generators with none are absent from the map (callers fall back to
+ * `NEUTRAL_COST_FACTORS`).
  */
 export function collectGeneratorCostFactors(
   state: Readonly<PlayerState>,
@@ -77,14 +79,18 @@ export function collectGeneratorCostFactors(
       }
     }
   }
-  if (purpose === 'sell' || state.incomingCostFactors === undefined) return factors
+  if (
+    purpose === 'sell' ||
+    (state.incomingCostFactors === undefined && state.pactCostFactors === undefined)
+  )
+    return factors
   // A whole-scope inflation hits generators the player has no reduction for, so
   // walk the mode's list rather than only the entries collected above.
   for (const gen of mode.generators) {
-    const incoming = incomingCostFactors(state, 'generator', gen.id)
-    if (isNeutralCostFactors(incoming)) continue
+    const stamped = stampedCostFactors(state, 'generator', gen.id)
+    if (isNeutralCostFactors(stamped)) continue
     const own = factors.get(gen.id) ?? NEUTRAL_COST_FACTORS
-    factors.set(gen.id, { ...combineCostFactors(own, incoming) })
+    factors.set(gen.id, { ...combineCostFactors(own, stamped) })
   }
   return factors
 }

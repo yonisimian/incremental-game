@@ -1269,6 +1269,197 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/references unknown pact 'p-ghost'/)
   })
 
+  // ── Pact effect placement ─────────────────────────────────────────
+
+  /** A valid def with one pact carrying `effects`, its flavor entry in place. */
+  function defWithPact(pact: ModeDefinition['pacts'][number]): ModeDefinition {
+    return withFlavor(makeValidDef({ pacts: [pact] }), {
+      pacts: [{ id: pact.id, name: 'Treaty', icon: '🤝', description: '' }],
+    })
+  }
+
+  it('rejects a baseModifier on a pact — a pact that ignores the enemy is an upgrade', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(
+      /passive pact 'p0' carries a 'baseModifier' effect, which only applies on the mode \/ an upgrade/,
+    )
+  })
+
+  it('rejects an offensive effect on a pact — those are attack-only by declaration', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'active',
+      effects: [
+        { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+      ],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(
+      /active pact 'p0' carries a 'enemyProductionModifier' effect, which only applies on a passive attack \/ an active attack/,
+    )
+  })
+
+  it('rejects a pact effect on an active pact — nothing resolves one yet', () => {
+    for (const effect of [
+      { type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 },
+      {
+        type: 'mirrorStatModifier',
+        source: 'score',
+        field: 'clickIncome',
+        stage: 'additive',
+        perUnit: 1,
+      },
+    ]) {
+      const def = defWithPact({ id: 'p0', kind: 'active', effects: [effect] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(
+        new RegExp(
+          `active pact 'p0' carries a '${effect.type}' effect, which only applies on a passive pact`,
+        ),
+      )
+    }
+  })
+
+  it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ type: 'mirrorCostModifier', target: 'upgrade:nope', costFactor: 0.5 }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(
+      /pact 'p0' mirrorCostModifier effect references unknown purchase target 'upgrade:nope'/,
+    )
+  })
+
+  it('accepts a mirrorCostModifier naming a real upgrade or a whole scope', () => {
+    for (const target of ['upgrade:u0', 'upgrades', 'generators']) {
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'mirrorCostModifier', target, costFactor: 0.5 }],
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  // The schema already bounds the factors; this is the boot rule for a
+  // programmatically built mode, named ahead of the zod error.
+  it('rejects a mirrorCostModifier factor outside (0, 1) — a pact is a discount', () => {
+    for (const knob of ['costFactor', 'scalingFactor'] as const) {
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'mirrorCostModifier', target: 'upgrades', [knob]: 1.5 }],
+      })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(new RegExp(`pact 'p0' mirrorCostModifier ${knob} must be between 0 and 1`))
+    }
+  })
+
+  const statRule = {
+    type: 'mirrorStatModifier',
+    source: 'score',
+    field: 'r0',
+    stage: 'multiplicative',
+    perUnit: 0.01,
+  }
+
+  it('rejects a mirrorStatModifier whose source is not an enemy stat', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, source: 'meta:peakCps' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/pact 'p0' mirrorStatModifier effect references unknown enemy stat 'meta:peakCps'/)
+  })
+
+  it('accepts every catalog source for a mirrorStatModifier', () => {
+    for (const source of ['r0', 'r0:rate', 'peakCps', 'score', 'upgrades', 'upgrade:u0']) {
+      const def = defWithPact({ id: 'p0', kind: 'passive', effects: [{ ...statRule, source }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).not.toThrow()
+    }
+  })
+
+  it('rejects a mirrorStatModifier field outside the debuff-target catalog', () => {
+    // A generator output is folded before a pact bonus merges in — same rule
+    // as for an enemy debuff, so the same catalog.
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'b0' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/pact 'p0' mirrorStatModifier effect references unknown or unsupported field 'b0'/)
+  })
+
+  it('rejects an additive mirrorStatModifier on the highlight factor', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'highlightFactor', stage: 'additive' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/targets 'highlightFactor' with stage 'additive'/)
+    const ok = defWithPact({
+      id: 'p0',
+      kind: 'passive',
+      effects: [{ ...statRule, field: 'highlightFactor' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', ok)
+    }).not.toThrow()
+  })
+
+  it('rejects a non-positive perUnit or cap, named ahead of the schema', () => {
+    for (const patch of [{ perUnit: 0 }, { cap: -1 }]) {
+      const def = defWithPact({ id: 'p0', kind: 'passive', effects: [{ ...statRule, ...patch }] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(/must be positive \(a pact is a bonus\)/)
+    }
+  })
+
+  it('rejects a resource named after the enemy-stat score key', () => {
+    const def = withFlavor(
+      makeValidDef({ resources: ['r0', 'score'], initialResources: { r0: 0, score: 0 } }),
+      {
+        resources: [
+          { key: 'r0', displayName: 'Res', icon: '🔵' },
+          { key: 'score', displayName: 'Score', icon: '🏆' },
+        ],
+      },
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/resource key 'score' collides with a reserved enemy-stat key/)
+  })
+
+  it('accepts a mutual pact with no effects (a placeholder that says what it will be)', () => {
+    const def = defWithPact({ id: 'p0', kind: 'passive', mutual: true })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
   it('throws when a generatorCost effect references an unknown generator', () => {
     const def = makeValidDef({
       upgrades: [

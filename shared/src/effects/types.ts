@@ -150,8 +150,9 @@ export interface AttackAlertOutput {
  * Marks a pact as unlocked while the owning upgrade is held. Consumed by
  * `isPactUnlocked` (a pact that no owned upgrade names is locked — unlike
  * panels, pacts are hidden by default); carries no production weight, so the
- * modifier pipeline ignores it. The pact itself has no behavior yet — this
- * only gates its appearance in the international relationship panel.
+ * modifier pipeline ignores it. Unlocking is what puts a passive pact in force
+ * (`pactsInForce`), so this gates both its appearance in the international
+ * relationship panel and its buffs.
  */
 export interface PactUnlockOutput {
   readonly kind: 'pactUnlock'
@@ -201,6 +202,59 @@ export interface EnemyCostOutput {
   readonly costFactor?: number
   /** Multiplies the growth portion of the victim's cost curve. */
   readonly scalingFactor?: number
+}
+
+/**
+ * A *mirrored discount*: an entity the opponent already owns more of is cheaper
+ * for the pact's beneficiary. Emitted by the `mirrorCostModifier` effect on a
+ * pact and consumed by `collectPactCostFactors` (see `pacts.ts`), which holds
+ * both players' states and turns the description into concrete per-entity
+ * factors — in force only while `partner.level(X) > owner.level(X)` — that the
+ * server stamps onto {@link PlayerState.pactCostFactors}.
+ *
+ * The friendly twin of {@link EnemyCostOutput}: same shape, factors below `1`
+ * instead of above, and a separate `kind` so neither collector can gather the
+ * other's output. Like every cost output it never reaches the production
+ * pipeline.
+ */
+export interface MirrorCostOutput {
+  readonly kind: 'mirrorCost'
+  /** Which kind of priced entity is discounted. */
+  readonly scope: CostScope
+  /** A specific upgrade/generator id, or absent for every entity of the scope. */
+  readonly id?: string
+  /** Multiplies the beneficiary's base cost (e.g. `0.75` = 25% cheaper). */
+  readonly costFactor?: number
+  /** Multiplies the growth portion of the beneficiary's cost curve. */
+  readonly scalingFactor?: number
+}
+
+/**
+ * A *mirrored production bonus*: a bonus to the pact's beneficiary scaled by one
+ * enemy stat — their woodcutter count, their pact-free wood rate, their peak
+ * CPS (see `ENEMY_STAT_KEYS` in `enemy-stats.ts`). Emitted by the
+ * `mirrorStatModifier` effect on a pact and consumed by `collectPactBonuses`
+ * (see `pacts.ts`), which reads the stat off the partner and resolves
+ * `perUnit × stat` (capped) into a real {@link Modifier} at `stage` on `field`.
+ *
+ * The buff twin of {@link EnemyModifierOutput}: it names a target from the same
+ * enemy-debuff catalog (resource rates, `clickIncome`, the virtual
+ * `highlightFactor`, which `resolveEnemyDebuffs` translates for buffs exactly as
+ * for debuffs), but carries a *rule* rather than a value — the value only exists
+ * once both players are in hand. The distinct `kind` keeps it off every other
+ * consumer.
+ */
+export interface MirrorModifierOutput {
+  readonly kind: 'mirrorModifier'
+  /** Which enemy stat scales the bonus (an `enemyStatKeys` key). */
+  readonly source: string
+  /** The beneficiary's pipeline target (an `enemyDebuffTargets` key). */
+  readonly field: string
+  readonly stage: Modifier['stage']
+  /** Bonus per unit of the stat: additive → `perUnit × stat` added; multiplicative → `1 + perUnit × stat`. */
+  readonly perUnit: number
+  /** Upper bound on the *bonus* (the added amount, or the excess over 1). Absent = uncapped. */
+  readonly cap?: number
 }
 
 /**
@@ -391,7 +445,8 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * outputs ({@link PanelUnlockOutput}, {@link GeneratorUnlockOutput}, {@link
  * SystemUnlockOutput}, {@link AttackUnlockOutput}, {@link PactUnlockOutput}), an
  * {@link EnemyDataAccessOutput}, an {@link EnemyModifierOutput}, an
- * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, one of the
+ * {@link EnemyCostOutput}, an {@link EnemyPurchaseLockOutput}, a pact's
+ * {@link MirrorCostOutput} or {@link MirrorModifierOutput}, one of the
  * steal outputs ({@link ResourceStealOutput}, {@link GeneratorStealOutput}), an
  * {@link AttackStatOutput}, an {@link AttackSlotsOutput}, an
  * {@link AttackAlertOutput}, or one of the time-clock outputs
@@ -399,9 +454,10 @@ interface GeneratorStealFlat extends GeneratorStealBase {
  * Each is routed to a different subsystem
  * (`collectModifiers` / `collectGeneratorCostFactors` / the unlock gates /
  * `hasEnemyDataAccess` / `collectEnemyDebuffs` / `collectEnemyCostFactors` /
- * `collectEnemyPurchaseLocks` / `resolveAttackStrike` / `collectAttackParams` /
- * `attackLimit` / `collectAttackAlert` / `timeBonusFraction`); every consumer
- * ignores the outputs it doesn't own.
+ * `collectEnemyPurchaseLocks` / `collectPactCostFactors` / `collectPactBonuses`
+ * / `resolveAttackStrike`
+ * / `collectAttackParams` / `attackLimit` / `collectAttackAlert` /
+ * `timeBonusFraction`); every consumer ignores the outputs it doesn't own.
  */
 export type EffectOutput =
   | Modifier
@@ -418,6 +474,8 @@ export type EffectOutput =
   | EnemyModifierOutput
   | EnemyCostOutput
   | EnemyPurchaseLockOutput
+  | MirrorCostOutput
+  | MirrorModifierOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -445,8 +503,15 @@ export type EffectOutput =
  *   once (`resolveAttackStrike`); the debuff outputs (`enemyModifier`,
  *   `enemyCost`, `enemyPurchaseLock`) open a window of the attack's
  *   `durationSec`, during which their collectors gather them.
+ * - `passivePact` — a passive pact's `effects`: continuous while unlocked, a
+ *   *benefit* drawn from the opponent, and only the pact outputs
+ *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
+ *   `collectPactBonuses` in `pacts.ts`).
+ * - `activePact` — an active pact's `effects`: nothing reads this host yet, so
+ *   no effect declares it and boot rejects any effect authored there.
  */
-export type EffectHost = 'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack'
+export type EffectHost =
+  'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'
 
 /**
  * A registered effect: a zod schema describing its params, plus how to turn

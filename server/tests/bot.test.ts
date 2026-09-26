@@ -442,6 +442,61 @@ describe('Bot', () => {
       })
     })
 
+    describe('passive pacts', () => {
+      /** The relations panel plus one signing node per idler pact, all free. */
+      const pactUpgrades: UpgradeDefinition[] = [
+        ...idlerUpgrades,
+        {
+          id: 'ir-unlock' as const,
+          cost: {},
+          purchaseLimit: 1,
+          effects: [{ type: 'panelUnlock', panel: 'international-relationship' }],
+        },
+        {
+          id: 'sign-p0' as const,
+          cost: {},
+          purchaseLimit: 1,
+          prerequisites: { type: 'upgrade' as const, id: 'ir-unlock' },
+          effects: [{ type: 'unlockPact', pact: 'p0' }],
+        },
+        {
+          id: 'sign-p2' as const,
+          cost: {},
+          purchaseLimit: 1,
+          prerequisites: { type: 'upgrade' as const, id: 'ir-unlock' },
+          effects: [{ type: 'unlockPact', pact: 'p2' }],
+        },
+        {
+          id: 'sign-p3' as const,
+          cost: {},
+          purchaseLimit: 1,
+          prerequisites: { type: 'upgrade' as const, id: 'ir-unlock' },
+          effects: [{ type: 'unlockPact', pact: 'p3' }],
+        },
+      ]
+
+      it('signs every effect-bearing passive pact, panel first, and leaves the active placeholder alone', () => {
+        const bot = new IdlerBot(stubMode(pactUpgrades))
+        const state: PlayerState = {
+          score: 0,
+          resources: { r0: 100, r1: 0 },
+          generators: {},
+          pendingAttacks: [],
+          meta: { highlight: 'r0', gameSec: 5 },
+          upgrades: Object.fromEntries(pactUpgrades.map((u) => [u.id, 0])),
+        }
+        const buys: string[] = []
+        for (let i = 0; i < 8; i++) {
+          for (const a of bot.decide(state)) if (a.type === 'buy') buys.push(a.upgradeId)
+        }
+        expect(buys).toContain('sign-p2')
+        expect(buys).toContain('sign-p3')
+        expect(buys).not.toContain('sign-p0')
+        expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p2'))
+        expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p3'))
+      })
+    })
+
     it('does not buy generators that are still locked', () => {
       const mode = getModeDefinition('idler')
       const bot = new IdlerBot(mode)
@@ -518,6 +573,17 @@ describe('Bot', () => {
         expect.objectContaining({ attack: 'a0', direction: 'incoming', kind: 'resource' }),
       )
       expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeGreaterThanOrEqual(1)
+    })
+
+    it('bot signs the mutual pacts, which the human sees as shared treaties', () => {
+      const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
+      const m = createBotMatch('idler', undefined, timedGoal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      // Fund the plan's paid steps so the free pact nodes are reached quickly.
+      m.grantResourcesForTest('bot-1', { r0: 50_000, r1: 50_000 })
+      vi.advanceTimersByTime(8000)
+      expect(latestUpdate(ws1).opponent.pacts).toEqual(['p1', 'p3'])
     })
 
     it('match ends normally with a bot (timed)', () => {
