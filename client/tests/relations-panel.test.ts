@@ -28,24 +28,30 @@ function withPactBehavior(): ModeDefinition {
   const patched: ModeDefinition = {
     ...base,
     pacts: base.pacts.map((p) =>
-      p.id === 'p2'
-        ? { ...p, effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }] }
-        : p.id === 'p3'
+      // The idler authors no active pact, so this one is turned into the placeholder the panel renders.
+      p.id === 'highlighted-clicks'
+        ? { id: p.id, kind: 'active' }
+        : p.id === 'p2'
           ? {
               ...p,
-              mutual: true,
-              effects: [
-                {
-                  type: 'mirrorStatModifier',
-                  source: 'generator:g0',
-                  field: 'r0',
-                  stage: 'multiplicative',
-                  perUnit: 0.02,
-                  cap: 0.5,
-                },
-              ],
+              effects: [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }],
             }
-          : p,
+          : p.id === 'p3'
+            ? {
+                ...p,
+                mutual: true,
+                effects: [
+                  {
+                    type: 'mirrorStatModifier',
+                    source: 'generator:g0',
+                    field: 'r0',
+                    stage: 'multiplicative',
+                    perUnit: 0.02,
+                    cap: 0.5,
+                  },
+                ],
+              }
+            : p,
     ),
   }
   validateModeDefinition('idler', patched)
@@ -121,7 +127,7 @@ describe('relations panel', () => {
 
   it('renders a card per unlocked passive pact and keeps active pacts as disabled buttons', () => {
     registerMode('idler', withPactBehavior())
-    const html = render(makeState({ signed: ['p0', 'p2', 'p3'] }))
+    const html = render(makeState({ signed: ['highlighted-clicks', 'p2', 'p3'] }))
     expect(html.match(/class="pact-item/g)).toHaveLength(3)
     expect(html).toContain(getPactName(flavor, 'p2'))
     expect(html).toContain(getPactName(flavor, 'p3'))

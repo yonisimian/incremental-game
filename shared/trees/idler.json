@@ -317,7 +317,7 @@
   "pacts": [
     {
       "id": "highlighted-clicks",
-      "kind": "active",
+      "kind": "passive",
       "effects": [
         {
           "type": "mirrorStatModifier",
@@ -330,7 +330,7 @@
     },
     {
       "id": "p1",
-      "kind": "active",
+      "kind": "passive",
       "mutual": true,
       "effects": [
         {

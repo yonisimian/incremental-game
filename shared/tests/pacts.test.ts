@@ -615,11 +615,11 @@ describe('collectPactBonuses', () => {
 
 // ─── Idler authoring ─────────────────────────────────────────────────
 
-describe('the idler authors Shared research and Trade route', () => {
+describe('the idler authors its four passive pacts', () => {
   const idler = getModeDefinition('idler')
   const pact = (id: string) => idler.pacts.find((p) => p.id === id)!
 
-  it('boots with the two passive pacts carrying effects, p3 mutual', () => {
+  it('boots with every pact passive and carrying effects, p1 and p3 mutual', () => {
     expect(pact('p2')).toEqual({
       id: 'p2',
       kind: 'passive',
@@ -640,9 +640,29 @@ describe('the idler authors Shared research and Trade route', () => {
         },
       ],
     })
-    // The active pair stays a placeholder until active pacts land.
-    expect(pact('p0').effects).toBeUndefined()
-    expect(pact('p1').effects).toBeUndefined()
+    // An authored active pact would sign and do nothing: active pacts have no lifecycle yet.
+    for (const p of idler.pacts) {
+      expect(p.kind).toBe('passive')
+      expect(p.effects?.length ?? 0).toBeGreaterThan(0)
+    }
+    expect(pact('p1').mutual).toBe(true)
+  })
+
+  it('pays +2 click income per level of sh-mf-hp the partner owns, both ways', () => {
+    const sign = idler.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === 'p1'),
+    )!
+    const signer = createInitialState(idler)
+    signer.upgrades[sign.id] = 1
+    const other = createInitialState(idler)
+    other.upgrades['sh-mf-hp'] = 3
+    const worth = [
+      { pact: 'p1', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 6 }] },
+    ]
+    expect(collectPactBonuses(signer, { state: other, rates: {} }, idler)).toEqual(worth)
+    // Mutual: the side that never signed reads the signer's levels the same way.
+    signer.upgrades['sh-mf-hp'] = 3
+    expect(collectPactBonuses(other, { state: signer, rates: {} }, idler)).toEqual(worth)
   })
 
   it('resolves the trade route to +2% wood per enemy woodcutter, capped at +50%', () => {

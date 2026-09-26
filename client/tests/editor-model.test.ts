@@ -1180,7 +1180,7 @@ describe('pact effect references', () => {
 describe('pacts', () => {
   it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {
     const rows = listPacts(idler())
-    expect(rows.map((r) => r.id)).toEqual(['p0', 'p1', 'p2', 'p3'])
+    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3'])
     const route = rows.find((r) => r.id === 'p3')!
     expect(route.mutual).toBe(true)
     expect(route.kind).toBe('passive')
@@ -1205,7 +1205,7 @@ describe('pacts', () => {
     expect(tree.flavors[0].pacts.some((p) => p.id === 'trade')).toBe(true)
     expect(() => toModeDefinition(tree)).not.toThrow()
     expect(renamePact(tree, 'trade', '')).toBe(false)
-    expect(renamePact(tree, 'trade', 'p0')).toBe(false)
+    expect(renamePact(tree, 'trade', 'p1')).toBe(false)
   })
 
   it('removePact is blocked while an unlockPact names it, and cascades otherwise', () => {

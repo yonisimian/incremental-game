@@ -575,7 +575,7 @@ describe('Bot', () => {
       expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeGreaterThanOrEqual(1)
     })
 
-    it('bot signs the mutual trade route, which the human sees as a shared treaty', () => {
+    it('bot signs the mutual pacts, which the human sees as shared treaties', () => {
       const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
       const m = createBotMatch('idler', undefined, timedGoal)
       m.start()
@@ -583,7 +583,7 @@ describe('Bot', () => {
       // Fund the plan's paid steps so the free pact nodes are reached quickly.
       m.grantResourcesForTest('bot-1', { r0: 50_000, r1: 50_000 })
       vi.advanceTimersByTime(8000)
-      expect(latestUpdate(ws1).opponent.pacts).toEqual(['p3'])
+      expect(latestUpdate(ws1).opponent.pacts).toEqual(['p1', 'p3'])
     })
 
     it('match ends normally with a bot (timed)', () => {
