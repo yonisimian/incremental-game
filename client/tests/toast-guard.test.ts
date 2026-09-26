@@ -1,5 +1,5 @@
 /**
- * Phase-2 (docs/plans/32) — the guard case that must run in the DOM-free node
+ * The guard case that must run in the DOM-free node
  * environment (no `// @vitest-environment` docblock). Every DOM VFX opens with
  * `if (!hasDom()) return`; here `document` is undefined, so `spawnToast` must be
  * a silent no-op and never touch a missing DOM. This locks that guarantee.

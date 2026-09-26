@@ -41,7 +41,7 @@ const HOST = process.env.HOST
 // ─── Mode trees (server-authoritative) ───────────────────────────────
 //
 // The canonical tree files are the single source of truth, owned by the shared
-// package and edited via the dev-page tree editor (D12/D17). The server resolves
+// package and edited via the dev-page tree editor. The server resolves
 // each one through the package's `exports` map (works from both `tsx` in dev and
 // `node dist` in prod), validates + registers it as a runtime mode, and caches
 // the raw bytes to serve verbatim. Clients fetch the same bytes from
@@ -70,7 +70,7 @@ function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
 // ─── HTTP Server (health check + tree files) ────────────────────────
 
 const httpServer = createServer((req, res) => {
-  // Serve the canonical tree files (server-authoritative; D17).
+  // Serve the canonical tree files (server-authoritative).
   const treeMatch = /^\/trees\/([a-z0-9-]+)\.json$/u.exec(req.url ?? '/')
   if (treeMatch) {
     const raw = rawTrees.get(treeMatch[1] as GameMode)

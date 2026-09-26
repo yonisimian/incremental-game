@@ -1,12 +1,8 @@
 /**
- * Upgrade-tree section — the canvas + inspector editor. Extracted verbatim from
- * the original editor body; the only change is that it now implements
- * {@link EditorView} (mount/unmount) and reports through the shell's
- * {@link EditorContext} instead of owning the file-level toolbar.
- *
- * Owns the selection, pan/zoom, node drag, and add/delete behavior. The canvas
- * must mount while its host is visible so pan/zoom sees real dimensions — the
- * shell guarantees this by mounting on section-switch.
+ * Upgrade-tree section — the canvas + inspector editor. Owns the selection,
+ * pan/zoom, node drag, and add/delete behavior. The canvas must mount while its
+ * host is visible so pan/zoom sees real dimensions — the shell guarantees this
+ * by mounting on section-switch.
  */
 
 import type { TreeFile } from '@game/shared'

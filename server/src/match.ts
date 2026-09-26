@@ -372,8 +372,8 @@ export class Match {
     // Tick: compute passive income, run bot, update timer, and end the round when
     // its time expires. Deriving the round end from the same `endAtMs` anchor that
     // drives the displayed timer (rather than a separate one-shot `setTimeout`)
-    // keeps them from drifting apart — a lagging timeout used to fire up to a
-    // second after the displayed clock already showed 0:00, dwelling on 0:00.
+    // keeps them from drifting apart — a separate timeout can fire up to a
+    // second after the displayed clock already shows 0:00.
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
@@ -898,7 +898,7 @@ export class Match {
    * Build the redacted opponent view for `viewer`: only the intel `viewer` has
    * unlocked via `accessEnemyData`. The opponent's upgrades/generators/meta are
    * never included, so a client can't read hidden data in devtools. Per-second
-   * rates are computed here (the client can no longer derive them without the
+   * rates are computed here (the client can't derive them without the
    * opponent's full state) and included only for unlocked keys.
    *
    * Score is public for timed / target-score goals (it's the win condition and

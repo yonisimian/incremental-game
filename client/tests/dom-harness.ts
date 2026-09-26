@@ -3,7 +3,7 @@
  * DOM code that no-ops in the plain node environment (VFX, toasts). Opt a file
  * into the DOM environment with `// @vitest-environment happy-dom` at its top.
  *
- * happy-dom does not implement `Element.animate` (proven by the Phase-1 spike),
+ * happy-dom does not implement `Element.animate` (see `toast-spike.dom.test.ts`),
  * and the toast/VFX code both calls it and wires cleanup to its `onfinish`. So
  * the harness installs a minimal fake: it schedules `onfinish` on a real-shaped
  * `setTimeout(duration)`, which means Vitest fake timers drive the animation to

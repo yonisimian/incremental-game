@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * Phase-1 spike (docs/plans/32) — pins down what the happy-dom environment gives
- * us for the toast/VFX code, so later phases build on solid ground.
+ * Pins down what the happy-dom environment gives us for the toast/VFX code.
  *
  * Finding: happy-dom does **not** implement `Element.animate`. The toast code
  * both calls it and wires slot removal to its `onfinish`, so the environment
@@ -10,7 +9,7 @@
  * `onfinish` via `setTimeout(duration)`; combined with Vitest fake timers, a
  * single clock advance completes both the dismiss timer and the exit animation,
  * making removal deterministic with no bespoke flush. These tests are that
- * proof; Phase 2 relies on the mechanism.
+ * proof; the other DOM tests rely on the mechanism.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +45,7 @@ describe('happy-dom capability spike', () => {
 
       // One clock advance fires the dismiss setTimeout and the exit animation's
       // shimmed onfinish, which removes the slot. Assert the observable end
-      // state — the contract Phase 2 depends on.
+      // state — the contract the toast tests depend on.
       vi.advanceTimersByTime(10_000)
       expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
     })

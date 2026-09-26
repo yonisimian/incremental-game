@@ -91,7 +91,7 @@ export async function connect(): Promise<void> {
   }
 
   // Load the mode tree once, server-authoritative: the tree data is not bundled,
-  // it is fetched from the server so both ends agree on the exact tree (D17).
+  // it is fetched from the server so both ends agree on the exact tree.
   if (!treeLoaded) {
     onConnectionState('loading')
     try {

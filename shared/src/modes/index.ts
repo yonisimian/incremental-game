@@ -807,7 +807,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
  * at runtime from their (server-served) tree files via `loadTree` (see
  * `shared/src/tree/codec.ts`), not baked into the bundle. Call `loadTree` once
  * at startup before any `getModeDefinition` call (server reads the file from
- * disk; the client fetches it from the server — D17/D18).
+ * disk; the client fetches it from the server).
  */
 const MODE_REGISTRY = new Map<GameMode, ModeDefinition>()
 
@@ -1118,7 +1118,7 @@ function collectRawModifiers(
   // (^ owned). An aggregate sentinel fans out after compounding; generator-
   // targeted bonuses feed the per-generator accumulator (additive per-unit ×
   // owned, applied again per generator below); everything else is pushed to the
-  // pipeline. Reproduces the legacy per-upgrade `modifiers` array exactly.
+  // pipeline.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
     const expanded = expandAggregateField(o.field, mode)
     if (expanded) {

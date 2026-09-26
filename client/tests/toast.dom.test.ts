@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
 /**
- * Phase-2 (docs/plans/32) — unit coverage for the toast primitive
- * ([../src/ui/vfx/toast.ts](../src/ui/vfx/toast.ts)), the DOM feature we shipped
- * with zero automated tests. All assertions are structural (nodes, classes,
+ * Unit coverage for the toast primitive
+ * ([../src/ui/vfx/toast.ts](../src/ui/vfx/toast.ts)). All assertions are
+ * structural (nodes, classes,
  * text, eviction/idempotency) so they run truthfully under happy-dom + the
  * harness animate shim; visual timing/layout stays in Playwright e2e.
  *

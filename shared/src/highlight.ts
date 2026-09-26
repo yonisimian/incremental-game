@@ -2,11 +2,9 @@
  * Reading the highlight selection.
  *
  * `meta.highlight` is mode-specific metadata, so the engine sees it as
- * `unknown` and every consumer used to re-derive it with its own
- * `as string | undefined` cast and its own fallback resource. Those fallbacks
- * disagreed (`'r0'`, `resources[0]`, `scoreResource`) and, worse, they made
- * "nothing highlighted" unrepresentable: an absent selection silently boosted
- * whichever resource the reader happened to default to.
+ * `unknown`. This module is the single reader, so every consumer agrees on one
+ * parse — and on there being no fallback resource: an absent selection means
+ * "nothing highlighted", never a silent boost to some default.
  *
  * Releasing the highlight is a real player choice (and the precondition for any
  * mechanic that charges for holding one), so **`null` is a first-class value**,

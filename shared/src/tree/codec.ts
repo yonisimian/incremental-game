@@ -227,7 +227,7 @@ export function parseTree(json: unknown): ModeDefinition {
 /**
  * Parse, validate, and register a tree file as a runtime mode in one step — the
  * boot entry point. The server reads the file from disk and the client fetches
- * it from the server, then both call this before any `getModeDefinition` (D18).
+ * it from the server, then both call this before any `getModeDefinition`.
  * Returns the registered mode id. Throws on any invalid input.
  */
 export function loadTree(json: unknown): GameMode {

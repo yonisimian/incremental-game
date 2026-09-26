@@ -2,7 +2,7 @@ import { getModeDefinition } from '@game/shared'
 import type { ModeDefinition, UpgradeDefinition } from '@game/shared'
 
 /**
- * Synthetic "Phase-0" idler stub tree used by the dev-tooling unit tests
+ * Synthetic idler stub tree used by the dev-tooling unit tests
  * (simulator, strategy generator, tree renderer).
  *
  * These tests validate engine mechanics against a small, stable economy and

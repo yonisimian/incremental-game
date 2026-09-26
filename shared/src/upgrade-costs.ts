@@ -85,7 +85,7 @@ export function isCostAffordable(
   return Object.entries(cost).every(([currency, amount]) => (resources[currency] ?? 0) >= amount)
 }
 
-/** Sum of all currency amounts in the next-level cost (score-equivalent total — D9). */
+/** Sum of all currency amounts in the next-level cost (score-equivalent total). */
 export function getUpgradeCostTotal(
   def: UpgradeDefinition,
   currentLevel: number,
