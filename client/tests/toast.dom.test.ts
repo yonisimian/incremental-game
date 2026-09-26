@@ -41,14 +41,15 @@ describe('spawnToast (DOM)', () => {
     expect(banner?.textContent).toBe('hi')
   })
 
-  it('prefixes the icon when one is supplied', () => {
+  it('sets the icon in its own column before the text', () => {
     const layer = mountToastLayer()
 
     spawnToast('hi', 'success', { icon: '🏗️' })
 
     const banner = layer.querySelector('.toast')
     expect(banner?.classList.contains('toast--success')).toBe(true)
-    expect(banner?.textContent).toBe('🏗️ hi')
+    expect(banner?.querySelector('.toast-icon')?.textContent).toBe('🏗️')
+    expect(banner?.querySelector('.toast-text')?.textContent).toBe('hi')
   })
 
   it('caps the visible stack: a spawn past the cap terminates and evicts the oldest', () => {
@@ -108,7 +109,8 @@ describe('spawnToast (DOM)', () => {
     expect(layer.querySelectorAll('.toast-slot')).toHaveLength(1)
 
     toast.update('in 1.0s')
-    expect(layer.querySelector('.toast')?.textContent).toBe('⚠️ in 1.0s')
+    expect(layer.querySelector('.toast-text')?.textContent).toBe('in 1.0s')
+    expect(layer.querySelector('.toast-icon')?.textContent).toBe('⚠️')
 
     toast.dismiss()
     vi.advanceTimersByTime(300)
@@ -152,4 +154,150 @@ describe('spawnToast (DOM)', () => {
     expect(fallback.querySelectorAll('.toast-slot')).toHaveLength(1)
     expect(fallback.querySelector('.toast')?.textContent).toBe('orphan')
   })
+
+  it('keeps bad news up longer than neutral news', () => {
+    const layer = mountToastLayer()
+
+    spawnToast('lost', 'danger')
+    spawnToast('fyi', 'info')
+    vi.advanceTimersByTime(2_900)
+    expect(liveTexts(layer)).toEqual(['lost', 'fyi'])
+
+    vi.advanceTimersByTime(100)
+    expect(liveTexts(layer)).toEqual(['lost'])
+    vi.advanceTimersByTime(1_900)
+    expect(liveTexts(layer)).toEqual(['lost'])
+    vi.advanceTimersByTime(100 + EXIT_MS)
+    expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+  })
+
+  it('pins sticky toasts at the head of the stack, in arrival order', () => {
+    const layer = mountToastLayer()
+
+    spawnToast('t1', 'info')
+    spawnToast('s1', 'warning', { sticky: true })
+    spawnToast('t2', 'info')
+    spawnToast('s2', 'warning', { sticky: true })
+
+    expect(liveTexts(layer)).toEqual(['s1', 's2', 't1', 't2'])
+  })
+
+  describe('hover and click', () => {
+    it('pauses every timer while hovered and resumes with at least a second left', () => {
+      const layer = mountToastLayer()
+      spawnToast('read me', 'info')
+
+      vi.advanceTimersByTime(2_900)
+      hover(layer)
+      vi.advanceTimersByTime(60_000)
+      expect(liveTexts(layer)).toEqual(['read me'])
+
+      unhover(layer)
+      // 100 ms were left; the resume floor grants a full second instead.
+      vi.advanceTimersByTime(900)
+      expect(liveTexts(layer)).toEqual(['read me'])
+      vi.advanceTimersByTime(100 + EXIT_MS)
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    })
+
+    it('holds a toast spawned during a hover until the pointer leaves', () => {
+      const layer = mountToastLayer()
+      spawnToast('first', 'info')
+      hover(layer)
+
+      spawnToast('late', 'info')
+      vi.advanceTimersByTime(60_000)
+      expect(liveTexts(layer)).toEqual(['first', 'late'])
+
+      unhover(layer)
+      vi.advanceTimersByTime(3_000 + EXIT_MS)
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    })
+
+    it('dismisses a clicked toast, sticky or not', () => {
+      const layer = mountToastLayer()
+      spawnToast('transient', 'info')
+      const sticky = spawnToast('in 4.0s', 'warning', { sticky: true, icon: '⚠️' })
+
+      for (const text of layer.querySelectorAll<HTMLElement>('.toast-text')) text.click()
+      vi.advanceTimersByTime(EXIT_MS)
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+
+      // The caller keeps using its handle; neither call resurrects the toast.
+      expect(() => {
+        sticky.update('in 3.0s')
+        sticky.dismiss()
+      }).not.toThrow()
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    })
+
+    it('un-pauses once the stack empties, even without a pointerleave', () => {
+      const layer = mountToastLayer()
+      spawnToast('only', 'info')
+      hover(layer)
+      layer.querySelector<HTMLElement>('.toast')?.click()
+      vi.advanceTimersByTime(EXIT_MS)
+
+      spawnToast('next', 'info')
+      vi.advanceTimersByTime(3_000 + EXIT_MS)
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    })
+
+    it('starts a new layer unpaused when the old one was torn down mid-hover', () => {
+      hover(mountToastLayer())
+      resetDom()
+
+      const layer = mountToastLayer()
+      spawnToast('new match', 'info')
+      vi.advanceTimersByTime(3_000 + EXIT_MS)
+      expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+    })
+  })
+
+  describe('screen-reader announcer', () => {
+    it('announces a toast once on arrival, ignores updates, and drops it on exit', () => {
+      mountToastLayer()
+      const announcer = document.createElement('div')
+      announcer.id = 'toast-announcer'
+      document.body.appendChild(announcer)
+
+      const toast = spawnToast('Raid lands in 4.0s', 'warning', { sticky: true, icon: '🗡️' })
+      expect([...announcer.children].map((n) => n.textContent)).toEqual(['🗡️ Raid lands in 4.0s'])
+
+      toast.update('Raid lands in 3.0s')
+      expect([...announcer.children].map((n) => n.textContent)).toEqual(['🗡️ Raid lands in 4.0s'])
+
+      toast.dismiss()
+      expect(announcer.children).toHaveLength(0)
+    })
+  })
+
+  it('under reduced motion, still removes the toast after its fade', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }))
+    const layer = mountToastLayer()
+
+    spawnToast('calm', 'info')
+    vi.advanceTimersByTime(3_000 + EXIT_MS)
+
+    vi.unstubAllGlobals()
+    expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
+  })
 })
+
+/** Exit animation length in `toast.ts` — the collapse that follows a dismissal. */
+const EXIT_MS = 260
+
+/** Text of each toast still on screen (not already leaving), top to bottom. */
+function liveTexts(layer: HTMLElement): (string | null)[] {
+  return [...layer.querySelectorAll('.toast-slot:not([data-removing]) .toast-text')].map(
+    (t) => t.textContent,
+  )
+}
+
+function hover(layer: HTMLElement): void {
+  layer.dispatchEvent(new Event('pointerenter'))
+}
+
+function unhover(layer: HTMLElement): void {
+  layer.dispatchEvent(new Event('pointerleave'))
+}

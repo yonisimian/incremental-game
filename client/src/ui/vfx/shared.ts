@@ -15,13 +15,18 @@ export function getLayer(): HTMLDivElement {
   return layer
 }
 
+/** Whether the user asked the OS to minimise motion. WAAPI ignores the CSS media query. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 // ─── Screen Shake ────────────────────────────────────────────────────
 
 /**
  * Quick micro-shake of the playing screen. Intensity scales with magnitude.
  */
 export function shakeScreen(intensity: 'light' | 'medium' | 'heavy' = 'light'): void {
-  if (!hasDom()) return
+  if (!hasDom() || prefersReducedMotion()) return
   const screen = document.querySelector<HTMLElement>('.playing-screen')
   if (!screen) return
 

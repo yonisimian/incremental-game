@@ -204,5 +204,18 @@ describe('vfx (DOM)', () => {
         shakeScreen()
       }).not.toThrow()
     })
+
+    it('stays still when the user prefers reduced motion', () => {
+      const screen = document.createElement('div')
+      screen.className = 'playing-screen'
+      document.body.appendChild(screen)
+      const spy = vi.spyOn(screen, 'animate')
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }))
+
+      shakeScreen('heavy')
+
+      vi.unstubAllGlobals()
+      expect(spy).not.toHaveBeenCalled()
+    })
   })
 })

@@ -12,8 +12,10 @@ import type { AttackEvent, RoundStartMessage, StateUpdateMessage } from '@game/s
 import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
+  getAttackIcon,
   getModeDefinition,
   getModeFlavor,
+  getPactIcon,
   getPactName,
 } from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
@@ -32,7 +34,7 @@ vi.mock('../src/network.js', () => ({
 
 // Hoisted so the (also hoisted) mock factory can hand these out directly.
 const { spawnToast, shakeScreen } = vi.hoisted(() => ({
-  spawnToast: vi.fn<(text: string, tone: string) => void>(),
+  spawnToast: vi.fn<(text: string, tone: string, opts?: { icon?: string }) => void>(),
   shakeScreen: vi.fn<(strength: string) => void>(),
 }))
 vi.mock('../src/ui/vfx/index.js', async (importOriginal) => ({
@@ -103,9 +105,13 @@ describe('debuff attack events → toasts', () => {
       stateUpdate([{ attack: 'a0', direction: 'outgoing', kind: 'debuff', durationSec: 12, t: 5 }]),
     )
     expect(spawnToast).toHaveBeenCalledTimes(1)
-    const [text, tone] = spawnToast.mock.calls[0]
+    const [text, tone, opts] = spawnToast.mock.calls[0]
     expect(text).toContain('enemy debuffed for 12s')
     expect(tone).toBe('success')
+    // The attack's icon sits in the toast's icon column, not in the text.
+    const icon = getAttackIcon(getModeFlavor(getModeDefinition('idler')), 'a0')
+    expect(opts).toEqual({ icon })
+    expect(text).not.toContain(icon)
     expect(shakeScreen).not.toHaveBeenCalled()
   })
 
@@ -162,10 +168,10 @@ describe('shared pact → toast', () => {
     const name = getPactName(getModeFlavor(getModeDefinition('idler')), 'p3')
     game.handleServerMessage(withSharedPacts(['p3']))
     expect(spawnToast).toHaveBeenCalledTimes(1)
-    const [text, tone] = spawnToast.mock.calls[0]
-    expect(text).toContain(name)
-    expect(text).toContain('signed by the enemy')
+    const [text, tone, opts] = spawnToast.mock.calls[0]
+    expect(text).toBe(`${name} signed by the enemy`)
     expect(tone).toBe('info')
+    expect(opts).toEqual({ icon: getPactIcon(getModeFlavor(getModeDefinition('idler')), 'p3') })
 
     // Rebroadcast every snapshot: announced only on first appearance.
     game.handleServerMessage(withSharedPacts(['p3']))
