@@ -1106,7 +1106,7 @@ describe('attackStat params', () => {
     ).toThrow()
   })
 
-  it('accepts the duration stat, factor and offset alike (plan 37)', () => {
+  it('accepts the duration stat, factor and offset alike', () => {
     expect(
       applyEffect(
         { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },

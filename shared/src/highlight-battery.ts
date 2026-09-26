@@ -3,7 +3,7 @@
  *
  * The battery charges while the highlight is released and drains while a
  * resource is held; while it holds charge it multiplies the highlight's own
- * factor (see plan 30). Unlike every other bonus in the game it is *stateful* —
+ * factor. Unlike every other bonus in the game it is *stateful* —
  * a level that integrates over time — so it splits into three pieces:
  *
  *  1. **Parameters**: capacity, rates, and peak factor, collected from owned

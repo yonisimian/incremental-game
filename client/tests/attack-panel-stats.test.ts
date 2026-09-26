@@ -190,7 +190,7 @@ describe('attackPanel — attackStat reporting', () => {
   })
 })
 
-// ─── Debuff windows (plan 37) ────────────────────────────────────────
+// ─── Debuff windows ──────────────────────────────────────────────────
 
 describe('attackPanel — debuff window status', () => {
   /** `makeState`, at `gameSec`, with a0's window open until `expiresAtSec`. */

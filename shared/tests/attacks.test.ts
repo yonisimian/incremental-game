@@ -863,7 +863,7 @@ describe('resolveAttackStrike — stealGenerator', () => {
   })
 })
 
-// ─── resolveAttackStrike — debuff windows (plan 37) ──────────────────
+// ─── resolveAttackStrike — debuff windows ────────────────────────────
 
 describe('resolveAttackStrike — debuff window', () => {
   it('opens one window at gameSec + durationSec, reports it, and moves nothing', () => {

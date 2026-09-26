@@ -856,7 +856,7 @@ describe('attacks', () => {
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
-  // ── Debuff windows (plan 37) ──────────────────────────────────────
+  // ── Debuff windows ────────────────────────────────────────────────
 
   const WINDOW_DEBUFF = {
     type: 'enemyProductionModifier',

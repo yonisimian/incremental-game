@@ -1494,7 +1494,7 @@ describe('Match', () => {
       expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
     })
 
-    // ── Duration attacks (plan 37) ─────────────────────────────────
+    // ── Duration attacks ───────────────────────────────────────────
 
     /**
      * The idler tree with `a3` — its effect-less passive placeholder, unlocked by

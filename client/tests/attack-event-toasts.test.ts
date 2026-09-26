@@ -1,6 +1,6 @@
 /**
  * The toasts `game.ts` raises for attack events arriving on a STATE_UPDATE —
- * here the `debuff` kind a duration attack's strike produces (plan 37).
+ * here the `debuff` kind a duration attack's strike produces.
  *
  * Node tier: the VFX module is mocked, so the assertion is on *what* the game
  * layer asked to show, not on DOM output (the toast's own rendering is covered

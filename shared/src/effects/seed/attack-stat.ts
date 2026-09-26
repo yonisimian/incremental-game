@@ -7,7 +7,7 @@ import type { AttackStatOutput, EffectDef } from '../types.js'
 /**
  * The attack parameters an `attackStat` effect can move.
  *
- * `duration` scales an active attack's debuff window (`durationSec`, plan 37);
+ * `duration` scales an active attack's debuff window (`durationSec`);
  * its consumer is `getAttackDurationSec`, read when the strike opens the window.
  */
 export const ATTACK_STATS = ['power', 'prepareCost', 'prepareTime', 'duration'] as const
@@ -111,7 +111,7 @@ const guardValue = guardScaledStatValue('attackStat', ATTACK_STAT_DIRECTION)
  * not debuff), split `power` into per-kind enum members — a compatible change,
  * since `power` keeps meaning "all of them".
  *
- * `value` is guarded per `stat` *and* `op` (plan 39). The meaningful range does
+ * `value` is guarded per `stat` *and* `op`. The meaningful range does
  * differ per combination — `mult: 0.5` is a good thing on `prepareTime` and a bad
  * one on `power` — which is an argument for a direction table, not for leaving
  * the field open: {@link ATTACK_STAT_DIRECTION} says which way each stat helps

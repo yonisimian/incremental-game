@@ -535,7 +535,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/unknown or unsupported field 'g0'/)
   })
 
-  // ── Duration attacks (plan 37): the debuff pair on an *active* attack ──
+  // ── Duration attacks: the debuff pair on an *active* attack ──
 
   /** An active attack carrying a debuff, with the fields `patch` says. */
   function debuffAttackDef(patch: Partial<ModeDefinition['attacks'][number]>): ModeDefinition {
