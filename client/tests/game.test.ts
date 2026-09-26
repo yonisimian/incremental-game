@@ -4,6 +4,7 @@ import {
   COUNTDOWN_SEC,
   getAvailableUpgrades,
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -399,7 +400,10 @@ describe('game.ts', () => {
     )!
 
     /** a0's authored Wood prepare cost, read from the tree rather than pinned here. */
-    const woodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+    const woodCost = getAttackPrepareCost(
+      idlerDef.attacks.find((a) => a.id === 'a0')!,
+      NEUTRAL_ATTACK_PARAMS,
+    ).r0
     /** Wood held by an armed player: the cost over again, so a strike leaves a remainder. */
     const armedWood = woodCost * 2
 
@@ -902,6 +906,142 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: attack slots ────────────────────────────────────────────
+
+  describe('idler attack slots', () => {
+    /** The idler's free unlock node for `attack`. */
+    const unlockOf = (attack: string): string =>
+      idlerDef.upgrades.find((u) =>
+        u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
+      )!.id
+    const A0 = unlockOf('a0')
+    const A1 = unlockOf('a1')
+
+    /**
+     * Re-register the idler with a single active slot on the *same* module
+     * instance `game.ts` reads from (the registry is process-global per module
+     * graph, and `loadGame` has just rebuilt that graph).
+     */
+    async function squeezeActiveSlots(): Promise<void> {
+      const shared = await import('@game/shared')
+      const base = shared.getModeDefinition('idler')
+      shared.registerMode('idler', {
+        ...base,
+        effects: [
+          ...(base.effects ?? []).filter((e) => e.type !== 'attackSlots'),
+          { type: 'attackSlots', attackKind: 'active', value: 1 },
+        ],
+      })
+    }
+
+    /** A server snapshot with the attack panel open and `owned` unlock nodes. */
+    function snapshot(owned: Record<string, number>, ackSeq = 0): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 1000, r1: 1000 },
+          upgrades: { ...defaultUpgrades, 'a-unlock': 1, [A0]: 0, [A1]: 0, ...owned },
+          generators: {},
+          pendingAttacks: [],
+          meta: { highlight: 'r0' },
+        },
+      })
+    }
+
+    it('refuses to predict an unlock past the player’s slots', async () => {
+      await squeezeActiveSlots()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot({ [A0]: 1 }))
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doBuy(A1)
+      expect(game.getState().player.upgrades[A1]).toBe(0)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('predicts the unlock while a slot is free', async () => {
+      await squeezeActiveSlots()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot({}))
+
+      game.doBuy(A0)
+      expect(game.getState().player.upgrades[A0]).toBe(1)
+    })
+
+    it('drops a replayed unlock the server’s snapshot has left no slot for', async () => {
+      await squeezeActiveSlots()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot({}))
+
+      // Optimistic: the one slot is free, so a0's unlock is predicted.
+      game.doBuy(A0)
+      expect(game.getState().player.upgrades[A0]).toBe(1)
+
+      // The server has not seen that buy (ackSeq 0) but reports a1 unlocked —
+      // the slot is taken, so the replay must drop the pending a0 rather than
+      // show two held attacks until the next snapshot corrects it.
+      game.handleServerMessage(snapshot({ [A1]: 1 }, 0))
+      expect(game.getState().player.upgrades[A1]).toBe(1)
+      expect(game.getState().player.upgrades[A0]).toBe(0)
+    })
+  })
+
+  // ── Idler: enemy purchase lock ─────────────────────────────────────
+
+  describe('idler purchase lock', () => {
+    /** A server snapshot: funded, `sh-unlock` (free) unbought, optionally locked. */
+    function snapshot(locked: boolean, ackSeq = 0): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 1000, r1: 1000 },
+          upgrades: { ...defaultUpgrades },
+          generators: {},
+          pendingAttacks: [],
+          ...(locked ? { incomingPurchaseLocks: [{ scope: 'upgrade', untilSec: 30 }] } : {}),
+          meta: { highlight: 'r0', gameSec: 20 },
+        },
+      })
+    }
+
+    it('refuses to predict a buy while the server-stamped lock is in force', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(true))
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(0)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('predicts the buy again once the stamp is gone', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(true))
+      game.handleServerMessage(snapshot(false))
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(1)
+    })
+
+    it('drops a replayed buy the server’s snapshot has since locked', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(snapshot(false))
+
+      // Optimistic: unlocked, so the free upgrade is predicted.
+      game.doBuy('sh-unlock')
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(1)
+
+      // The server has not seen that buy (ackSeq 0) and reports a lock in
+      // force: the replay must drop the pending buy — the server will — rather
+      // than show it owned until the next snapshot corrects it.
+      game.handleServerMessage(snapshot(true, 0))
+      expect(game.getState().player.upgrades['sh-unlock']).toBe(0)
+    })
+  })
+
   // ── Idler: doClick ─────────────────────────────────────────────────
 
   describe('idler doClick', () => {
@@ -920,6 +1060,30 @@ describe('game.ts', () => {
         }),
       )
     }
+
+    it('predicts a debuffed click at the value the server will credit', () => {
+      enterIdlerPlaying(game)
+      // Same state, plus the ×0.5 clickIncome debuff the server reports from the
+      // opponent's passive attack — prediction must fold it in or the click
+      // flickers back on the next reconciliation.
+      game.handleServerMessage(
+        makeStateUpdate({
+          player: {
+            score: 0,
+            resources: { r0: 0, r1: 0 },
+            upgrades: { 'sc-unlock': 1 },
+            generators: {},
+            pendingAttacks: [],
+            meta: { highlight: 'r0' },
+          },
+          debuffs: [{ stage: 'multiplicative', field: 'clickIncome', value: 0.5 }],
+        }),
+      )
+      game.doClick('r0')
+      const s = game.getState()
+      expect(s.player.resources.r0).toBeCloseTo(0.5, 6)
+      expect(s.player.score).toBeCloseTo(0.5, 6)
+    })
 
     it('credits a clicked non-score resource without adding to score', () => {
       enterIdlerPlaying(game)

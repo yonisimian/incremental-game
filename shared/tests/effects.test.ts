@@ -2,16 +2,22 @@ import { describe, expect, it } from 'vitest'
 import {
   addressableSources,
   addressableSourcesFor,
+  ATTACK_STAT_DIRECTION,
+  ATTACK_STATS,
   addressableTargets,
   addressableTargetsFor,
   applyEffect,
   collectModifiers,
   createInitialState,
+  enemyDebuffTargets,
+  enemyDebuffTargetsFor,
   getModeDefinition,
   hasEnemyDataAccess,
+  HIGHLIGHT_FACTOR_TARGET,
   isAttackUnlocked,
   isClickUnlocked,
   isDynamicEffect,
+  isEffectAllowedOn,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
   isPactUnlocked,
@@ -60,12 +66,17 @@ describe('effect registry', () => {
   it('lists registered effect types sorted', () => {
     expect(listEffectTypes()).toEqual([
       'accessEnemyData',
+      'attackAlert',
+      'attackSlots',
+      'attackStat',
       'balancedGenerators',
       'baseModifier',
       'batteryBand',
       'batteryStat',
       'dominantGenerator',
+      'enemyCostModifier',
       'enemyProductionModifier',
+      'enemyPurchaseLock',
       'generatorCost',
       'generatorUnlock',
       'highlightMultiplier',
@@ -75,6 +86,9 @@ describe('effect registry', () => {
       'stealGenerator',
       'stealResource',
       'systemUnlock',
+      'timeFactorBoost',
+      'timeRetroactive',
+      'timeScaledModifier',
       'unlockAttack',
       'unlockPact',
     ])
@@ -92,6 +106,7 @@ describe('effect registry', () => {
       'dominantGenerator',
       'lowerTierBoost',
       'relativeModifier',
+      'timeScaledModifier',
     ])
   })
 })
@@ -394,6 +409,57 @@ describe('collectModifiers effect wiring', () => {
     expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
   })
 
+  it('fans out an allResources baseModifier to every resource, with compounding', () => {
+    const base = getModeDefinition('idler')
+    const up: UpgradeDefinition = {
+      id: 'uAllRes',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'multiplicative', field: 'allResources', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const state = createInitialState(def)
+    state.upgrades.uAllRes = 2
+    const mods = collectModifiers(state, def)
+
+    // The sentinel is expanded away: 3 ** 2 = 9 lands on every declared
+    // resource's global layer, and never as the sentinel field itself.
+    expect(mods.some((m) => m.field === 'allResources')).toBe(false)
+    for (const resource of def.resources) {
+      expect(mods).toContainEqual({ stage: 'multiplicative', field: resource, value: 9 })
+    }
+  })
+
+  it('fans out an allGenerators baseModifier into every owned generator output', () => {
+    const base = getModeDefinition('idler')
+    const gen = base.generators[0]
+    const up: UpgradeDefinition = {
+      id: 'uAllGen',
+      cost: { r0: { baseCost: 10 } },
+      purchaseLimit: Infinity,
+      effects: [{ type: 'baseModifier', stage: 'additive', field: 'allGenerators', value: 3 }],
+    }
+    const def: ModeDefinition = { ...base, upgrades: [...base.upgrades, up] }
+    const sumAdditive = (mods: readonly { field: string; stage: string; value: number }[]) =>
+      mods
+        .filter((m) => m.field === gen.production.resource && m.stage === 'additive')
+        .reduce((s, m) => s + m.value, 0)
+
+    const withUp = createInitialState(def)
+    withUp.upgrades.uAllGen = 2
+    withUp.generators[gen.id] = 4
+    const withMods = collectModifiers(withUp, def)
+
+    const without = createInitialState(def)
+    without.generators[gen.id] = 4
+    const withoutMods = collectModifiers(without, def)
+
+    // The sentinel never leaks; the bonus folds into each owned generator's output.
+    expect(withMods.some((m) => m.field === 'allGenerators')).toBe(false)
+    // Only gen is owned: per-unit (3) × upgrade owned (2) × generator owned (4) = 24.
+    expect(sumAdditive(withMods) - sumAdditive(withoutMods)).toBe(24)
+  })
+
   it('applies mode-level effects regardless of upgrade ownership', () => {
     const base = getModeDefinition('idler')
     // A mode-level effect is ungated by upgrade ownership — it always runs.
@@ -464,6 +530,143 @@ describe('enemyProductionModifier params', () => {
         apply({ type: 'enemyProductionModifier', stage: 'additive', field: 'r0', value }),
       ).toThrow(/value/u)
     }
+  })
+})
+
+// ─── enemyCostModifier ───────────────────────────────────────────────
+
+describe('enemyCostModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('splits a whole-scope target into scope + no id', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'upgrades', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
+    expect(apply({ type: 'enemyCostModifier', target: 'generators', scalingFactor: 1.1 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: undefined,
+        scalingFactor: 1.1,
+      },
+    ])
+  })
+
+  it('emits one output per scope for `purchases`', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'purchases', costFactor: 1.25 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'upgrade',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: undefined,
+        costFactor: 1.25,
+        scalingFactor: undefined,
+      },
+    ])
+  })
+
+  it('splits a namespaced target into scope + id', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'generator:g0', costFactor: 2 })).toEqual([
+      {
+        kind: 'enemyCost',
+        scope: 'generator',
+        id: 'g0',
+        costFactor: 2,
+        scalingFactor: undefined,
+      },
+    ])
+  })
+
+  // An attack that discounts the victim is never intended authoring — the same
+  // reasoning as `guardModifierValue`'s debuff intent, in the other direction.
+  it('rejects a factor below 1 (a gift, not an attack)', () => {
+    for (const params of [{ costFactor: 0.9 }, { scalingFactor: 0.5 }]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a factor of exactly 1 (a no-op)', () => {
+    for (const params of [
+      { costFactor: 1 },
+      { scalingFactor: 1 },
+      { costFactor: 1.5, scalingFactor: 1 },
+    ]) {
+      expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades', ...params })).toThrow()
+    }
+  })
+
+  it('rejects a ref that sets neither factor (inert)', () => {
+    expect(() => apply({ type: 'enemyCostModifier', target: 'upgrades' })).toThrow(/costFactor/u)
+  })
+
+  // `validateModeDefinition` rejects this at boot; `apply` still has to stay
+  // inert rather than emit an output naming nothing.
+  it('is inert on an unparseable target', () => {
+    expect(apply({ type: 'enemyCostModifier', target: 'nope', costFactor: 1.5 })).toBeNull()
+  })
+})
+
+// ─── enemyPurchaseLock ───────────────────────────────────────────────
+
+describe('enemyPurchaseLock params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('maps each target to what it bars', () => {
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrades' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generators' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'purchases' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade' }, { scope: 'generator' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'upgrade:u0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'upgrade', id: 'u0' }],
+    })
+    expect(apply({ type: 'enemyPurchaseLock', target: 'generator:g0' })).toEqual({
+      kind: 'enemyPurchaseLock',
+      targets: [{ scope: 'generator', id: 'g0' }],
+    })
+  })
+
+  // A catalog string like `enemyCostModifier`'s: the schema only checks it is a
+  // string, `apply` stays inert on an unrecognized key, and boot rejects it.
+  it('is inert for an unrecognized target and rejects a missing one', () => {
+    for (const target of ['all', '']) {
+      expect(apply({ type: 'enemyPurchaseLock', target })).toBeNull()
+    }
+    expect(() => apply({ type: 'enemyPurchaseLock' })).toThrow()
+  })
+
+  it('is authorable on an active attack only', () => {
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'activeAttack')).toBe(true)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'passiveAttack')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('enemyPurchaseLock', 'mode')).toBe(false)
   })
 })
 
@@ -743,6 +946,211 @@ describe('unlockAttack effect', () => {
   it('reports an attack no upgrade names as locked', () => {
     const mode = getModeDefinition('idler')
     expect(isAttackUnlocked(createInitialState(mode), mode, 'nope')).toBe(false)
+  })
+})
+
+// ─── attackStat param validation ─────────────────────────────────────
+
+describe('attackStat params', () => {
+  const mode = getModeDefinition('idler')
+  const state = createInitialState(mode)
+
+  it('echoes the authored adjustment, attack included', () => {
+    expect(
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 })
+  })
+
+  it('rejects a ref naming no attack', () => {
+    expect(() =>
+      applyEffect({ type: 'attackStat', stat: 'power', op: 'add', value: 1 }, state, mode),
+    ).toThrow(/"attack"/)
+  })
+
+  it('rejects an unknown stat', () => {
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'nope', op: 'add', value: 1 },
+        state,
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  it('accepts the duration stat, factor and offset alike (plan 37)', () => {
+    expect(
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'mult', value: 2 })
+    expect(
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 })
+  })
+
+  it('rejects a duration stat pointing the wrong way — a shorter window helps nobody', () => {
+    for (const ref of [
+      { stat: 'duration', op: 'mult', value: 0.5 },
+      { stat: 'duration', op: 'add', value: -0.2 },
+      { stat: 'duration', op: 'offset', value: -1 },
+    ]) {
+      expect(() => applyEffect({ type: 'attackStat', attack: 'a0', ...ref }, state, mode)).toThrow(
+        /duration/u,
+      )
+    }
+  })
+
+  it('rejects an unknown op', () => {
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'divide', value: 2 },
+        state,
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  // `offset` is the absolute op — seconds, on the one stat measured in them.
+  it('accepts an offset on prepareTime', () => {
+    expect(
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 },
+        state,
+        mode,
+      ),
+    ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'prepareTime', op: 'offset', value: -1 })
+  })
+
+  it('rejects an offset on a stat with no single unit', () => {
+    // `power` has no unit (fraction / amount / count / debuff distance) and
+    // `prepareCost` has one per currency, so neither can take a flat shift.
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'offset', value: 1 },
+        state,
+        mode,
+      ),
+    ).toThrow(/does not apply to stat 'power'/u)
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'prepareCost', op: 'offset', value: -100 },
+        state,
+        mode,
+      ),
+    ).toThrow(/does not apply to stat 'prepareCost'/u)
+  })
+
+  it('rejects a non-numeric value', () => {
+    expect(() =>
+      applyEffect(
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 'lots' },
+        state,
+        mode,
+      ),
+    ).toThrow()
+  })
+
+  it('is ignored by the production pipeline', () => {
+    const withEffect: ModeDefinition = {
+      ...mode,
+      effects: [
+        ...(mode.effects ?? []),
+        { type: 'attackStat', attack: 'a0', stat: 'power', op: 'mult', value: 2 },
+      ],
+    }
+    const fresh = createInitialState(withEffect)
+    expect(collectModifiers(fresh, withEffect)).toEqual(collectModifiers(fresh, mode))
+  })
+})
+
+// ─── attackStat value direction ──────────────────────────────────────
+//
+// The stat decides which way its value has to move: an upgrade-hosted effect
+// helps the player who bought it (`baseModifier` is guarded the same way), so
+// `power` may only grow and `prepareCost`/`prepareTime` may only shrink. Every
+// op's neutral point is excluded with it, which is what makes an upgrade that
+// buys nothing an error rather than a disappointment.
+
+describe('attackStat value direction', () => {
+  const mode = getModeDefinition('idler')
+  const state = createInitialState(mode)
+
+  const attempt = (stat: string, op: string, value: unknown): (() => unknown) => {
+    return () => applyEffect({ type: 'attackStat', attack: 'a0', stat, op, value }, state, mode)
+  }
+
+  it('lets an increasing stat only increase', () => {
+    expect(attempt('power', 'mult', 1.5)).not.toThrow()
+    expect(attempt('power', 'add', 0.5)).not.toThrow()
+    expect(attempt('power', 'mult', 0.5)).toThrow(/improved by increasing it/u)
+    expect(attempt('power', 'add', -0.5)).toThrow(/improved by increasing it/u)
+  })
+
+  it('lets a decreasing stat only decrease', () => {
+    expect(attempt('prepareTime', 'mult', 0.5)).not.toThrow()
+    expect(attempt('prepareTime', 'add', -0.5)).not.toThrow()
+    expect(attempt('prepareTime', 'offset', -1)).not.toThrow()
+    expect(attempt('prepareCost', 'mult', 0.5)).not.toThrow()
+    // The self-nerfs: each is authorable arithmetic and each makes your own
+    // attack worse, which is the whole reason the direction is checked.
+    expect(attempt('prepareTime', 'mult', 2)).toThrow(/improved by decreasing it/u)
+    expect(attempt('prepareTime', 'offset', 2)).toThrow(/improved by decreasing it/u)
+    expect(attempt('prepareCost', 'add', 0.5)).toThrow(/improved by decreasing it/u)
+  })
+
+  it('rejects every neutral point — an upgrade must buy something', () => {
+    expect(attempt('power', 'mult', 1)).toThrow(/got 1/u)
+    expect(attempt('power', 'add', 0)).toThrow(/got 0/u)
+    expect(attempt('prepareTime', 'mult', 1)).toThrow(/got 1/u)
+    expect(attempt('prepareTime', 'offset', 0)).toThrow(/got 0/u)
+  })
+
+  it('rejects a mult at or below zero, whichever way the stat moves', () => {
+    // `0` collapses the stat for every owned count and no later upgrade lifts it
+    // back; a negative base flips sign with the parity of the owned count.
+    expect(attempt('power', 'mult', 0)).toThrow()
+    expect(attempt('power', 'mult', -2)).toThrow()
+    expect(attempt('prepareCost', 'mult', 0)).toThrow()
+    expect(attempt('prepareCost', 'mult', -0.5)).toThrow()
+  })
+
+  it('bounds a reducing add at -1, where one copy already zeroes the stat', () => {
+    expect(attempt('prepareCost', 'add', -0.999)).not.toThrow()
+    expect(attempt('prepareCost', 'add', -1)).toThrow(/between -1 and 0/u)
+    expect(attempt('prepareCost', 'add', -1.5)).toThrow(/between -1 and 0/u)
+  })
+
+  it('refuses an implausible magnitude — a slipped exponent compounds', () => {
+    expect(attempt('power', 'mult', 1e6)).not.toThrow()
+    expect(attempt('power', 'mult', 1e7)).toThrow(/implausibly large/u)
+    expect(attempt('power', 'add', 1e200)).toThrow(/implausibly large/u)
+  })
+
+  it('reports the pairing before the value, so the range quoted is the real one', () => {
+    // `offset` is illegal on `power` whatever the number; quoting a range for an
+    // op the stat cannot use would send the author after the wrong field.
+    expect(attempt('power', 'offset', -1)).toThrow(/does not apply to stat 'power'/u)
+  })
+
+  it('covers every stat, so a new one cannot ship without a direction', () => {
+    for (const stat of ATTACK_STATS) {
+      const direction = ATTACK_STAT_DIRECTION[stat]
+      expect(direction).toBeDefined()
+      // The neutral multiplier is rejected for every stat, whichever way it
+      // moves — the cheapest proof that the guard is wired to this stat at all.
+      expect(attempt(stat, 'mult', 1)).toThrow()
+      expect(attempt(stat, 'mult', direction === 'increase' ? 2 : 0.5)).not.toThrow()
+    }
   })
 })
 
@@ -1222,6 +1630,54 @@ describe('production field mode validation', () => {
     }).toThrow(/baseModifier targets unknown production field 'nope'/u)
   })
 
+  it('accepts the aggregate target fields (allResources / allGenerators)', () => {
+    for (const field of ['allResources', 'allGenerators']) {
+      expect(() => {
+        validateModeDefinition(
+          'idler',
+          withUpgrade({ type: 'baseModifier', field, stage: 'additive', value: 1 }),
+        )
+      }).not.toThrow()
+    }
+  })
+
+  it('throws when a resource id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      resources: [...base.resources, 'allResources'],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        resources: [...f.resources, { key: 'allResources', displayName: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
+  it('throws when a generator id collides with an aggregate sentinel', () => {
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      generators: [
+        ...base.generators,
+        {
+          id: 'allGenerators',
+          cost: { r0: { baseCost: 1 } },
+          production: { resource: 'r0', rate: 1 },
+        },
+      ],
+      flavors: base.flavors.map((f) => ({
+        ...f,
+        generators: [...f.generators, { id: 'allGenerators', name: 'X', icon: '?' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('idler', def)
+    }).toThrow(/aggregate-target sentinel/u)
+  })
+
   it('throws on a mode-level baseModifier targeting an unknown field', () => {
     const base = getModeDefinition('idler')
     const def: ModeDefinition = {
@@ -1322,7 +1778,37 @@ describe('addressable-field catalog', () => {
       { key: 'b0', label: 'r0 (base producer)' },
       { key: 'g0', label: 'g0 (output)' },
       { key: 'g1', label: 'g1 (output)' },
+      { key: 'allResources', label: 'All resources (rate)' },
+      { key: 'allGenerators', label: 'All generators (output)' },
     ])
+  })
+
+  it('builds enemy-debuff target keys from click income, the highlight factor, and rates', () => {
+    expect(enemyDebuffTargetsFor(['r0', 'r1'])).toEqual([
+      { key: 'clickIncome', label: 'Click income' },
+      { key: HIGHLIGHT_FACTOR_TARGET, label: 'Highlight factor' },
+      { key: 'r0', label: 'r0 (rate)' },
+      { key: 'r1', label: 'r1 (rate)' },
+    ])
+  })
+
+  // The two catalogs overlap rather than nest. Generator and base-producer
+  // targets are debuffable by nothing (a debuff merges in after generator output
+  // has been folded into rates); the highlight factor is debuff-only, since it
+  // names no pipeline field at all and is resolved against the victim instead.
+  it('overlaps the full catalog everywhere except the virtual highlight target', () => {
+    const full = addressableTargetsFor(['r0', 'r1'], ['g0'])
+    for (const target of enemyDebuffTargetsFor(['r0', 'r1'])) {
+      if (target.key === HIGHLIGHT_FACTOR_TARGET) expect(full).not.toContainEqual(target)
+      else expect(full).toContainEqual(target)
+    }
+    expect(full.map((f) => f.key)).not.toContain(HIGHLIGHT_FACTOR_TARGET)
+  })
+
+  it('omits allGenerators when a mode has no generators', () => {
+    const keys = addressableTargetsFor(['r0'], []).map((f) => f.key)
+    expect(keys).toContain('allResources')
+    expect(keys).not.toContain('allGenerators')
   })
 
   it('the mode-level helpers delegate to the primitive ones', () => {
@@ -1334,6 +1820,7 @@ describe('addressable-field catalog', () => {
         mode.generators.map((g) => g.id),
       ),
     )
+    expect(enemyDebuffTargets(mode)).toEqual(enemyDebuffTargetsFor(mode.resources))
   })
 })
 

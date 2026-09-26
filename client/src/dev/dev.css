@@ -1093,6 +1093,14 @@ body {
   min-height: 1em;
 }
 
+/* Resolved preview of an effect ref's params — empty (and so invisible) for
+   every effect that has nothing extra to say. */
+.ed-effect-preview {
+  margin: 0.25rem 0 0;
+  font-style: normal;
+  color: var(--dev-accent, var(--dev-muted));
+}
+
 .ed-effect {
   border: 1px solid var(--dev-border);
   border-radius: 6px;

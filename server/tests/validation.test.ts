@@ -76,14 +76,14 @@ describe('isValidPurchase', () => {
 
   it('accepts a valid purchase', () => {
     expect(
-      isValidPurchase(makeState({ resources: { r0: 100 } }), 'sh-unlock', testUpgradeMap),
+      isValidPurchase(makeState({ resources: { r0: 100 } }), 'sh-unlock', testUpgradeMap, idlerDef),
     ).toBe(true)
   })
 
   it('accepts at exact cost', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 50 } }), 'sc-unlock', testUpgradeMap)).toBe(
-      true,
-    )
+    expect(
+      isValidPurchase(makeState({ resources: { r0: 50 } }), 'sc-unlock', testUpgradeMap, idlerDef),
+    ).toBe(true)
   })
 
   it('rejects if already owned', () => {
@@ -94,25 +94,25 @@ describe('isValidPurchase', () => {
         'sc-unlock': 0,
       },
     })
-    expect(isValidPurchase(state, 'sh-unlock', testUpgradeMap)).toBe(false)
+    expect(isValidPurchase(state, 'sh-unlock', testUpgradeMap, idlerDef)).toBe(false)
   })
 
   it('rejects if too expensive', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 49 } }), 'sc-unlock', testUpgradeMap)).toBe(
-      false,
-    )
+    expect(
+      isValidPurchase(makeState({ resources: { r0: 49 } }), 'sc-unlock', testUpgradeMap, idlerDef),
+    ).toBe(false)
   })
 
   it('rejects an unknown upgrade ID', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 9999 } }), 'bogus', testUpgradeMap)).toBe(
-      false,
-    )
+    expect(
+      isValidPurchase(makeState({ resources: { r0: 9999 } }), 'bogus', testUpgradeMap, idlerDef),
+    ).toBe(false)
   })
 
   it('rejects a cross-mode upgrade not in the map', () => {
-    expect(isValidPurchase(makeState({ resources: { r0: 9999 } }), 'u3', testUpgradeMap)).toBe(
-      false,
-    )
+    expect(
+      isValidPurchase(makeState({ resources: { r0: 9999 } }), 'u3', testUpgradeMap, idlerDef),
+    ).toBe(false)
   })
 })
 describe('isValidPurchase — choice groups', () => {
@@ -121,6 +121,7 @@ describe('isValidPurchase — choice groups', () => {
     { id: 'choice-b', cost: { r0: { baseCost: 10 } }, purchaseLimit: 1, choiceGroup: 'branch' },
   ]
   const groupMap = new Map(groupUpgrades.map((u) => [u.id, u]))
+  const groupMode = { ...idlerDef, upgrades: groupUpgrades }
 
   function makeGroupState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
@@ -135,12 +136,12 @@ describe('isValidPurchase — choice groups', () => {
   }
 
   it('accepts the first choice in a group when affordable', () => {
-    expect(isValidPurchase(makeGroupState(), 'choice-a', groupMap)).toBe(true)
+    expect(isValidPurchase(makeGroupState(), 'choice-a', groupMap, groupMode)).toBe(true)
   })
 
   it('rejects a second choice in the same group once one is owned', () => {
     const state = makeGroupState({ upgrades: { 'choice-a': 1, 'choice-b': 0 } })
-    expect(isValidPurchase(state, 'choice-b', groupMap)).toBe(false)
+    expect(isValidPurchase(state, 'choice-b', groupMap, groupMode)).toBe(false)
   })
 })
 // ─── isValidPurchase: goal-tagged upgrades ───────────────────────────
@@ -166,7 +167,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(idlerDef, timedGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap)).toBe(false)
+    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap, idlerDef)).toBe(false)
   })
 
   it('accepts the trophy under buy-upgrade goal when affordable', () => {
@@ -178,7 +179,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     const filteredMap = new Map<string, UpgradeDefinition>(
       getAvailableUpgrades(idlerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
-    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap)).toBe(true)
+    expect(isValidPurchase(makeAffordableState(), 'goal', filteredMap, idlerDef)).toBe(true)
   })
 
   it('rejects the trophy under buy-upgrade goal when too expensive', () => {
@@ -192,7 +193,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
     )
     const state = makeAffordableState()
     state.resources.r0 = 100 // trophy costs 30000
-    expect(isValidPurchase(state, 'goal', filteredMap)).toBe(false)
+    expect(isValidPurchase(state, 'goal', filteredMap, idlerDef)).toBe(false)
   })
 })
 
@@ -224,6 +225,7 @@ describe('isValidPurchase — prerequisites', () => {
     },
   ]
   const prereqMap = new Map(prereqUpgrades.map((u) => [u.id, u]))
+  const prereqMode = { ...idlerDef, upgrades: prereqUpgrades }
 
   function makeState(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
@@ -239,30 +241,30 @@ describe('isValidPurchase — prerequisites', () => {
 
   it('accepts root-level upgrades (no prerequisites) immediately', () => {
     const state = makeState()
-    expect(isValidPurchase(state, 'root', prereqMap)).toBe(true)
+    expect(isValidPurchase(state, 'root', prereqMap, prereqMode)).toBe(true)
   })
 
   it('rejects an AND-prereq child when its prerequisite is unowned', () => {
     const state = makeState()
-    expect(isValidPurchase(state, 'andChild', prereqMap)).toBe(false)
+    expect(isValidPurchase(state, 'andChild', prereqMap, prereqMode)).toBe(false)
   })
 
   it('accepts an AND-prereq child once its prerequisite is owned', () => {
     const state = makeState({
       upgrades: { ...Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])), root: 1 },
     })
-    expect(isValidPurchase(state, 'andChild', prereqMap)).toBe(true)
+    expect(isValidPurchase(state, 'andChild', prereqMap, prereqMode)).toBe(true)
   })
 
   it('rejects an OR-prereq child when neither branch is owned', () => {
     const state = makeState()
-    expect(isValidPurchase(state, 'orChild', prereqMap)).toBe(false)
+    expect(isValidPurchase(state, 'orChild', prereqMap, prereqMode)).toBe(false)
   })
 
   it('accepts an OR-prereq child when at least one branch is owned', () => {
     const state = makeState({
       upgrades: { ...Object.fromEntries(prereqUpgrades.map((u) => [u.id, 0])), a: 1 },
     })
-    expect(isValidPurchase(state, 'orChild', prereqMap)).toBe(true)
+    expect(isValidPurchase(state, 'orChild', prereqMap, prereqMode)).toBe(true)
   })
 })

@@ -11,6 +11,9 @@ import {
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
+  collectEnemyCostFactors,
+  collectEnemyPurchaseLocks,
+  resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
   applyPassiveTick,
@@ -21,6 +24,7 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
+  openDebuffWindows,
   resolveAttackStrike,
   hasEnemyDataAccess,
   enemyDataKeysFor,
@@ -31,6 +35,9 @@ import {
   ENEMY_DATA_PURCHASE_GENERATOR_KEY,
   isClickUnlocked,
   applyHighlightSelection,
+  ATTACKS_SUFFERED_META_KEY,
+  collectAttackAlert,
+  incomingAttacksWithin,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -410,7 +417,37 @@ export class Match {
 
   // ─── Private: action processing ────────────────────────────────────
 
+  /**
+   * Stamp each player's incoming cost inflation and purchase locks from the
+   * *other* player's attacks in force (see `collectEnemyCostFactors` and
+   * `collectEnemyPurchaseLocks`).
+   *
+   * Every price path — server validation, the client's optimistic purchase, the
+   * card the player reads — resolves the factors off `PlayerState`, so this is
+   * the one place they're computed. Called wherever a price is about to be
+   * judged or shown: before an action batch is validated (actions arrive on
+   * message receipt, not on the tick, so a tick-only stamp could validate a
+   * purchase against factors up to one tick stale), before the bot's actions,
+   * and before each broadcast. The lock rides the same stamp for the same
+   * reason: a buy must be judged against the windows open *now*.
+   */
+  private syncCostFactors(): void {
+    for (let i = 0; i < this.players.length; i++) {
+      const player = this.players[i]
+      const opponent = this.players[1 - i].state
+      const incoming = collectEnemyCostFactors(opponent, this.modeDef)
+      // Absent rather than empty when nothing is inflicted: the field is optional
+      // on the wire, and the common case should carry no payload.
+      if (incoming.length > 0) player.state.incomingCostFactors = incoming
+      else delete player.state.incomingCostFactors
+      const locks = collectEnemyPurchaseLocks(opponent, this.modeDef)
+      if (locks.length > 0) player.state.incomingPurchaseLocks = locks
+      else delete player.state.incomingPurchaseLocks
+    }
+  }
+
   private processActions(player: MatchPlayer, actions: PlayerAction[], seq: number): void {
+    this.syncCostFactors()
     for (const action of actions) {
       if (action.type === 'click') {
         if (!isClickUnlocked(player.state, this.modeDef)) continue
@@ -419,7 +456,8 @@ export class Match {
         }
         this.applyClick(player, action.resource)
       } else if (action.type === 'buy' && action.upgradeId) {
-        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap)) continue
+        if (!isValidPurchase(player.state, action.upgradeId, this.upgradeMap, this.modeDef))
+          continue
         this.applyPurchase(player, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, player)) break
       } else if (action.type === 'set_highlight' && action.highlight !== undefined) {
@@ -453,6 +491,7 @@ export class Match {
 
   /** Run the bot strategy for player index 1 and apply its actions. */
   private processBotActions(): void {
+    this.syncCostFactors()
     const botPlayer = this.players[1]
     const tickSec = TICK_INTERVAL_MS / 1000
     const actions = this.bot!.decide(botPlayer.state, tickSec)
@@ -472,13 +511,18 @@ export class Match {
         botPlayer.recentClickTimestamps.push(now)
         this.applyClick(botPlayer, action.resource)
       } else if (action.type === 'buy') {
-        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap)) continue
+        if (!isValidPurchase(botPlayer.state, action.upgradeId, this.upgradeMap, this.modeDef))
+          continue
         this.applyPurchase(botPlayer, action.upgradeId)
         if (this.checkBuyUpgradeWin(action.upgradeId, botPlayer)) break
       } else if (action.type === 'buy_generator') {
         if (!isValidGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)) continue
         applyGeneratorPurchase(botPlayer.state, action.generatorId, this.modeDef)
         this.recordPurchase(botPlayer, 'generator', action.generatorId)
+      } else if (action.type === 'activate_attack') {
+        // The same gate a human's activation passes — the bot gets no shortcut.
+        if (!isValidAttackActivation(botPlayer.state, action.attackId, this.modeDef)) continue
+        applyAttackActivation(botPlayer.state, action.attackId, this.modeDef)
       } else {
         // set_highlight — same validator as processActions, by construction now.
         applyHighlightSelection(botPlayer.state, this.modeDef, action.highlight)
@@ -493,10 +537,16 @@ export class Match {
     // charge (see `advanceHighlightBattery`).
     advanceHighlightBattery(player.state, this.modeDef, tickSec)
     // The defender's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict (e.g. a -10% wood-production attack).
+    // unlocked passive attacks inflict (e.g. a -10% wood-production attack),
+    // resolved against the defender — a highlight-factor debuff lands on whichever
+    // resource they're holding right now.
     const modifiers = [
       ...collectModifiers(player.state, this.modeDef),
-      ...collectEnemyDebuffs(opponent.state, this.modeDef),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(opponent.state, this.modeDef),
+        player.state,
+        this.modeDef,
+      ),
     ]
     applyPassiveTick(
       player.state,
@@ -511,14 +561,31 @@ export class Match {
    * Land every active attack whose preparation has elapsed this tick. For each
    * player, drain the pending strikes due at their current `meta.gameSec`,
    * resolve them against the opponent (moving the stolen resources / generator
-   * copies), and buffer an `outgoing`/`incoming` event pair per theft for the
-   * next broadcast.
+   * copies, opening a debuff window), and buffer an `outgoing`/`incoming` event
+   * pair per result for the next broadcast.
+   *
+   * Also sweeps expired debuff windows off `activeDebuffs`. The collectors
+   * already ignore an expired window at read time, so the sweep is hygiene —
+   * it bounds the array and keeps the wire small — not correctness. Ordering
+   * consequence, accepted: `applyPassiveIncome` runs before this in the tick and
+   * reads the windows through that same filter, so a window is worth whole
+   * ticks at `TICK_INTERVAL_MS` granularity, exactly as `prepareTimeSec` is.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
       const attacker = this.players[i]
       const victim = this.players[1 - i]
       const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
+
+      if (attacker.state.activeDebuffs !== undefined) {
+        const open = openDebuffWindows(attacker.state, gameSec)
+        // Absent rather than empty once the last window closes — the same
+        // convention as `incomingCostFactors`, so a quiet round carries nothing.
+        if (open.length === 0) delete attacker.state.activeDebuffs
+        else if (open.length !== attacker.state.activeDebuffs.length)
+          attacker.state.activeDebuffs = open
+      }
+
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
 
@@ -526,6 +593,11 @@ export class Match {
         const def = this.modeDef.attacks.find((a) => a.id === pending.attack)
         if (!def) continue
         const moved = resolveAttackStrike(attacker.state, victim.state, def, this.modeDef)
+        // Every landed active strike counts toward the `meta` prerequisites that
+        // unlock defensive nodes, even one that moved nothing — being attacked
+        // is what the gate asks about. A passive attack never passes through here.
+        victim.state.meta[ATTACKS_SUFFERED_META_KEY] =
+          ((victim.state.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0) + 1
         if (moved.length === 0) {
           // The strike landed but moved nothing (the victim owned none of the
           // target). Report it to both sides: the attacker gets feedback that
@@ -546,12 +618,14 @@ export class Match {
           continue
         }
         for (const result of moved) {
-          // The same theft, described once per side: `direction` is the only
+          // The same result, described once per side: `direction` is the only
           // field that differs between the attacker's and the victim's copy.
           const what =
             result.kind === 'resource'
               ? { kind: result.kind, resource: result.resource, amount: result.amount }
-              : { kind: result.kind, generator: result.generator, count: result.count }
+              : result.kind === 'generator'
+                ? { kind: result.kind, generator: result.generator, count: result.count }
+                : { kind: result.kind, durationSec: result.durationSec }
           attacker.attackEvents.push({
             attack: pending.attack,
             direction: 'outgoing',
@@ -601,7 +675,17 @@ export class Match {
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
     player.state.meta.peakCps = player.stats.peakCps
 
-    const modifiers = collectModifiers(player.state, this.modeDef)
+    // The clicker's own modifiers plus the offensive debuffs the opponent's
+    // unlocked passive attacks inflict. Resolving tags a `clickIncome` debuff as
+    // incoming, which is what orders it after the clicker's own click power.
+    const modifiers = [
+      ...collectModifiers(player.state, this.modeDef),
+      ...resolveEnemyDebuffs(
+        collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
+        player.state,
+        this.modeDef,
+      ),
+    ]
     const income = computeClickIncome(modifiers)
 
     // Credit the requested resource (defaults to score); only the score resource
@@ -667,9 +751,17 @@ export class Match {
   private broadcastState(): void {
     const [p1, p2] = this.players
 
+    // Refresh each side's incoming cost inflation so the snapshot carries the
+    // prices the client is about to quote and predict against.
+    this.syncCostFactors()
+
     // Offensive debuffs each player's unlocked passive attacks inflict on the
     // other, sent so the victim's client can render its true (debuffed) rate —
     // matching the same debuffs `applyPassiveIncome` applies to real income.
+    // Sent **unresolved** (see `resolveEnemyDebuffs`): the victim's client
+    // resolves them against its own state, which both keeps it exact across a
+    // mid-tick highlight switch and lets its UI tell a highlight-factor debuff
+    // apart from a plain rate debuff in order to report it.
     const p1Debuffs = collectEnemyDebuffs(p1.state, this.modeDef)
     const p2Debuffs = collectEnemyDebuffs(p2.state, this.modeDef)
 
@@ -739,8 +831,12 @@ export class Match {
       if (hasEnemyDataAccess(viewer.state, mode, rateKey)) {
         // Include the debuffs the *viewer* inflicts on the opponent so the spied
         // rate matches the opponent's real production, not an undebuffed figure.
+        // Resolved against the opponent — they're the victim here.
         rates ??= computePassiveRates(
-          [...collectModifiers(opponent.state, mode), ...viewerDebuffs],
+          [
+            ...collectModifiers(opponent.state, mode),
+            ...resolveEnemyDebuffs(viewerDebuffs, opponent.state, mode),
+          ],
           mode.resources,
         )
         view.rates[key] = rates[key] ?? 0
@@ -756,7 +852,36 @@ export class Match {
       this.projectPurchaseFeed(viewer, opponent, view)
     }
 
+    this.projectIncomingAttacks(viewer, opponent, view)
+
     return view
+  }
+
+  /**
+   * Warn `viewer` of the opponent's pending strikes due within the viewer's
+   * `attackAlert` lead. Unlike the purchase feed this is *state*, not
+   * a delta: the full list of strikes inside the lead goes out every broadcast
+   * and the client replaces, never accumulates — so no watermark, no per-viewer
+   * bookkeeping. `readyAtSec` is on the attacker's clock, which advances in
+   * lockstep with the viewer's (one tick loop), so the viewer counts down
+   * against its own `meta.gameSec`. The attack id is included only with a
+   * reveal grant. Absent when empty, like every other optional view field.
+   */
+  private projectIncomingAttacks(
+    viewer: MatchPlayer,
+    opponent: MatchPlayer,
+    view: OpponentView,
+  ): void {
+    const alert = collectAttackAlert(viewer.state, this.modeDef)
+    if (alert.leadSec <= 0) return
+    const gameSec = (opponent.state.meta.gameSec as number | undefined) ?? 0
+    const soon = incomingAttacksWithin(opponent.state, gameSec, alert)
+    if (soon.length === 0) return
+    view.incomingAttacks = soon.map((p) =>
+      alert.revealAttack
+        ? { readyAtSec: p.readyAtSec, attack: p.attack }
+        : { readyAtSec: p.readyAtSec },
+    )
   }
 
   /**
@@ -822,9 +947,12 @@ export class Match {
     this.clearTimers()
 
     const [p1, p2] = this.players
-    // Discard any attacks still preparing — the round is over, so they never land.
+    // Discard any attacks still preparing — the round is over, so they never
+    // land — and close any open debuff window with them.
     p1.state.pendingAttacks = []
     p2.state.pendingAttacks = []
+    delete p1.state.activeDebuffs
+    delete p2.state.activeDebuffs
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

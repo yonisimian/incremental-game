@@ -4,7 +4,16 @@ import type { EffectOutput, GeneratorCostOutput } from './effects/index.js'
 // Importing from the effects barrel ensures seed effects (incl. `generatorCost`)
 // are registered whenever cost factors are collected.
 import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
-import { isFlatCost, scaledCost } from './cost.js'
+import type { CostFactors } from './cost.js'
+import {
+  applyCostFactors,
+  combineCostFactors,
+  incomingCostFactors,
+  isFlatCost,
+  isNeutralCostFactors,
+  NEUTRAL_COST_FACTORS,
+  scaledCost,
+} from './cost.js'
 import { generatorGate, isGranted } from './unlock-gates.js'
 import { GENERATOR_SELL_REFUND_RATE } from './game-config.js'
 
@@ -18,15 +27,13 @@ function generatorCostEntry(def: GeneratorDefinition): CostEntry {
   return Object.values(def.cost)[0] ?? { baseCost: 0 }
 }
 
-/** Aggregated cost reductions for a single generator (1 = no reduction). */
-export interface GeneratorCostFactors {
-  /** Multiplier on the generator's base cost. */
-  readonly costFactor: number
-  /** Multiplier on the growth portion (`costScaling - 1`) of the cost curve. */
-  readonly scalingFactor: number
-}
-
-const NEUTRAL_COST_FACTORS: GeneratorCostFactors = { costFactor: 1, scalingFactor: 1 }
+/**
+ * Whether a generator price is being *paid* or *refunded*. The two resolve
+ * different factor sets: buying pays the player's own reductions **and** any
+ * inflation the opponent inflicts, while a refund is priced off the player's own
+ * economy alone (see {@link getGeneratorSellRefund}).
+ */
+export type CostPurpose = 'buy' | 'sell'
 
 /**
  * Whether an effect output is a generator cost reduction. Other outputs carry a
@@ -39,14 +46,20 @@ function isCostOutput(out: EffectOutput): out is GeneratorCostOutput {
 
 /**
  * Aggregate every owned upgrade's `generatorCost` effects into per-generator
- * cost factors. Factors stack multiplicatively and compound with the owning
- * upgrade's owned count (`factor ** owned`). Generators with no reductions are
- * absent from the map (callers fall back to {@link NEUTRAL_COST_FACTORS}).
+ * cost factors, then — when a price is being *paid* (`purpose: 'buy'`) — fold in
+ * the inflation the opponent's passive attacks inflict on this player.
+ *
+ * Own factors stack multiplicatively and compound with the owning upgrade's
+ * owned count (`factor ** owned`); incoming inflation carries no owned count (an
+ * attack is unlocked or it isn't) and multiplies in afterwards, so a reduction
+ * and an inflation on the same generator commute. Generators with neither are
+ * absent from the map (callers fall back to `NEUTRAL_COST_FACTORS`).
  */
 export function collectGeneratorCostFactors(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
-): Map<string, GeneratorCostFactors> {
+  purpose: CostPurpose,
+): Map<string, CostFactors> {
   const factors = new Map<string, { costFactor: number; scalingFactor: number }>()
   for (const upgrade of mode.upgrades) {
     const owned = state.upgrades[upgrade.id] ?? 0
@@ -64,6 +77,15 @@ export function collectGeneratorCostFactors(
       }
     }
   }
+  if (purpose === 'sell' || state.incomingCostFactors === undefined) return factors
+  // A whole-scope inflation hits generators the player has no reduction for, so
+  // walk the mode's list rather than only the entries collected above.
+  for (const gen of mode.generators) {
+    const incoming = incomingCostFactors(state, 'generator', gen.id)
+    if (isNeutralCostFactors(incoming)) continue
+    const own = factors.get(gen.id) ?? NEUTRAL_COST_FACTORS
+    factors.set(gen.id, { ...combineCostFactors(own, incoming) })
+  }
   return factors
 }
 
@@ -75,23 +97,11 @@ export function collectGeneratorCostFactors(
  */
 export function applyGeneratorCostFactors(
   def: GeneratorDefinition,
-  factors: GeneratorCostFactors = NEUTRAL_COST_FACTORS,
+  factors: CostFactors = NEUTRAL_COST_FACTORS,
 ): GeneratorDefinition {
-  if (factors.costFactor === 1 && factors.scalingFactor === 1) return def
+  if (isNeutralCostFactors(factors)) return def
   const currency = generatorCostCurrency(def)
-  const entry = generatorCostEntry(def)
-  const scaledBase = entry.baseCost * factors.costFactor
-  const scaled: CostEntry =
-    entry.scaleType !== undefined && entry.scaleFactor !== undefined
-      ? {
-          ...entry,
-          baseCost: scaledBase,
-          scaleFactor:
-            entry.scaleType === 'exponential'
-              ? 1 + (entry.scaleFactor - 1) * factors.scalingFactor
-              : entry.scaleFactor * factors.scalingFactor,
-        }
-      : { ...entry, baseCost: scaledBase }
+  const scaled: CostEntry = applyCostFactors(generatorCostEntry(def), factors)
   return { ...def, cost: { [currency]: scaled } }
 }
 
@@ -99,13 +109,18 @@ export function applyGeneratorCostFactors(
  * Resolve a generator's cost-adjusted definition for a given player + mode.
  * Convenience over `collectGeneratorCostFactors` + `applyGeneratorCostFactors`
  * for single-generator call sites.
+ *
+ * `purpose` decides whether the opponent's cost inflation is folded in: a price
+ * being paid carries it, a refund does not. Required rather than defaulted so a
+ * new refund site can't silently price at `'buy'` and reopen the money pump.
  */
 export function resolveGeneratorDef(
   def: GeneratorDefinition,
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
+  purpose: CostPurpose,
 ): GeneratorDefinition {
-  const factors = collectGeneratorCostFactors(state, mode).get(def.id)
+  const factors = collectGeneratorCostFactors(state, mode, purpose).get(def.id)
   return applyGeneratorCostFactors(def, factors)
 }
 
@@ -130,8 +145,14 @@ export function getGeneratorBulkCost(
 
 /**
  * Refund for selling one copy, given the *cost-adjusted* definition. Prices the
- * copy being removed (index `owned - 1`) — the same price a re-buy will charge.
- * 0 when nothing is owned.
+ * copy being removed (index `owned - 1`) — the same price a re-buy will charge
+ * from the player's *own* economy.
+ *
+ * Callers must resolve the definition with `purpose: 'sell'`, i.e. **without**
+ * the opponent's cost inflation. Including it would make the refund track the
+ * attack: at an inflation of ×2 or more a copy would refund more than it cost to
+ * buy, turning the attack into a gift and opening a sell/re-buy money pump. The
+ * enemy inflates what you *pay*, not what your assets are worth.
  */
 export function getGeneratorSellRefund(def: GeneratorDefinition, owned: number): number {
   if (owned <= 0) return 0
@@ -146,7 +167,8 @@ export function canSellGenerator(state: Readonly<PlayerState>, def: GeneratorDef
 /**
  * Decrement the owned count and credit the refund. Mirrors
  * `applyGeneratorPurchase`: resolves cost factors itself, mutates
- * `state.resources` only — never `state.score`.
+ * `state.resources` only — never `state.score`. Resolves at `'sell'` so the
+ * refund ignores enemy inflation (see {@link getGeneratorSellRefund}).
  */
 export function applyGeneratorSell(
   state: PlayerState,
@@ -155,7 +177,7 @@ export function applyGeneratorSell(
 ): void {
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return
-  const effectiveDef = resolveGeneratorDef(def, state, mode)
+  const effectiveDef = resolveGeneratorDef(def, state, mode, 'sell')
   const owned = state.generators[def.id] ?? 0
   if (owned <= 0) return
   const refund = getGeneratorSellRefund(effectiveDef, owned)
@@ -230,7 +252,7 @@ export function applyGeneratorPurchase(
 ): void {
   const def = mode.generators.find((g) => g.id === generatorId)
   if (!def) return
-  const effectiveDef = resolveGeneratorDef(def, state, mode)
+  const effectiveDef = resolveGeneratorDef(def, state, mode, 'buy')
   const owned = state.generators[def.id] ?? 0
   const cost = getGeneratorCost(effectiveDef, owned)
   state.resources[generatorCostCurrency(def)] -= cost

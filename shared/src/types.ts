@@ -1,4 +1,16 @@
-/** Recursive prerequisite expression with AND / OR semantics. */
+import type { PrerequisiteMetaKey } from './prerequisites.js'
+
+/**
+ * Recursive prerequisite expression with AND / OR semantics.
+ *
+ * `upgrade` tests owned levels. `meta` tests a counter the server stamps on
+ * `PlayerState.meta` (e.g. `attacksSuffered`, how many enemy strikes have
+ * landed on this player) — the only prerequisite kind that reads live state
+ * rather than the tree, which is what lets a node unlock in response to what
+ * the *opponent* did. Its `key` is drawn from a whitelist
+ * (`PREREQUISITE_META_KEYS`) so a typo fails at boot instead of locking the
+ * node for good.
+ */
 export type PrerequisiteExpression =
   | { readonly type: 'all'; readonly items: readonly PrerequisiteExpression[] }
   | { readonly type: 'any'; readonly items: readonly PrerequisiteExpression[] }
@@ -6,6 +18,12 @@ export type PrerequisiteExpression =
       readonly type: 'upgrade'
       readonly id: string
       readonly minLevel?: number
+    }
+  | {
+      readonly type: 'meta'
+      readonly key: PrerequisiteMetaKey
+      /** Satisfied once `state.meta[key]` reaches this (a positive integer). */
+      readonly min: number
     }
 
 export type UpgradePrerequisites = PrerequisiteExpression
@@ -111,8 +129,11 @@ export type AttackKind = 'active' | 'passive'
  * while the attack is unlocked — gathered by `collectEnemyDebuffs`. An `active`
  * attack is *activated* by paying its `prepareCost`; after `prepareTimeSec` game
  * seconds it strikes, resolving its effects once against the opponent (e.g.
- * `stealResource`). Display data lives in `AttackFlavor`. `kind` groups attacks
- * into separate blocks in the panel.
+ * `stealResource`). An active attack may also carry the passive vocabulary
+ * (`enemyProductionModifier` / `enemyCostModifier`): those open a *debuff
+ * window* of `durationSec` game seconds when the strike lands, tracked on the
+ * attacker as `PlayerState.activeDebuffs`. Display data lives in
+ * `AttackFlavor`. `kind` groups attacks into separate blocks in the panel.
  */
 export interface AttackDefinition {
   readonly id: string
@@ -134,11 +155,22 @@ export interface AttackDefinition {
    */
   readonly prepareTimeSec?: number
   /**
+   * Seconds the strike's debuff effects stay in force, in *game* seconds (so it
+   * freezes with the round, like `prepareTimeSec`). Active attacks only, and
+   * required when the attack carries a window-consuming effect
+   * (`enemyProductionModifier` / `enemyCostModifier`); forbidden on a passive
+   * attack, which is always-on by definition, and on an active attack whose
+   * effects are all steals (a window with nothing in it). One window per
+   * *attack*, not per effect — several debuff effects on one attack share it.
+   */
+  readonly durationSec?: number
+  /**
    * Offensive effects this attack carries. Each ref names a registered effect
    * plus its params. On a *passive* attack an `enemyModifier`-emitting effect
    * applies continuously to the opponent; on an *active* attack a
-   * `resourceSteal`-emitting effect resolves once, when the attack strikes.
-   * Optional (an effect-less attack is a placeholder). Optional.
+   * `resourceSteal`-emitting effect resolves once, when the attack strikes, and
+   * an `enemyModifier`/`enemyCost`-emitting one applies for `durationSec` from
+   * the strike. Optional (an effect-less attack is a placeholder).
    */
   readonly effects?: readonly EffectRef[]
 }
@@ -170,8 +202,112 @@ export interface PlayerState {
   generators: Record<string, number>
   /** Active attacks that have been paid for and are waiting out their preparation. */
   pendingAttacks: PendingAttack[]
+  /**
+   * Cost inflation the opponent's unlocked passive attacks currently inflict on
+   * this player, stamped by the server (see `collectEnemyCostFactors`). Absent
+   * when none is active, which is the default.
+   *
+   * Every price the player is quoted or charged reads this — via
+   * `incomingCostFactors` — so the client's optimistic purchase and the server's
+   * validation are computed from the same numbers. Like `pendingAttacks` (and
+   * unlike `meta`) it is an engine-level, wire-stable field reasoned about during
+   * reconciliation, which is why it lives here rather than in mode metadata.
+   *
+   * Affects only *future* purchases: already-owned levels and copies are
+   * untouched, and a refund is deliberately priced without it (see
+   * `getGeneratorSellRefund`).
+   */
+  incomingCostFactors?: EnemyCostFactor[]
+  /**
+   * Purchase scopes the opponent's open attack windows currently bar this
+   * player from buying (see `collectEnemyPurchaseLocks`), stamped by the server
+   * beside `incomingCostFactors` and absent when none, which is the default.
+   *
+   * Read by every purchase path — server validation, the client's optimistic
+   * buy and its reconcile replay, the card — so both sides refuse the same
+   * buys (`purchaseBlockReason` / `generatorBlockReason` → `'locked-by-attack'`).
+   * Presence is what blocks; `untilSec` is for the victim's countdown only, so
+   * a client whose clock has drifted still agrees with the server on *whether*
+   * a buy goes through. Selling and attack activation never consult it.
+   */
+  incomingPurchaseLocks?: PurchaseLock[]
+  /**
+   * Debuff windows this player's *landed* active attacks are currently
+   * inflicting on the opponent (see `resolveAttackStrike`). Absent when none is
+   * open, which is the default — the same convention as `incomingCostFactors`.
+   *
+   * Stored on the **attacker**, not the victim: `collectEnemyDebuffs` and
+   * `collectEnemyCostFactors` are attacker-keyed and already gather from attack
+   * definitions, so a window makes them one filter longer, and the attacker's
+   * own client can show "active for N s". Correctness comes from the read-time
+   * expiry filter in those collectors; the server's tick sweep only bounds the
+   * array. Never predicted client-side — the strike lands server-side and the
+   * field arrives like any other reconciled `PlayerState` field.
+   */
+  activeDebuffs?: ActiveDebuff[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
+}
+
+/**
+ * An offensive debuff window opened by a landed active attack — the timed twin
+ * of {@link PendingAttack}, one step later in the attack's life. Created by
+ * `resolveAttackStrike`, read by the enemy-debuff collectors while
+ * `meta.gameSec < expiresAtSec`, and swept by the server once expired.
+ */
+export interface ActiveDebuff {
+  /** Attack id (matches {@link AttackDefinition.id}). */
+  readonly attack: string
+  /** `meta.gameSec` value at which the window closes. */
+  readonly expiresAtSec: number
+}
+
+/** Which kind of priced entity a cost factor applies to. */
+export type CostScope = 'upgrade' | 'generator'
+
+/**
+ * What a purchase target names (see `parsePurchaseTarget`): a whole scope, or
+ * (with `id`) a single entity of it.
+ */
+export interface PurchaseTarget {
+  readonly scope: CostScope
+  /** The one upgrade / generator named; absent for the whole scope. */
+  readonly id?: string
+}
+
+/**
+ * One purchase embargo an opponent's open attack window inflicts, as stamped on
+ * the victim (see {@link PlayerState.incomingPurchaseLocks}). One entry per
+ * target — two windows locking the same target collapse into the one that
+ * closes last.
+ */
+export interface PurchaseLock extends PurchaseTarget {
+  /**
+   * The victim's `meta.gameSec` at which the lock lifts — the latest
+   * `expiresAtSec` among the windows locking this target. Both players' game
+   * clocks advance together, so the attacker's window expiry reads directly as
+   * the victim's countdown. Display only; presence is what blocks.
+   */
+  readonly untilSec: number
+}
+
+/**
+ * One cost inflation inflicted by an opponent's passive attack, resolved from an
+ * `enemyCostModifier` effect's authored target into the structural form the
+ * price paths consume.
+ *
+ * `id` absent means every entity of that `scope` — "all upgrades cost 25% more";
+ * present names a single upgrade or generator. At least one of the two factors
+ * is set (the effect schema enforces it); an omitted one is neutral.
+ */
+export interface EnemyCostFactor {
+  readonly scope: CostScope
+  /** A specific upgrade/generator id, or absent for every entity of the scope. */
+  readonly id?: string
+  /** Multiplies the base cost (e.g. `1.25` = 25% dearer). */
+  readonly costFactor?: number
+  /** Multiplies the growth portion of the cost curve. */
+  readonly scalingFactor?: number
 }
 
 /**

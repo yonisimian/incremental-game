@@ -14,6 +14,7 @@ export { shockwave } from './shockwave.js'
 
 // Re-export the toast overlay
 export { spawnToast } from './toast.js'
+export type { ToastHandle } from './toast.js'
 
 /**
  * Resolve the click button to anchor an effect to: the one with `anchorId` if

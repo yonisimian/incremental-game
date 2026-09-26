@@ -8,7 +8,7 @@
  */
 
 import type { AuthoredEnvelope, BalanceFile, TreeFile, TreeUpgradeNode } from '@game/shared'
-import { ENEMY_DATA_RATE_SUFFIX, enemyDataResourceKey } from '@game/shared'
+import { ENEMY_DATA_RATE_SUFFIX, enemyDataResourceKey, isTimeEffectType } from '@game/shared'
 
 /** A node's display-flavor entry, as stored in the mode flavor table. */
 export type NodeFlavor = TreeFile['flavors'][number]['upgrades'][number]
@@ -128,6 +128,7 @@ export function prerequisiteRefs(node: TreeUpgradeNode): string[] {
       refs.push(expr.id)
       return
     }
+    if (expr.type === 'meta') return // names no upgrade — nothing to draw
     for (const item of expr.items) collect(item)
   }
   collect(node.prerequisites)
@@ -245,6 +246,12 @@ export function renameNode(tree: TreeFile, oldId: string, newId: string): boolea
   for (const { node: ref } of walkPositioned(tree)) {
     if (ref.prerequisites) ref.prerequisites = renamePrereqRef(ref.prerequisites, oldId, newId)
   }
+  // A time clock is addressed by upgrade id too, so the `clock` param cascades
+  // exactly like a prerequisite — left dangling it would stop the clock from ever
+  // starting, and `validateModeDefinition` refuses to boot on it.
+  for (const ref of allEffectRefs(tree)) {
+    if (isTimeEffectType(ref.type) && ref.clock === oldId) ref.clock = newId
+  }
   return true
 }
 
@@ -274,6 +281,7 @@ function subtreeIds(node: TreeUpgradeNode): string[] {
 /** Drop references to any removed id from a prerequisite expression. */
 function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undefined {
   if (expr.type === 'upgrade') return removed.has(expr.id) ? undefined : expr
+  if (expr.type === 'meta') return expr // references no node, so nothing to prune
   const items = expr.items
     .map((item) => prunePrereq(item, removed))
     .filter((item): item is Prereq => item !== undefined)
@@ -284,22 +292,46 @@ function prunePrereq(expr: Prereq, removed: ReadonlySet<string>): Prereq | undef
 /** Rewrite every reference to `oldId` as `newId` within a prerequisite expression. */
 function renamePrereqRef(expr: Prereq, oldId: string, newId: string): Prereq {
   if (expr.type === 'upgrade') return expr.id === oldId ? { ...expr, id: newId } : expr
+  if (expr.type === 'meta') return expr
   return { type: expr.type, items: expr.items.map((item) => renamePrereqRef(item, oldId, newId)) }
 }
 
-/** Strip prerequisite references to any of `removed` across the whole tree. */
+/**
+ * Strip references to any of `removed` across the whole tree: prerequisite
+ * expressions, plus the time-clock effects that address an upgrade by id. A
+ * clock-less `timeScaledModifier` / `timeFactorBoost` / `timeRetroactive` would
+ * refuse to boot, and there is nothing sensible to re-point it at, so the whole
+ * ref goes.
+ */
 function pruneReferences(tree: TreeFile, removed: ReadonlySet<string>): void {
   for (const { node } of walkPositioned(tree)) {
-    if (!node.prerequisites) continue
-    const pruned = prunePrereq(node.prerequisites, removed)
-    if (pruned) node.prerequisites = pruned
-    else delete (node as { prerequisites?: Prereq }).prerequisites
+    if (node.prerequisites) {
+      const pruned = prunePrereq(node.prerequisites, removed)
+      if (pruned) node.prerequisites = pruned
+      else delete (node as { prerequisites?: Prereq }).prerequisites
+    }
+  }
+  pruneTimeClockRefs(tree, removed)
+}
+
+/** Drop every time-clock effect ref whose `clock` upgrade is gone. */
+function pruneTimeClockRefs(tree: TreeFile, removed: ReadonlySet<string>): void {
+  const dangling = (ref: EffectRefMut): boolean =>
+    isTimeEffectType(ref.type) && typeof ref.clock === 'string' && removed.has(ref.clock)
+
+  tree.startingEffects = tree.startingEffects.filter((ref) => !dangling(ref))
+  for (const { node } of walkPositioned(tree)) {
+    if (node.effects) node.effects = node.effects.filter((ref) => !dangling(ref))
+  }
+  for (const attack of tree.attacks) {
+    if (attack.effects) attack.effects = attack.effects.filter((ref) => !dangling(ref))
   }
 }
 
 /**
  * Remove the node with `id` (and its whole subtree) from the tree, then strip
- * any prerequisite references to the removed ids so the result stays valid.
+ * any prerequisite or time-clock references to the removed ids so the result
+ * stays valid.
  * Returns the removed ids, or `[]` if nothing matched.
  */
 export function removeNode(tree: TreeFile, id: string): string[] {
@@ -446,6 +478,17 @@ function* allEffectRefs(tree: TreeFile): Generator<EffectRefMut> {
   }
 }
 
+/**
+ * Whether `ref` targets production field `field` through a plain `field` param —
+ * `baseModifier` and a time clock's `timeScaledModifier` payout, which share the
+ * one production catalog (`addressableTargets`). `relativeModifier` also has a
+ * `field`, but it carries a `source` alongside it and so is handled separately at
+ * each call site.
+ */
+function targetsProductionField(ref: EffectRefMut, field: string): boolean {
+  return (ref.type === 'baseModifier' || ref.type === 'timeScaledModifier') && ref.field === field
+}
+
 /** The `highlight` meta value (a resource key) if set, else `undefined`. */
 function highlightKey(tree: TreeFile): string | undefined {
   const h = tree.initialMeta.highlight
@@ -520,8 +563,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
       if (ref.field === key) refs.push('a relativeModifier field')
-    } else if (ref.type === 'baseModifier' && ref.field === key) {
-      refs.push('a baseModifier field')
+    } else if (targetsProductionField(ref, key)) {
+      refs.push(`a ${ref.type} field`)
     } else if (ref.type === 'enemyProductionModifier' && ref.field === key) {
       refs.push('an enemyProductionModifier field')
     } else if (ref.type === 'stealResource' && ref.resource === key) {
@@ -543,7 +586,7 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
  * meta, generator cost + production, upgrade cost record
  * keys, attack prepare-cost record keys, effect refs (the `resource:`-prefixed
  * `relativeModifier` source, the bare `field` target of
- * `relativeModifier`/`baseModifier`/`enemyProductionModifier`, the `resource` of
+ * `relativeModifier`/`baseModifier`/`timeScaledModifier`/`enemyProductionModifier`, the `resource` of
  * `stealResource`, and `accessEnemyData` data across every effect location), and
  * every flavor's resource entry. The index-based base-producer target (`bK`)
  * needs no rewrite — a rename never reorders resources. Fails (no mutation) when
@@ -588,7 +631,7 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
         ref.source = `${RESOURCE_SOURCE_PREFIX}${newKey}`
       if (ref.field === oldKey) ref.field = newKey
-    } else if (ref.type === 'baseModifier' && ref.field === oldKey) {
+    } else if (targetsProductionField(ref, oldKey)) {
       ref.field = newKey
     } else if (ref.type === 'enemyProductionModifier' && ref.field === oldKey) {
       ref.field = newKey
@@ -702,8 +745,9 @@ export function addGenerator(tree: TreeFile): string {
 
 /**
  * Human-readable references that block deleting generator `id`: `generatorCost` /
- * `generatorUnlock` / `stealGenerator` effects naming it, and `relativeModifier`
- * fields targeting its output — across every effect location.
+ * `generatorUnlock` / `stealGenerator` effects naming it, and `relativeModifier` /
+ * `baseModifier` / `timeScaledModifier` fields targeting its output — across every
+ * effect location.
  */
 export function generatorReferences(tree: TreeFile, id: string): string[] {
   const refs: string[] = []
@@ -717,8 +761,8 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
       refs.push(`a ${ref.type} effect`)
     } else if (ref.type === 'relativeModifier' && ref.field === id) {
       refs.push('a relativeModifier field')
-    } else if (ref.type === 'baseModifier' && ref.field === id) {
-      refs.push('a baseModifier field')
+    } else if (targetsProductionField(ref, id)) {
+      refs.push(`a ${ref.type} field`)
     }
   }
   return refs
@@ -727,7 +771,7 @@ export function generatorReferences(tree: TreeFile, id: string): string[] {
 /**
  * Rename generator `oldId → newId`, rewriting every reference (the `generator`
  * param of `generatorCost`/`generatorUnlock`/`stealGenerator`,
- * `relativeModifier`/`baseModifier`
+ * `relativeModifier`/`baseModifier`/`timeScaledModifier`
  * field targets, across every effect location, and every flavor's generator
  * entry). Fails (no mutation) when the new id is blank, in use, or the old id is
  * absent.
@@ -752,7 +796,7 @@ export function renameGenerator(tree: TreeFile, oldId: string, newId: string): b
       ref.generator = newId
     } else if (ref.type === 'relativeModifier' && ref.field === oldId) {
       ref.field = newId
-    } else if (ref.type === 'baseModifier' && ref.field === oldId) {
+    } else if (targetsProductionField(ref, oldId)) {
       ref.field = newId
     }
   }
@@ -845,6 +889,13 @@ export interface AttackRow {
   readonly prepareCost: readonly AttackCostRow[]
   /** Seconds between activation and the strike landing (0 when unset). */
   readonly prepareTimeSec: number
+  /**
+   * Seconds the strike's debuff effects stay in force, or `null` when unset —
+   * distinct from `prepareTimeSec`'s `0` default because the validator treats
+   * absence and zero differently here (absent is legal on an all-steal attack;
+   * zero never is).
+   */
+  readonly durationSec: number | null
 }
 
 /** The next free `aN` attack id. */
@@ -871,6 +922,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
         baseCost: entry.baseCost,
       })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
+      durationSec: a.durationSec ?? null,
     }
   })
 }
@@ -947,6 +999,7 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
   if (kind === 'passive') {
     delete attack.prepareCost
     delete attack.prepareTimeSec
+    delete attack.durationSec
   }
 }
 
@@ -959,6 +1012,21 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
   attack.prepareTimeSec = timeSec
+}
+
+/**
+ * Set how long attack `id`'s debuff effects stay in force after the strike, in
+ * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
+ * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
+ * the boot-time validator rejects a window on a passive attack, on an all-steal
+ * attack, and a non-positive one — so a non-positive value is written as
+ * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ */
+export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  else attack.durationSec = durationSec
 }
 
 /**

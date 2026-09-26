@@ -2,7 +2,9 @@ import type { GameState } from '../game.js'
 import {
   canAfford,
   escapeAttr,
-  formatCostLabel,
+  formatUpgradeCost,
+  isAttackSlotBlocked,
+  isPurchaseLockedByAttack,
   isUnlocked,
   formatTime,
   formatScore,
@@ -17,8 +19,6 @@ import {
   getUpgradeIcon,
   isChoiceGroupAvailable,
   isMaxed,
-  isUnlimited,
-  getUpgradeNextCost,
 } from '@game/shared'
 
 // ─── Goal Header Components ─────────────────────────────────────────
@@ -166,17 +166,23 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const affordable = canAfford(state, u)
       const maxed = isMaxed(u, owned)
       const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
+      const slotBlocked = isAttackSlotBlocked(state, u)
+      const attackLocked = isPurchaseLockedByAttack(state, 'upgrade', u.id)
 
-      // State-class derivation (mutually exclusive, in priority order)
+      // State-class derivation (mutually exclusive, in priority order). A
+      // slot-blocked node reuses `locked`: like a closed choice group, no amount
+      // of income opens it, so `too-expensive` would promise the wrong fix. An
+      // enemy purchase lock gets its own class: it is neither permanent nor an
+      // income problem — the node is embargoed for a few seconds, and it
+      // should read that way at a glance.
       let stateClass = ''
       if (!unlocked) stateClass = 'locked'
       else if (maxed) stateClass = 'owned'
-      else if (choiceBlocked) stateClass = 'locked'
+      else if (choiceBlocked || slotBlocked) stateClass = 'locked'
+      else if (attackLocked) stateClass = 'locked-by-attack'
       else if (!affordable) stateClass = 'too-expensive'
 
-      const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
-      const nextCost = getUpgradeNextCost(u, owned)
-      const costLabel = maxed ? 'Maxed' : `${formatCostLabel(nextCost, flavor)}${countLabel}`
+      const costLabel = formatUpgradeCost(state, u, flavor)
       const name = getUpgradeName(flavor, u.id)
       const icon = getUpgradeIcon(flavor, u.id)
       // Accessible label / hover title: name + current cost (or Maxed).

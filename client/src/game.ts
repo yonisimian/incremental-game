@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type IncomingAttack,
   type ModeDefinition,
   type Modifier,
   type OpponentView,
@@ -21,6 +22,7 @@ import {
   getModeDefinition,
   getAvailableUpgrades,
   collectModifiers,
+  resolveEnemyDebuffs,
   computeClickIncome as pipelineClickIncome,
   creditResource,
   canAffordGenerator,
@@ -35,12 +37,15 @@ import {
   isChoiceGroupAvailable,
   isCostAffordable,
   getUpgradeNextCost,
+  upgradeCostFactors,
   applyPurchase,
   isClickUnlocked,
   readHighlight,
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
+  hasAttackSlotsFor,
+  isPurchaseLocked,
   getModeFlavor,
   getAttackName,
   getAttackIcon,
@@ -73,9 +78,10 @@ import {
   shockwave,
   spawnToast,
 } from './ui/vfx/index.js'
+import type { ToastHandle } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
-import { formatNumber } from './ui/format-number.js'
+import { formatDecimal, formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -111,6 +117,14 @@ export interface GameState {
    * debuffed income the server actually applies. Reset at the start of each match.
    */
   debuffs: Modifier[]
+  /**
+   * Enemy strikes due to land on this player within their `attackAlert` lead
+   * *Replaced* from each `STATE_UPDATE` (it is state, not a delta —
+   * empty when the snapshot carries none), so an entry vanishes the broadcast
+   * after its strike lands. The header badge and the espionage panel count
+   * down against `player.meta.gameSec`. Reset at the start of each match.
+   */
+  incomingAttacks: IncomingAttack[]
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -191,6 +205,7 @@ const state: GameState = {
   opponent: emptyOpponentView(),
   opponentPurchaseFeed: [],
   debuffs: [],
+  incomingAttacks: [],
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -491,8 +506,19 @@ export function doBuy(upgradeId: string): void {
 
   if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
 
-  // Every currency in the cost map must be affordable
-  if (!isCostAffordable(state.player.resources, getUpgradeNextCost(def, owned))) return
+  // Mirrors the server's `purchaseBlockReason` rule: an unlock that would exceed
+  // the player's attack slots is refused, not predicted.
+  if (!hasAttackSlotsFor(state.player, def, modeDef)) return
+
+  // An enemy purchase lock is server-stamped on our own state, so the
+  // same read the server makes refuses the buy here — a predicted buy the
+  // server would drop only snaps back on the next snapshot.
+  if (isPurchaseLocked(state.player, 'upgrade', upgradeId)) return
+
+  // Every currency in the cost map must be affordable, at the price the server
+  // will charge — enemy cost inflation included.
+  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state.player, upgradeId))
+  if (!isCostAffordable(state.player.resources, cost)) return
 
   applyPurchase(state.player, upgradeId, modeDef)
 
@@ -513,7 +539,8 @@ export function doBuyGenerator(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  if (isPurchaseLocked(state.player, 'generator', generatorId)) return
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
   if (!canAffordGenerator(state.player, effectiveDef)) return
   applyGeneratorPurchase(state.player, generatorId, modeDef)
   queueAction({ type: 'buy_generator', timestamp: Date.now(), generatorId })
@@ -528,7 +555,8 @@ export function doBuyGeneratorMax(generatorId: string): void {
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
   if (!isGeneratorUnlocked(state.player, def, modeDef)) return
-  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef)
+  if (isPurchaseLocked(state.player, 'generator', generatorId)) return
+  const effectiveDef = resolveGeneratorDef(def, state.player, modeDef, 'buy')
 
   const quantity = getMaxAffordableGeneratorCount(state.player, effectiveDef)
   if (quantity <= 0) return
@@ -613,6 +641,8 @@ export function resetForMatch(): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.timeLeft = 0
   state.matchId = null
   state.upgrades = []
@@ -659,6 +689,8 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
@@ -693,6 +725,12 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
   state.debuffs = msg.debuffs ?? []
+  // The alert list is state, not a delta: replace it, and keep one toast per
+  // strike in view — counting down, gone once the strike lands.
+  const incoming = msg.opponent.incomingAttacks ?? []
+  const modeDefForAlerts = state.mode ? getModeDefinition(state.mode) : undefined
+  syncIncomingAttackToasts(incoming, msg.player, modeDefForAlerts)
+  state.incomingAttacks = incoming
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {
@@ -721,7 +759,16 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           const owned = reconciled.upgrades[action.upgradeId] ?? 0
           if (isMaxed(def, owned)) break
           if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
-          const cost = getUpgradeNextCost(def, owned)
+          // Replayed against the *server's* state, so a buy the server will
+          // refuse for want of a slot — or under an enemy purchase lock — is
+          // dropped here rather than flickering back until the next snapshot.
+          if (!hasAttackSlotsFor(reconciled, def, modeDef)) break
+          if (isPurchaseLocked(reconciled, 'upgrade', action.upgradeId)) break
+          const cost = getUpgradeNextCost(
+            def,
+            owned,
+            upgradeCostFactors(reconciled, action.upgradeId),
+          )
           if (!isCostAffordable(reconciled.resources, cost)) break
           for (const [currency, amount] of Object.entries(cost)) {
             reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
@@ -746,7 +793,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           if (!modeDef) break
           const gdef = modeDef.generators.find((g) => g.id === action.generatorId)
           if (!gdef) break
-          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef)
+          if (isPurchaseLocked(reconciled, 'generator', action.generatorId)) break
+          const effectiveGdef = resolveGeneratorDef(gdef, reconciled, modeDef, 'buy')
           if (!canAffordGenerator(reconciled, effectiveGdef)) break
           applyGeneratorPurchase(reconciled, action.generatorId, modeDef)
           break
@@ -776,6 +824,8 @@ function handleRoundEnd(msg: RoundEndMessage): void {
   state.screen = 'ended'
   state.endData = msg
   state.paused = false
+  state.incomingAttacks = []
+  clearIncomingAttackToasts()
   state.player.score = msg.finalScores.player
   // Omitted for buy-upgrade (opponent score is never revealed in race-to-buy).
   if (msg.finalScores.opponent !== undefined) state.opponent.score = msg.finalScores.opponent
@@ -856,6 +906,20 @@ function showAttackEvents(
       }
       continue
     }
+    if (ev.kind === 'debuff') {
+      // A window opened. Outgoing: your debuff is in force (success). Incoming:
+      // your numbers are worse for a while (danger, with the shake) — the
+      // duration is stated here because the victim's debuff rows show *what*
+      // is hitting them but not for how much longer.
+      const span = `${formatDecimal(ev.durationSec, 1)}s`
+      if (ev.direction === 'outgoing') {
+        spawnToast(`${icon} ${name}: enemy debuffed for ${span}`, 'success')
+      } else {
+        spawnToast(`${icon} ${name}: debuffed for ${span}`, 'danger')
+        shakeScreen('medium')
+      }
+      continue
+    }
     // A resource theft reads as a quantity ("50 🪵"); a generator theft as a
     // count of copies ("×2 🪚 Sawmill"), since the loss is production, not stock.
     const what =
@@ -871,11 +935,71 @@ function showAttackEvents(
   }
 }
 
+/** A warning's identity across broadcasts: the strike's landing time plus what it names. */
+function incomingAttackKey(a: IncomingAttack): string {
+  return `${a.readyAtSec}:${a.attack ?? ''}`
+}
+
+/** The live warning toast for each strike in view, by {@link incomingAttackKey}. */
+const incomingAttackToasts = new Map<string, ToastHandle>()
+
+/**
+ * Keep one sticky `warning` toast per enemy strike in view: spawned when the
+ * strike first appears, its countdown rewritten on each snapshot, and dismissed
+ * once the strike leaves the list (it landed) — so the warning never vanishes
+ * before the attack does, however long the lead. The remaining time is read
+ * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
+ * the attack, otherwise a generic "Incoming attack".
+ */
+function syncIncomingAttackToasts(
+  next: readonly IncomingAttack[],
+  player: Readonly<PlayerState>,
+  modeDef: ModeDefinition | undefined,
+): void {
+  const inView = new Set<string>()
+  if (modeDef) {
+    const gameSec = (player.meta.gameSec as number | undefined) ?? 0
+    const flavor = getModeFlavor(modeDef)
+    for (const a of next) {
+      const key = incomingAttackKey(a)
+      inView.add(key)
+      // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
+      // toast reading "4s" beside them would look like a different clock.
+      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
+      const what = a.attack
+        ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
+        : 'Incoming attack'
+      const text = `⚠️ ${what} in ${inSec}s`
+      const toast = incomingAttackToasts.get(key)
+      if (toast) toast.update(text)
+      else incomingAttackToasts.set(key, spawnToast(text, 'warning', { sticky: true }))
+    }
+  }
+  for (const [key, toast] of incomingAttackToasts) {
+    if (inView.has(key)) continue
+    toast.dismiss()
+    incomingAttackToasts.delete(key)
+  }
+}
+
+/** Dismiss every warning toast — the round is starting, over, or left. */
+function clearIncomingAttackToasts(): void {
+  for (const toast of incomingAttackToasts.values()) toast.dismiss()
+  incomingAttackToasts.clear()
+}
+
 function computeClickIncome(player: PlayerState): number {
   const mode = state.mode
   if (!mode) return 1
   const modeDef = getModeDefinition(mode)
-  const modifiers = collectModifiers(player, modeDef)
+  // Merge in the debuffs the opponent's passive attacks inflict (sent by the
+  // server) so a predicted click pays what the server will credit — the same
+  // reason the header folds them into the passive rate. Resolved against the
+  // clicking player, since they arrive unresolved.
+  const modifiers = [
+    ...collectModifiers(player, modeDef),
+    ...resolveEnemyDebuffs(state.debuffs, player, modeDef),
+  ]
   return pipelineClickIncome(modifiers)
 }
 
@@ -886,6 +1010,16 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
     pendingAttacks: [...s.pendingAttacks],
+    // Carried through reconciliation: a re-applied optimistic purchase must be
+    // priced with the same inflation the server charged (entries are readonly,
+    // so the shallow copy is enough).
+    ...(s.incomingCostFactors ? { incomingCostFactors: [...s.incomingCostFactors] } : {}),
+    // Same reasoning: a replayed buy must be refused under the same lock the
+    // server refused it under.
+    ...(s.incomingPurchaseLocks ? { incomingPurchaseLocks: [...s.incomingPurchaseLocks] } : {}),
+    // Never predicted, only carried: the strike that opens a window lands
+    // server-side, so this arrives like any other reconciled field.
+    ...(s.activeDebuffs ? { activeDebuffs: [...s.activeDebuffs] } : {}),
     meta: structuredClone(s.meta),
   }
 }

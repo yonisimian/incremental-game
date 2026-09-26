@@ -1,5 +1,7 @@
 import type { LayerAccumulator, Modifier, ModifierContext, ResourceLayers } from './types.js'
+import { INCOMING_CLICK_INCOME_FIELD } from './types.js'
 import type { PlayerState } from '../types.js'
+import { advanceGameSec } from '../game-clock.js'
 import { MAX_RESOURCE } from '../game-config.js'
 
 // ─── Pipeline Core ───────────────────────────────────────────────────
@@ -47,17 +49,24 @@ export function computeIncome(
   resources: readonly string[] = [],
 ): ModifierContext {
   const ctx: ModifierContext = {
-    clickIncome: 0,
+    clickIncome: { own: { add: 0, mult: 1 }, incoming: { add: 0, mult: 1 } },
     resources: {},
   }
   // Seed every declared resource so each key is always present downstream.
   for (const key of resources) ctx.resources[key] = freshLayers()
 
   for (const m of modifiers) {
-    // Standalone tracks: not per-resource, not layered.
-    if (m.field === 'clickIncome') {
-      if (m.stage === 'additive') ctx.clickIncome += m.value
-      else ctx.clickIncome *= m.value
+    // The click track: own and incoming modifiers land in separate accumulators,
+    // composed once by `computeClickIncome`, so array order never matters.
+    const clickLayer =
+      m.field === 'clickIncome'
+        ? ctx.clickIncome.own
+        : m.field === INCOMING_CLICK_INCOME_FIELD
+          ? ctx.clickIncome.incoming
+          : null
+    if (clickLayer) {
+      if (m.stage === 'additive') clickLayer.add += m.value
+      else clickLayer.mult *= m.value
       continue
     }
     // Resource field: route into the base or global layer.
@@ -111,9 +120,22 @@ export function creditResource(
 
 // ─── Convenience Functions ───────────────────────────────────────────
 
-/** Compute the income from a single click. */
+/**
+ * Compute the income from a single click:
+ * `own.add · own.mult · incoming.mult + incoming.add` (see `ClickLayers`).
+ *
+ * The player's own click power is built first; an incoming multiplier scales it
+ * and an incoming flat drain comes off last, unscaled — so a `−2` debuff always
+ * costs exactly 2, and the result doesn't depend on modifier order.
+ *
+ * Floored at `0`: an additive drain can overshoot the click's worth.
+ * `creditResource` already ignores a non-positive amount, so nothing is ever
+ * *drained* by a click — the floor keeps the figure the UI and the sim read equal
+ * to the credit actually applied.
+ */
 export function computeClickIncome(modifiers: readonly Modifier[]): number {
-  return saturateRate(computeIncome(modifiers).clickIncome)
+  const { own, incoming } = computeIncome(modifiers).clickIncome
+  return Math.max(0, saturateRate(own.add * own.mult * incoming.mult + incoming.add))
 }
 
 /**
@@ -152,8 +174,7 @@ export function applyPassiveTick(
   tickSec: number,
 ): void {
   // Track cumulative game time for time-based upgrades
-  const prevSec = (state.meta.gameSec as number | undefined) ?? 0
-  state.meta.gameSec = prevSec + tickSec
+  advanceGameSec(state, tickSec)
 
   const rates = computePassiveRates(modifiers, resources)
 

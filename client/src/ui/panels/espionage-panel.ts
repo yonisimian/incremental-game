@@ -15,8 +15,11 @@ import {
   getUpgradeIcon,
   getUpgradeName,
   hasEnemyDataAccess,
+  highlightDebuffFactor,
+  HIGHLIGHT_FACTOR_TARGET,
 } from '@game/shared'
-import type { ModeFlavor, PurchaseEvent } from '@game/shared'
+import { getAttackIcon, getAttackName } from '@game/shared'
+import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -42,6 +45,140 @@ function renderLocked(): string {
       <span class="placeholder-icon">🕵️</span>
       <p>No intel yet — research espionage to reveal enemy data.</p>
     </div>
+  `
+}
+
+/**
+ * A factor as a whole-or-one-decimal percentage change.
+ *
+ * Rounds to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
+ * truncates to a wrong-looking "9%". A tenth still reads exactly for a
+ * compounded pair (×0.9 × ×0.95 → 14.5%).
+ */
+function formatPercentChange(factor: number): string {
+  const delta = Math.round(Math.abs(factor - 1) * 1000) / 10
+  return formatNumber(delta, Number.isInteger(delta) ? 0 : 1)
+}
+
+/**
+ * What an incoming cost factor or purchase lock hits: "upgrades" / "generators"
+ * for a whole scope, or the entity's flavor name, so the line matches the card
+ * the player sees it on.
+ */
+function describeTarget(flavor: ModeFlavor, scope: CostScope, id: string | undefined): string {
+  if (id === undefined) return scope === 'upgrade' ? 'upgrades' : 'generators'
+  return scope === 'upgrade'
+    ? `${getUpgradeIcon(flavor, id)} ${getUpgradeName(flavor, id)}`
+    : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
+}
+
+/**
+ * One line per cost inflation the opponent's passive attacks inflict, naming
+ * what got dearer and by how much.
+ */
+function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
+  const lines: string[] = []
+  for (const entry of state.player.incomingCostFactors ?? []) {
+    const what = describeTarget(flavor, entry.scope, entry.id)
+    // Base-price and growth inflation are separate sentences: they compound
+    // differently over a run, so summing them into one percentage would lie.
+    if (entry.costFactor !== undefined && entry.costFactor !== 1)
+      lines.push(`💸 Your ${what} cost ${formatPercentChange(entry.costFactor)}% more.`)
+    if (entry.scalingFactor !== undefined && entry.scalingFactor !== 1)
+      lines.push(
+        `📈 Your ${what} price growth is ${formatPercentChange(entry.scalingFactor)}% steeper.`,
+      )
+  }
+  return lines
+}
+
+/**
+ * One line per enemy purchase lock in force, naming what is embargoed and for
+ * how much longer. Both whole scopes locked with the same expiry collapse into
+ * one sentence; everything else gets its own line, since the countdowns differ.
+ */
+function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
+  const locks = state.player.incomingPurchaseLocks ?? []
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  const span = (untilSec: number) => `${Math.max(0, untilSec - gameSec).toFixed(1)}s`
+  const allUpgrades = locks.find((l) => l.scope === 'upgrade' && l.id === undefined)
+  const allGenerators = locks.find((l) => l.scope === 'generator' && l.id === undefined)
+  const combined = allUpgrades !== undefined && allUpgrades.untilSec === allGenerators?.untilSec
+  const lines: string[] = []
+  if (combined)
+    lines.push(`🔒 You cannot buy upgrades or generators for ${span(allUpgrades.untilSec)}.`)
+  for (const lock of locks) {
+    if (combined && (lock === allUpgrades || lock === allGenerators)) continue
+    const what = describeTarget(flavor, lock.scope, lock.id)
+    lines.push(`🔒 You cannot buy ${what} for ${span(lock.untilSec)}.`)
+  }
+  return lines
+}
+
+/**
+ * One line per enemy strike inside the viewer's alert lead, soonest
+ * first, counting down against the viewer's own `meta.gameSec` — the same clock
+ * `readyAtSec` was stamped on (both advance in lockstep). Named when the alert
+ * reveals the attack; a bare "Enemy attack" otherwise. Steps at snapshot
+ * cadence like the panel's other countdowns.
+ */
+function describeIncomingAttacks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
+  if (state.incomingAttacks.length === 0) return []
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  return [...state.incomingAttacks]
+    .sort((a, b) => a.readyAtSec - b.readyAtSec)
+    .map((a) => {
+      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
+      const what = a.attack
+        ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
+        : 'Enemy attack'
+      return `⚠️ ${what} lands in ${inSec}s.`
+    })
+}
+
+/**
+ * Standing warning about the passive attacks the opponent holds against this
+ * player — a weakened highlight factor, inflated prices, or both.
+ *
+ * Deliberately **ungated and always shown** while an attack is in force, unlike
+ * every other section here: the rest of this panel is intel you research, but
+ * this is something being done *to* you, and a player who can't see it has no way
+ * to explain why their highlight underperforms the number on its own upgrades, or
+ * why a card costs more than the tree says. The highlight line also shows while
+ * the highlight is released, so a player deciding whether to hold knows the bonus
+ * is worth less than its own upgrades advertise.
+ *
+ * The multiplicative highlight part is summarised as a percentage
+ * (`highlightDebuffFactor` means the same thing at every factor). An additive
+ * part can't be — its bite depends on the live factor — so it's named as "a flat
+ * cut" rather than folded in, which would understate the true reduction.
+ */
+function renderIncomingDebuffs(state: Readonly<GameState>, flavor: ModeFlavor): string {
+  const factor = highlightDebuffFactor(state.debuffs)
+  const hasFlat = state.debuffs.some(
+    (d) => d.field === HIGHLIGHT_FACTOR_TARGET && d.stage === 'additive',
+  )
+  // Percentage only, no `(×N)`: `formatMultiplier` rounds to two decimals, so a
+  // compounded ×0.855 would print "14.5% (×0.85)" and read as self-contradictory.
+  const lines: string[] = []
+  if (factor !== 1) {
+    const flat = hasFlat ? ', plus a flat cut on top,' : ''
+    lines.push(
+      `⚔️ Your ✨ highlight bonus is cut by ${formatPercentChange(factor)}%${flat} while the enemy holds this attack.`,
+    )
+  } else if (hasFlat) {
+    lines.push('⚔️ Your ✨ highlight bonus takes a flat cut while the enemy holds this attack.')
+  }
+  lines.push(...describeCostInflation(state, flavor))
+  lines.push(...describePurchaseLocks(state, flavor))
+  lines.push(...describeIncomingAttacks(state, flavor))
+  if (lines.length === 0) return ''
+  const body = lines.map((line) => `<p class="espionage-warning">${line}</p>`).join('')
+  return `
+    <section class="espionage-section">
+      <h3 class="espionage-heading">Enemy Attacks</h3>
+      ${body}
+    </section>
   `
 }
 
@@ -177,14 +314,17 @@ function renderEspionage(state: Readonly<GameState>): string {
     .filter((r) => r.amount || r.rate)
   const cps = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_CPS_KEY)
   const purchases = hasEnemyDataAccess(state.player, modeDef, ENEMY_DATA_PURCHASES_KEY)
-  if (rows.length === 0 && !cps && !purchases) return renderLocked()
   // Stockpiles and per-second rates are projected by the server into the
   // redacted opponent view — only the keys this viewer has unlocked are present
   // (the opponent's full state is never sent), so we read them directly.
   const flavor = getModeFlavor(modeDef)
+  // Incoming attacks are not intel — they're reported whether or not any
+  // espionage is researched, so they lead, and they survive the locked state.
+  const incoming = renderIncomingDebuffs(state, flavor)
+  if (rows.length === 0 && !cps && !purchases) return `${incoming}${renderLocked()}`
   const resources =
     rows.length > 0 ? renderResources(state, flavor, rows, state.opponent.rates) : ''
-  return `${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state, flavor) : ''}`
+  return `${incoming}${resources}${cps ? renderActivity(state) : ''}${purchases ? renderPurchases(state, flavor) : ''}`
 }
 
 // ─── Espionage Panel ─────────────────────────────────────────────────

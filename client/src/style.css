@@ -1182,6 +1182,15 @@ body {
   filter: grayscale(0.7) brightness(0.55);
 }
 
+/* An enemy purchase lock is in force: this node is embargoed
+   for a few seconds. Distinct from `locked` (permanent) and `too-expensive`
+   (an income problem) — a danger ring says "attack", and the popup counts it
+   down. Same filter approach as `locked`, for the same SVG-edge reason. */
+.upgrade-btn.tree-node.locked-by-attack {
+  filter: grayscale(0.4) brightness(0.7);
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
 /* Upgrade detail popup — overlays the tree viewport with Buy/Cancel actions. */
 .upgrade-detail-backdrop {
   position: absolute;
@@ -1323,6 +1332,15 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+/* Standing warning about an incoming enemy debuff — not researched intel, so it
+   reads as an alert rather than a table row. */
+.espionage-warning {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--danger);
+}
+
 .espionage-table {
   width: 100%;
   border-collapse: collapse;
@@ -1417,6 +1435,14 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+/* `held / limit` attack slots beside a section heading. */
+.attack-slots {
+  margin-left: 0.4rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
 .attack-list {
   display: flex;
   flex-direction: column;
@@ -1476,8 +1502,26 @@ body {
   font-weight: 600;
 }
 
+/* Derived stat line — what owned upgrades make of the authored numbers. */
+.attack-stats {
+  grid-column: 2;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .attack-status--preparing {
   color: var(--gold);
+}
+
+/* A debuff window this player's strike opened is still in force. */
+.attack-status--active {
+  color: var(--danger);
+}
+
+.attack-btn.active {
+  border-color: var(--danger);
+  opacity: 1;
 }
 
 .attack-status--blocked {
@@ -1640,6 +1684,12 @@ body {
 
 .generator-card.too-expensive {
   opacity: 0.5;
+}
+
+/* An enemy purchase lock bars buying this card for a few seconds.
+   The buy buttons carry the countdown; the border says why they are dark. */
+.generator-card.locked-by-attack {
+  border-color: var(--danger);
 }
 
 .generator-summary {
@@ -2517,5 +2567,16 @@ body {
   font-family: monospace;
   font-size: 1.1rem;
   font-weight: 600;
+  color: var(--text);
+}
+
+/* A stat value under an enemy debuff: the debuffed figure in red, the
+   un-debuffed worth beside it in the normal colour. Shared by the clicking
+   section's "Per click" and the highlight section's "Multiplier". */
+.data-value-debuffed {
+  color: var(--danger);
+}
+
+.data-value-base {
   color: var(--text);
 }

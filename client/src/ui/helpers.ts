@@ -1,13 +1,20 @@
-import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
+import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
   getModeDefinition,
   getResourceIcon,
   getUpgradeName,
+  hasAttackSlotsFor,
   isChoiceGroupAvailable,
   isCostAffordable,
   isMaxed,
+  isNeutralCostFactors,
   isPrerequisiteSatisfied,
+  isPurchaseLocked,
+  isUnlimited,
   getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
+  purchaseLockRemainingSec,
+  upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
@@ -82,14 +89,55 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return false
   if (!state.mode) return false
-  return isCostAffordable(state.player.resources, getUpgradeNextCost(u, owned))
+  const cost = getUpgradeNextCost(u, owned, upgradeCostFactors(state.player, u.id))
+  return isCostAffordable(state.player.resources, cost)
 }
 
-/** Render a cost map as a `"<amount> <icon>"` label, one entry per currency. */
-export function formatCostLabel(
-  cost: Readonly<Record<string, number>>,
+/** Marker appended to a price an opponent's passive attack is inflating. */
+export const INFLATED_COST_MARKER = '⬆'
+
+/**
+ * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
+ * the cost map plus the owned count for an unlimited upgrade.
+ *
+ * Priced with the factors in force, so it matches what a buy will actually
+ * charge, and marked with {@link INFLATED_COST_MARKER} when an opponent's
+ * inflation actually raised it — otherwise a price above the tree's authored
+ * number reads as a bug rather than as an attack. A free upgrade, or a
+ * growth-only factor on a flat cost, is left unmarked: nothing moved.
+ */
+export function formatUpgradeCost(
+  state: Readonly<GameState>,
+  u: UpgradeDefinition,
   flavor: ModeFlavor,
 ): string {
+  const owned = state.player.upgrades[u.id] ?? 0
+  if (isMaxed(u, owned)) return 'Maxed'
+  const factors = upgradeCostFactors(state.player, u.id)
+  const cost = getUpgradeNextCost(u, owned, factors)
+  const countLabel = isUnlimited(u) && owned > 0 ? ` (×${owned})` : ''
+  const marker =
+    !isNeutralCostFactors(factors) &&
+    costRaised(cost, getUpgradeNextCost(u, owned, NEUTRAL_COST_FACTORS))
+      ? ` ${INFLATED_COST_MARKER}`
+      : ''
+  return `${formatCostLabel(cost, flavor)}${countLabel}${marker}`
+}
+
+/** Whether any currency in `cost` exceeds its amount in `authored`. */
+function costRaised(
+  cost: Readonly<Record<string, number>>,
+  authored: Readonly<Record<string, number>>,
+): boolean {
+  return Object.entries(cost).some(([currency, amount]) => amount > (authored[currency] ?? 0))
+}
+
+/**
+ * Render a cost map as a `"<amount> <icon>"` label, one entry per currency.
+ * Module-private now that {@link formatUpgradeCost} is the single seam every
+ * upgrade price label goes through.
+ */
+function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {
   return Object.entries(cost)
     .map(([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`)
     .join('  ')
@@ -100,6 +148,45 @@ export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): bo
   return isPrerequisiteSatisfied(u.prerequisites, state.player)
 }
 
+/**
+ * Would buying this upgrade unlock more attacks of a kind than the player has
+ * slots for? The client-side face of `purchaseBlockReason`'s `'attack-slots'`
+ * rule; false for an upgrade that unlocks nothing, or in an uncapped
+ * mode.
+ */
+export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+  if (!state.mode) return false
+  return !hasAttackSlotsFor(state.player, u, getModeDefinition(state.mode))
+}
+
+/**
+ * Is an opponent's open attack window barring this player from buying `id` of
+ * `scope`? The client-side face of the `'locked-by-attack'` block reason,
+ * reading the same server-stamped field the server validates against.
+ */
+export function isPurchaseLockedByAttack(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): boolean {
+  return isPurchaseLocked(state.player, scope, id)
+}
+
+/**
+ * The `🔒 Locked Ns` label a buy control shows under an enemy purchase lock —
+ * one string for the tree node title, the detail popup, and the generator
+ * card, so the three agree. Omits the seconds when the countdown is unknown
+ * (`null`), which cannot happen for a stamped lock but keeps the helper total.
+ */
+export function purchaseLockLabel(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): string {
+  const remaining = purchaseLockRemainingSec(state.player, scope, id)
+  return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
+}
+
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
 export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
   if (!state.mode) return false
@@ -107,6 +194,8 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
   return (
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
+    !isAttackSlotBlocked(state, u) &&
+    !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
     canAfford(state, u)
   )
 }

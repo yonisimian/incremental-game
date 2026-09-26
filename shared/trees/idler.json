@@ -27,6 +27,16 @@
       "stage": "additive",
       "field": "b1",
       "value": 1
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "active",
+      "value": 3
+    },
+    {
+      "type": "attackSlots",
+      "attackKind": "passive",
+      "value": 4
     }
   ],
   "generators": [
@@ -96,7 +106,7 @@
           "baseCost": 1000
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 6,
       "effects": [
         {
           "type": "stealResource",
@@ -149,7 +159,7 @@
           "baseCost": 10
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 10,
       "effects": [
         {
           "type": "stealGenerator",
@@ -166,12 +176,140 @@
           "baseCost": 10
         }
       },
-      "prepareTimeSec": 3,
+      "prepareTimeSec": 8,
       "effects": [
         {
           "type": "stealGenerator",
           "generator": "g2",
           "count": 1
+        }
+      ]
+    },
+    {
+      "id": "less-click-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-click-power-add",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "additive",
+          "field": "clickIncome",
+          "value": -2
+        }
+      ]
+    },
+    {
+      "id": "less-highlight-power",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "highlightFactor",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "less-highlight-power-add",
+      "kind": "passive",
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "additive",
+          "field": "highlightFactor",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "id": "numb-hands",
+      "kind": "active",
+      "prepareCost": {
+        "r1": {
+          "baseCost": 50
+        }
+      },
+      "prepareTimeSec": 8,
+      "durationSec": 15,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 0.05
+        }
+      ]
+    },
+    {
+      "id": "fog-of-war",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 400
+        }
+      },
+      "prepareTimeSec": 3,
+      "durationSec": 8,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "highlightFactor",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "id": "termite-swarm",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 800
+        },
+        "r1": {
+          "baseCost": 40
+        }
+      },
+      "prepareTimeSec": 15,
+      "durationSec": 67,
+      "effects": [
+        {
+          "type": "enemyProductionModifier",
+          "stage": "multiplicative",
+          "field": "r0",
+          "value": 0.78
+        }
+      ]
+    },
+    {
+      "id": "embargo",
+      "kind": "active",
+      "prepareCost": {
+        "r0": {
+          "baseCost": 600
+        },
+        "r1": {
+          "baseCost": 30
+        }
+      },
+      "prepareTimeSec": 10,
+      "durationSec": 10,
+      "effects": [
+        {
+          "type": "enemyPurchaseLock",
+          "target": "purchases"
         }
       ]
     }
@@ -582,21 +720,21 @@
         },
         {
           "id": "d-alert",
-          "name": "d-alert",
+          "name": "🛡️ Early warning",
           "icon": "🛡️",
-          "description": "Alert 5 seconds before enemy attacks. (Must be attack at least once to unlock)"
+          "description": "Get warned 5 seconds before an enemy attack lands on you. Unlocks after you have been hit once."
         },
         {
           "id": "d-as",
-          "name": "d-as",
+          "name": "🛡️ Longer warning",
           "icon": "🛡️",
-          "description": "Add one more second to the alert."
+          "description": "+1 second of warning per level."
         },
         {
           "id": "d-aa",
-          "name": "d-aa",
+          "name": "🛡️ Know the attack",
           "icon": "🛡️",
-          "description": "The alert tells which attack incoming."
+          "description": "The warning names the incoming attack."
         },
         {
           "id": "sc-pcps",
@@ -641,6 +779,18 @@
           "description": "Unlock Poach Sawmill"
         },
         {
+          "id": "node-7",
+          "name": "node-7",
+          "icon": "💥",
+          "description": "Unlock the click-income debuffs"
+        },
+        {
+          "id": "node-8",
+          "name": "node-8",
+          "icon": "🌫️",
+          "description": "Unlock the highlight-bonus debuffs"
+        },
+        {
           "id": "pact-node",
           "name": "pact-node",
           "icon": "🤝",
@@ -663,6 +813,48 @@
           "name": "pact-node-4",
           "icon": "🤝",
           "description": ""
+        },
+        {
+          "id": "unlock-numb-hands",
+          "name": "✋ Numb Hands",
+          "icon": "✋",
+          "description": "Unlock Numb Hands: a 15s click blackout."
+        },
+        {
+          "id": "unlock-fog-of-war",
+          "name": "🌫️ Fog of War",
+          "icon": "🌫️",
+          "description": "Unlock Fog of War: halve their highlight for 8s."
+        },
+        {
+          "id": "unlock-termite-swarm",
+          "name": "🐛 Termite Swarm",
+          "icon": "🐛",
+          "description": "Unlock Termite Swarm: −22% enemy Wood for 67s."
+        },
+        {
+          "id": "slot-active-1",
+          "name": "⚔️ War Room",
+          "icon": "⚔️",
+          "description": "+1 active attack slot."
+        },
+        {
+          "id": "slot-passive",
+          "name": "🕵️ Spy Network",
+          "icon": "🕵️",
+          "description": "+2 passive attack slots."
+        },
+        {
+          "id": "slot-active-2",
+          "name": "🏰 Siege Camp",
+          "icon": "🏰",
+          "description": "+1 more active attack slot."
+        },
+        {
+          "id": "unlock-embargo",
+          "name": "🚫 Embargo",
+          "icon": "🚫",
+          "description": "Unlock Embargo: the enemy can buy nothing for 10s."
         }
       ],
       "generators": [
@@ -723,6 +915,54 @@
           "name": "Poach Sawmill",
           "icon": "🏗️",
           "description": "Steal one of the enemy's Sawmills, even one you haven't unlocked yourself. (does not affect score)"
+        },
+        {
+          "id": "less-click-power",
+          "name": "Less Click Power",
+          "icon": "💥",
+          "description": "Passively halves the enemy's per-click income while unlocked."
+        },
+        {
+          "id": "less-click-power-add",
+          "name": "Less Click Power (flat)",
+          "icon": "💥",
+          "description": "Passively takes a flat 2 off the enemy's per-click income while unlocked."
+        },
+        {
+          "id": "less-highlight-power",
+          "name": "Dim Highlight",
+          "icon": "🌫️",
+          "description": "Passively cuts the enemy's highlight bonus in half while unlocked."
+        },
+        {
+          "id": "less-highlight-power-add",
+          "name": "Dim Highlight (flat)",
+          "icon": "🌫️",
+          "description": "Passively subtracts 1 from the enemy's highlight factor while unlocked — enough to cancel a small highlight's bonus, though never below a neutral ×1."
+        },
+        {
+          "id": "numb-hands",
+          "name": "Numb Hands",
+          "icon": "✋",
+          "description": "Enemy clicks earn 95% less for 15s."
+        },
+        {
+          "id": "fog-of-war",
+          "name": "Fog of War",
+          "icon": "🌫️",
+          "description": "Halves the enemy's highlight bonus for 8s."
+        },
+        {
+          "id": "termite-swarm",
+          "name": "Termite Swarm",
+          "icon": "🐛",
+          "description": "Enemy Wood production −22% for 67s."
+        },
+        {
+          "id": "embargo",
+          "name": "Embargo",
+          "icon": "🚫",
+          "description": "The enemy cannot buy upgrades or generators for 10s. Time it for when they are saving up."
         }
       ],
       "pacts": [
@@ -966,13 +1206,7 @@
         {
           "type": "baseModifier",
           "stage": "multiplicative",
-          "field": "r0",
-          "value": 1.1
-        },
-        {
-          "type": "baseModifier",
-          "stage": "multiplicative",
-          "field": "r1",
+          "field": "allResources",
           "value": 1.1
         }
       ],
@@ -992,6 +1226,16 @@
             }
           },
           "purchaseLimit": 1,
+          "effects": [
+            {
+              "type": "timeScaledModifier",
+              "clock": "ae-mf-ar-time",
+              "field": "allResources",
+              "stage": "multiplicative",
+              "perMinute": 0.1,
+              "maxFactor": 10
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 96
@@ -1011,6 +1255,13 @@
                 "type": "upgrade",
                 "id": "ae-mf-ar-time"
               },
+              "effects": [
+                {
+                  "type": "timeFactorBoost",
+                  "clock": "ae-mf-ar-time",
+                  "perMinute": 0.1
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -1029,6 +1280,12 @@
                     "id": "ae-atf",
                     "minLevel": 2
                   },
+                  "effects": [
+                    {
+                      "type": "timeRetroactive",
+                      "clock": "ae-mf-ar-time"
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -2151,6 +2408,188 @@
             "x": -48,
             "y": 288
           }
+        },
+        {
+          "id": "node-7",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-click-power-add"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 384
+          }
+        },
+        {
+          "id": "node-8",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "less-highlight-power"
+            },
+            {
+              "type": "unlockAttack",
+              "attack": "less-highlight-power-add"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 480
+          }
+        },
+        {
+          "id": "unlock-numb-hands",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "numb-hands"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 384
+          }
+        },
+        {
+          "id": "unlock-fog-of-war",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "fog-of-war"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 480
+          }
+        },
+        {
+          "id": "unlock-termite-swarm",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "termite-swarm"
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 480
+          }
+        },
+        {
+          "id": "slot-active-1",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "active",
+              "value": 1
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 576
+          }
+        },
+        {
+          "id": "slot-passive",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "passive",
+              "value": 2
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 576
+          }
+        },
+        {
+          "id": "slot-active-2",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "slot-active-1"
+          },
+          "effects": [
+            {
+              "type": "attackSlots",
+              "attackKind": "active",
+              "value": 1
+            }
+          ],
+          "offset": {
+            "x": -48,
+            "y": 672
+          }
+        },
+        {
+          "id": "unlock-embargo",
+          "cost": {},
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "a-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockAttack",
+              "attack": "embargo"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 672
+          }
         }
       ]
     },
@@ -2166,7 +2605,7 @@
       ],
       "offset": {
         "x": 1176,
-        "y": 528
+        "y": 936
       },
       "children": [
         {
@@ -2439,6 +2878,17 @@
           "id": "d-alert",
           "cost": {},
           "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "meta",
+            "key": "attacksSuffered",
+            "min": 1
+          },
+          "effects": [
+            {
+              "type": "attackAlert",
+              "leadSec": 5
+            }
+          ],
           "offset": {
             "x": 0,
             "y": 504
@@ -2447,11 +2897,17 @@
             {
               "id": "d-as",
               "cost": {},
-              "purchaseLimit": 1,
+              "purchaseLimit": 5,
               "prerequisites": {
                 "type": "upgrade",
                 "id": "d-alert"
               },
+              "effects": [
+                {
+                  "type": "attackAlert",
+                  "leadSec": 1
+                }
+              ],
               "offset": {
                 "x": -48,
                 "y": 96
@@ -2465,6 +2921,12 @@
                 "type": "upgrade",
                 "id": "d-alert"
               },
+              "effects": [
+                {
+                  "type": "attackAlert",
+                  "revealAttack": true
+                }
+              ],
               "offset": {
                 "x": 48,
                 "y": 96

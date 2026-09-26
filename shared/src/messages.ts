@@ -117,7 +117,8 @@ export interface PurchaseEvent {
  * `none` event — `outgoing` to the attacker, `incoming` to the victim — so a
  * fired attack always yields feedback and the target learns of the attempt.
  */
-export type AttackEvent = ResourceAttackEvent | GeneratorAttackEvent | MissedAttackEvent
+export type AttackEvent =
+  ResourceAttackEvent | GeneratorAttackEvent | DebuffAttackEvent | MissedAttackEvent
 
 /** Fields every strike event carries, whatever it moved. */
 interface AttackEventBase {
@@ -148,6 +149,19 @@ export interface GeneratorAttackEvent extends AttackEventBase {
 }
 
 /**
+ * A strike that opened a debuff window — the attack's debuff effects apply to
+ * the victim for `durationSec` game seconds from `t`. Emitted once per strike
+ * however many debuff effects the attack carries, since they share one window.
+ * A window that opens is never a miss, so it never coexists with `kind: 'none'`
+ * for the same strike.
+ */
+export interface DebuffAttackEvent extends AttackEventBase {
+  kind: 'debuff'
+  /** How long the window stays open, in game seconds. */
+  durationSec: number
+}
+
+/**
  * A strike that landed but moved nothing — the victim held none of the target
  * resource or generator. Emitted to *both* sides (`outgoing` to the attacker,
  * `incoming` to the victim) so a fired attack always produces feedback and the
@@ -155,6 +169,30 @@ export interface GeneratorAttackEvent extends AttackEventBase {
  */
 export interface MissedAttackEvent extends AttackEventBase {
   kind: 'none'
+}
+
+/**
+ * An enemy active strike due to land on the receiving player within their
+ * `attackAlert` lead. Present only while the viewer owns a lead and
+ * at least one pending enemy strike is inside it — the *full current list*
+ * every broadcast, not a delta: a countdown is re-derived from state, never
+ * accumulated, so the client replaces its list from each snapshot.
+ */
+export interface IncomingAttack {
+  /**
+   * The attacker's `meta.gameSec` at which the strike lands. Both players' game
+   * clocks advance in lockstep (one tick loop, one `tickSec`, one pause), so the
+   * viewer counts down against its *own* `meta.gameSec` — exactly as the
+   * attacker's own card does. Stable across broadcasts, so it also serves as the
+   * entry's identity for toast de-duplication.
+   */
+  readyAtSec: number
+  /**
+   * Abstract attack id, resolved to a name / icon client-side — present only
+   * when the viewer's alert grants `revealAttack`. Without it the warning says
+   * only that *something* is coming.
+   */
+  attack?: string
 }
 
 /**
@@ -184,6 +222,13 @@ export interface OpponentView {
    * feed. Purchases made before the unlock are never sent — never retroactive.
    */
   purchases?: PurchaseEvent[]
+  /**
+   * The opponent's pending strikes due to land on the viewer within the viewer's
+   * `attackAlert` lead (see {@link IncomingAttack}). Absent when the viewer has
+   * no alert or nothing is inside the lead. The one deliberate leak of the
+   * opponent's `pendingAttacks`, gated by an upgrade the *victim* buys.
+   */
+  incomingAttacks?: IncomingAttack[]
 }
 
 /** Periodic authoritative state snapshot. */

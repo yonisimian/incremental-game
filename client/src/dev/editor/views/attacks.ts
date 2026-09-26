@@ -10,7 +10,8 @@
  * player pays the cost to arm the attack, and the strike lands after the delay.
  * The cost may charge several resources at once, so it is authored as a list of
  * currency rows (like the upgrade inspector's cost section, minus the per-level
- * scaling — attack costs are always flat).
+ * scaling — attack costs are always flat). An active attack carrying a debuff
+ * effect also needs a duration — how long the strike's window stays open.
  * `passive` attacks apply their effects continuously and carry no prepare data.
  */
 
@@ -24,6 +25,7 @@ import {
   removeAttack,
   removeAttackPrepareCurrency,
   renameAttack,
+  setAttackDuration,
   setAttackEffects,
   setAttackFlavor,
   setAttackKind,
@@ -156,6 +158,17 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
       { step: '0.5' },
     )
     fields.append(labeled('Prepare time /s', prepareTime))
+    // The debuff window. Blank (0) means "no window": the validator requires
+    // one only when the attack carries a debuff effect, and forbids it otherwise.
+    const duration = numberInput(
+      ctx,
+      row.durationSec ?? 0,
+      (n) => {
+        setAttackDuration(tree, row.id, n)
+      },
+      { step: '0.5' },
+    )
+    fields.append(labeled('Debuff duration /s', duration))
   }
 
   card.append(fields)

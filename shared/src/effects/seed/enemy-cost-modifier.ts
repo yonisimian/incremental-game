@@ -1,0 +1,74 @@
+import { z } from 'zod'
+
+import { parsePurchaseTarget } from '../addressable.js'
+import type { EffectDef, EnemyCostOutput } from '../types.js'
+
+/**
+ * Schema for the `enemyCostModifier` effect's params.
+ *
+ * An *offensive* cost inflation carried by an attack: while a passive attack is
+ * unlocked — or for an active attack's `durationSec` after its strike lands —
+ * the opponent pays more for what `target` names. `target` is a key
+ * from the shared purchase-target catalog — `upgrades` / `generators` for a
+ * whole scope, `purchases` for both, or `upgrade:<id>` / `generator:<id>` for
+ * one entity. Like `baseModifier`'s
+ * `field` it's a plain `z.string()` so the schema-driven editor form can
+ * introspect it; the `/dev.html` picker offers only catalog keys and
+ * `validateModeDefinition` rejects the rest at load, so an authored typo fails
+ * loudly rather than producing an attack that does nothing.
+ *
+ *  - `target: "upgrades", costFactor: 1.25` — every upgrade costs the opponent
+ *    25% more;
+ *  - `target: "generator:g0", scalingFactor: 1.1` — their first generator's
+ *    price curve grows 10% faster, base price unchanged.
+ *
+ * Both factors are `> 1`: on a *friendly* `generatorCost` upgrade a factor
+ * below 1 is the whole point, but on an attack it would gift the victim a
+ * discount, which is never intended authoring (the same reasoning as
+ * `guardModifierValue`'s debuff intent), and exactly 1 would be a no-op. At
+ * least one must be present — a ref setting neither would be inert.
+ */
+const schema = z
+  .strictObject({
+    target: z.string(),
+    costFactor: z.number().gt(1).optional(),
+    scalingFactor: z.number().gt(1).optional(),
+  })
+  .refine((p) => p.costFactor !== undefined || p.scalingFactor !== undefined, {
+    message:
+      'enemyCostModifier must set costFactor or scalingFactor (a ref setting neither is inert)',
+    path: ['costFactor'],
+  })
+
+/** Params for the `enemyCostModifier` effect (inferred from its schema). */
+export type EnemyCostModifierParams = z.infer<typeof schema>
+
+/**
+ * State-independent: splits the authored target and echoes the inflation as an
+ * {@link EnemyCostOutput}. Whether it actually applies (the attack is an
+ * unlocked passive one held by the *other* player, or an active one whose
+ * window is open) is decided by
+ * `collectEnemyCostFactors`, which owns this output. Unlike `baseModifier` there
+ * is no owned-count compounding — an attack is unlocked or it isn't.
+ */
+function apply(p: EnemyCostModifierParams): EnemyCostOutput[] | null {
+  const targets = parsePurchaseTarget(p.target)
+  if (!targets) return null
+  // `purchases` names both scopes, so it inflates each as its own output.
+  return targets.map((t) => ({
+    kind: 'enemyCost',
+    scope: t.scope,
+    id: t.id,
+    costFactor: p.costFactor,
+    scalingFactor: p.scalingFactor,
+  }))
+}
+
+export const enemyCostModifier: EffectDef<EnemyCostModifierParams> = {
+  schema,
+  apply,
+  // Only `collectEnemyCostFactors` reads this output, and it walks the *passive*
+  // attacks a player holds plus the debuff windows their *active* attacks have
+  // opened — anywhere else the inflation would never be gathered.
+  hosts: ['passiveAttack', 'activeAttack'],
+}

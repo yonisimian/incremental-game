@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   parseBalanceFile,
   parseTreeFile,
   toModeDefinition,
@@ -48,6 +49,7 @@ import {
   setAttackKind,
   setAttackEffects,
   setAttackPrepareTime,
+  setAttackDuration,
   setAttackPrepareCost,
   setAttackPrepareCurrency,
   addAttackPrepareCurrency,
@@ -843,6 +845,58 @@ describe('attacks', () => {
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
+  // ── Debuff windows (plan 37) ──────────────────────────────────────
+
+  const WINDOW_DEBUFF = {
+    type: 'enemyProductionModifier',
+    stage: 'multiplicative',
+    field: 'r0',
+    value: 0.5,
+  }
+
+  it('surfaces a duration only on the attacks that author a window', () => {
+    const rows = listAttacks(idler())
+    // The seed steal opens no window; the tree's duration attacks report theirs.
+    expect(rows.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBeNull()
+    expect(rows.find((a) => a.id === 'numb-hands')!.durationSec).toBe(15)
+    expect(rows.find((a) => a.id === 'fog-of-war')!.durationSec).toBe(8)
+    expect(rows.find((a) => a.id === 'termite-swarm')!.durationSec).toBe(67)
+    expect(rows.find((a) => a.id === 'embargo')!.durationSec).toBe(10)
+  })
+
+  it('setAttackDuration turns a steal into a raid the runtime accepts', () => {
+    const tree = idler()
+    const steal = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.effects ?? []
+    setAttackEffects(tree, ACTIVE_ATTACK, [...steal, WINDOW_DEBUFF])
+    // A debuff with no window is the validator's first complaint...
+    expect(() => toModeDefinition(tree)).toThrow(/no durationSec/)
+    // ...and the duration answers it.
+    setAttackDuration(tree, ACTIVE_ATTACK, 8)
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBe(8)
+    const def = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(def.durationSec).toBe(8)
+  })
+
+  it('setAttackDuration clears on null or a non-positive value, keeping the tree loadable', () => {
+    const tree = idler()
+    setAttackDuration(tree, ACTIVE_ATTACK, 8)
+    setAttackDuration(tree, ACTIVE_ATTACK, null)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBeUndefined()
+    setAttackDuration(tree, ACTIVE_ATTACK, 0)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBeUndefined()
+    // The seed steal is all-steal, so with the window cleared it loads as before.
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('switching to passive strips the duration along with the prepare data', () => {
+    const tree = idler()
+    setAttackDuration(tree, ACTIVE_ATTACK, 8)
+    setAttackKind(tree, ACTIVE_ATTACK, 'passive')
+    const attack = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(attack.durationSec).toBeUndefined()
+    expect(attack.prepareTimeSec).toBeUndefined()
+  })
+
   it('charges several currencies at once and keeps the tree loadable', () => {
     const tree = idler()
     expect(addAttackPrepareCurrency(tree, ACTIVE_ATTACK)).toBe('r1')
@@ -853,7 +907,7 @@ describe('attacks', () => {
     ])
     // Both currencies survive the codec round-trip into a runnable mode.
     const attack = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
-    expect(getAttackPrepareCost(attack)).toEqual({ r0: seedCost, r1: 250 })
+    expect(getAttackPrepareCost(attack, NEUTRAL_ATTACK_PARAMS)).toEqual({ r0: seedCost, r1: 250 })
   })
 
   it('editing one currency leaves the attack’s other currencies untouched', () => {

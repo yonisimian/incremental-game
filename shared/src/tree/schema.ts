@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { PREREQUISITE_META_KEYS } from '../prerequisites.js'
 import type { PrerequisiteExpression } from '../types.js'
 
 /**
@@ -46,6 +47,11 @@ const PrerequisiteSchema: z.ZodType<PrerequisiteExpression> = z.lazy(() =>
       id: z.string(),
       minLevel: z.number().int().min(1).optional(),
     }),
+    z.strictObject({
+      type: z.literal('meta'),
+      key: z.enum(PREREQUISITE_META_KEYS),
+      min: z.number().int().min(1),
+    }),
     z.strictObject({ type: z.literal('all'), items: z.array(PrerequisiteSchema) }),
     z.strictObject({ type: z.literal('any'), items: z.array(PrerequisiteSchema) }),
   ]),
@@ -79,7 +85,8 @@ const GeneratorSchema = z.strictObject({
 /**
  * An attack — a stable id, its kind, and the offensive effects it carries.
  * Active attacks also carry a `prepareCost` (paid on activation) and a
- * `prepareTimeSec` (delay before the strike lands). Effects are validated
+ * `prepareTimeSec` (delay before the strike lands), plus a `durationSec` when
+ * the strike opens a debuff window. Effects are validated
  * per-effect by the registry once assembled into a `ModeDefinition` (see
  * `validateModeDefinition`), which also enforces the cost/timing rules. Display
  * data is its flavor.
@@ -89,6 +96,7 @@ const AttackSchema = z.strictObject({
   kind: z.enum(['active', 'passive']),
   prepareCost: CostSchema.optional(),
   prepareTimeSec: z.number().min(0).optional(),
+  durationSec: z.number().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 

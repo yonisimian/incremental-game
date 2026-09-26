@@ -160,32 +160,67 @@ export function matchVariant(
   return spec.variants[0]
 }
 
-/** Build a params object for a variant from its defaults (skips optionals w/o a default). */
+/**
+ * Build a params object for a variant from its defaults (skips optionals w/o a
+ * default). `numberFallback` seeds any numeric field the schema gives no default
+ * of its own — see {@link NUMBER_CANDIDATES}. `includeOptional` seeds the
+ * optional fields too, for a schema that requires at least one of them.
+ */
 export function defaultParamsForVariant(
   variant: VariantSpec,
+  numberFallback = 0,
+  includeOptional = false,
 ): Record<string, number | string | boolean> {
   const out: Record<string, number | string | boolean> = {}
   for (const field of variant.fields) {
-    if (field.optional && field.defaultValue === undefined) continue
+    if (field.optional && field.defaultValue === undefined && !includeOptional) continue
     out[field.key] =
-      field.defaultValue ?? (field.kind === 'number' ? 0 : field.kind === 'string' ? '' : false)
+      field.defaultValue ??
+      (field.kind === 'number' ? numberFallback : field.kind === 'string' ? '' : false)
   }
   return out
 }
 
 /**
- * Default params for a newly-added effect: the first variant whose defaults the
- * caller's `isValid` predicate accepts (so a union prefers a shape that parses
- * cleanly), falling back to the first variant. `isValid` is the effect's real
- * schema check, kept out of this module to avoid a zod dependency.
+ * Numbers tried, in order, for a variant's unseeded numeric fields.
+ *
+ * `0` first, so an effect whose schema is happy with it keeps the value the form
+ * has always shown. The rest exist because plenty of schemas are *not*: a guard
+ * is the norm rather than the exception (`multiplier: gt(1)`, `threshold:
+ * gt(0).lt(1)`, a debuff's `value < 0`, and now `attackStat`'s direction rules),
+ * and an add button that writes params the effect's own schema rejects hands the
+ * tree a node that refuses to boot — with no error shown until some field is
+ * touched. Between them these four satisfy every guarded shape in the seed:
+ * `2` for "must grow", `0.5` for "must sit inside (0, 1)", `-0.5` for "must
+ * shrink".
+ *
+ * Probing the real schema beats a per-effect defaults table, which would be one
+ * more thing to keep in step with the schemas this whole form is derived from.
+ */
+const NUMBER_CANDIDATES = [0, 2, 0.5, -0.5]
+
+/**
+ * Default params for a newly-added effect: the first variant-and-candidate pair
+ * the caller's `isValid` predicate accepts (so a union prefers a shape that
+ * parses cleanly), falling back to the first variant. `isValid` is the effect's
+ * real schema check, kept out of this module to avoid a zod dependency.
  */
 export function defaultParamsForEffect(
   spec: EffectFormSpec,
   isValid: (params: Record<string, number | string | boolean>) => boolean,
 ): Record<string, number | string | boolean> {
-  for (const variant of spec.variants) {
-    const params = defaultParamsForVariant(variant)
-    if (isValid(params)) return params
+  // Required fields alone first — the smallest params that could work. Only if
+  // no candidate satisfies the schema that way are the optionals seeded too,
+  // for the effects that require *at least one* of a set of optional fields
+  // (`enemyCostModifier` wants a `costFactor` or a `scalingFactor`, and the form
+  // would otherwise open on neither and refuse to save).
+  for (const includeOptional of [false, true]) {
+    for (const variant of spec.variants) {
+      for (const candidate of NUMBER_CANDIDATES) {
+        const params = defaultParamsForVariant(variant, candidate, includeOptional)
+        if (isValid(params)) return params
+      }
+    }
   }
   return defaultParamsForVariant(spec.variants[0])
 }

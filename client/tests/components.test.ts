@@ -3,6 +3,7 @@ import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   getAvailableUpgrades,
   getModeDefinition,
 } from '@game/shared'
@@ -35,6 +36,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
       rates: {},
     },
     opponentPurchaseFeed: [],
+    incomingAttacks: [],
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
@@ -196,7 +198,10 @@ describe('attackPanel', () => {
   )!
 
   /** a0's authored Wood prepare cost, so tuning the tree can't break these. */
-  const a0WoodCost = getAttackPrepareCost(idlerDef.attacks.find((a) => a.id === 'a0')!).r0
+  const a0WoodCost = getAttackPrepareCost(
+    idlerDef.attacks.find((a) => a.id === 'a0')!,
+    NEUTRAL_ATTACK_PARAMS,
+  ).r0
 
   /** An idler state with the attack panel + a0 unlocked, plus `wood` Wood held. */
   function withA0Unlocked(wood: number, extra: Partial<GameState['player']> = {}): GameState {

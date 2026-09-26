@@ -17,13 +17,39 @@
  * scope for now (they can be added here without touching the effect).
  */
 
-import type { PlayerState } from '../types.js'
+import type { PlayerState, PurchaseTarget } from '../types.js'
 import type { ModeDefinition } from '../modes/types.js'
+import {
+  ALL_GENERATORS_FIELD,
+  ALL_RESOURCES_FIELD,
+  INCOMING_CLICK_INCOME_FIELD,
+} from '../modifiers/types.js'
 
 /** Namespace prefix for a resource-stockpile source (e.g. `resource:r0`). */
 const RESOURCE_SOURCE_PREFIX = 'resource:'
 /** The sole meta source in Stage A: the player's live peak CPS. */
 const PEAK_CPS_SOURCE = 'meta:peakCps'
+
+/**
+ * Reserved enemy-debuff target: the victim's *highlight factor*.
+ *
+ * Unlike every other target this names no pipeline field — the highlight bonus
+ * is folded into whichever resource the victim is holding, so there is nothing
+ * standing to address. It is a **virtual** target, translated against the victim
+ * by `resolveEnemyDebuffs` before the pipeline ever sees it.
+ */
+export const HIGHLIGHT_FACTOR_TARGET = 'highlightFactor'
+
+/**
+ * Target keys that name something other than a resource. A mode declaring a
+ * resource by one of these names would make the authored target ambiguous, so
+ * `validateModeDefinition` rejects the collision.
+ */
+export const RESERVED_TARGET_KEYS: readonly string[] = [
+  'clickIncome',
+  INCOMING_CLICK_INCOME_FIELD,
+  HIGHLIGHT_FACTOR_TARGET,
+]
 
 /** One addressable field: its stable key plus a human label for the editor. */
 export interface AddressableField {
@@ -68,6 +94,11 @@ export function addressableSources(mode: ModeDefinition): AddressableField[] {
  * production) and `bK` (its isolated base producer — see {@link
  * ResourceLayers}). `bK` uses the resource's *index*, so `b0` is the base
  * producer of `resourceKeys[0]`.
+ *
+ * Two aggregate sentinels are offered when they'd have a target to hit: {@link
+ * ALL_RESOURCES_FIELD} (every resource's global layer) and {@link
+ * ALL_GENERATORS_FIELD} (every generator's output). They let one modifier fan
+ * out instead of authoring a copy per resource/generator.
  */
 export function addressableTargetsFor(
   resourceKeys: readonly string[],
@@ -78,6 +109,12 @@ export function addressableTargetsFor(
     ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
     ...resourceKeys.map((key, i) => ({ key: `b${i}`, label: `${key} (base producer)` })),
     ...generatorIds.map((id) => ({ key: id, label: `${id} (output)` })),
+    ...(resourceKeys.length > 0
+      ? [{ key: ALL_RESOURCES_FIELD, label: 'All resources (rate)' }]
+      : []),
+    ...(generatorIds.length > 0
+      ? [{ key: ALL_GENERATORS_FIELD, label: 'All generators (output)' }]
+      : []),
   ]
 }
 
@@ -95,20 +132,94 @@ export function addressableTargets(mode: ModeDefinition): AddressableField[] {
 
 /**
  * Target keys an *offensive* `enemyProductionModifier` (carried by a passive
- * attack) may feed on the opponent. Deliberately a **subset** of {@link
- * addressableTargetsFor}: the debuffs are merged into the opponent's pipeline
- * *after* `collectModifiers` has already folded generator output into resource
- * rates and only on the passive-income path — so generator-id and `clickIncome`
- * would silently do nothing. Only per-second resource rates actually apply,
- * so those are the only targets offered and validated.
+ * attack) may feed on the opponent. Neither a subset nor a superset of {@link
+ * addressableTargetsFor} — the sets overlap:
+ *
+ *  - per-second resource rates (merged on the passive-income path) and
+ *    `clickIncome` (merged when a click is credited — see the server's
+ *    `applyClick`) are shared with the full catalog;
+ *  - {@link HIGHLIGHT_FACTOR_TARGET} is debuff-only and *virtual*, resolved
+ *    against the victim by `resolveEnemyDebuffs` rather than fed to a field;
+ *  - generator ids and base producers are absent: a debuff merges in after
+ *    `collectModifiers` has folded generator output into resource rates, so they
+ *    would silently do nothing.
  */
 export function enemyDebuffTargetsFor(resourceKeys: readonly string[]): AddressableField[] {
-  return resourceKeys.map((key) => ({ key, label: `${key} (rate)` }))
+  return [
+    { key: 'clickIncome', label: 'Click income' },
+    { key: HIGHLIGHT_FACTOR_TARGET, label: 'Highlight factor' },
+    ...resourceKeys.map((key) => ({ key, label: `${key} (rate)` })),
+  ]
 }
 
-/** Offensive-debuff target keys for this mode (resource rates). */
+/** Offensive-debuff target keys for this mode (click income + highlight + rates). */
 export function enemyDebuffTargets(mode: ModeDefinition): AddressableField[] {
   return enemyDebuffTargetsFor(mode.resources)
+}
+
+/** Target naming *every* upgrade the victim might buy. */
+export const ALL_UPGRADES_TARGET = 'upgrades'
+/** Target naming *every* generator the victim might buy. */
+export const ALL_GENERATORS_TARGET = 'generators'
+/** Target naming every upgrade *and* every generator. */
+export const ALL_PURCHASES_TARGET = 'purchases'
+/** Namespace prefix for a single-upgrade target (e.g. `upgrade:u3`). */
+const UPGRADE_TARGET_PREFIX = 'upgrade:'
+/** Namespace prefix for a single-generator target (e.g. `generator:g1`). */
+const GENERATOR_TARGET_PREFIX = 'generator:'
+
+/**
+ * Target keys for an *offensive* effect aimed at what the opponent buys — the
+ * `target` of `enemyCostModifier` and `enemyPurchaseLock`: each whole scope,
+ * both scopes at once, then one namespaced key per upgrade and generator.
+ *
+ * A single namespaced key rather than a `scope` + `id` pair, following
+ * `accessEnemyData`'s `data` and `relativeModifier`'s `source`: it makes an
+ * inconsistent pair (scope `upgrade`, a generator's id) *unrepresentable*, so
+ * the `/dev.html` picker can't author something the boot-time validator would
+ * reject. {@link parsePurchaseTarget} turns a key back into the structural form
+ * the price and lock paths consume.
+ */
+export function purchaseTargetsFor(
+  upgradeIds: readonly string[],
+  generatorIds: readonly string[],
+): AddressableField[] {
+  return [
+    { key: ALL_UPGRADES_TARGET, label: 'All upgrades' },
+    { key: ALL_GENERATORS_TARGET, label: 'All generators' },
+    { key: ALL_PURCHASES_TARGET, label: 'All upgrades and generators' },
+    ...upgradeIds.map((id) => ({ key: `${UPGRADE_TARGET_PREFIX}${id}`, label: `${id} (upgrade)` })),
+    ...generatorIds.map((id) => ({
+      key: `${GENERATOR_TARGET_PREFIX}${id}`,
+      label: `${id} (generator)`,
+    })),
+  ]
+}
+
+/** Purchase-target keys for this mode. */
+export function purchaseTargets(mode: ModeDefinition): AddressableField[] {
+  return purchaseTargetsFor(
+    mode.upgrades.map((u) => u.id),
+    mode.generators.map((g) => g.id),
+  )
+}
+
+/**
+ * Split an authored purchase target into what it hits: one whole scope, both
+ * (for {@link ALL_PURCHASES_TARGET}), or a single entity with its id. Returns
+ * `null` for an unrecognized key, so `apply` stays inert on a bad ref even
+ * though `validateModeDefinition` already rejects one at boot — the same
+ * contract as {@link readSourceValue}.
+ */
+export function parsePurchaseTarget(target: string): PurchaseTarget[] | null {
+  if (target === ALL_UPGRADES_TARGET) return [{ scope: 'upgrade' }]
+  if (target === ALL_GENERATORS_TARGET) return [{ scope: 'generator' }]
+  if (target === ALL_PURCHASES_TARGET) return [{ scope: 'upgrade' }, { scope: 'generator' }]
+  if (target.startsWith(UPGRADE_TARGET_PREFIX))
+    return [{ scope: 'upgrade', id: target.slice(UPGRADE_TARGET_PREFIX.length) }]
+  if (target.startsWith(GENERATOR_TARGET_PREFIX))
+    return [{ scope: 'generator', id: target.slice(GENERATOR_TARGET_PREFIX.length) }]
+  return null
 }
 
 /** The combined source/target catalog for a mode. */

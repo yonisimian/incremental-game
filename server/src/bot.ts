@@ -1,4 +1,5 @@
 import type {
+  AttackDefinition,
   GameMode,
   GeneratorDefinition,
   ModeDefinition,
@@ -18,7 +19,13 @@ import {
   getUpgradeNextCost,
   isCostAffordable,
   isGeneratorUnlocked,
+  isPurchaseLocked,
   resolveGeneratorDef,
+  upgradeCostFactors,
+  attackBlockReason,
+  collectAttackParams,
+  getAttackPrepareCost,
+  unlockedAttacks,
 } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -29,6 +36,7 @@ type BotAction =
   | { type: 'buy'; upgradeId: string }
   | { type: 'buy_generator'; generatorId: string }
   | { type: 'set_highlight'; highlight: string | null }
+  | { type: 'activate_attack'; attackId: string }
 
 /** Strategy interface — one `decide` call per game tick. */
 export interface BotStrategy {
@@ -70,6 +78,30 @@ function dominantGeneratorCurrency(generators: readonly GeneratorDefinition[]): 
 /** Does owning this upgrade unlock one or more generators? */
 function unlocksGenerator(upgrade: UpgradeDefinition): boolean {
   return (upgrade.effects ?? []).some((e) => e.type === 'generatorUnlock')
+}
+
+/**
+ * The active attack the bot learns to fire: the first *armed*
+ * active attack — one with effects and a prepare cost — whose unlock upgrade is
+ * available, preferring `a0` (the idler's steal) so a bot match exercises the
+ * alert against the attack it was designed around. `null` when the mode has no
+ * such attack or no available upgrade unlocks it.
+ */
+function botAttackTarget(
+  modeDef: ModeDefinition,
+  availableUpgrades: readonly UpgradeDefinition[],
+): { attack: AttackDefinition; unlock: UpgradeDefinition } | null {
+  const armed = modeDef.attacks.filter(
+    (a) => a.kind === 'active' && (a.effects?.length ?? 0) > 0 && a.prepareCost !== undefined,
+  )
+  armed.sort((a, b) => (a.id === 'a0' ? -1 : b.id === 'a0' ? 1 : 0))
+  for (const attack of armed) {
+    const unlock = availableUpgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack.id),
+    )
+    if (unlock) return { attack, unlock }
+  }
+  return null
 }
 
 /** Does owning this upgrade unlock the named player-action system? */
@@ -157,6 +189,16 @@ export class IdlerBot implements BotStrategy {
       basePlan.push(...path)
     }
 
+    // One active attack, so a bot match exercises the offence — and the
+    // victim's early warning. Its unlock chain (the attack panel,
+    // then the free unlock node) rides the plan like the generator unlocks.
+    const target = botAttackTarget(modeDef, availableUpgrades)
+    if (target) {
+      const path = this.resolvePath(target.unlock, includedIds)
+      for (const step of path) includedIds.add(step.id)
+      basePlan.push(...path)
+    }
+
     // If the trophy is available (buy-upgrade goal), append its prereq chain.
     const trophy = availableUpgrades.find((u) => u.goalType === 'buy-upgrade')
     if (trophy) {
@@ -222,34 +264,60 @@ export class IdlerBot implements BotStrategy {
     return this.generators.some((g) => isGeneratorUnlocked(state, g, this.modeDef))
   }
 
-  /** Buy the current plan target when affordable, advancing the plan. */
-  private advancePlan(state: Readonly<PlayerState>, actions: BotAction[]): void {
+  /**
+   * Buy the current plan target when affordable, advancing the plan. The price
+   * is taken out of `wallet` so the rest of this tick's decisions see the money
+   * as spent.
+   */
+  private advancePlan(
+    state: Readonly<PlayerState>,
+    wallet: Record<string, number>,
+    actions: BotAction[],
+  ): void {
     if (this.planIndex >= this.plan.length) return
+    // The plan advances on *emitting* a buy, not on it landing — so a buy the
+    // server drops for an enemy purchase lock would be skipped for good. Hold
+    // the step until the window closes (the stamp is refreshed before every
+    // bot turn, so this reads the windows open right now).
     const next = this.plan[this.planIndex]
+    if (isPurchaseLocked(state, 'upgrade', next.id)) return
     const def = this.upgradeMap.get(next.id)
     if (!def) return
     const owned = state.upgrades[next.id] ?? 0
-    if (isCostAffordable(state.resources, getUpgradeNextCost(def, owned))) {
+    // Priced with any enemy cost inflation folded in (`upgradeCostFactors`), the
+    // same way the server will price it — otherwise the bot emits buys that
+    // validation rejects, and its plan stalls on an unaffordable target.
+    const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, next.id))
+    if (isCostAffordable(wallet, cost)) {
       actions.push({ type: 'buy', upgradeId: next.id })
+      for (const [currency, amount] of Object.entries(cost)) wallet[currency] -= amount
       this.planIndex++
     }
   }
 
   /**
    * Reinvest into unlocked generators, cheapest-first, capped per tick. Spends
-   * are simulated against a local wallet so the bot doesn't emit buys it can't
+   * come out of the tick's shared `wallet` so the bot doesn't emit buys it can't
    * afford; the server re-validates each buy regardless.
    */
-  private buyGenerators(state: Readonly<PlayerState>, actions: BotAction[]): void {
-    const unlocked = this.generators.filter((g) => isGeneratorUnlocked(state, g, this.modeDef))
+  private buyGenerators(
+    state: Readonly<PlayerState>,
+    wallet: Record<string, number>,
+    actions: BotAction[],
+  ): void {
+    // Stateless per tick, so a lock costs the bot nothing but the doomed
+    // actions it would otherwise emit; skip the locked generators.
+    const unlocked = this.generators.filter(
+      (g) =>
+        isGeneratorUnlocked(state, g, this.modeDef) && !isPurchaseLocked(state, 'generator', g.id),
+    )
     if (unlocked.length === 0) return
 
     // Cost-reduction factors depend on owned upgrades, not generator counts, so
     // the resolved defs are stable across this tick's buys.
     const resolved = new Map(
-      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef)]),
+      unlocked.map((g) => [g.id, resolveGeneratorDef(g, state, this.modeDef, 'buy')]),
     )
-    const wallet: Record<string, number> = { ...state.resources }
     const owned: Record<string, number> = { ...state.generators }
 
     for (let buys = 0; buys < MAX_GENERATOR_BUYS_PER_TICK; buys += 1) {
@@ -263,6 +331,31 @@ export class IdlerBot implements BotStrategy {
       actions.push({ type: 'buy_generator', generatorId: pick.gen.id })
       wallet[generatorCostCurrency(pick.gen)] -= pick.cost
       owned[pick.gen.id] = (owned[pick.gen.id] ?? 0) + 1
+    }
+  }
+
+  /**
+   * Fire one unlocked active attack from this tick's *surplus*: only once the
+   * upgrade plan is exhausted (a bot that raids itself out of its next upgrade
+   * regresses), and only if the prepare cost fits what is left in `wallet`
+   * after this tick's buys. One activation per tick keeps `decide` bounded;
+   * `attackBlockReason` already refuses a strike that is preparing or whose
+   * window is open, so this never double-fires.
+   */
+  private fireAttack(
+    state: Readonly<PlayerState>,
+    wallet: Readonly<Record<string, number>>,
+    actions: BotAction[],
+  ): void {
+    if (this.planIndex < this.plan.length) return
+    for (const id of unlockedAttacks(state, this.modeDef)) {
+      const def = this.modeDef.attacks.find((a) => a.id === id)
+      if (def?.kind !== 'active') continue
+      if (attackBlockReason(state, id, this.modeDef) !== null) continue
+      const cost = getAttackPrepareCost(def, collectAttackParams(state, this.modeDef, id))
+      if (!isCostAffordable(wallet, cost)) continue
+      actions.push({ type: 'activate_attack', attackId: id })
+      return
     }
   }
 
@@ -336,8 +429,12 @@ export class IdlerBot implements BotStrategy {
       actions.push({ type: 'set_highlight', highlight })
     }
 
+    // One wallet for the whole tick: every spend below comes out of it, so the
+    // bot never emits two actions that are each affordable but not together.
+    const wallet: Record<string, number> = { ...state.resources }
+
     // Advance the upgrade plan (buy the current target when affordable).
-    this.advancePlan(state, actions)
+    this.advancePlan(state, wallet, actions)
 
     // Click the farmed resource for active income.
     if (this.clicksEnabled) {
@@ -347,7 +444,10 @@ export class IdlerBot implements BotStrategy {
     }
 
     // Reinvest spare currency into unlocked generators.
-    this.buyGenerators(state, actions)
+    this.buyGenerators(state, wallet, actions)
+
+    // Raid from whatever surplus is left.
+    this.fireAttack(state, wallet, actions)
 
     return actions
   }

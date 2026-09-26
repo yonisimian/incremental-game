@@ -2,18 +2,31 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivateAttack } from '../../game.js'
 import {
+  activeDebuffRemainingSec,
   attackBlockReason,
+  attackLimit,
+  attackSlotsHeld,
+  collectAttackParams,
   getAttackDescription,
+  getAttackDurationSec,
   getAttackIcon,
   getAttackName,
   getAttackPrepareCost,
+  getAttackPrepareTimeSec,
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
   unlockedAttacks,
 } from '@game/shared'
-import type { AttackBlockReason, ModeDefinition, ModeFlavor } from '@game/shared'
-import { formatNumber } from '../format-number.js'
+import type {
+  AttackBlockReason,
+  AttackDefinition,
+  AttackKind,
+  AttackParams,
+  ModeDefinition,
+  ModeFlavor,
+} from '@game/shared'
+import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -28,16 +41,53 @@ function renderLocked(): string {
   `
 }
 
-/** The prepare cost of an active attack, formatted with resource icons. */
-function renderCost(flavor: ModeFlavor, id: string, modeDef: ModeDefinition): string {
-  const def = modeDef.attacks.find((a) => a.id === id)
-  if (!def) return ''
-  const entries = Object.entries(getAttackPrepareCost(def))
+/**
+ * The prepare cost of an active attack, formatted with resource icons — at the
+ * price the viewer actually pays, `attackStat` discounts included.
+ */
+function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackParams): string {
+  const entries = Object.entries(getAttackPrepareCost(def, params))
   if (entries.length === 0) return ''
   const parts = entries
     .map(([res, amt]) => `${formatNumber(amt)} ${getResourceIcon(flavor, res)}`)
     .join(' + ')
   return `<span class="attack-cost">${parts}</span>`
+}
+
+/**
+ * The attack's *current* numbers, where owned `attackStat` upgrades have moved
+ * them off the authored ones.
+ *
+ * The authored description keeps describing the attack's shape ("Steal 10% of the
+ * enemy's wood"); this line carries what the multipliers make of it, so a card
+ * can't read as though the upgrade did nothing. `prepareCost` is deliberately
+ * absent — the cost row above already quotes the discounted price, so repeating
+ * it as a factor would say the same thing twice.
+ *
+ * The delay is reported as **resolved seconds**, not as a factor: an `offset`
+ * stat shifts it in seconds, which no multiplier can express, and the number a
+ * player acts on is the wait itself. The debuff window (`durationSec`) is
+ * reported the same way, for the same reason.
+ *
+ * Only `power` is shown for a **passive** attack. A passive attack is never
+ * activated, so it has neither a prepare cost nor a prepare delay
+ * (`validateModeDefinition` forbids it from declaring either, and forbids an
+ * `attackStat` from moving either on it).
+ */
+function renderStats(def: AttackDefinition, params: AttackParams): string {
+  const parts: string[] = []
+  if (params.power !== 1) parts.push(`Power ×${formatMultiplier(params.power)}`)
+  if (def.kind === 'active') {
+    const authored = def.prepareTimeSec ?? 0
+    const resolved = getAttackPrepareTimeSec(def, params)
+    if (resolved !== authored) parts.push(`Prep ${formatDecimal(resolved, 1)}s`)
+    if (def.durationSec !== undefined) {
+      const window = getAttackDurationSec(def, params)
+      if (window !== def.durationSec) parts.push(`Lasts ${formatDecimal(window, 1)}s`)
+    }
+  }
+  if (parts.length === 0) return ''
+  return `<span class="attack-stats">${parts.join(' · ')}</span>`
 }
 
 /** The seconds remaining before a pending strike lands, in game seconds. */
@@ -55,12 +105,18 @@ function blockLabel(reason: AttackBlockReason): string {
       return 'Not enough resources'
     case 'no-effects':
       return 'No effect yet'
+    // `already-active` (and `already-preparing`) are rendered as countdowns by
+    // the caller, which has the remaining seconds in hand.
     default:
       return ''
   }
 }
 
-/** One active-attack card: a clickable button showing cost, state, or countdown. */
+/**
+ * One active-attack card: a clickable button showing cost, state, or countdown.
+ * The status line has four states, checked in lifecycle order — preparing
+ * (strike pending), active (debuff window open), blocked, or the price.
+ */
 function renderActiveAttack(
   state: Readonly<GameState>,
   flavor: ModeFlavor,
@@ -68,45 +124,80 @@ function renderActiveAttack(
   id: string,
 ): string {
   const desc = getAttackDescription(flavor, id)
+  const def = modeDef.attacks.find((a) => a.id === id)
+  if (!def) return ''
+  const params = collectAttackParams(state.player, modeDef, id)
   const remaining = pendingRemaining(state, id)
   const preparing = remaining !== null
+  const activeFor = activeDebuffRemainingSec(state.player, id)
   const reason = attackBlockReason(state.player, id, modeDef)
   const disabled = preparing || reason !== null
   const status = preparing
     ? `<span class="attack-status attack-status--preparing">Striking in ${remaining.toFixed(1)}s</span>`
-    : reason
-      ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
-      : renderCost(flavor, id, modeDef)
+    : activeFor !== null
+      ? `<span class="attack-status attack-status--active">Active for ${activeFor.toFixed(1)}s</span>`
+      : reason
+        ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
+        : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${preparing ? ' preparing' : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${preparing ? ' preparing' : activeFor !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${status}
+        ${renderStats(def, params)}
       </button>
     </li>
   `
 }
 
-/** One passive-attack card: always-on, so shown as a non-interactive info card. */
-function renderPassiveAttack(flavor: ModeFlavor, id: string): string {
+/**
+ * One passive-attack card: always-on, so shown as a non-interactive info card.
+ * A passive attack has no cost or delay to quote, but its debuff is scaled by
+ * `power` just like a strike is — so the derived line belongs here too, carrying
+ * that one stat.
+ */
+function renderPassiveAttack(
+  state: Readonly<GameState>,
+  flavor: ModeFlavor,
+  modeDef: ModeDefinition,
+  id: string,
+): string {
   const desc = getAttackDescription(flavor, id)
+  const def = modeDef.attacks.find((a) => a.id === id)
+  if (!def) return ''
   return `
     <li class="attack-item">
       <button class="attack-btn" type="button" disabled>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
+        ${renderStats(def, collectAttackParams(state.player, modeDef, id))}
       </button>
     </li>
   `
 }
 
-function renderSection(heading: string, items: string): string {
+/**
+ * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
+ * nothing when the mode never caps that kind. Reads as a loadout
+ * rather than an inventory: the player can see how many commitments remain.
+ */
+function renderSlots(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  kind: AttackKind,
+): string {
+  const limit = attackLimit(state.player, modeDef, kind)
+  if (!Number.isFinite(limit)) return ''
+  return ` <span class="attack-slots">${attackSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+}
+
+function renderSection(heading: string, slots: string, items: string): string {
   return `
     <section class="attack-section">
-      <h3 class="attack-heading">${heading}</h3>
+      <h3 class="attack-heading">${heading}${slots}</h3>
       <ul class="attack-list">${items}</ul>
     </section>
   `
@@ -125,10 +216,10 @@ function renderAttack(state: Readonly<GameState>): string {
 
   const flavor = getModeFlavor(modeDef)
   const activeItems = active.map((id) => renderActiveAttack(state, flavor, modeDef, id)).join('')
-  const passiveItems = passive.map((id) => renderPassiveAttack(flavor, id)).join('')
+  const passiveItems = passive.map((id) => renderPassiveAttack(state, flavor, modeDef, id)).join('')
   return `
-    ${active.length > 0 ? renderSection('Active', activeItems) : ''}
-    ${passive.length > 0 ? renderSection('Passive', passiveItems) : ''}
+    ${active.length > 0 ? renderSection('Active', renderSlots(state, modeDef, 'active'), activeItems) : ''}
+    ${passive.length > 0 ? renderSection('Passive', renderSlots(state, modeDef, 'passive'), passiveItems) : ''}
   `
 }
 

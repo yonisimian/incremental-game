@@ -1,12 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal } from '@game/shared'
+import type { Goal, ModeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   getAttackPrepareCost,
+  NEUTRAL_ATTACK_PARAMS,
   getModeDefinition,
+  getUpgradeNextCost,
+  NEUTRAL_COST_FACTORS,
+  registerMode,
+  validateModeDefinition,
 } from '@game/shared'
 import { Match } from '../src/match.js'
 import { createMockWs, sentOfType, latestUpdate } from './_helpers.js'
@@ -329,6 +334,230 @@ describe('Match', () => {
         value: 0.9,
       })
       expect(latestUpdate(ws1).debuffs).toEqual([])
+    })
+
+    it('sends a highlight-factor debuff unresolved, and lands it on the held resource', () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder — give it a ×0.9 debuff on the
+      // *highlight factor* (the virtual target, not a resource).
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'highlightFactor',
+                    value: 0.9,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Both buy sh-unlock (×2 on the highlighted resource) out of their 50
+        // starting r0, and both open holding r0 (`initialMeta`), so their
+        // production is identical apart from the debuff. Only p1 unlocks a3.
+        m.handleMessage('p1', buyMsg('sh-unlock', 1))
+        m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // The wire carries the *virtual* target, not a resource: once translated
+        // it would be indistinguishable from a plain r0 debuff, and p2's UI could
+        // no longer report it as a highlight debuff.
+        expect(latestUpdate(ws2).debuffs).toContainEqual({
+          stage: 'multiplicative',
+          field: 'highlightFactor',
+          value: 0.9,
+        })
+        expect(latestUpdate(ws1).debuffs).toEqual([])
+
+        // ...and the income it actually applies lands on the held resource,
+        // bonus-scaled: both hold r0 at a ×2 highlight, and the ×0.9 debuff cuts
+        // the *bonus* to ×1.9, so p2 earns 1.9/2 = 95% of p1 (not 90%).
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        expect(gain1).toBeGreaterThan(0)
+        expect(gain2 / gain1).toBeCloseTo(0.95, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it("applies an enemy clickIncome debuff to the victim's click credit", () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder in the tree — giving it a
+      // ×0.5 *click* debuff (and nothing else) leaves both players' passive
+      // production identical, so the only asymmetry left is click income.
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'clickIncome',
+                    value: 0.5,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Both unlock clicking (sc-unlock — +1 clickIncome, no passive change);
+        // only p1 unlocks a3, and an attacker never debuffs itself.
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.grantResourcesForTest('p2', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // Snapshot before clicking: no timers advance between here and the
+        // clicks, so no passive income lands in between.
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p1', clickMsg(4))
+        m.handleMessage('p2', clickMsg(2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        // Passive income over the interval is equal, so the whole difference is
+        // the click: the attacker earns 1, the victim the debuffed 0.5.
+        expect(gain1 - gain2).toBeCloseTo(0.5, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it("applies a flat (additive) enemy clickIncome debuff to the victim's click credit", () => {
+      const base = getModeDefinition('idler')
+      // Same isolation as above, but a −2 *additive* click debuff on `a3`: it
+      // subtracts a flat 2 from the victim's per-click income, flooring a base-1
+      // click to 0 (`computeClickIncome` clamps at 0, so nothing is drained).
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'additive',
+                    field: 'clickIncome',
+                    value: -2,
+                  },
+                ],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.grantResourcesForTest('p2', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 1))
+        m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.handleMessage('p1', buyMsg('a-unlock', 2))
+        m.handleMessage('p1', buyMsg('node-4', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const before1 = latestUpdate(ws1).player.resources.r0
+        const before2 = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p1', clickMsg(4))
+        m.handleMessage('p2', clickMsg(2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const gain1 = latestUpdate(ws1).player.resources.r0 - before1
+        const gain2 = latestUpdate(ws2).player.resources.r0 - before2
+        // Attacker earns its base 1; the victim's 1 is cut by the flat 2 and
+        // floored to 0 — so the whole click gap is the attacker's 1.
+        expect(gain1 - gain2).toBeCloseTo(1, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('inflates the victim’s upgrade prices and rejects a buy at the authored price', () => {
+      const base = getModeDefinition('idler')
+      // `a3` is an effect-less passive placeholder — give it a ×100 inflation on
+      // every upgrade, big enough that the victim's whole balance can't cover a
+      // price it could otherwise afford outright.
+      const patched: ModeDefinition = {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 }],
+              }
+            : a,
+        ),
+      }
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        // Only p1 unlocks a3 — an attacker never inflates its own prices.
+        m.handleMessage('p1', buyMsg('a-unlock', 1))
+        m.handleMessage('p1', buyMsg('node-4', 2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        // The victim's own state carries the inflation, which is where every
+        // price path (its client's prediction included) reads it from.
+        expect(latestUpdate(ws2).player.incomingCostFactors).toEqual([
+          { scope: 'upgrade', costFactor: 100 },
+        ])
+        expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+
+        const def = patched.upgrades.find((u) => u.id === 'sh-unlock')!
+        const price = getUpgradeNextCost(def, 0, NEUTRAL_COST_FACTORS).r0
+        // p2 holds more than the authored price and still can't buy: validation
+        // charges the inflated one.
+        m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.resources.r0).toBeGreaterThanOrEqual(price)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock'] ?? 0).toBe(0)
+
+        // With the inflated price covered, the same buy goes through.
+        m.grantResourcesForTest('p2', { r0: price * 100 })
+        m.handleMessage('p2', buyMsg('sh-unlock', 2))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('sends no cost inflation when neither player has an unlocked passive attack', () => {
+      enterPlaying()
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+      expect(latestUpdate(ws2).player.incomingCostFactors).toBeUndefined()
     })
 
     it('sends no debuffs when neither player has an unlocked passive attack', () => {
@@ -1175,6 +1404,10 @@ describe('Match', () => {
       ),
     )!
 
+    /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
+    const prepareMs = (attackId: string): number =>
+      mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
         type: 'ACTION_BATCH',
@@ -1201,8 +1434,8 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
 
-      // Advance past the 3s preparation; the strike lands and drains the pending queue.
-      vi.advanceTimersByTime(3000)
+      // Advance past the preparation; the strike lands and drains the pending queue.
+      vi.advanceTimersByTime(prepareMs('a0'))
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
 
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
@@ -1213,6 +1446,24 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a0', direction: 'incoming', resource: 'r0' }),
       )
+
+      // The hit is counted on the victim (for `meta` prerequisites), never the attacker.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
+      expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeUndefined()
+    })
+
+    it('counts every landed strike on the victim', () => {
+      const m = enterPlaying()
+      armAttacker(m)
+      m.grantResourcesForTest('p1', { r0: 10_000 })
+      m.grantResourcesForTest('p2', { r0: 1000 })
+
+      m.handleMessage('p1', activateMsg('a0', 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      m.handleMessage('p1', activateMsg('a0', 4))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(2)
     })
 
     it('tells both sides when a strike steals nothing', () => {
@@ -1224,7 +1475,7 @@ describe('Match', () => {
       // p2 owns no Sawmills (g2), so the poach can move nothing.
 
       m.handleMessage('p1', activateMsg('a5', 3))
-      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + 3000)
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a5'))
 
       // The attacker is told the strike landed but moved nothing.
       const outgoing = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
@@ -1236,6 +1487,393 @@ describe('Match', () => {
       expect(incoming).toContainEqual(
         expect.objectContaining({ attack: 'a5', direction: 'incoming', kind: 'none' }),
       )
+      // Being attacked is what the defensive gate asks about, so a miss counts too.
+      expect(latestUpdate(ws2).player.meta.attacksSuffered).toBe(1)
+    })
+
+    // ── Duration attacks (plan 37) ─────────────────────────────────
+
+    /**
+     * The idler tree with `a3` — its effect-less passive placeholder, unlocked by
+     * `a-unlock → node-4` — re-authored as a duration attack: halve the victim's
+     * r0 and ×100 their upgrade prices for `durationSec` after a 1s strike.
+     */
+    const WINDOW_SEC = 3
+    function withDurationAttack(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                kind: 'active' as const,
+                prepareCost: { r0: { baseCost: 10 } },
+                prepareTimeSec: 1,
+                durationSec: WINDOW_SEC,
+                effects: [
+                  {
+                    type: 'enemyProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'r0',
+                    value: 0.5,
+                  },
+                  { type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 },
+                ],
+              }
+            : a,
+        ),
+      }
+    }
+
+    /** Unlock a3 for p1 with enough Wood to fire it. */
+    function armWindowAttacker(m: Match) {
+      m.handleMessage('p1', buyMsg('a-unlock', 1))
+      m.handleMessage('p1', buyMsg('node-4', 2))
+      m.grantResourcesForTest('p1', { r0: 100 })
+    }
+
+    const debuffEvents = (ws: WebSocket) =>
+      sentOfType(ws, 'STATE_UPDATE')
+        .flatMap((u) => u.attackEvents ?? [])
+        .filter((e) => e.kind === 'debuff')
+
+    it('opens a debuff window on the strike: the victim slows and pays more, then recovers', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+
+        // p2's undisturbed rate over one broadcast interval, as the baseline.
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const b0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const baseline = latestUpdate(ws2).player.resources.r0 - b0
+        expect(baseline).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activateMsg('a3', 3))
+        // Past the 1s preparation and into the window.
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+        expect(latestUpdate(ws1).player.activeDebuffs).toEqual([
+          expect.objectContaining({ attack: 'a3' }),
+        ])
+        // The window is a plain debuff on the wire, and a stamped cost factor.
+        expect(latestUpdate(ws2).debuffs).toContainEqual({
+          stage: 'multiplicative',
+          field: 'r0',
+          value: 0.5,
+        })
+        expect(latestUpdate(ws2).player.incomingCostFactors).toEqual([
+          { scope: 'upgrade', costFactor: 100 },
+        ])
+        expect(latestUpdate(ws1).player.incomingCostFactors).toBeUndefined()
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeDefined()
+
+        // Mid-window, p2 earns half.
+        const d0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const during = latestUpdate(ws2).player.resources.r0 - d0
+        expect(during / baseline).toBeCloseTo(0.5, 6)
+
+        // Past the window: swept, cleared, and back to the baseline rate.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        expect(latestUpdate(ws2).debuffs).toEqual([])
+        expect(latestUpdate(ws2).player.incomingCostFactors).toBeUndefined()
+        const a0 = latestUpdate(ws2).player.resources.r0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const after = latestUpdate(ws2).player.resources.r0 - a0
+        expect(after / baseline).toBeCloseTo(1, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('reports the window once to each side, and refuses re-activation while it is open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+
+        // One `debuff` event per side, however many debuff effects the attack
+        // carries (two here), and never a `none` — a window is not a miss.
+        expect(debuffEvents(ws1)).toEqual([
+          expect.objectContaining({
+            attack: 'a3',
+            direction: 'outgoing',
+            durationSec: WINDOW_SEC,
+          }),
+        ])
+        expect(debuffEvents(ws2)).toEqual([
+          expect.objectContaining({
+            attack: 'a3',
+            direction: 'incoming',
+            durationSec: WINDOW_SEC,
+          }),
+        ])
+        const all = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+        expect(all.filter((e) => e.kind === 'none')).toEqual([])
+
+        // A second activation while the window is open is rejected outright:
+        // nothing pending, nothing paid.
+        const held = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activateMsg('a3', 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+        expect(latestUpdate(ws1).player.resources.r0).toBeGreaterThanOrEqual(held)
+
+        // Once it closes, the same attack can be fired again.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        m.handleMessage('p1', activateMsg('a3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    it('freezes an open window while the round is paused', () => {
+      const base = getModeDefinition('idler')
+      const patched = withDurationAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlayingVsBot()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+        const window = latestUpdate(ws1).player.activeDebuffs?.[0]
+        expect(window).toBeDefined()
+
+        // Paused for far longer than the window: game seconds do not advance,
+        // so it is still open — same `expiresAtSec`, same remaining time.
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(WINDOW_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activeDebuffs).toEqual([window])
+        expect(latestUpdate(ws1).debuffs).toEqual([])
+
+        // And it still closes on game time afterwards.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    // ── Purchase lock ──────────────────────────────────────────────
+
+    /** `a3` re-authored as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
+    function withLockAttack(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        attacks: base.attacks.map((a) =>
+          a.id === 'a3'
+            ? {
+                ...a,
+                kind: 'active' as const,
+                prepareCost: { r0: { baseCost: 10 } },
+                prepareTimeSec: 1,
+                durationSec: WINDOW_SEC,
+                effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }],
+              }
+            : a,
+        ),
+      }
+    }
+
+    function sellGenMsg(generatorId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'sell_generator', timestamp: Date.now(), generatorId }],
+      })
+    }
+
+    it('embargoes the victim’s buys for the window, leaving selling and attacking open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withLockAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        // p2 before the strike: generators unlocked and one g0 held (so there is
+        // something to sell), the attack panel + a0 unlocked (so there is
+        // something to fire back), and funds for all of it.
+        m.handleMessage('p2', buyMsg('g1-g2', 1))
+        m.grantResourcesForTest('p2', { r0: 5000, r1: 100 })
+        m.handleMessage('p2', buyGenMsg('g0', 2))
+        m.handleMessage('p2', buyMsg(panelUpgrade.id, 3))
+        m.handleMessage('p2', buyMsg(a0Upgrade.id, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(1)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
+
+        m.handleMessage('p1', activateMsg('a3', 3))
+        vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+
+        // The stamp lands on the victim only, both scopes, one expiry.
+        const window = latestUpdate(ws1).player.activeDebuffs?.[0]
+        expect(window).toBeDefined()
+        expect(latestUpdate(ws2).player.incomingPurchaseLocks).toEqual([
+          { scope: 'upgrade', untilSec: window!.expiresAtSec },
+          { scope: 'generator', untilSec: window!.expiresAtSec },
+        ])
+        expect(latestUpdate(ws1).player.incomingPurchaseLocks).toBeUndefined()
+        // It is a plain debuff on the wire — nothing new for the toast to learn.
+        expect(debuffEvents(ws2)).toEqual([
+          expect.objectContaining({ attack: 'a3', direction: 'incoming' }),
+        ])
+
+        // Mid-window: a *free* upgrade and an affordable generator are both
+        // dropped — this is not affordability — while a sale and an attack
+        // activation go through.
+        m.handleMessage('p2', buyMsg('sh-unlock', 5))
+        m.handleMessage('p2', buyGenMsg('g0', 6))
+        m.handleMessage('p2', sellGenMsg('g0', 7))
+        m.handleMessage('p2', activateMsg('a0', 8))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(0)
+        expect(latestUpdate(ws2).player.pendingAttacks).toHaveLength(1)
+
+        // Past the window: the stamp is gone and the same buys land.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws2).player.incomingPurchaseLocks).toBeUndefined()
+        m.handleMessage('p2', buyMsg('sh-unlock', 9))
+        m.handleMessage('p2', buyGenMsg('g0', 10))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(1)
+        expect(latestUpdate(ws2).player.generators.g0).toBe(1)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    // ── Attack alert ───────────────────────────────────────────────
+
+    describe('attack alert', () => {
+      /**
+       * The idler plus three free alert nodes for the *victim* (p2): a 4s lead,
+       * a +1s level, and a reveal. Nothing in the tree carries `attackAlert`
+       * yet, so the mode is patched here; the tree gets its own authoring pass.
+       */
+      function withAlertNodes(): ModeDefinition {
+        const base = getModeDefinition('idler')
+        const node = (id: string, effects: ModeDefinition['upgrades'][number]['effects']) => ({
+          id,
+          cost: {},
+          purchaseLimit: 1,
+          effects,
+        })
+        const upgrades = [
+          ...base.upgrades,
+          node('t-alert', [{ type: 'attackAlert', leadSec: 4 }]),
+          node('t-longer', [{ type: 'attackAlert', leadSec: 1 }]),
+          node('t-reveal', [{ type: 'attackAlert', revealAttack: true }]),
+        ]
+        const flavor = base.flavors[0]
+        const patched: ModeDefinition = {
+          ...base,
+          upgrades,
+          flavors: [
+            {
+              ...flavor,
+              upgrades: [
+                ...flavor.upgrades,
+                { id: 't-alert', name: 'Alert', icon: '🛡️', description: '' },
+                { id: 't-longer', name: 'Longer', icon: '🛡️', description: '' },
+                { id: 't-reveal', name: 'Reveal', icon: '🛡️', description: '' },
+              ],
+            },
+          ],
+        }
+        validateModeDefinition('idler', patched)
+        return patched
+      }
+
+      /** p1 arms a0 and fires it; returns the strike's `readyAtSec` as p1 sees it. */
+      function fireA0(m: Match, seq: number): number {
+        m.handleMessage('p1', activateMsg('a0', seq))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const pending = latestUpdate(ws1).player.pendingAttacks
+        expect(pending).toHaveLength(1)
+        return pending[0].readyAtSec
+      }
+
+      it('is absent for a viewer with no alert grant, however close the strike', () => {
+        const m = enterPlaying()
+        armAttacker(m)
+        fireA0(m, 3)
+        // Right up to the last broadcast before it lands, p2 sees nothing.
+        vi.advanceTimersByTime(prepareMs('a0') - BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+        // Serialized, not merely typed: the field must not reach the wire.
+        expect(JSON.stringify(latestUpdate(ws2).opponent)).not.toContain('incomingAttacks')
+      })
+
+      it('warns the victim once the strike is within the lead, and drops it when it lands', () => {
+        const base = getModeDefinition('idler')
+        registerMode('idler', withAlertNodes())
+        try {
+          const m = enterPlaying()
+          armAttacker(m)
+          m.handleMessage('p2', buyMsg('t-alert', 1)) // 4s lead vs a 6s prepare
+          const readyAtSec = fireA0(m, 3)
+
+          // Just after activation: ~5.5s remain, outside the 4s lead.
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+
+          // Two more seconds in: inside the lead. No reveal → no attack id.
+          vi.advanceTimersByTime(2000)
+          const warned = latestUpdate(ws2).opponent.incomingAttacks
+          expect(warned).toEqual([{ readyAtSec }])
+          expect(JSON.stringify(warned)).not.toContain('attack')
+          // The attacker is never warned about their own strike.
+          expect(latestUpdate(ws1).opponent.incomingAttacks).toBeUndefined()
+
+          // Landed: the list is gone with the pending entry.
+          vi.advanceTimersByTime(prepareMs('a0'))
+          expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+        } finally {
+          registerMode('idler', base)
+        }
+      })
+
+      it('names the attack only with a reveal grant, and levels extend the lead', () => {
+        const base = getModeDefinition('idler')
+        registerMode('idler', withAlertNodes())
+        try {
+          const m = enterPlaying()
+          armAttacker(m)
+          m.handleMessage('p2', buyMsg('t-alert', 1))
+          m.handleMessage('p2', buyMsg('t-longer', 2)) // 5s lead
+          m.handleMessage('p2', buyMsg('t-reveal', 3))
+          const readyAtSec = fireA0(m, 3)
+
+          // ~5.5s remain: still outside even the extended lead.
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
+          // One more broadcast: ~5.0s remain, inside a 5s lead but not a 4s one.
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(latestUpdate(ws2).opponent.incomingAttacks).toEqual([{ readyAtSec, attack: 'a0' }])
+        } finally {
+          registerMode('idler', base)
+        }
+      })
     })
 
     it('rejects an activation the player cannot afford', () => {
@@ -1246,12 +1884,78 @@ describe('Match', () => {
       // income would otherwise cover a cheaply-tuned cost and arm the attack.
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const held = latestUpdate(ws1).player.resources.r0
-      const cost = getAttackPrepareCost(mode.attacks.find((a) => a.id === 'a0')!).r0
+      const cost = getAttackPrepareCost(
+        mode.attacks.find((a) => a.id === 'a0')!,
+        NEUTRAL_ATTACK_PARAMS,
+      ).r0
       m.grantResourcesForTest('p1', { r0: cost - 1 - held })
 
       m.handleMessage('p1', activateMsg('a0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
+    })
+  })
+
+  // ── Attack slots ───────────────────────────────────────────────────
+
+  describe('attack slots', () => {
+    const mode = getModeDefinition('idler')
+    const panelUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'panelUnlock' && e.panel === 'attack'),
+    )!
+    /** The free unlock nodes for the idler's first two active attacks. */
+    const unlockOf = (attack: string) =>
+      mode.upgrades.find((u) =>
+        u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
+      )!
+    const a0Upgrade = unlockOf('a0')
+    const a1Upgrade = unlockOf('a1')
+
+    /** The idler with its active budget squeezed to one slot. */
+    function oneActiveSlot(): ModeDefinition {
+      return {
+        ...mode,
+        effects: [
+          ...(mode.effects ?? []).filter((e) => e.type !== 'attackSlots'),
+          { type: 'attackSlots', attackKind: 'active', value: 1 },
+          { type: 'attackSlots', attackKind: 'passive', value: 4 },
+        ],
+      }
+    }
+
+    it('rejects a buy that would unlock an attack past the player’s slots', () => {
+      const patched = oneActiveSlot()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+        m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+        // The one active slot is now held by a0; a1's free unlock is refused.
+        m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+        const player = latestUpdate(ws1).player
+        expect(player.upgrades[a0Upgrade.id]).toBe(1)
+        expect(player.upgrades[a1Upgrade.id] ?? 0).toBe(0)
+        // The batch is still acknowledged — a refused action is dropped, not
+        // left pending for the client to replay forever.
+        expect(latestUpdate(ws1).ackSeq).toBe(3)
+      } finally {
+        registerMode('idler', mode)
+      }
+    })
+
+    it('accepts both unlocks under the authored idler budget', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
+      m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+
+      const player = latestUpdate(ws1).player
+      expect(player.upgrades[a0Upgrade.id]).toBe(1)
+      expect(player.upgrades[a1Upgrade.id]).toBe(1)
     })
   })
 })

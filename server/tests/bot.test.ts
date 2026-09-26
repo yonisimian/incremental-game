@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { GameMode, Goal, ModeDefinition, UpgradeDefinition } from '@game/shared'
+import type { GameMode, Goal, ModeDefinition, PlayerState, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC, getModeDefinition } from '@game/shared'
 import { Match } from '../src/match.js'
 import { IdlerBot, createBot } from '../src/bot.js'
@@ -189,6 +189,31 @@ describe('Bot', () => {
       expect(actions).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
     })
 
+    // The plan advances on *emitting* a buy, so a buy the server would
+    // drop for an enemy purchase lock has to be held back, or the bot steps
+    // past the upgrade for good.
+    it('holds its plan step under an enemy purchase lock and buys once it lifts', () => {
+      const bot = new IdlerBot(stubMode(idlerUpgrades))
+      const state = {
+        score: 0,
+        resources: { r0: 5, r1: 0 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { highlight: 'r0' as const, gameSec: 3 },
+        upgrades: { 'be-af-mr': 0, u0: 0, u1: 0, u2: 0 },
+        incomingPurchaseLocks: [{ scope: 'upgrade' as const, untilSec: 10 }],
+      }
+      // Affordable, but locked: no buy, and — the point — no plan advance.
+      for (let i = 0; i < 3; i++) {
+        expect(bot.decide(state).filter((a) => a.type === 'buy')).toHaveLength(0)
+      }
+
+      // The stamp clears (the server re-stamps before every bot turn); the
+      // held step is still the first plan target.
+      const { incomingPurchaseLocks: _lifted, ...unlocked } = state
+      expect(bot.decide(unlocked)).toContainEqual({ type: 'buy', upgradeId: 'be-af-mr' })
+    })
+
     it('keeps clicking the score resource after the plan is exhausted', () => {
       const bot = new IdlerBot(stubMode(idlerUpgrades))
       const state = {
@@ -314,6 +339,109 @@ describe('Bot', () => {
       expect(bot.decide(state)).toContainEqual({ type: 'buy', upgradeId: 'sc-unlock' })
     })
 
+    // The bot fires one active attack so a solo player meets the
+    // early warning. The stub keeps the real idler's attacks (a0 costs 1000 r0)
+    // and swaps in a tiny tree: the base plan step, the attack's unlock chain,
+    // and an expensive trophy to make "don't starve the plan" observable.
+    describe('active attacks', () => {
+      const attackUpgrades: UpgradeDefinition[] = [
+        ...idlerUpgrades,
+        {
+          id: 'a-unlock' as const,
+          cost: {},
+          purchaseLimit: 1,
+          effects: [{ type: 'panelUnlock', panel: 'attack' }],
+        },
+        {
+          id: 'unlock-a0' as const,
+          cost: {},
+          purchaseLimit: 1,
+          prerequisites: { type: 'upgrade' as const, id: 'a-unlock' },
+          effects: [{ type: 'unlockAttack', attack: 'a0' }],
+        },
+        {
+          id: 'trophy' as const,
+          cost: { r0: { baseCost: 1500 } },
+          purchaseLimit: 1,
+          goalType: 'buy-upgrade' as const,
+        },
+      ]
+      /** a0 unlocked, the base plan bought, only the trophy left to save for. */
+      const armed = { 'be-af-mr': 1, 'a-unlock': 1, 'unlock-a0': 1, u0: 0, u1: 0, u2: 0, trophy: 0 }
+      const stateWith = (r0: number, extra: Partial<PlayerState> = {}): PlayerState => ({
+        score: 0,
+        resources: { r0, r1: 0 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { highlight: 'r0', gameSec: 5 },
+        upgrades: { ...armed },
+        ...extra,
+      })
+      /** Advance the bot past the plan steps it already owns, up to the trophy. */
+      function botAtTrophy(): IdlerBot {
+        const bot = new IdlerBot(stubMode(attackUpgrades))
+        // be-af-mr, a-unlock, unlock-a0 are affordable (owned or free) and get
+        // emitted-and-advanced; the 1500 trophy is not, so the plan holds there.
+        for (let i = 0; i < 4; i++) bot.decide(stateWith(100))
+        return bot
+      }
+      const attacksOf = (actions: ReturnType<IdlerBot['decide']>) =>
+        actions.filter((a) => a.type === 'activate_attack')
+
+      it('puts the attack panel and one attack unlock on its plan, in order', () => {
+        const bot = new IdlerBot(stubMode(attackUpgrades))
+        const buys: string[] = []
+        for (let i = 0; i < 6; i++) {
+          for (const a of bot.decide(stateWith(100))) if (a.type === 'buy') buys.push(a.upgradeId)
+        }
+        expect(buys).toContain('a-unlock')
+        expect(buys).toContain('unlock-a0')
+        expect(buys.indexOf('a-unlock')).toBeLessThan(buys.indexOf('unlock-a0'))
+      })
+
+      it('holds its fire while still saving for a plan step', () => {
+        const bot = botAtTrophy()
+        // Could pay the 1000 raid, but the 1500 trophy is still on the plan.
+        expect(attacksOf(bot.decide(stateWith(1400)))).toEqual([])
+      })
+
+      it('fires from the surplus left after this tick’s buys, once the plan is done', () => {
+        // 2400: buys the trophy (plan exhausted) leaving 900 — short of the raid.
+        let bot = botAtTrophy()
+        let actions = bot.decide(stateWith(2400))
+        expect(actions).toContainEqual({ type: 'buy', upgradeId: 'trophy' })
+        expect(attacksOf(actions)).toEqual([])
+        // 2600: buys the trophy leaving 1100 — the raid fits in the same tick.
+        bot = botAtTrophy()
+        actions = bot.decide(stateWith(2600))
+        expect(actions).toContainEqual({ type: 'buy', upgradeId: 'trophy' })
+        expect(attacksOf(actions)).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
+        // And on a later tick with the plan exhausted, at exactly the prepare cost.
+        expect(
+          attacksOf(bot.decide(stateWith(1000, { upgrades: { ...armed, trophy: 1 } }))),
+        ).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
+      })
+
+      it('holds while the attack is preparing, unaffordable, or not unlocked', () => {
+        const bot = botAtTrophy()
+        bot.decide(stateWith(1500)) // buys the trophy → plan exhausted
+        const done = { upgrades: { ...armed, trophy: 1 } }
+        expect(
+          attacksOf(
+            bot.decide(
+              stateWith(5000, { ...done, pendingAttacks: [{ attack: 'a0', readyAtSec: 11 }] }),
+            ),
+          ),
+        ).toEqual([])
+        expect(attacksOf(bot.decide(stateWith(999, done)))).toEqual([])
+        expect(
+          attacksOf(
+            bot.decide(stateWith(5000, { upgrades: { ...armed, trophy: 1, 'unlock-a0': 0 } })),
+          ),
+        ).toEqual([])
+      })
+    })
+
     it('does not buy generators that are still locked', () => {
       const mode = getModeDefinition('idler')
       const bot = new IdlerBot(mode)
@@ -367,6 +495,29 @@ describe('Bot', () => {
       const update = latestUpdate(ws1)
       expect(update).toBeDefined()
       expect(update.opponent.score).toBeGreaterThan(0)
+    })
+
+    it('bot raids the human once funded, and the hit is counted on the human', () => {
+      const timedGoal: Goal = { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC }
+      const m = createBotMatch('idler', undefined, timedGoal)
+      m.start()
+      vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
+      // Fund the bot in both currencies so every plan step (some cost Ale) and
+      // the 1000-Wood prepare cost are within reach without waiting on income;
+      // the raid is paid from surplus once the plan is exhausted.
+      m.grantResourcesForTest('bot-1', { r0: 50_000, r1: 50_000 })
+      m.grantResourcesForTest('human', { r0: 5000 })
+      // The plan buys one step per tick; give it a few seconds, then the
+      // strike's own preparation time.
+      vi.advanceTimersByTime(8000)
+      const a0 = getModeDefinition('idler').attacks.find((a) => a.id === 'a0')!
+      vi.advanceTimersByTime(a0.prepareTimeSec! * 1000 + 1000)
+
+      const incoming = sentOfType(ws1, 'STATE_UPDATE').flatMap((u) => u.attackEvents ?? [])
+      expect(incoming).toContainEqual(
+        expect.objectContaining({ attack: 'a0', direction: 'incoming', kind: 'resource' }),
+      )
+      expect(latestUpdate(ws1).player.meta.attacksSuffered).toBeGreaterThanOrEqual(1)
     })
 
     it('match ends normally with a bot (timed)', () => {

@@ -37,13 +37,27 @@ export type GameAction = BuyAction | BuyGeneratorAction | SellGeneratorAction | 
 
 export type SimApplyResult =
   | { status: 'applied' }
-  | { status: 'transient'; reason: 'unaffordable' }
+  | { status: 'transient'; reason: TransientBlockReason }
   | { status: 'permanent'; reason: string }
 
-/** `unaffordable` is the sole transient block; every other reason is permanent. */
+/**
+ * The block reasons more game time can lift: `unaffordable` (income) and
+ * `locked-by-attack` (the enemy's window closes). The simulator has no opponent
+ * and never stamps a lock today, so the second cannot arise here yet — but a
+ * lock is transient by nature, and classifying it as permanent would make the
+ * first attack-aware strategy give up on a buy it merely had to wait for.
+ */
+type TransientBlockReason = 'unaffordable' | 'locked-by-attack'
+
+const TRANSIENT_REASONS: ReadonlySet<string> = new Set<TransientBlockReason>([
+  'unaffordable',
+  'locked-by-attack',
+])
+
+/** Transient blocks wait; every other reason is permanent. */
 function classify(reason: string): SimApplyResult {
-  return reason === 'unaffordable'
-    ? { status: 'transient', reason: 'unaffordable' }
+  return TRANSIENT_REASONS.has(reason)
+    ? { status: 'transient', reason: reason as TransientBlockReason }
     : { status: 'permanent', reason }
 }
 
@@ -68,7 +82,7 @@ export function applySimAction(
       return { status: 'applied' }
     }
     case 'buy': {
-      const reason = purchaseBlockReason(state, action.upgradeId, upgradeMap)
+      const reason = purchaseBlockReason(state, action.upgradeId, upgradeMap, mode)
       if (reason === null) {
         applyPurchase(state, action.upgradeId, mode)
         return { status: 'applied' }
