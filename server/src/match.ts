@@ -16,6 +16,7 @@ import {
   collectPactBonuses,
   collectPactCostFactors,
   pactModifiers,
+  pactsInForce,
   sharedPacts,
   resolveEnemyDebuffs,
   computePassiveRates,
@@ -571,6 +572,15 @@ export class Match {
    */
   private syncPactBonuses(): void {
     const mode = this.modeDef
+    const [a, b] = this.players
+    // The common case: nobody has signed anything, so skip both rate snapshots.
+    if (
+      pactsInForce(a.state, b.state, mode).length === 0 &&
+      pactsInForce(b.state, a.state, mode).length === 0
+    ) {
+      for (const player of this.players) player.pactBonuses = []
+      return
+    }
     const snapshots = this.players.map((player, i): PartnerSnapshot => {
       const opponent = this.players[1 - i]
       return {
