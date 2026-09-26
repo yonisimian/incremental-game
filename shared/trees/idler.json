@@ -316,12 +316,31 @@
   ],
   "pacts": [
     {
-      "id": "p0",
-      "kind": "active"
+      "id": "highlighted-clicks",
+      "kind": "active",
+      "effects": [
+        {
+          "type": "mirrorStatModifier",
+          "source": "peakCps",
+          "field": "highlightFactor",
+          "stage": "multiplicative",
+          "perUnit": 1.2
+        }
+      ]
     },
     {
       "id": "p1",
-      "kind": "active"
+      "kind": "active",
+      "mutual": true,
+      "effects": [
+        {
+          "type": "mirrorStatModifier",
+          "source": "upgrade:sh-mf-hp",
+          "field": "clickIncome",
+          "stage": "additive",
+          "perUnit": 2
+        }
+      ]
     },
     {
       "id": "p2",
@@ -985,8 +1004,8 @@
       ],
       "pacts": [
         {
-          "id": "p0",
-          "name": "First Pact",
+          "id": "highlighted-clicks",
+          "name": "Your clicks highlighted",
           "icon": "🤝",
           "description": ""
         },
@@ -2070,6 +2089,12 @@
                 "type": "upgrade",
                 "id": "sh-unlock"
               },
+              "effects": [
+                {
+                  "type": "systemUnlock",
+                  "system": "highlightBattery"
+                }
+              ],
               "offset": {
                 "x": 0,
                 "y": 96
@@ -2089,10 +2114,6 @@
                     "type": "upgrade",
                     "id": "shb-unlock"
                   },
-                  "offset": {
-                    "x": 96,
-                    "y": 96
-                  },
                   "effects": [
                     {
                       "type": "batteryStat",
@@ -2100,7 +2121,11 @@
                       "op": "add",
                       "value": 0.25
                     }
-                  ]
+                  ],
+                  "offset": {
+                    "x": 96,
+                    "y": 96
+                  }
                 },
                 {
                   "id": "shb-mc",
@@ -2116,6 +2141,14 @@
                     "type": "upgrade",
                     "id": "shb-unlock"
                   },
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "maxCharge",
+                      "op": "add",
+                      "value": 5
+                    }
+                  ],
                   "offset": {
                     "x": 0,
                     "y": 96
@@ -2135,6 +2168,14 @@
                         "type": "upgrade",
                         "id": "shb-mc"
                       },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "chargeRate",
+                          "op": "add",
+                          "value": 0.5
+                        }
+                      ],
                       "offset": {
                         "x": 48,
                         "y": 96
@@ -2153,10 +2194,6 @@
                             "type": "upgrade",
                             "id": "shb-mf-cs"
                           },
-                          "offset": {
-                            "x": 0,
-                            "y": 96
-                          },
                           "effects": [
                             {
                               "type": "batteryBand",
@@ -2164,15 +2201,11 @@
                               "threshold": 0.25,
                               "bonus": 0.5
                             }
-                          ]
-                        }
-                      ],
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "chargeRate",
-                          "op": "add",
-                          "value": 0.5
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
                         }
                       ]
                     },
@@ -2190,6 +2223,14 @@
                         "type": "upgrade",
                         "id": "shb-mc"
                       },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "drainRate",
+                          "op": "mult",
+                          "value": 0.9
+                        }
+                      ],
                       "offset": {
                         "x": -48,
                         "y": 96
@@ -2208,10 +2249,6 @@
                             "type": "upgrade",
                             "id": "shb-mf-ds"
                           },
-                          "offset": {
-                            "x": 0,
-                            "y": 96
-                          },
                           "effects": [
                             {
                               "type": "batteryBand",
@@ -2219,33 +2256,15 @@
                               "threshold": 0.75,
                               "bonus": 0.5
                             }
-                          ]
-                        }
-                      ],
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "drainRate",
-                          "op": "mult",
-                          "value": 0.9
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
                         }
                       ]
                     }
-                  ],
-                  "effects": [
-                    {
-                      "type": "batteryStat",
-                      "stat": "maxCharge",
-                      "op": "add",
-                      "value": 5
-                    }
                   ]
-                }
-              ],
-              "effects": [
-                {
-                  "type": "systemUnlock",
-                  "system": "highlightBattery"
                 }
               ]
             }
@@ -2637,7 +2656,7 @@
           "effects": [
             {
               "type": "unlockPact",
-              "pact": "p0"
+              "pact": "highlighted-clicks"
             }
           ],
           "offset": {
