@@ -829,27 +829,27 @@
         },
         {
           "id": "pact-node",
-          "name": "pact-node",
-          "icon": "🤝",
-          "description": ""
+          "name": "🏮 Borrowed Glow",
+          "icon": "🏮",
+          "description": "Sign Borrowed Glow: your highlight grows with the enemy's peak click speed."
         },
         {
           "id": "pact-node-2",
-          "name": "pact-node-2",
-          "icon": "🤝",
-          "description": ""
+          "name": "🔎 Shared Lens",
+          "icon": "🔎",
+          "description": "Sign Shared Lens: +2 click income per enemy Clearer Lens level, both ways."
         },
         {
           "id": "pact-node-3",
-          "name": "pact-node-3",
-          "icon": "🤝",
-          "description": ""
+          "name": "📜 Shared research",
+          "icon": "📜",
+          "description": "Sign Shared research: upgrades the enemy owns cost you 25% less."
         },
         {
           "id": "pact-node-4",
-          "name": "pact-node-4",
-          "icon": "🤝",
-          "description": ""
+          "name": "🪵 Trade route",
+          "icon": "🪵",
+          "description": "Sign Trade route: +2% wood per enemy woodcutter, both ways."
         },
         {
           "id": "unlock-numb-hands",
@@ -1005,15 +1005,15 @@
       "pacts": [
         {
           "id": "highlighted-clicks",
-          "name": "Your clicks highlighted",
-          "icon": "🤝",
-          "description": ""
+          "name": "Borrowed Glow",
+          "icon": "🏮",
+          "description": "Your highlight grows with the enemy's fastest clicking: +120% per click/s of their peak."
         },
         {
           "id": "p1",
-          "name": "Second Pact",
-          "icon": "🤝",
-          "description": ""
+          "name": "Shared Lens",
+          "icon": "🔎",
+          "description": "+2 click income per level of the enemy's Clearer Lens. The enemy gains the same from yours."
         },
         {
           "id": "p2",
