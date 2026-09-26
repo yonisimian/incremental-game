@@ -1269,7 +1269,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/references unknown pact 'p-ghost'/)
   })
 
-  // ── Pact effect placement (plan 42) ───────────────────────────────
+  // ── Pact effect placement ─────────────────────────────────────────
 
   /** A valid def with one pact carrying `effects`, its flavor entry in place. */
   function defWithPact(pact: ModeDefinition['pacts'][number]): ModeDefinition {

@@ -1107,7 +1107,7 @@ describe('envelope model helpers', () => {
   })
 })
 
-// ─── Pact effects ride every cascade (plan 42) ───────────────────────
+// ─── Pact effects ride every cascade ─────────────────────────────────
 
 describe('pact effect references', () => {
   /** The idler's trade route: `mirrorStatModifier` reading `generator:g0`, feeding `r0`. */
@@ -1175,7 +1175,7 @@ describe('pact effect references', () => {
   })
 })
 
-// ─── Pacts (plan 42) ─────────────────────────────────────────────────
+// ─── Pacts ───────────────────────────────────────────────────────────
 
 describe('pacts', () => {
   it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {

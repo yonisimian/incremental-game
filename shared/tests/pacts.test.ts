@@ -1,4 +1,4 @@
-// Plan 42 — passive pacts: the enemy-stat catalog the pact effects read from,
+// Passive pacts: the enemy-stat catalog the pact effects read from,
 // and the resolvers that turn a pact's description into concrete numbers
 // against the partner. Logic tier throughout: every assertion is on a value.
 
@@ -171,7 +171,7 @@ const TRADE: PactDefinition = {
 }
 /** A mutual placeholder: legal, in force, worth nothing. */
 const EMPTY: PactDefinition = { id: 'p-empty', kind: 'passive', mutual: true }
-/** An active pact carrying a discount nothing reads until plan 44. */
+/** An active pact carrying a discount nothing reads until active pacts have a lifecycle. */
 const ACTIVE: PactDefinition = {
   id: 'p-active',
   kind: 'active',
@@ -345,7 +345,7 @@ describe('pactsInForce', () => {
   })
 
   it('skips active pacts and locked ones', () => {
-    // Signed active pact: plan 44's lifecycle, not in force here. Unsigned
+    // Signed active pact: the active-pact lifecycle, not in force here. Unsigned
     // passive pact: locked, whatever its `mutual`.
     expect(pactsInForce(player({ signed: ['p-active'] }), player(), MODE)).toEqual([])
     expect(pactsInForce(player(), player({ signed: ['p-active'] }), MODE)).toEqual([])
@@ -640,7 +640,7 @@ describe('the idler authors Shared research and Trade route', () => {
         },
       ],
     })
-    // The active pair stays a placeholder for plan 44.
+    // The active pair stays a placeholder until active pacts land.
     expect(pact('p0').effects).toBeUndefined()
     expect(pact('p1').effects).toBeUndefined()
   })

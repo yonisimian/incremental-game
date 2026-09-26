@@ -185,7 +185,7 @@ export type PactKind = 'active' | 'passive'
  * unlocked — gathered by the collectors in `pacts.ts` — and describe a benefit
  * the owner draws *from the opponent*: a discount on what the enemy already
  * bought (`mirrorCostModifier`), a production bonus scaled by an enemy stat
- * (`mirrorStatModifier`). An `active` pact has no behavior yet (plan 44).
+ * (`mirrorStatModifier`). An `active` pact has no behavior yet.
  * Display data lives in `PactFlavor`. `kind` groups pacts into separate blocks
  * in the panel.
  */

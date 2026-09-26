@@ -1,4 +1,4 @@
-// Plan 42 — the relations panel shows what each pact is worth: a card per
+// The relations panel shows what each pact is worth: a card per
 // unlocked pact with its resolved "worth now" lines and discount line, a
 // mutual badge, and the opponent's shared treaties. Node tier: `render` writes
 // a string into `innerHTML`, so every assertion is on markup.

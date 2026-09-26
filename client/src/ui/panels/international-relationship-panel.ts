@@ -113,7 +113,7 @@ function renderCard(
 }
 
 /**
- * The active-pact block — an active pact has no behavior yet (plan 44), so each
+ * The active-pact block — an active pact has no behavior yet, so each
  * is a disabled, no-op button: unlocking one only makes it appear here.
  */
 function renderActiveSection(flavor: ModeFlavor, pacts: readonly string[]): string {
@@ -182,7 +182,7 @@ function renderRelations(state: Readonly<GameState>): string {
 
 /**
  * International Relationship panel — lists pacts the viewer has unlocked via
- * `unlockPact` effects, with what each is worth right now (plan 42), plus the
+ * `unlockPact` effects, with what each is worth right now, plus the
  * opponent's mutual treaties that pay the viewer too. The panel tab itself is
  * gated by a `panelUnlock` upgrade targeting its id
  * (`'international-relationship'`); see `getModeUI`. Individual pacts are

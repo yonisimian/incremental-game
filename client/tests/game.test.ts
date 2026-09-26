@@ -1042,7 +1042,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: pact discount (plan 42) ─────────────────────────────────
+  // ── Idler: pact discount ───────────────────────────────────────────
 
   describe('idler pact discount', () => {
     /**
@@ -1086,7 +1086,7 @@ describe('game.ts', () => {
     })
   })
 
-  // ── Idler: pact bonuses on the wire (plan 42) ──────────────────────
+  // ── Idler: pact bonuses on the wire ────────────────────────────────
 
   describe('idler pact bonuses', () => {
     const ROUTE = {

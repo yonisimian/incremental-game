@@ -44,7 +44,7 @@ const UPGRADE: UpgradeDefinition = {
   purchaseLimit: 1,
 }
 
-/** A pact discount on the test upgrade and on the first generator (plan 42). */
+/** A pact discount on the test upgrade and on the first generator. */
 const MIRRORED: PactCostFactor[] = [
   { pact: 'p2', scope: 'upgrade', id: 'u-test', costFactor: 0.75 },
   { pact: 'p3', scope: 'generator', id: 'g0', costFactor: 0.5 },
@@ -118,7 +118,7 @@ describe('upgrade price label', () => {
     expect(canAfford(makeState(DOUBLE_ALL), UPGRADE)).toBe(false)
   })
 
-  // A pact discount (plan 42) is the same seam in the other direction: the
+  // A pact discount is the same seam in the other direction: the
   // quote drops, and the marker points the other way so a price *below* the
   // tree's number reads as a treaty rather than a bug.
   it('quotes the discounted price, marked down', () => {

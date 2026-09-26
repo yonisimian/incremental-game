@@ -32,7 +32,7 @@ export type { PartnerSnapshot } from './effects/enemy-stats.js'
  * the enemy by definition, and a partner-held mutual pact benefits `owner` by
  * reading its holder — who is, from `owner`'s side, the enemy. A pact both
  * players have signed appears once, not twice: "the enemy gains the same from
- * yours" is one treaty, not a doubled one. Plan 44 appends open active windows.
+ * yours" is one treaty, not a doubled one. Active pacts will append their open windows.
  */
 export function pactsInForce(
   owner: Readonly<PlayerState>,

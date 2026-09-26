@@ -112,7 +112,7 @@ interface MatchPlayer {
   attackEvents: AttackEvent[]
   /**
    * What each pact in force is worth to this player, resolved against the
-   * opponent once per tick by {@link Match.syncPactBonuses} (plan 42). Read by
+   * opponent once per tick by {@link Match.syncPactBonuses}. Read by
    * the income tick, by a click landing between ticks (at most one tick stale
    * — the tolerance prices accepted before their stamp moved to message
    * receipt, and a rate bonus does not need that move), and by the broadcast,
@@ -942,7 +942,7 @@ export class Match {
 
     // The opponent's mutual pacts already benefit the viewer, so naming them
     // reveals nothing the viewer's own income doesn't; their one-sided pacts
-    // stay hidden (plan 42).
+    // stay hidden.
     const shared = sharedPacts(opponent.state, mode)
     if (shared.length > 0) view.pacts = shared
 

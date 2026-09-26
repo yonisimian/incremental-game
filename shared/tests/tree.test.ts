@@ -578,7 +578,7 @@ describe('tree codec — envelopes are no longer tree data', () => {
   })
 })
 
-// ─── Pacts (plan 42) ─────────────────────────────────────────────────
+// ─── Pacts ───────────────────────────────────────────────────────────
 
 describe('tree codec — pacts', () => {
   /** The minimal tree plus one pact (and its flavor entry), as authored. */

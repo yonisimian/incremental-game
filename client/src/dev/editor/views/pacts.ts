@@ -1,5 +1,5 @@
 /**
- * Pacts section — an authoring list for the mode's pacts (plan 42): id, kind
+ * Pacts section — an authoring list for the mode's pacts: id, kind
  * (active / passive), whether the treaty is `mutual`, primary-flavor display
  * (icon · name · description), and the buff effects each pact carries.
  * Effects reuse the shared effects-editor (the same form machinery as the
@@ -7,7 +7,7 @@
  * ("+2% wood per enemy woodcutter") is authored here exactly as upgrade
  * effects are elsewhere, with its `source` / `field` as catalog dropdowns.
  *
- * No cost or timing fields yet — plan 44 adds them behind the kind select, the
+ * No cost or timing fields yet — active pacts will add them behind the kind select, the
  * way the attacks view clears prepare data on a switch to passive.
  */
 
@@ -152,7 +152,7 @@ function buildRow(ctx: EditorContext, row: PactRow, render: () => void): HTMLEle
   card.append(
     buildEffectsSection({
       // The pact effects ride both kinds; the picker follows this pact's so an
-      // active pact offers what plan 44 will read.
+      // active pact offers what its future lifecycle will read.
       effectHost: row.kind === 'active' ? 'activePact' : 'passivePact',
       tree,
       getEffects: () => pactEffects(tree, row.id),

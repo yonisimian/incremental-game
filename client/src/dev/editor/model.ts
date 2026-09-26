@@ -1226,7 +1226,7 @@ export function setAttackFlavor(
   entry.description = values.description
 }
 
-// ─── Pacts (plan 42) ─────────────────────────────────────────────────
+// ─── Pacts ───────────────────────────────────────────────────────────
 
 /** Default icon for a new pact, before the author picks one. */
 const DEFAULT_PACT_ICON = '🤝'
@@ -1327,7 +1327,7 @@ export function removePact(tree: TreeFile, id: string): MutationResult {
 
 /**
  * Set pact `id`'s kind. Unknown id is a no-op. Both kinds carry the same
- * fields today; plan 44 adds the active-only ones (and clears them here on a
+ * fields today; active pacts will add the active-only ones (and clears them here on a
  * switch to passive, as `setAttackKind` does for attacks).
  */
 export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {

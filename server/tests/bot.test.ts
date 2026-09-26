@@ -442,7 +442,7 @@ describe('Bot', () => {
       })
     })
 
-    describe('passive pacts (plan 42)', () => {
+    describe('passive pacts', () => {
       /** The relations panel plus one signing node per idler pact, all free. */
       const pactUpgrades: UpgradeDefinition[] = [
         ...idlerUpgrades,

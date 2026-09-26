@@ -232,7 +232,7 @@ export interface OpponentView {
   incomingAttacks?: IncomingAttack[]
   /**
    * The opponent's unlocked *mutual* passive pacts — the treaties the viewer
-   * also benefits from (plan 42). Absent when none. Only ids of pacts that
+   * also benefits from. Absent when none. Only ids of pacts that
    * already affect the viewer are sent; a one-sided pact the opponent holds is
    * never revealed. The client resolves an id to its flavor and pairs it with
    * the matching `pactBonuses` entry for the relations panel.

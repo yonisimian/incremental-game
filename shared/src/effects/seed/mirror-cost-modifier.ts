@@ -70,7 +70,7 @@ export const mirrorCostModifier: EffectDef<MirrorCostModifierParams> = {
   schema,
   apply,
   // Only the pact collectors read this output. `activePact` is declared ahead
-  // of its reader (plan 44), so an authored active pact is not a placement
+  // of its reader, so an authored active pact is not a placement
   // error while its lifecycle is still being built.
   hosts: ['passivePact', 'activePact'],
 }

@@ -507,8 +507,8 @@ export type EffectOutput =
  *   *benefit* drawn from the opponent, and only the pact outputs
  *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
  *   `collectPactBonuses` in `pacts.ts`).
- * - `activePact` — an active pact's `effects`: nothing reads this host yet
- *   (plan 44); the pact effects declare it so an authored active pact is not a
+ * - `activePact` — an active pact's `effects`: nothing reads this host yet;
+ *   the pact effects declare it so an authored active pact is not a
  *   placement error while its lifecycle is still being built.
  */
 export type EffectHost =

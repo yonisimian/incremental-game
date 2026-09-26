@@ -471,7 +471,7 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Incoming debuffs, resolved once against this player — every figure below that
   // folds them in reads from here (see `resolveEnemyDebuffs`). The pact bonuses
-  // in force (plan 42) ride beside them into every total, but not into the
+  // in force ride beside them into every total, but not into the
   // before/after pairs, which report what the enemy is *taking*.
   const debuffs = resolveEnemyDebuffs(state.debuffs, state.player, modeDef)
   const bonuses = resolveEnemyDebuffs(pactModifiers(state.pactBonuses), state.player, modeDef)

@@ -419,7 +419,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         `[${id}] resource key '${intelKey}' collides with a reserved non-resource intel key`,
       )
   }
-  // The enemy-stat catalog's `score` key names no resource either (plan 42).
+  // The enemy-stat catalog's `score` key names no resource either.
   if (resourceKeys.has(ENEMY_STAT_SCORE_KEY))
     throw new Error(
       `[${id}] resource key '${ENEMY_STAT_SCORE_KEY}' collides with a reserved enemy-stat key`,

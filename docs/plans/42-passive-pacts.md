@@ -40,7 +40,7 @@ enemy`, `info`, on a mutual pact's first appearance in `opponent.pacts`.
   resource rename, and the `upgrade:<id>` / `generator:<id>` keys of _both_
   cost effects and the pact mirror follow generator and node renames (a
   removed node drops the refs that named it). `entityCostTargetKey` is the new
-  exported inverse of `parseEnemyCostTarget`. The picker group and the three
+  exported inverse of `parsePurchaseTarget` for a single-entity key. The picker group and the three
   dropdowns landed with their effects in stages 3–4 (the grouping and
   every-string-param-has-a-picker tests require it).
 - **The bot signs generically** — the unlock node of every passive pact with

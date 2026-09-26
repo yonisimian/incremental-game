@@ -131,7 +131,7 @@ export interface GameState {
   incomingAttacks: IncomingAttack[]
   /**
    * What each pact in force is worth to this player right now, resolved by the
-   * server (plan 42). *Replaced* from each `STATE_UPDATE` (empty when the
+   * server. *Replaced* from each `STATE_UPDATE` (empty when the
    * snapshot carries none), merged into the header's passive rate and the
    * predicted click income like `debuffs`, and listed per pact by the
    * relations panel. Reset at the start of each match.
@@ -139,7 +139,7 @@ export interface GameState {
   pactBonuses: PactBonus[]
   /**
    * The opponent's unlocked *mutual* pacts — treaties this player also benefits
-   * from (plan 42). Replaced from each `STATE_UPDATE`'s opponent view (empty
+   * from. Replaced from each `STATE_UPDATE`'s opponent view (empty
    * when none); the relations panel lists them as shared treaties, and a toast
    * announces one the first time it appears. Reset at the start of each match.
    */
@@ -1088,7 +1088,7 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     // Same reasoning: a replayed buy must be refused under the same lock the
     // server refused it under.
     ...(s.incomingPurchaseLocks ? { incomingPurchaseLocks: [...s.incomingPurchaseLocks] } : {}),
-    // And priced with the same pact discount the server granted (plan 42).
+    // And priced with the same pact discount the server granted.
     ...(s.pactCostFactors ? { pactCostFactors: [...s.pactCostFactors] } : {}),
     // Never predicted, only carried: the strike that opens a window lands
     // server-side, so this arrives like any other reconciled field.

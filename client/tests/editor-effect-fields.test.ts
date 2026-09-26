@@ -52,7 +52,7 @@ describe('effectFieldOptions', () => {
     expect(effectFieldOptions(tree, 'attackStat', 'stat', {})).toEqual([...ATTACK_STATS])
   })
 
-  // The pact effects (plan 42) borrow their vocabularies: a mirrored discount
+  // The pact effects borrow their vocabularies: a mirrored discount
   // names what the enemy bought from the purchase-target catalog, a mirrored
   // bonus reads an enemy stat and lands on a debuff target.
   it('offers the purchase-target catalog for a mirrorCostModifier target', () => {
@@ -185,8 +185,8 @@ describe('effect hosts', () => {
     ])
   })
 
-  // The pact effects (plan 42) ride both pact kinds: continuous on a passive
-  // pact, and declared on an active one ahead of its reader (plan 44).
+  // The pact effects ride both pact kinds: continuous on a passive
+  // pact, and declared on an active one ahead of its reader.
   it('offers only the pact effects on pacts', () => {
     expect(typesFor('passivePact')).toEqual(['mirrorCostModifier', 'mirrorStatModifier'])
     expect(typesFor('activePact')).toEqual(typesFor('passivePact'))

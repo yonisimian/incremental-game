@@ -137,7 +137,7 @@ describe('debuff attack events → toasts', () => {
   })
 })
 
-describe('shared pact → toast (plan 42)', () => {
+describe('shared pact → toast', () => {
   let game: GameModule
 
   beforeEach(async () => {

@@ -1962,7 +1962,7 @@ describe('Match', () => {
     })
   })
 
-  // ── Passive pacts (plan 42) ────────────────────────────────────────
+  // ── Passive pacts ──────────────────────────────────────────────────
 
   describe('passive pacts', () => {
     const mode = getModeDefinition('idler')

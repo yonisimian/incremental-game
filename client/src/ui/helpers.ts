@@ -95,7 +95,7 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
 
 /** Marker appended to a price an opponent's passive attack is inflating. */
 export const INFLATED_COST_MARKER = '⬆'
-/** Marker appended to a price a pact in force is discounting (plan 42). */
+/** Marker appended to a price a pact in force is discounting. */
 export const DISCOUNTED_COST_MARKER = '⬇'
 
 /**

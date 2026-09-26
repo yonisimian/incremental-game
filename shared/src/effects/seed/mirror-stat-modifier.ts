@@ -60,6 +60,6 @@ export const mirrorStatModifier: EffectDef<MirrorStatModifierParams> = {
   schema,
   apply,
   // Only the pact collectors read this output; `activePact` is declared ahead
-  // of its reader (plan 44), as for `mirrorCostModifier`.
+  // of its reader, as for `mirrorCostModifier`.
   hosts: ['passivePact', 'activePact'],
 }

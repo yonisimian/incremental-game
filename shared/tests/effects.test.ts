@@ -624,7 +624,7 @@ describe('enemyCostModifier params', () => {
   })
 })
 
-// ─── mirrorCostModifier (plan 42) ────────────────────────────────────
+// ─── mirrorCostModifier ──────────────────────────────────────────────
 
 describe('mirrorCostModifier params', () => {
   function apply(ref: EffectRef): unknown {
@@ -690,7 +690,7 @@ describe('mirrorCostModifier params', () => {
   })
 })
 
-// ─── mirrorStatModifier (plan 42) ────────────────────────────────────
+// ─── mirrorStatModifier ──────────────────────────────────────────────
 
 describe('mirrorStatModifier params', () => {
   function apply(ref: EffectRef): unknown {
@@ -747,7 +747,7 @@ describe('mirrorStatModifier params', () => {
   })
 })
 
-// ─── enemyPurchaseLock (plan 40) ─────────────────────────────────────
+// ─── enemyPurchaseLock ───────────────────────────────────────────────
 
 describe('enemyPurchaseLock params', () => {
   function apply(ref: EffectRef): unknown {

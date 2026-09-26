@@ -105,11 +105,11 @@ function botAttackTarget(
 }
 
 /**
- * The pact-signing upgrades the bot picks up (plan 42 §13): the unlock node of
+ * The pact-signing upgrades the bot picks up: the unlock node of
  * every *passive* pact that carries effects — the treaties that do something.
  * A solo player then meets a live pact from the bot's side: a one-sided one
  * discounts the bot, a mutual one pays the human too and fills their "Shared
- * treaties" list without a second human. Active pacts (plan 44) and
+ * treaties" list without a second human. Active pacts and
  * placeholders are skipped — nothing to sign for.
  */
 function botPactUnlocks(
@@ -224,7 +224,7 @@ export class IdlerBot implements BotStrategy {
       basePlan.push(...path)
     }
 
-    // The free pact nodes (plan 42): sign every passive pact that does
+    // The free pact nodes: sign every passive pact that does
     // something, so a bot match shows a treaty from the other side. Their
     // unlock chain (the relations panel, then the node) rides the plan like the
     // attack unlock does.
