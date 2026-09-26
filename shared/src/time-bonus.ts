@@ -1,6 +1,6 @@
 /**
  * Time-scaled bonuses: a "clock" upgrade whose payout grows the longer you have
- * owned it (plan 13, re-expressed as effects).
+ * owned it, expressed as effects.
  *
  * Three effects compose one clock, and they are deliberately separate so the tree
  * can sell the mechanic in stages:

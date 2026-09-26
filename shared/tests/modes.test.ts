@@ -369,7 +369,7 @@ describe('collectEnemyDebuffs', () => {
     expect(collectEnemyDebuffs(state, def)).toEqual([])
   })
 
-  // ── Debuff windows (plan 37) ────────────────────────────────────────
+  // ── Debuff windows ──────────────────────────────────────────────────
 
   const WINDOW_DEBUFF: Modifier = { stage: 'multiplicative', field: 'r0', value: 0.5 }
 
@@ -512,7 +512,7 @@ describe('resolveEnemyDebuffs', () => {
     expect(resolveEnemyDebuffs([HL_MULT], state, def)).toEqual([])
   })
 
-  // The property plan 34 delivers: scale the *bonus*, not the whole factor — a
+  // The property that matters: scale the *bonus*, not the whole factor — a
   // ×2 highlight under value 0.5 becomes ×1.5 (bonus halved), not ×1.
   it('scales the bonus above neutral rather than the whole factor', () => {
     const def = getModeDefinition('idler')
