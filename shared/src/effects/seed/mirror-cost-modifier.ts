@@ -69,8 +69,6 @@ function apply(p: MirrorCostModifierParams): MirrorCostOutput[] | null {
 export const mirrorCostModifier: EffectDef<MirrorCostModifierParams> = {
   schema,
   apply,
-  // Only the pact collectors read this output. `activePact` is declared ahead
-  // of its reader, so an authored active pact is not a placement
-  // error while its lifecycle is still being built.
-  hosts: ['passivePact', 'activePact'],
+  // Passive only until active pacts have a lifecycle: on an active pact nothing reads it.
+  hosts: ['passivePact'],
 }

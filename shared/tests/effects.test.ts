@@ -682,9 +682,9 @@ describe('mirrorCostModifier params', () => {
     expect(apply({ type: 'mirrorCostModifier', target: 'nope', costFactor: 0.5 })).toBeNull()
   })
 
-  it('lives on pacts only', () => {
+  it('lives on passive pacts only', () => {
     expect(isEffectAllowedOn('mirrorCostModifier', 'passivePact')).toBe(true)
-    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(false)
     expect(isEffectAllowedOn('mirrorCostModifier', 'passiveAttack')).toBe(false)
     expect(isEffectAllowedOn('mirrorCostModifier', 'upgrade')).toBe(false)
   })
@@ -736,9 +736,9 @@ describe('mirrorStatModifier params', () => {
     expect(() => apply({ ...rule, stage: 'global' })).toThrow()
   })
 
-  it('lives on pacts only, and is not dynamic', () => {
+  it('lives on passive pacts only, and is not dynamic', () => {
     expect(isEffectAllowedOn('mirrorStatModifier', 'passivePact')).toBe(true)
-    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(false)
     expect(isEffectAllowedOn('mirrorStatModifier', 'upgrade')).toBe(false)
     expect(isEffectAllowedOn('mirrorStatModifier', 'passiveAttack')).toBe(false)
     // It reads the *partner's* state, which the data panel's live-bonus

@@ -130,7 +130,7 @@ describe('readEnemyStat', () => {
 // A minimal two-player-shaped mode: two upgrades, two generators, one passive
 // attack (for the commute test), and one pact per shape — a one-sided
 // whole-scope discount, a mutual single-generator one, an effect-less mutual
-// placeholder, and an active pact nothing reads yet. Prices are small and
+// placeholder, and an effect-less active placeholder. Prices are small and
 // exact, so an off-by-a-rounding-step shows up as a failing integer.
 
 const U_FLAT: UpgradeDefinition = {
@@ -171,12 +171,8 @@ const TRADE: PactDefinition = {
 }
 /** A mutual placeholder: legal, in force, worth nothing. */
 const EMPTY: PactDefinition = { id: 'p-empty', kind: 'passive', mutual: true }
-/** An active pact carrying a discount nothing reads until active pacts have a lifecycle. */
-const ACTIVE: PactDefinition = {
-  id: 'p-active',
-  kind: 'active',
-  effects: [{ type: 'mirrorCostModifier', target: 'generators', costFactor: 0.5 }],
-}
+/** An active placeholder: legal, but never in force until active pacts have a lifecycle. */
+const ACTIVE: PactDefinition = { id: 'p-active', kind: 'active' }
 /** +2% r0 per enemy g0, up to +50%. Mutual. */
 const ROUTE: PactDefinition = {
   id: 'p-route',

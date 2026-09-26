@@ -251,7 +251,9 @@ keep `cost: {}`.
 
 1. Plan 43 attack half (so `cooldowns` exists).
 2. `feat(pacts): active fields on PactDefinition, activePacts, pactBlockReason, applyPactActivation` + boot rules.
-3. `feat(pacts): windows in pactsInForce` — income moves for an activated pact.
+3. `feat(pacts): windows in pactsInForce` — income moves for an activated pact;
+   re-add `activePact` to both pact effects' `hosts` in the same commit (it was
+   removed so an active pact with effects fails at boot while nothing reads it).
 4. `feat(net): activate_pact action, PactEvent, expiry on opponent pacts`.
 5. `feat(pacts): pactProductionModifier`.
 6. `feat(client): activate from the relations panel, prediction, toasts`.

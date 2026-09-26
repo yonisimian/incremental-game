@@ -47,6 +47,12 @@ enemy`, `info`, on a mutual pact's first appearance in `opponent.pacts`.
   effects, found through `unlockPact` refs, not the three hard-coded ids.
 - **Open questions 1–3** shipped as proposed: per-entity discount, `:rate`
   sources kept, `cap` bounds the bonus (the added amount, or the excess over 1).
+- **Later revised: pact effects are passive-only for now.** Both effects declare
+  `hosts: ['passivePact']`, not `['passivePact', 'activePact']` (§2): an effect
+  authored on an active pact was accepted at boot and then never resolved, which
+  is how two playtested pacts silently did nothing. Boot now rejects it; an
+  effect-less active pact is still a legal placeholder. Plan 44 re-adds
+  `activePact` together with its reader.
 
 Full suite green: shared 898, server 182, client 533. `typecheck`, `lint`,
 `lint:css`, `lint:exports`, `format:check`, `check:balance` and

@@ -59,7 +59,6 @@ function apply(p: MirrorStatModifierParams): MirrorModifierOutput {
 export const mirrorStatModifier: EffectDef<MirrorStatModifierParams> = {
   schema,
   apply,
-  // Only the pact collectors read this output; `activePact` is declared ahead
-  // of its reader, as for `mirrorCostModifier`.
-  hosts: ['passivePact', 'activePact'],
+  // Passive only until active pacts have a lifecycle, as for `mirrorCostModifier`.
+  hosts: ['passivePact'],
 }

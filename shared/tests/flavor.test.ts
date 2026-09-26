@@ -1306,6 +1306,28 @@ describe('validateModeDefinition — negative tests', () => {
     )
   })
 
+  it('rejects a pact effect on an active pact — nothing resolves one yet', () => {
+    for (const effect of [
+      { type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 },
+      {
+        type: 'mirrorStatModifier',
+        source: 'score',
+        field: 'clickIncome',
+        stage: 'additive',
+        perUnit: 1,
+      },
+    ]) {
+      const def = defWithPact({ id: 'p0', kind: 'active', effects: [effect] })
+      expect(() => {
+        validateModeDefinition('test', def)
+      }).toThrow(
+        new RegExp(
+          `active pact 'p0' carries a '${effect.type}' effect, which only applies on a passive pact`,
+        ),
+      )
+    }
+  })
+
   it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {
     const def = defWithPact({
       id: 'p0',
