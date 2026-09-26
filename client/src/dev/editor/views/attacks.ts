@@ -37,7 +37,7 @@ import {
 } from '../model.js'
 import { buildEffectsSection } from '../effects-editor.js'
 import { addButton, numberInput, removeButton, renameInput } from './controls.js'
-import { el, labeledInput } from './dom.js'
+import { el, labeled, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
 
 export function createAttacksView(): EditorView {
@@ -192,13 +192,6 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   )
 
   return card
-}
-
-/** A label + control pair (vertical), matching the generators view. */
-function labeled(label: string, control: HTMLElement): HTMLElement {
-  const wrap = el('label', 'ed-gen-field')
-  wrap.append(el('span', 'ed-gen-field-label', label), control)
-  return wrap
 }
 
 /**
