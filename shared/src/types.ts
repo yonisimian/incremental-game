@@ -28,7 +28,7 @@ export type PrerequisiteExpression =
 
 export type UpgradePrerequisites = PrerequisiteExpression
 
-/** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap (D1). */
+/** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap. */
 export type GameMode = 'idler'
 
 /** A 2D position on the upgrade-tree canvas (logical units; render-time scale applies). */
@@ -80,8 +80,8 @@ export interface UpgradeDefinition {
   /** Optional human-readable label for the choice group. */
   readonly choiceLabel?: string
   /**
-   * Which upgrades must be owned before this one is buyable.
-   * Supports legacy AND-only arrays and recursive `all` / `any` expressions.
+   * Which upgrades must be owned before this one is buyable: a recursive
+   * `all` / `any` expression over upgrade and meta requirements.
    */
   readonly prerequisites?: UpgradePrerequisites
   /**
@@ -98,7 +98,6 @@ export interface UpgradeDefinition {
   /**
    * Declarative, state-derived effects emitted when this upgrade is owned.
    * Each ref names a registered effect plus its params (see `shared/src/effects`).
-   * Replaces the old `dynamicModifier` closure with pure, serializable data.
    */
   readonly effects?: readonly EffectRef[]
 }

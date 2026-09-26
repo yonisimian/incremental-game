@@ -76,6 +76,18 @@ body {
   border-bottom: 1px solid var(--dev-bg);
 }
 
+/* Second-level tab bar: smaller tabs sitting on a rule the active tab masks. */
+.dev-tabs--sub {
+  border-bottom: 1px solid var(--dev-border);
+}
+
+.dev-tabs--sub .dev-tab {
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  font-weight: normal;
+  margin-bottom: -1px;
+}
+
 .hidden {
   display: none !important;
 }
@@ -490,41 +502,7 @@ body {
   align-items: stretch;
 }
 
-/* ─── Editor shell: section switcher + host ───────────────────────── */
-
-.ed-section-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--dev-border);
-}
-
-.ed-section-tab {
-  padding: 6px 16px;
-  border: 1px solid var(--dev-border);
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  background: var(--dev-surface);
-  color: var(--dev-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  /* Overlap the container's bottom border so the active tab can mask it. */
-  margin-bottom: -1px;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.ed-section-tab:hover {
-  color: var(--dev-text);
-}
-
-.ed-section-tab.active {
-  background: var(--dev-bg);
-  color: var(--dev-accent);
-  border-color: var(--dev-accent);
-  border-bottom: 1px solid var(--dev-bg);
-}
+/* ─── Editor shell: section host ──────────────────────────────────── */
 
 .ed-section-host {
   display: flex;

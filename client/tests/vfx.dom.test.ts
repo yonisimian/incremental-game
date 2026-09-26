@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 /**
- * Phase-3 (docs/plans/32) — unit coverage for the rest of the VFX module
+ * Unit coverage for the rest of the VFX module
  * ([../src/ui/vfx/index.ts](../src/ui/vfx/index.ts)): click popup/ripple, button
  * pulse, purchase flash, the combo counter, score bump, and screen shake.
  *

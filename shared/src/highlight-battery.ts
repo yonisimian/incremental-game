@@ -15,7 +15,7 @@
  *     plus any charge-band bonuses ({@link collectBatteryBands}).
  */
 
-import { applyEffect, normalizeEffectOutputs } from './effects/index.js'
+import { forEachHeldEffectOutput } from './effects/index.js'
 import type { BatteryBandOutput, BatteryStatOutput, EffectOutput } from './effects/index.js'
 
 import type { BatteryBandSide } from './effects/seed/battery-band.js'
@@ -24,7 +24,7 @@ import type { BatteryStat } from './effects/seed/battery-stat.js'
 import { readHighlight } from './highlight.js'
 import { isHighlightBatteryActive } from './unlock-gates.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { EffectRef, PlayerState } from './types.js'
+import type { PlayerState } from './types.js'
 
 // Re-exported from the seeds (each schema owns its canonical enum, so the list
 // and the load-time validation can't drift) — mirroring how `unlock-gates`
@@ -112,27 +112,11 @@ export function collectBatteryParams(
     mults[stat] = 1
   }
 
-  const accumulate = (out: BatteryStatOutput, owned: number): void => {
+  forEachHeldEffectOutput(state, mode, 'batteryStat', (out, owned) => {
+    if (!isBatteryStatOutput(out)) return
     if (out.op === 'add') adds[out.stat] += out.value * owned
     else mults[out.stat] *= out.value ** owned
-  }
-
-  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      // Skip non-battery effects without running them, matching
-      // `collectGeneratorCostFactors`.
-      if (ref.type !== 'batteryStat') continue
-      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (isBatteryStatOutput(o)) accumulate(o, owned)
-      }
-    }
-  }
-
-  collect(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) collect(upgrade.effects, owned)
-  }
+  })
 
   const resolved = {} as Record<BatteryStat, number>
   for (const stat of BATTERY_STATS) {
@@ -236,23 +220,11 @@ export function collectBatteryBands(
   mode: ModeDefinition,
 ): BatteryBand[] {
   const bands: BatteryBand[] = []
-
-  const collect = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      if (ref.type !== 'batteryBand') continue
-      for (const o of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if (isBatteryBandOutput(o)) {
-          bands.push({ band: o.band, threshold: o.threshold, bonus: o.bonus * owned })
-        }
-      }
+  forEachHeldEffectOutput(state, mode, 'batteryBand', (o, owned) => {
+    if (isBatteryBandOutput(o)) {
+      bands.push({ band: o.band, threshold: o.threshold, bonus: o.bonus * owned })
     }
-  }
-
-  collect(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) collect(upgrade.effects, owned)
-  }
+  })
   return bands
 }
 

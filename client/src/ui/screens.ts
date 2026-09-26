@@ -90,7 +90,7 @@ export function updateCountdown(state: Readonly<GameState>): void {
 // ─── Room Screen ─────────────────────────────────────────────────────
 
 // Signature of the last-rendered room-settings block. Lets updateRoomScreen
-// skip re-rendering when nothing in the settings changed — important now that
+// skip re-rendering when nothing in the settings changed — important because
 // the creator's goal-tuning input is focusable: an unrelated update (e.g. an
 // opponent joining) must not blow away an in-progress edit and steal focus.
 let lastSettingsSig: string | null = null
@@ -205,7 +205,7 @@ function renderPlayerSlots(players: string[]): string {
 
 function renderCreatorSettings(mode: GameMode, goal: Goal): string {
   const modeDef = getModeDefinition(mode)
-  // Hide the mode picker entirely when there's only one mode to choose from (D10).
+  // Hide the mode picker entirely when there's only one mode to choose from.
   const modeRow =
     AVAILABLE_MODES.length > 1
       ? `

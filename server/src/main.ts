@@ -11,7 +11,13 @@ import {
   loadTree,
   AVAILABLE_MODES,
 } from '@game/shared'
-import type { ClientMessage, GameMode, Goal, ServerStatusMessage } from '@game/shared'
+import type {
+  ClientMessage,
+  GameMode,
+  Goal,
+  ServerMessage,
+  ServerStatusMessage,
+} from '@game/shared'
 import {
   addToQuickQueue,
   removeFromQuickQueue,
@@ -35,7 +41,7 @@ const HOST = process.env.HOST
 // ─── Mode trees (server-authoritative) ───────────────────────────────
 //
 // The canonical tree files are the single source of truth, owned by the shared
-// package and edited via the dev-page tree editor (D12/D17). The server resolves
+// package and edited via the dev-page tree editor. The server resolves
 // each one through the package's `exports` map (works from both `tsx` in dev and
 // `node dist` in prod), validates + registers it as a runtime mode, and caches
 // the raw bytes to serve verbatim. Clients fetch the same bytes from
@@ -64,7 +70,7 @@ function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
 // ─── HTTP Server (health check + tree files) ────────────────────────
 
 const httpServer = createServer((req, res) => {
-  // Serve the canonical tree files (server-authoritative; D17).
+  // Serve the canonical tree files (server-authoritative).
   const treeMatch = /^\/trees\/([a-z0-9-]+)\.json$/u.exec(req.url ?? '/')
   if (treeMatch) {
     const raw = rawTrees.get(treeMatch[1] as GameMode)
@@ -166,11 +172,7 @@ function rollRandomSettings(): { mode: GameMode; goal: Goal } {
 
 /** Callback when a room's TTL expires — notify remaining players. */
 function onRoomExpire(room: Room): void {
-  for (const p of room.players) {
-    if (p.ws?.readyState === WebSocket.OPEN) {
-      p.ws.send(JSON.stringify({ type: 'ROOM_CLOSED', reason: 'expired' }))
-    }
-  }
+  broadcast(room.players, { type: 'ROOM_CLOSED', reason: 'expired' })
 }
 
 wss.on('connection', (ws: WebSocket) => {
@@ -204,23 +206,8 @@ wss.on('connection', (ws: WebSocket) => {
 
     // ── QUIT ─────────────────────────────────────────────────────
     if (msg.type === 'QUIT') {
-      removeFromQuickQueue(data.id)
       removeFromRematchQueue(data.id)
-      const result = leaveRoom(data.id)
-      if (result && !result.destroyed) {
-        // Notify the remaining player
-        for (const p of result.room.players) {
-          if (p.ws?.readyState === WebSocket.OPEN) {
-            p.ws.send(
-              JSON.stringify({
-                type: 'ROOM_PLAYER_LEFT',
-                name: result.leaverName,
-                promoted: result.promoted,
-              }),
-            )
-          }
-        }
-      }
+      notifyPlayerLeft(removeFromAll(data.id))
       return
     }
 
@@ -276,17 +263,15 @@ wss.on('connection', (ws: WebSocket) => {
       const name = sanitizeName(msg.name)
       const result = createRoom({ id: data.id, ws, name }, onRoomExpire)
       if (!result.ok) {
-        ws.send(JSON.stringify({ type: 'ROOM_ERROR', reason: result.reason }))
+        send(ws, { type: 'ROOM_ERROR', reason: result.reason })
         return
       }
-      ws.send(
-        JSON.stringify({
-          type: 'ROOM_CREATED',
-          code: result.room.code,
-          settings: { mode: result.room.mode, goal: result.room.goal },
-          players: result.room.players.map((p) => p.name),
-        }),
-      )
+      send(ws, {
+        type: 'ROOM_CREATED',
+        code: result.room.code,
+        settings: { mode: result.room.mode, goal: result.room.goal },
+        players: result.room.players.map((p) => p.name),
+      })
       return
     }
 
@@ -301,7 +286,7 @@ wss.on('connection', (ws: WebSocket) => {
 
       const result = joinRoom({ id: data.id, ws, name }, code)
       if (!result.ok) {
-        ws.send(JSON.stringify({ type: 'ROOM_ERROR', reason: result.reason }))
+        send(ws, { type: 'ROOM_ERROR', reason: result.reason })
         return
       }
 
@@ -318,25 +303,16 @@ wss.on('connection', (ws: WebSocket) => {
         startMatch(match)
       } else {
         // Confirm join to the joiner
-        ws.send(
-          JSON.stringify({
-            type: 'ROOM_JOINED',
-            code: result.room.code,
-            settings: { mode: result.room.mode, goal: result.room.goal },
-            players: result.room.players.map((p) => p.name),
-          }),
+        send(ws, {
+          type: 'ROOM_JOINED',
+          code: result.room.code,
+          settings: { mode: result.room.mode, goal: result.room.goal },
+          players: result.room.players.map((p) => p.name),
+        })
+        broadcast(
+          result.room.players.filter((p) => p.id !== data.id),
+          { type: 'ROOM_PLAYER_JOINED', name },
         )
-        // Notify existing players that someone joined
-        for (const p of result.room.players) {
-          if (p.id !== data.id && p.ws?.readyState === WebSocket.OPEN) {
-            p.ws.send(
-              JSON.stringify({
-                type: 'ROOM_PLAYER_JOINED',
-                name,
-              }),
-            )
-          }
-        }
       }
       return
     }
@@ -349,20 +325,8 @@ wss.on('connection', (ws: WebSocket) => {
       })
       if (!result.ok) return
 
-      // Broadcast updated settings to all room members
       const room = getRoomByPlayerId(data.id)
-      if (room) {
-        for (const p of room.players) {
-          if (p.ws?.readyState === WebSocket.OPEN) {
-            p.ws.send(
-              JSON.stringify({
-                type: 'ROOM_UPDATED',
-                settings: result.settings,
-              }),
-            )
-          }
-        }
-      }
+      if (room) broadcast(room.players, { type: 'ROOM_UPDATED', settings: result.settings })
       return
     }
 
@@ -373,18 +337,7 @@ wss.on('connection', (ws: WebSocket) => {
       if (queueEntry) {
         removeFromQuickQueue(data.id)
         const { mode, goal } = rollRandomSettings()
-        const botId = `bot-${randomUUID()}`
-        const modeDef = getModeDefinition(mode)
-        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
-        const bot = createBot(mode, modeDef, availableUpgrades)
-        const match = new Match(
-          { id: data.id, ws, name: queueEntry.name },
-          { id: botId, ws: null, name: 'Bot' },
-          mode,
-          goal,
-          bot,
-        )
-        startMatch(match)
+        startBotMatch({ id: data.id, ws, name: queueEntry.name }, mode, goal)
         return
       }
 
@@ -393,42 +346,17 @@ wss.on('connection', (ws: WebSocket) => {
       if (rematchEntry) {
         removeFromRematchQueue(data.id)
         const { mode, goal, name } = rematchEntry
-        const botId = `bot-${randomUUID()}`
-        const modeDef = getModeDefinition(mode)
-        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
-        const bot = createBot(mode, modeDef, availableUpgrades)
-        const match = new Match(
-          { id: data.id, ws, name },
-          { id: botId, ws: null, name: 'Bot' },
-          mode,
-          goal,
-          bot,
-        )
-        startMatch(match)
+        startBotMatch({ id: data.id, ws, name }, mode, goal)
         return
       }
 
       // Try room (only if creator and alone)
       const room = getRoomByPlayerId(data.id)
       if (room?.creatorId === data.id && room.players.length === 1) {
-        const playerName = room.players[0].name
         const { mode, goal } = room
-
-        // Destroy the room first
-        leaveRoom(data.id)
-
-        const botId = `bot-${randomUUID()}`
-        const modeDef = getModeDefinition(mode)
-        const availableUpgrades = getAvailableUpgrades(modeDef, goal)
-        const bot = createBot(mode, modeDef, availableUpgrades)
-        const match = new Match(
-          { id: data.id, ws, name: playerName },
-          { id: botId, ws: null, name: 'Bot' },
-          mode,
-          goal,
-          bot,
-        )
-        startMatch(match)
+        const name = room.players[0].name
+        leaveRoom(data.id) // destroys the now-empty room
+        startBotMatch({ id: data.id, ws, name }, mode, goal)
       }
     }
   })
@@ -441,27 +369,42 @@ wss.on('connection', (ws: WebSocket) => {
     if (m) {
       m.handleDisconnect(data.id)
     } else {
-      const result = removeFromAll(data.id)
-      if (result && !result.destroyed) {
-        // Notify the remaining player
-        for (const p of result.room.players) {
-          if (p.ws?.readyState === WebSocket.OPEN) {
-            p.ws.send(
-              JSON.stringify({
-                type: 'ROOM_PLAYER_LEFT',
-                name: result.leaverName,
-                promoted: result.promoted,
-              }),
-            )
-          }
-        }
-      }
+      notifyPlayerLeft(removeFromAll(data.id))
     }
     wsData.delete(ws)
   })
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+function send(ws: WebSocket | null, msg: ServerMessage): void {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+}
+
+function broadcast(players: readonly { ws: WebSocket | null }[], msg: ServerMessage): void {
+  for (const p of players) send(p.ws, msg)
+}
+
+/** Tell whoever is left in a room that a player left it. */
+function notifyPlayerLeft(result: ReturnType<typeof leaveRoom>): void {
+  if (!result || result.destroyed) return
+  broadcast(result.room.players, {
+    type: 'ROOM_PLAYER_LEFT',
+    name: result.leaverName,
+    promoted: result.promoted,
+  })
+}
+
+function startBotMatch(
+  human: { id: string; ws: WebSocket; name: string },
+  mode: GameMode,
+  goal: Goal,
+): void {
+  const modeDef = getModeDefinition(mode)
+  const bot = createBot(mode, modeDef, getAvailableUpgrades(modeDef, goal))
+  const botPlayer = { id: `bot-${randomUUID()}`, ws: null, name: 'Bot' }
+  startMatch(new Match(human, botPlayer, mode, goal, bot))
+}
 
 /** Register a match, wire up cleanup, and start it. */
 function startMatch(match: Match): void {

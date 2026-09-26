@@ -45,7 +45,7 @@ const VIEW_FACTORIES: Record<Section, () => EditorView> = {
 
 function buildLayout(): string {
   const tabs = SECTIONS.map(
-    (s) => `<button class="ed-section-tab" data-section="${s.id}">${s.label}</button>`,
+    (s) => `<button class="dev-tab" data-section="${s.id}">${s.label}</button>`,
   ).join('')
   return `
     <div class="ed-root">
@@ -57,7 +57,7 @@ function buildLayout(): string {
         <button id="ed-reset-btn" class="ed-btn">↺ Reset to idler</button>
         <span id="ed-status" class="ed-status"></span>
       </div>
-      <div class="ed-section-tabs">${tabs}</div>
+      <nav class="dev-tabs dev-tabs--sub">${tabs}</nav>
       <div class="ed-section-host" id="ed-section-host"></div>
     </div>`
 }
@@ -79,7 +79,7 @@ export function initEditor(pane: HTMLElement): () => void {
   const copyBtn = pane.querySelector<HTMLButtonElement>('#ed-copy-btn')!
   const resetBtn = pane.querySelector<HTMLButtonElement>('#ed-reset-btn')!
   const fileInput = pane.querySelector<HTMLInputElement>('#ed-file')!
-  const tabs = Array.from(pane.querySelectorAll<HTMLButtonElement>('.ed-section-tab'))
+  const tabs = Array.from(pane.querySelectorAll<HTMLButtonElement>('.dev-tab[data-section]'))
 
   const state: ShellState = {
     tree: cloneTree(parseTreeFile(idlerTreeFile)),

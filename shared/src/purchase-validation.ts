@@ -1,9 +1,8 @@
 // @game/shared — pure purchase-validation rules.
 //
-// These were previously in `server/src/validation.ts`; they are built entirely
-// from shared primitives, so they live here and the server re-imports them. That
-// keeps one implementation of "can this be bought" shared by the authoritative
-// server tick and the headless strategy simulator (see `simulation/`).
+// Built entirely from shared primitives, so the authoritative server tick and
+// the headless strategy simulator (see `simulation/`) share one implementation
+// of "can this be bought".
 //
 // Each validator is expressed in terms of a `*BlockReason` helper that returns
 // *why* a purchase is disallowed (or `null` when allowed). The boolean

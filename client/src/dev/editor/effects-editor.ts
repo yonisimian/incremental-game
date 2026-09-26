@@ -40,7 +40,7 @@ import {
 import { describeEffectRef } from './effect-preview.js'
 import { collectIds } from './model.js'
 import { ALL_PANELS } from '../../ui/mode-ui.js'
-import { el } from './views/dom.js'
+import { el, field } from './views/dom.js'
 
 /** A single effect ref: a `type` discriminant plus inline params. */
 interface EffectEntry {
@@ -73,13 +73,6 @@ interface ScalarSchema {
 
 function paramsOf(ref: EffectEntry): Record<string, unknown> {
   return Object.fromEntries(Object.entries(ref).filter(([key]) => key !== 'type'))
-}
-
-/** A label + control row, matching the inspector's effect-field layout. */
-function field(label: string, control: HTMLElement): HTMLDivElement {
-  const row = el('div', 'ed-field')
-  row.append(el('label', 'ed-field-label', label), control)
-  return row
 }
 
 /**

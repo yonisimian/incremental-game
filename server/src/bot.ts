@@ -500,7 +500,7 @@ export class IdlerBot implements BotStrategy {
  * prerequisite chain.
  *
  * Idler is currently the only mode (the `mode`/`modeDef` plumbing is kept so
- * re-adding modes stays cheap — see master-plan D1).
+ * re-adding modes stays cheap).
  */
 export function createBot(
   _mode: GameMode,

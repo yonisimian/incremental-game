@@ -1980,9 +1980,9 @@ body {
   color: var(--accent);
 }
 
-/* ─── Report a Bug Modal ───────────────────────────────────────────── */
+/* ─── Modal (settings, report a bug) ───────────────────────────────── */
 
-.report-overlay {
+.modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -1995,13 +1995,15 @@ body {
   transition: opacity 0.2s ease;
 }
 
-.report-overlay.visible {
+.modal-overlay.visible {
   opacity: 1;
 }
 
-.report-modal {
+.modal {
   width: 90%;
   max-width: 380px;
+  max-height: 85dvh;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -2010,11 +2012,11 @@ body {
   transition: transform 0.2s ease;
 }
 
-.report-overlay.visible .report-modal {
+.modal-overlay.visible .modal {
   transform: translateY(0) scale(1);
 }
 
-.report-header {
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2022,14 +2024,14 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.report-header h2 {
+.modal-header h2 {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--text);
   margin: 0;
 }
 
-.report-close {
+.modal-close {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2045,13 +2047,18 @@ body {
     color 0.15s;
 }
 
-.report-close:hover {
+.modal-close:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text);
 }
 
-.report-body {
+.modal-body {
   padding: 1.25rem 1.5rem 1.5rem;
+}
+
+/* ─── Report a Bug Modal ───────────────────────────────────────────── */
+
+.report-body {
   text-align: left;
 }
 
@@ -2254,81 +2261,7 @@ body {
   transform: rotate(30deg) scale(0.92);
 }
 
-/* ─── Settings Modal Overlay ───────────────────────────────────────── */
-
-.settings-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.settings-overlay.visible {
-  opacity: 1;
-}
-
-.settings-modal {
-  width: 90%;
-  max-width: 380px;
-  max-height: 85dvh;
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
-  transform: translateY(12px) scale(0.96);
-  transition: transform 0.2s ease;
-}
-
-.settings-overlay.visible .settings-modal {
-  transform: translateY(0) scale(1);
-}
-
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.settings-header h2 {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-}
-
-.settings-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.settings-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-}
-
-.settings-body {
-  padding: 1.25rem 1.5rem 1.5rem;
-}
+/* ─── Settings Modal ───────────────────────────────────────────────── */
 
 .settings-section {
   margin-bottom: 1.5rem;

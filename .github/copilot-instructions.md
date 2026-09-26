@@ -6,16 +6,17 @@ This file is the always-loaded guardrail set — keep it short. Heavier guidance
 
 ## Customization map
 
-| Need                   | Where                                          | Loads                    |
-| ---------------------- | ---------------------------------------------- | ------------------------ |
-| Guardrails (this file) | `.github/copilot-instructions.md`              | always                   |
-| Write a feature plan   | `/plan` → `.github/prompts/plan.prompt.md`     | on invoke                |
-| Red-team review        | `/review` → `.github/prompts/review.prompt.md` | on invoke                |
-| Commit → push → PR     | `/ship` → `.github/prompts/ship.prompt.md`     | on invoke                |
-| `shared/` conventions  | `.github/instructions/shared.instructions.md`  | editing `shared/src/**`  |
-| `client/` conventions  | `.github/instructions/client.instructions.md`  | editing `client/src/**`  |
-| `server/` conventions  | `.github/instructions/server.instructions.md`  | editing `server/src/**`  |
-| Test-tier boundaries   | `.github/instructions/testing.instructions.md` | editing tests / `e2e/**` |
+| Need                   | Where                                            | Loads                    |
+| ---------------------- | ------------------------------------------------ | ------------------------ |
+| Guardrails (this file) | `.github/copilot-instructions.md`                | always                   |
+| Write a feature plan   | `/plan` → `.github/prompts/plan.prompt.md`       | on invoke                |
+| Red-team review        | `/review` → `.github/prompts/review.prompt.md`   | on invoke                |
+| Commit → push → PR     | `/ship` → `.github/prompts/ship.prompt.md`       | on invoke                |
+| Periodic cleanup pass  | `/repo-cleanup` → `.github/skills/repo-cleanup/` | on invoke                |
+| `shared/` conventions  | `.github/instructions/shared.instructions.md`    | editing `shared/src/**`  |
+| `client/` conventions  | `.github/instructions/client.instructions.md`    | editing `client/src/**`  |
+| `server/` conventions  | `.github/instructions/server.instructions.md`    | editing `server/src/**`  |
+| Test-tier boundaries   | `.github/instructions/testing.instructions.md`   | editing tests / `e2e/**` |
 
 ## Hard rules (never violate)
 

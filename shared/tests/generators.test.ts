@@ -455,6 +455,15 @@ describe('collectGeneratorCostFactors', () => {
     const factors = collectGeneratorCostFactors(state, mode, 'buy').get('g0')!
     expect(factors.costFactor).toBeCloseTo(0.45)
   })
+
+  it('applies a mode-level generatorCost starting effect with no upgrade owned', () => {
+    const mode = {
+      ...makeModeWithUpgrades([makeDef()], []),
+      effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.8 }],
+    }
+    const factors = collectGeneratorCostFactors(makeState(), mode, 'buy').get('g0')!
+    expect(factors.costFactor).toBeCloseTo(0.8)
+  })
 })
 
 describe('resolveGeneratorDef', () => {

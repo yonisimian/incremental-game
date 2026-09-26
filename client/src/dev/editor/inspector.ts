@@ -17,6 +17,7 @@ import {
 
 import { buildEffectsSection } from './effects-editor.js'
 import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
+import { el, field } from './views/dom.js'
 
 export interface InspectorContext {
   readonly tree: TreeFile
@@ -136,25 +137,6 @@ export function fromSimplePrereq(simple: SimplePrereq): Prereq | undefined {
   // group (or a lone upgrade) nests as one member beside the gate.
   const members = upgrades.type === 'all' ? upgrades.items : [upgrades]
   return { type: 'all', items: [...members, HIT_BY_ATTACK] }
-}
-
-// ─── DOM helpers ─────────────────────────────────────────────────────
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag)
-  if (className) node.className = className
-  if (text !== undefined) node.textContent = text
-  return node
-}
-
-function field(label: string, control: HTMLElement): HTMLDivElement {
-  const row = el('div', 'ed-field')
-  row.append(el('label', 'ed-field-label', label), control)
-  return row
 }
 
 // ─── Section builders ────────────────────────────────────────────────

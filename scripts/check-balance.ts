@@ -224,7 +224,7 @@ function checkTimed(envelope: TargetEnvelope): boolean {
 
   const goal = goalForEnvelope(envelope)
   const results = strategies.map((s) => simulate(s, { goal }))
-  // D1: perfect-timing only — pass the same projection as both variants.
+  // Perfect-timing only — pass the same projection as both variants.
   const scores = simResultsToScores(results, envelope)
   const report = validateEnvelope(envelope, scores, scores)
   const byName = new Map(results.map((r) => [r.name, r]))

@@ -41,6 +41,7 @@ import {
 import {
   applyEffect,
   effectHosts,
+  forEachHeldEffectOutput,
   isDynamicEffect,
   isEffectAllowedOn,
   normalizeEffectOutputs,
@@ -185,13 +186,17 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // at runtime. These are the effects that point at another mechanic, so the
   // check is targeted by type.
   const generatorIds = new Set(def.generators.map((g) => g.id))
-  for (const u of def.upgrades) {
-    for (const ref of u.effects ?? []) {
+  const generatorHosts = [
+    { where: 'mode', refs: def.effects },
+    ...def.upgrades.map((u) => ({ where: `upgrade '${u.id}'`, refs: u.effects })),
+  ]
+  for (const { where, refs } of generatorHosts) {
+    for (const ref of refs ?? []) {
       if (ref.type !== 'generatorCost' && ref.type !== 'generatorUnlock') continue
       const target = ref.generator
       if (typeof target === 'string' && !generatorIds.has(target))
         throw new Error(
-          `[${id}] upgrade '${u.id}' ${ref.type} effect references unknown generator '${target}'`,
+          `[${id}] ${where} ${ref.type} effect references unknown generator '${target}'`,
         )
     }
   }
@@ -802,7 +807,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
  * at runtime from their (server-served) tree files via `loadTree` (see
  * `shared/src/tree/codec.ts`), not baked into the bundle. Call `loadTree` once
  * at startup before any `getModeDefinition` call (server reads the file from
- * disk; the client fetches it from the server — D17/D18).
+ * disk; the client fetches it from the server).
  */
 const MODE_REGISTRY = new Map<GameMode, ModeDefinition>()
 
@@ -951,23 +956,11 @@ export function getHighlightMultiplier(state: Readonly<PlayerState>, mode: ModeD
   // battery factor alone (which has no resource to multiply).
   if (readHighlight(state) === null) return 1
   let mult = batteryFactor(state, mode)
-
-  const accumulate = (refs: readonly EffectRef[] | undefined, owned: number): void => {
-    for (const ref of refs ?? []) {
-      if (ref.type !== 'highlightMultiplier') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-        if ('kind' in out && out.kind === 'baseModifier' && out.stage === 'multiplicative') {
-          mult *= out.value ** owned
-        }
-      }
+  forEachHeldEffectOutput(state, mode, 'highlightMultiplier', (out, owned) => {
+    if ('kind' in out && out.kind === 'baseModifier' && out.stage === 'multiplicative') {
+      mult *= out.value ** owned
     }
-  }
-
-  accumulate(mode.effects, 1)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) accumulate(upgrade.effects, owned)
-  }
+  })
   return mult
 }
 
@@ -1125,7 +1118,7 @@ function collectRawModifiers(
   // (^ owned). An aggregate sentinel fans out after compounding; generator-
   // targeted bonuses feed the per-generator accumulator (additive per-unit ×
   // owned, applied again per generator below); everything else is pushed to the
-  // pipeline. Reproduces the legacy per-upgrade `modifiers` array exactly.
+  // pipeline.
   const routeBaseModifier = (o: BaseModifierOutput, owned: number): void => {
     const expanded = expandAggregateField(o.field, mode)
     if (expanded) {

@@ -84,7 +84,7 @@ export interface EnemyDataAccessOutput {
  * effect. Unlike a raw {@link Modifier} (emitted by state-derived effects and
  * applied verbatim), this output is **compounded with the owning upgrade's owned
  * count** by `collectModifiers` — additive scales `× owned`, multiplicative and
- * global scale `^ owned` — reproducing the legacy per-upgrade `modifiers` array.
+ * global scale `^ owned`.
  * Its `stage`/`field`/`value` mirror a `Modifier`; the distinct `kind` is what
  * tells the consumer to apply owned-count scaling.
  */

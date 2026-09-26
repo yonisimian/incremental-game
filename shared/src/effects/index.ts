@@ -91,6 +91,7 @@ export {
   resolveEffect,
   listEffectTypes,
   normalizeEffectOutputs,
+  forEachHeldEffectOutput,
   DEFAULT_EFFECT_HOSTS,
   effectHosts,
   isDynamicEffect,

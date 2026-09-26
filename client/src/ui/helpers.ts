@@ -154,7 +154,7 @@ export function formatUpgradeCost(
 
 /**
  * Render a cost map as a `"<amount> <icon>"` label, one entry per currency.
- * Module-private now that {@link formatUpgradeCost} is the single seam every
+ * Module-private: {@link formatUpgradeCost} is the single seam every
  * upgrade price label goes through.
  */
 function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {

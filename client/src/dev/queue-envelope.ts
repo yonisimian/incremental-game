@@ -67,7 +67,7 @@ export function envelopeSectionHtml(mode: GameMode, results: SimResult[], goal: 
 /** Build the verdict banner + per-strategy table + exploit warnings (perfect-timing only). */
 function envelopeReportHtml(envelope: TargetEnvelope, results: SimResult[]): string {
   const scores = simResultsToScores(results, envelope)
-  // D1: perfect-timing only — the same projection is both arms of the validator.
+  // Perfect-timing only — the same projection is both arms of the validator.
   const report = validateEnvelope(envelope, scores, scores)
 
   const icon = report.pass ? '✅' : '❌'
