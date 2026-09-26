@@ -1528,6 +1528,15 @@ body {
   color: var(--text-muted, var(--text));
 }
 
+.attack-cost-part {
+  color: var(--text);
+}
+
+/* Gold, like the affordable price row: covered currencies light up as you save. */
+.attack-cost-part--met {
+  color: var(--gold);
+}
+
 .attack-icon {
   grid-row: 1 / span 2;
   font-size: 1.4rem;

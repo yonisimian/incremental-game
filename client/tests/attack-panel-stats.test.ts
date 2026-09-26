@@ -181,11 +181,11 @@ describe('attackPanel — attackStat reporting', () => {
     // Half the authored cost held: blocked at the authored price, armed at the
     // discounted one — the panel and `attackBlockReason` agreeing on one figure.
     const broke = renderHtml(makeState(a0Cost / 2))
-    expect(broke).toContain('Not enough resources')
+    expect(broke).toContain(`${formatNumber(a0Cost / 2)}/${formatNumber(a0Cost)} `)
     expect(broke).toContain('disabled')
 
     const discounted = renderHtml(makeState(a0Cost / 2, { 't-cheap': 1 }))
-    expect(discounted).not.toContain('Not enough resources')
+    expect(discounted).not.toContain('attack-status--blocked')
     expect(discounted).toContain('attack-cost')
   })
 })
@@ -216,7 +216,7 @@ describe('attackPanel — debuff window status', () => {
     expect(card).toContain('disabled')
     // The window replaces the price, as the preparing countdown does.
     expect(card).not.toContain('attack-cost')
-    expect(card).not.toContain('Not enough resources')
+    expect(card).not.toContain('attack-status--blocked')
   })
 
   it('goes back to quoting the price once the window has closed', () => {
