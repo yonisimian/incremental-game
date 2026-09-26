@@ -7,6 +7,8 @@ test('NOTIF-01 wide-screen toasts sit beside the panels, pause on hover, and clo
 }) => {
   const signer = await players.create('Notif-A')
   const viewer = await players.create('Notif-B')
+  // The narrowest width that gets the gutter layout: the tightest fit.
+  await viewer.page.setViewportSize({ width: 1080, height: 800 })
   await Promise.all([signer.open(), viewer.open()])
   await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 35 })
 
@@ -22,6 +24,12 @@ test('NOTIF-01 wide-screen toasts sit beside the panels, pause on hover, and clo
   const toastBox = await toast.boundingBox()
   const panelBox = await viewer.page.locator('#panel-container').boundingBox()
   expect(toastBox!.x).toBeGreaterThanOrEqual(panelBox!.x + panelBox!.width)
+  expect(toastBox!.x + toastBox!.width).toBeLessThanOrEqual(1080)
+  expect(
+    await viewer.page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
 
   await expectUnchanged(() => toast.count(), 1, 4_000, 200)
 

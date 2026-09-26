@@ -74,9 +74,9 @@ const layers = new WeakMap<HTMLElement, LayerState>()
 const slots = new WeakMap<HTMLElement, SlotState>()
 
 /**
- * The overlay toasts append to: the play screen's `#toast-layer` (positioned over
- * the panel container) when present, else the global VFX layer as a fallback for
- * tests and non-play screens.
+ * The overlay toasts append to: the play screen's `#toast-layer` (over the panel
+ * container, or beside it on wide screens) when present, else the global VFX
+ * layer as a fallback for tests and non-play screens.
  */
 function toastLayer(): HTMLElement {
   return document.getElementById('toast-layer') ?? getLayer()

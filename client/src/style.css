@@ -1625,10 +1625,17 @@ body {
     padding: 0;
     overflow: visible;
     pointer-events: auto;
+    /* One even column, so the hover/click area is exactly what's drawn. */
+    align-items: stretch;
   }
 
   .toast {
     cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .toast:hover {
+    background: color-mix(in srgb, var(--toast-hue, var(--accent)) 30%, rgba(15, 23, 42, 0.92));
   }
 }
 
