@@ -249,7 +249,7 @@ describe('attackPanel', () => {
     )
   })
 
-  it('bolds only the currencies already covered when several are needed', () => {
+  it('marks only the currencies already covered when several are needed', () => {
     const a1 = idlerDef.attacks.find((a) => a.id === 'a1')!
     const a1Upgrade = idlerDef.upgrades.find((u) =>
       u.effects?.some(

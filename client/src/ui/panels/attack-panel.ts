@@ -56,8 +56,7 @@ function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackPar
 
 /**
  * The prepare cost of an unaffordable attack as `held/needed` per currency, so
- * the player sees the shortfall. Currencies already covered are bolded, which
- * leaves the ones still being saved for as the plain entries.
+ * the player sees the shortfall. Currencies already covered are marked `--met`.
  */
 function renderShortfall(
   resources: Readonly<Record<string, number>>,
