@@ -6,6 +6,7 @@
  * - The "Customization map" table in copilot-instructions.md lists exactly the
  *   prompt/instruction files that exist on disk (no drift in either direction).
  * - Each instruction file's `applyTo` globs point at directories that exist.
+ * - Each skill's `name` matches its folder and the skill is listed in the map.
  *
  * Usage: npx tsx scripts/lint-instructions.ts
  */
@@ -19,6 +20,7 @@ const GH = join(ROOT, '.github')
 const MAP_FILE = join(GH, 'copilot-instructions.md')
 const PROMPTS_DIR = join(GH, 'prompts')
 const INSTRUCTIONS_DIR = join(GH, 'instructions')
+const SKILLS_DIR = join(GH, 'skills')
 
 const errors: string[] = []
 const err = (msg: string): void => void errors.push(msg)
@@ -34,6 +36,11 @@ function mdFiles(dir: string): string[] {
 }
 
 const scanned = [MAP_FILE, ...mdFiles(PROMPTS_DIR), ...mdFiles(INSTRUCTIONS_DIR)]
+const skillNames = existsSync(SKILLS_DIR) ? readdirSync(SKILLS_DIR) : []
+for (const name of skillNames) {
+  const dir = join(SKILLS_DIR, name)
+  scanned.push(...mdFiles(dir), ...mdFiles(join(dir, 'references')))
+}
 
 // ─── 1. Relative Markdown links resolve to real files ────────────────────────
 
@@ -89,6 +96,21 @@ for (const file of mdFiles(INSTRUCTIONS_DIR)) {
     if (base && !existsSync(resolve(ROOT, base))) {
       err(`applyTo in ${relative(ROOT, file)} points at a missing path: ${glob}`)
     }
+  }
+}
+
+// ─── 4. Skills: name matches folder, listed in the map ──────────────────────
+
+for (const name of skillNames) {
+  const skillFile = join(SKILLS_DIR, name, 'SKILL.md')
+  if (!existsSync(skillFile)) {
+    err(`Skill folder .github/skills/${name} has no SKILL.md`)
+    continue
+  }
+  const declared = /^name:\s*['"]?([\w-]+)/m.exec(readFileSync(skillFile, 'utf8'))?.[1]
+  if (declared !== name) err(`Skill ${name}: frontmatter name '${declared}' must match its folder`)
+  if (!mapText.includes(`.github/skills/${name}/`)) {
+    err(`Customization map is missing an entry for .github/skills/${name}/`)
   }
 }
 
