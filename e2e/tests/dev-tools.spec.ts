@@ -10,18 +10,31 @@ async function openDev(page: import('@playwright/test').Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'incremenTal — Dev Panel' })).toBeVisible()
 }
 
+const BALANCE_SUBTABS = new Set(['queue', 'live', 'envelopes'])
+
 async function switchDevTab(page: import('@playwright/test').Page, name: string): Promise<void> {
-  await page.locator(`.dev-tab[data-tab="${name}"]`).click()
+  if (BALANCE_SUBTABS.has(name)) {
+    await page.locator('.dev-tab[data-tab="balance"]').click()
+    await page.locator(`[data-subtab="${name}"]`).click()
+  } else {
+    await page.locator(`.dev-tab[data-tab="${name}"]`).click()
+  }
 }
 
 test('DEV-01 production dev entry mounts and unmounts every tab cleanly', async ({ players }) => {
   const player = await players.create('DevBoot')
   await openDev(player.page)
 
-  for (const tab of ['queue', 'live', 'editor', 'live', 'editor', 'queue']) {
+  for (const tab of ['queue', 'live', 'editor', 'envelopes', 'live', 'editor', 'queue']) {
     await switchDevTab(player.page, tab)
-    await expect(player.page.locator(`.dev-tab[data-tab="${tab}"]`)).toHaveClass(/active/u)
+    const active = BALANCE_SUBTABS.has(tab)
+      ? player.page.locator(`[data-subtab="${tab}"]`)
+      : player.page.locator(`.dev-tab[data-tab="${tab}"]`)
+    await expect(active).toHaveClass(/active/u)
+    await expect(active).toBeVisible()
   }
+  await switchDevTab(player.page, 'envelopes')
+  await expect(player.page.locator('#env-host .ed-env-card')).not.toHaveCount(0)
   await switchDevTab(player.page, 'editor')
   await expect(player.page.locator('#ed-section-host')).toBeVisible()
 })

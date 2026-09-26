@@ -11,10 +11,9 @@
  * reference swapped underneath them.
  */
 
-import { parseBalanceFile, parseTreeFile, type BalanceFile, type TreeFile } from '@game/shared'
-import idlerBalanceFile from '@game/shared/balance/idler.json'
+import { parseTreeFile, type TreeFile } from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
-import { cloneBalance, cloneTree } from './model.js'
+import { cloneTree } from './model.js'
 import { exportTree, importTreeFromFile, treeToJson } from './io.js'
 import type { EditorContext, EditorView } from './views/types.js'
 import { createTreeView } from './views/tree.js'
@@ -22,18 +21,15 @@ import { createResourcesView } from './views/resources.js'
 import { createGeneratorsView } from './views/generators.js'
 import { createAttacksView } from './views/attacks.js'
 import { createPactsView } from './views/pacts.js'
-import { createEnvelopesView } from './views/envelopes.js'
 import { createStartingEffectsView } from './views/starting-effects.js'
 
-type Section =
-  'resources' | 'generators' | 'attacks' | 'pacts' | 'envelopes' | 'starting-effects' | 'tree'
+type Section = 'resources' | 'generators' | 'attacks' | 'pacts' | 'starting-effects' | 'tree'
 
 const SECTIONS: readonly { id: Section; label: string }[] = [
   { id: 'resources', label: '💎 Resources' },
   { id: 'generators', label: '🏭 Generators' },
   { id: 'attacks', label: '💥 Attacks' },
   { id: 'pacts', label: '🤝 Pacts' },
-  { id: 'envelopes', label: '🎯 Envelopes' },
   { id: 'starting-effects', label: '⚙️ Starting Effects' },
   { id: 'tree', label: '🌳 Upgrade Tree' },
 ]
@@ -43,7 +39,6 @@ const VIEW_FACTORIES: Record<Section, () => EditorView> = {
   generators: createGeneratorsView,
   attacks: createAttacksView,
   pacts: createPactsView,
-  envelopes: createEnvelopesView,
   'starting-effects': createStartingEffectsView,
   tree: createTreeView,
 }
@@ -69,7 +64,6 @@ function buildLayout(): string {
 
 interface ShellState {
   tree: TreeFile
-  balance: BalanceFile
   dirty: boolean
   section: Section
 }
@@ -89,7 +83,6 @@ export function initEditor(pane: HTMLElement): () => void {
 
   const state: ShellState = {
     tree: cloneTree(parseTreeFile(idlerTreeFile)),
-    balance: cloneBalance(parseBalanceFile(idlerBalanceFile)),
     dirty: false,
     section: 'tree',
   }
@@ -103,11 +96,7 @@ export function initEditor(pane: HTMLElement): () => void {
 
   const context = (): EditorContext => ({
     tree: state.tree,
-    balance: state.balance,
     markDirty: () => {
-      state.dirty = true
-    },
-    markBalanceDirty: () => {
       state.dirty = true
     },
     setStatus,
@@ -192,7 +181,6 @@ export function initEditor(pane: HTMLElement): () => void {
 
   resetBtn.addEventListener('click', () => {
     state.tree = cloneTree(parseTreeFile(idlerTreeFile))
-    state.balance = cloneBalance(parseBalanceFile(idlerBalanceFile))
     state.dirty = false
     mountSection()
     setStatus('Reset to idler tree')
