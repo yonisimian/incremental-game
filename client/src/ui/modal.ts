@@ -56,7 +56,10 @@ export function openModal(id: string, title: string, body: string): HTMLElement 
       overlay.remove()
     }
     const timer = window.setTimeout(remove, CLOSE_FALLBACK_MS)
-    overlay.addEventListener('transitionend', remove, { once: true })
+    // Children's transitions (e.g. a hovered button) bubble here too; wait for the overlay's own.
+    overlay.addEventListener('transitionend', (e) => {
+      if (e.target === overlay) remove()
+    })
     overlay.classList.remove('visible')
   }
 

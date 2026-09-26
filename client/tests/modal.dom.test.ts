@@ -43,6 +43,18 @@ describe('openModal (DOM)', () => {
     expect(count()).toBe(0)
   })
 
+  it('ignores a bubbled child transitionend while fading out', () => {
+    const overlay = openModal(ID, 'Title', '')!
+    vi.runAllTimers()
+    const closeBtn = overlay.querySelector<HTMLButtonElement>('.modal-close')!
+    closeBtn.click()
+
+    closeBtn.dispatchEvent(new Event('transitionend', { bubbles: true }))
+    expect(count()).toBe(1)
+    overlay.dispatchEvent(new Event('transitionend'))
+    expect(count()).toBe(0)
+  })
+
   it('closes on a backdrop click but not a click inside the dialog', () => {
     const overlay = openModal(ID, 'Title', '<p id="inside">x</p>')!
     document.getElementById('inside')!.click()
