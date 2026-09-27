@@ -10,8 +10,9 @@
  * uses in `playing.ts`.
  *
  * The extrapolation is display-only. Nothing reads it back, and every snapshot
- * resnaps the anchor, so a mispredicted frame can't accumulate or influence a
- * purchase decision.
+ * re-anchors it, so a mispredicted frame can't accumulate or influence a
+ * purchase decision. Its direction follows the server-confirmed highlight, not
+ * the optimistic one, so a switch shows up one snapshot late rather than twice.
  */
 
 import {
@@ -19,9 +20,9 @@ import {
   getModeDefinition,
   isHighlightBatteryActive,
   readBatteryCharge,
-  readHighlight,
 } from '@game/shared'
 import type { BatteryParams } from '@game/shared'
+import { getConfirmedHighlight } from '../../game.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
@@ -37,9 +38,20 @@ export interface ChargeAnchor {
   held: boolean
   paused: boolean
   params: BatteryParams
+  /** Display error at `atMs` (shown minus true charge), faded out over time. */
+  offset: number
 }
 
+/**
+ * Time constant of the correction fade. The snapshot that first shows a
+ * highlight switch lands after the server already turned, by up to a broadcast
+ * interval, so the bar has that much catching up to do.
+ */
+const CORRECTION_TAU_MS = 120
+
 let anchor: ChargeAnchor | null = null
+/** The raw server charge the current anchor descends from. */
+let snapshotCharge: number | null = null
 let rafId: number | null = null
 
 /** Markup for the bar. Empty when the battery isn't unlocked yet. */
@@ -76,13 +88,17 @@ export function syncBatteryBar(state: Readonly<GameState>): void {
     stopBatteryBar()
     return
   }
-  anchor = {
+  anchor = reanchor(anchor, snapshotCharge, {
     charge,
     atMs: performance.now(),
-    held: readHighlight(state.player) !== null,
+    // Not the optimistic highlight: the server only switches direction a tick
+    // later, so turning the bar at once would force a visible correction.
+    held: getConfirmedHighlight() !== null,
     paused: state.paused,
     params: collectBatteryParams(state.player, modeDef),
-  }
+    offset: 0,
+  })
+  snapshotCharge = charge
   paint()
   // A paused round stops the server's tick, so the charge is frozen — no point
   // animating, and predicting through the pause would drift.
@@ -100,6 +116,32 @@ function stopBatteryBar(): void {
   if (rafId !== null) cancelAnimationFrame(rafId)
   rafId = null
   anchor = null
+  snapshotCharge = null
+}
+
+/**
+ * The anchor to adopt on a sync. Local actions (every click) re-sync with the
+ * last snapshot's charge, which is stale by however long ago it arrived —
+ * resnapping to it would yank the bar back on each click. So a charge equal to
+ * the previous snapshot's continues from the current prediction instead, still
+ * picking up any change in `held`/`params`/`paused`. Either way, whatever the
+ * bar currently shows beyond the new true charge carries over as `offset`.
+ */
+export function reanchor(
+  prev: ChargeAnchor | null,
+  prevSnapshotCharge: number | null,
+  next: ChargeAnchor,
+): ChargeAnchor {
+  if (prev === null) return next
+  const charge = next.charge === prevSnapshotCharge ? predictCharge(prev, next.atMs) : next.charge
+  return { ...next, charge, offset: displayCharge(prev, next.atMs) - charge }
+}
+
+/** The predicted charge plus the anchor's fading correction, clamped to the tank. */
+export function displayCharge(a: ChargeAnchor, nowMs: number): number {
+  const fade = Math.exp(-(nowMs - a.atMs) / CORRECTION_TAU_MS)
+  const shown = predictCharge(a, nowMs) + a.offset * fade
+  return Math.min(a.params.maxCharge, Math.max(0, shown))
 }
 
 /**
@@ -133,7 +175,7 @@ export function batteryBarLabel(charge: number, params: BatteryParams, held: boo
 function paint(): void {
   if (!anchor) return
   const { params, held } = anchor
-  const charge = predictCharge(anchor, performance.now())
+  const charge = displayCharge(anchor, performance.now())
   const pct = (charge / params.maxCharge) * 100
 
   const fill = document.getElementById('battery-bar-fill')
@@ -156,6 +198,7 @@ function loop(): void {
   if (!anchor || anchor.paused || !document.getElementById(BATTERY_BAR_ID)) {
     rafId = null
     anchor = null
+    snapshotCharge = null
     return
   }
   paint()

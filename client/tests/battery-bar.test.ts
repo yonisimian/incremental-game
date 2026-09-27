@@ -4,7 +4,9 @@ import type { BatteryParams } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import {
   batteryBarLabel,
+  displayCharge,
   predictCharge,
+  reanchor,
   renderBatteryBar,
   type ChargeAnchor,
 } from '../src/ui/panels/battery-bar.js'
@@ -55,6 +57,7 @@ const anchor = (charge: number, held: boolean): ChargeAnchor => ({
   held,
   paused: false,
   params,
+  offset: 0,
 })
 
 // ─── renderBatteryBar ────────────────────────────────────────────────
@@ -102,6 +105,38 @@ describe('predictCharge', () => {
 
   it('clamps at capacity rather than overfilling', () => {
     expect(predictCharge(anchor(19, false), 60_000)).toBe(params.maxCharge)
+  })
+})
+
+// ─── reanchor ─────────────────────────────────────────────────────────
+
+describe('reanchor', () => {
+  const at = (charge: number, atMs: number, held = false): ChargeAnchor => ({
+    ...anchor(charge, held),
+    atMs,
+  })
+
+  it('adopts the snapshot when there is no prior anchor', () => {
+    expect(reanchor(null, null, at(10, 3000))).toEqual(at(10, 3000))
+  })
+
+  it('adopts a server charge that matches the prediction as-is', () => {
+    const next = reanchor(at(10, 1000), 10, at(11.5, 2500))
+    expect(next.charge).toBe(11.5)
+    expect(next.offset).toBeCloseTo(0)
+  })
+
+  it('fades toward a disagreeing server charge instead of jumping', () => {
+    // Predicted 11.5 at 2500, but the server says 11.
+    const next = reanchor(at(10, 1000), 10, at(11, 2500))
+    expect(displayCharge(next, 2500)).toBeCloseTo(11.5)
+    // Converged onto the server's own trajectory a second later.
+    expect(displayCharge(next, 3500)).toBeCloseTo(12)
+  })
+
+  it('keeps predicting when a local action re-syncs the same stale charge', () => {
+    // 2s after the snapshot at 1/sec — not back to 10.
+    expect(reanchor(at(10, 1000), 10, at(10, 3000)).charge).toBeCloseTo(12)
   })
 })
 

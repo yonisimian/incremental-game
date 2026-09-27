@@ -648,6 +648,8 @@ describe('game.ts', () => {
 
       // Pending highlight should be replayed
       expect(game.getState().player.meta.highlight).toBe('r1')
+      // …but the confirmed highlight is still the server's.
+      expect(game.getConfirmedHighlight()).toBe('r0')
     })
 
     it('replays an unacked highlight release on top of server state', () => {

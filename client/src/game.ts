@@ -259,6 +259,14 @@ let lastFiredMilestoneTier = 0
  */
 let clickTarget: string | null = null
 
+/** The highlight as of the last `STATE_UPDATE`, before unacked actions are replayed. */
+let confirmedHighlight: string | null = null
+
+/** The server-confirmed highlight (see {@link confirmedHighlight}). */
+export function getConfirmedHighlight(): string | null {
+  return confirmedHighlight
+}
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 /** Subscribe to state changes. */
@@ -768,6 +776,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   // Start from server state, then re-apply pending optimistic actions
+  confirmedHighlight = readHighlight(msg.player)
   const reconciled = clonePlayerState(msg.player)
   const modeDef = state.mode ? getModeDefinition(state.mode) : undefined
   for (const batch of pendingBatches) {
