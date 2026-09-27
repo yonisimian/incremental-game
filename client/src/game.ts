@@ -545,7 +545,6 @@ export function doBuy(upgradeId: string): void {
 
   // Visual effects
   flashPurchase(upgradeId)
-  shakeScreen('heavy')
 
   // Queue for server
   queueAction({ type: 'buy', timestamp: Date.now(), upgradeId })
