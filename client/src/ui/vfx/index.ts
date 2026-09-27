@@ -9,17 +9,13 @@ import { formatNumber } from '../format-number.js'
 // Re-export shared utilities used by external consumers
 export { shakeScreen } from './shared.js'
 
-// Re-export the shockwave effect
-export { shockwave } from './shockwave.js'
-
 // Re-export the toast overlay
 export { spawnToast } from './toast.js'
 export type { ToastHandle } from './toast.js'
 
 /**
  * Resolve the click button to anchor an effect to: the one with `anchorId` if
- * present, otherwise the first click card (covers score-milestone effects that
- * aren't tied to a specific button).
+ * present, otherwise the first click card.
  */
 function resolveClickButton(anchorId?: string): HTMLElement | null {
   return (
@@ -80,7 +76,7 @@ export function spawnClickRipple(anchorId?: string): void {
   const el = document.createElement('div')
   el.className = 'vfx-ripple'
 
-  const size = rect.width * 1.2
+  const size = rect.width
   el.style.width = `${size}px`
   el.style.height = `${size}px`
   el.style.left = `${rect.left + rect.width / 2 - size / 2}px`
@@ -90,8 +86,8 @@ export function spawnClickRipple(anchorId?: string): void {
 
   el.animate(
     [
-      { transform: 'scale(0.3)', opacity: 0.8 },
-      { transform: 'scale(2)', opacity: 0 },
+      { transform: 'scale(0.4)', opacity: 0.7 },
+      { transform: 'scale(1.3)', opacity: 0 },
     ],
     { duration: 500, easing: 'ease-out', fill: 'forwards' },
   ).onfinish = () => {
@@ -154,113 +150,6 @@ export function flashPurchase(upgradeId: string): void {
       [{ color: 'var(--gold)' }, { color: 'var(--danger)', offset: 0.3 }, { color: 'var(--gold)' }],
       { duration: 400, easing: 'ease-out' },
     )
-  }
-}
-
-// ─── Combo Counter ───────────────────────────────────────────────────
-
-let comboCount = 0
-let comboTimer: ReturnType<typeof setTimeout> | null = null
-const COMBO_WINDOW_MS = 500
-
-/**
- * Track rapid clicks and show a combo indicator.
- * Returns the current combo count after this click.
- */
-export function trackCombo(): number {
-  comboCount++
-
-  if (comboTimer) clearTimeout(comboTimer)
-  comboTimer = setTimeout(() => {
-    hideCombo()
-    comboCount = 0
-  }, COMBO_WINDOW_MS)
-
-  if (comboCount >= 3) {
-    showCombo(comboCount)
-  }
-
-  return comboCount
-}
-
-/** Reset combo (e.g., on screen change). */
-export function resetCombo(): void {
-  comboCount = 0
-  if (comboTimer) {
-    clearTimeout(comboTimer)
-    comboTimer = null
-  }
-  hideCombo()
-}
-
-/** Half-life constant — combo reaches 50% intensity at count 3 + K. */
-const COMBO_HALF_LIFE = 12
-
-/** Continuous intensity: 0 at combo 3, approaches 1 asymptotically. */
-function comboIntensity(count: number): number {
-  const n = Math.max(count - 3, 0)
-  return n / (n + COMBO_HALF_LIFE)
-}
-
-function showCombo(count: number): void {
-  if (!hasDom()) return
-  let el = document.getElementById('vfx-combo')
-  if (!el) {
-    el = document.createElement('div')
-    el.id = 'vfx-combo'
-    el.className = 'vfx-combo'
-    getLayer().appendChild(el)
-  }
-
-  // Position near the click button
-  const btn = resolveClickButton()
-  if (btn) {
-    const rect = btn.getBoundingClientRect()
-    el.style.left = `${rect.right + 12}px`
-    el.style.top = `${rect.top + rect.height / 2}px`
-  }
-
-  el.textContent = `${count}× combo!`
-  el.style.display = 'block'
-
-  // ── Continuous intensity (0 → 1 asymptotically) ─────────────
-  const t = comboIntensity(count)
-
-  // Color: cyan (190°) → red (0°), increasingly vivid
-  const hue = Math.round(190 * (1 - t))
-  const sat = Math.round(80 + 20 * t)
-  const lit = Math.round(65 - 10 * t)
-  el.style.color = `hsl(${hue}, ${sat}%, ${lit}%)`
-
-  // Glow: color-matched, radius grows with intensity
-  const glowAlpha = 0.2 + 0.3 * t
-  const glowSpread = Math.round(6 + 10 * t)
-  el.style.textShadow =
-    `0 0 ${glowSpread}px hsla(${hue}, ${sat}%, ${lit}%, ${glowAlpha.toFixed(2)}), ` +
-    `0 0 ${glowSpread * 2}px hsla(${hue}, ${sat}%, ${lit}%, ${(glowAlpha * 0.5).toFixed(2)})`
-
-  // Scale: base grows with t, pop animation overshoots then settles
-  const base = 1 + 0.25 * t
-  const pop = base * 1.2
-  el.animate(
-    [
-      { transform: `translateY(-50%) scale(${pop.toFixed(2)})`, opacity: 1 },
-      { transform: `translateY(-50%) scale(${base.toFixed(2)})`, opacity: 1 },
-    ],
-    { duration: 150, easing: 'ease-out', fill: 'forwards' },
-  )
-}
-
-function hideCombo(): void {
-  if (!hasDom()) return
-  const el = document.getElementById('vfx-combo')
-  if (el) {
-    el.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration: 200,
-      fill: 'forwards',
-    }).onfinish = () => {
-      el.style.display = 'none'
-    }
   }
 }
 

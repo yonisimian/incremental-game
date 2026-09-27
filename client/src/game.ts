@@ -17,7 +17,6 @@ import {
   type StateUpdateMessage,
   type UpgradeDefinition,
   COUNTDOWN_SEC,
-  MILESTONE_INTERVAL,
   createInitialState,
   getDefaultGoal,
   getModeDefinition,
@@ -75,11 +74,8 @@ import {
   spawnClickPopup,
   spawnClickRipple,
   pulseClickButton,
-  trackCombo,
   flashPurchase,
   shakeScreen,
-  resetCombo,
-  shockwave,
   spawnToast,
 } from './ui/vfx/index.js'
 import type { ToastHandle } from './ui/vfx/index.js'
@@ -248,9 +244,6 @@ const pendingBatches: PendingBatch[] = []
 let onChange: StateChangeHandler = () => {}
 let onRoomJoinResolved: (() => void) | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
-
-/** Tracks the highest milestone tier we already fired a shockwave for (0 = none). */
-let lastFiredMilestoneTier = 0
 
 /**
  * Client-only: which resource the Space hotkey clicks. `null` falls back to the
@@ -463,9 +456,6 @@ export function doClick(target?: string): void {
   spawnClickPopup(income, anchorId)
   spawnClickRipple(anchorId)
   pulseClickButton(anchorId)
-  trackCombo()
-
-  checkMilestone()
 
   // Queue for server
   queueAction({ type: 'click', timestamp: Date.now(), resource })
@@ -659,8 +649,6 @@ export function togglePause(): void {
 
 /** Reset for a fresh match (e.g., rematch). */
 export function resetForMatch(): void {
-  resetCombo()
-  lastFiredMilestoneTier = 0
   clickTarget = null
   state.screen = 'lobby'
   state.mode = null
@@ -696,15 +684,6 @@ function resetRoom(): void {
   state.roomError = null
 }
 
-/** Fire milestone shockwave if current score has crossed a new milestone tier. */
-function checkMilestone(): void {
-  const tier = Math.floor(state.player.score / MILESTONE_INTERVAL)
-  if (tier > lastFiredMilestoneTier) {
-    lastFiredMilestoneTier = tier
-    shockwave(`${tier * MILESTONE_INTERVAL}!`)
-  }
-}
-
 // ─── Private: message handlers ───────────────────────────────────────
 
 function handleRoundStart(msg: RoundStartMessage): void {
@@ -731,7 +710,6 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.endData = null
   roundStats.reset()
   pendingBatches.length = 0
-  lastFiredMilestoneTier = 0
   clickTarget = null
   resetSeq()
   notify()
