@@ -3,11 +3,11 @@
 /**
  * Unit coverage for the rest of the VFX module
  * ([../src/ui/vfx/index.ts](../src/ui/vfx/index.ts)): click popup/ripple, button
- * pulse, purchase flash, the combo counter, score bump, and screen shake.
+ * pulse, purchase flash, score bump, and screen shake.
  *
  * Two assertion shapes, both structural and deterministic under happy-dom + the
  * harness animate shim:
- *   - effects that CREATE a node (popup, ripple, combo) assert the node appears
+ *   - effects that CREATE a node (popup, ripple) assert the node appears
  *     with the right class/text and is gone after the clock advances;
  *   - effects that only ANIMATE an existing element (pulse, flash, bump, shake)
  *     assert they invoke `animate` on the correct target and no-op when it's
@@ -21,16 +21,14 @@ import {
   bumpScore,
   flashPurchase,
   pulseClickButton,
-  resetCombo,
   shakeScreen,
   spawnClickPopup,
   spawnClickRipple,
-  trackCombo,
 } from '../src/ui/vfx/index.js'
 import { getLayer } from '../src/ui/vfx/shared.js'
 import { installAnimateShim, resetDom } from './dom-harness.js'
 
-/** Attach a `.click-card` (the popup/ripple/combo anchor) to the body. */
+/** Attach a `.click-card` (the popup/ripple anchor) to the body. */
 function mountClickCard(): HTMLElement {
   const card = document.createElement('div')
   card.className = 'click-card'
@@ -50,7 +48,6 @@ describe('vfx (DOM)', () => {
   })
 
   afterEach(() => {
-    resetCombo() // combo count is module state — reset before the next test
     resetDom()
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -124,47 +121,6 @@ describe('vfx (DOM)', () => {
       expect(() => {
         flashPurchase('missing')
       }).not.toThrow()
-    })
-  })
-
-  describe('combo counter', () => {
-    it('returns the running count and shows the indicator from the third click', () => {
-      mountClickCard()
-
-      expect(trackCombo()).toBe(1)
-      expect(trackCombo()).toBe(2)
-      // Below three the indicator stays absent.
-      expect(document.getElementById('vfx-combo')).toBeNull()
-
-      expect(trackCombo()).toBe(3)
-      const combo = document.getElementById('vfx-combo')
-      expect(combo?.textContent).toBe('3× combo!')
-      expect(combo?.style.display).toBe('block')
-    })
-
-    it('resets the count and hides the indicator after the combo window lapses', () => {
-      mountClickCard()
-      trackCombo()
-      trackCombo()
-      trackCombo()
-      expect(document.getElementById('vfx-combo')?.style.display).toBe('block')
-
-      // Past the 500ms window: hideCombo runs, then its 200ms fade finishes.
-      vi.advanceTimersByTime(800)
-      expect(document.getElementById('vfx-combo')?.style.display).toBe('none')
-      expect(trackCombo()).toBe(1) // the count was reset
-    })
-
-    it('resetCombo clears the count and hides the indicator immediately', () => {
-      mountClickCard()
-      trackCombo()
-      trackCombo()
-      trackCombo()
-
-      resetCombo()
-      vi.advanceTimersByTime(300) // let the fade finish
-      expect(document.getElementById('vfx-combo')?.style.display).toBe('none')
-      expect(trackCombo()).toBe(1)
     })
   })
 

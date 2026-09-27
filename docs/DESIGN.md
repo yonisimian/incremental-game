@@ -175,7 +175,7 @@ The simplest version that proves the concept:
 - [x] End screen: winner (or draw) + final scores
 - [x] Idler game mode with two-resource economy and highlight mechanic
 - [x] Bot opponent support
-- [x] Visual effects (click popups, ripples, combo counter, milestone shockwave)
+- [x] Visual effects (click popups, ripples)
 - [x] Keyboard hotkeys (Space to click, Tab to cycle highlight, number keys for upgrades)
 - [x] Flavor abstraction: abstract IDs for mechanics, display data (names, icons, descriptions) in separate `ModeFlavor` objects
 
@@ -509,7 +509,7 @@ incremental-game/
 │   ├── .env.production           ← VITE_WS_URL=wss://incremental-server.onrender.com/ws
 │   └── src/
 │       ├── main.ts              ← entry: init UI, connect to server
-│       ├── game.ts              ← local game state + client prediction + milestone tracking
+│       ├── game.ts              ← local game state + client prediction
 │       ├── network.ts           ← WebSocket client, batching, reconciliation
 │       ├── style.css            ← all game styling including VFX + theme scaffolding
 │       └── ui/
@@ -529,9 +529,8 @@ incremental-game/
 │           ├── screens.ts       ← waking, waiting, countdown, room screens
 │           ├── end.ts           ← end-of-round results screen
 │           └── vfx/
-│               ├── index.ts     ← barrel + click popup, ripple, pulse, combo, flash
-│               ├── shared.ts    ← hasDom, getLayer, shakeScreen
-│               └── shockwave.ts ← milestone shockwave energy nova effect
+│               ├── index.ts     ← barrel + click popup, ripple, pulse, flash
+│               └── shared.ts    ← hasDom, getLayer, shakeScreen
 │
 └── server/                      ← Node.js WebSocket server
     ├── package.json

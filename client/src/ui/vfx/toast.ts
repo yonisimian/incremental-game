@@ -1,7 +1,7 @@
 /**
  * Notification toasts — transient banners announcing game events.
  *
- * A standalone overlay mechanism (not tied to the click/combo/shockwave VFX):
+ * A standalone overlay mechanism (not tied to the click VFX):
  * toasts stack downward from the top of the panel region (or, on wide screens,
  * the gutter beside it), tint by severity, and fade out. GPU-accelerated via the
  * Web Animations API; on dismiss each toast's clipping slot collapses its height,
