@@ -3,8 +3,7 @@
  *
  * The charge is authoritative server state (`meta.hlCharge`) arriving on each
  * `STATE_UPDATE` — every 500 ms. A meter redrawn only on those snapshots visibly
- * steps twice a second, and unlike a resource counter the whole point of this one
- * is continuous motion, so the bar **extrapolates between snapshots**: anchor the
+ * steps twice a second, so the bar **extrapolates between snapshots**: anchor the
  * last authoritative charge with a timestamp, then advance it at the collected
  * charge/drain rate on a rAF loop. Same anchor-and-predict shape the round timer
  * uses in `playing.ts`.

@@ -13,6 +13,7 @@
  */
 
 import { hasDom, getLayer, prefersReducedMotion } from './shared.js'
+import type { Countdown } from '../format-number.js'
 
 /** Severity of a toast — tints the border/text. */
 export type ToastVariant = 'info' | 'success' | 'warning' | 'danger'
@@ -27,6 +28,8 @@ export interface ToastOptions {
    * progress (an inbound attack).
    */
   sticky?: boolean
+  /** Tick the text down every frame (see `paintCounters`) rather than only on `update`. */
+  countdown?: Countdown
 }
 
 /** A live toast, for the caller of a sticky one to rewrite or dismiss. */
@@ -180,6 +183,10 @@ export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOpti
   const textEl = document.createElement('span')
   textEl.className = 'toast-text'
   textEl.textContent = text
+  if (opts?.countdown) {
+    textEl.dataset.until = String(opts.countdown.untilSec)
+    textEl.dataset.countdown = opts.countdown.template
+  }
   el.appendChild(textEl)
   slot.appendChild(el)
   const firstTransient = opts?.sticky

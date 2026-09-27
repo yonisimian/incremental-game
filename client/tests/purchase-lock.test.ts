@@ -196,7 +196,7 @@ describe('enemy-data panel — standing lock warning', () => {
   it('collapses both scopes into one sentence when they lift together', () => {
     const html = render(makeState(LOCK_BOTH))
     expect(html).toContain('🔒 You cannot buy upgrades or generators for 7.5s.')
-    expect(html.match(/🔒/gu)).toHaveLength(1)
+    expect(html.match(/class="espionage-warning"/gu)).toHaveLength(1)
   })
 
   it('gives each scope its own line when the countdowns differ', () => {

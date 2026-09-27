@@ -1,7 +1,6 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doClick, toggleHighlight, getClickTarget } from '../../game.js'
-import { setText } from '../helpers.js'
 import { formatNumber } from '../format-number.js'
 import {
   getModeDefinition,
@@ -162,9 +161,9 @@ export const playPanel: Panel = {
       cards = null
     }
     if (cards) {
+      // Balances are painted by the interpolated counters.
       const highlight = readHighlight(state.player)
       for (const key of modeDef.resources) {
-        setText(`${key}-balance`, formatNumber(state.player.resources[key]))
         const card = document.getElementById(`card-${key}`)
         card?.classList.toggle('highlighted', highlight === key)
         card?.setAttribute('aria-pressed', String(highlight === key))

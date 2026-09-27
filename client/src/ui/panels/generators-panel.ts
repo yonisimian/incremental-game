@@ -2,7 +2,8 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { costChangeMarker, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
+import { costChangeMarker, isPurchaseLockedByAttack, purchaseLockCountdown } from '../helpers.js'
+import { countdownSpan } from '../counters.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -54,7 +55,7 @@ export interface GeneratorCardNums {
   readonly locked?: boolean
   /**
    * An opponent's open attack window is barring every generator purchase.
-   * The buy buttons show this label — `🔒 Locked N.Ns` — in place of
+   * The buy buttons show this markup — a `🔒 Locked N.Ns` countdown — in place of
    * the price, since a price the player cannot pay for a few seconds reads as
    * a bug without the reason. Selling stays live: the lock is on spending.
    * Absent when no lock is in force.
@@ -171,6 +172,8 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         nextCost,
         getGeneratorCost(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned),
       )
+      const lock = attackLocked ? purchaseLockCountdown(state, 'generator', def.id) : null
+      const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
@@ -181,7 +184,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         costMarker,
         locked: !unlocked,
-        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator', def.id) } : {}),
+        ...(lock ? { attackLockLabel: countdownSpan(lock, gameSec) } : {}),
       })
     })
     .join('')

@@ -14,12 +14,12 @@ import {
   setText,
   formatTime,
   formatScore,
-  updateProgressBar,
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
+import { paintCounters, syncCounters } from './counters.js'
 import {
   renderTabGrid,
   renderPanelContainer,
@@ -234,17 +234,9 @@ export function updatePlaying(state: Readonly<GameState>): void {
   const scoreChanged = state.player.score !== prevPlayerScore
   prevPlayerScore = state.player.score
 
-  // Update target-score progress if applicable
   if (state.goal?.type === 'target-score') {
-    const target = state.goal.target
-    updateProgressBar('player-progress', state.player.score, target)
-    updateProgressBar('opponent-progress', state.opponent.score ?? 0, target)
-    setText('player-bar-score', formatScore(state.player.score, state))
-    setText('opponent-bar-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-bar-score')
   } else if (showsScoreboard(state.goal)) {
-    setText('player-score', formatScore(state.player.score, state))
-    setText('opponent-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-score')
   }
 
@@ -264,13 +256,14 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBtn.setAttribute('title', label)
   }
 
-  // Update resource bar (visible across all tabs)
-  if (activeFlavor) {
+  // Resource amounts and scores are painted by the counters (below and per
+  // frame); only the rates are written here.
+  if (activeFlavor && activeModeDef) {
     const rates = passiveRates(state)
     for (const r of activeFlavor.resources) {
-      setText(`header-${r.key}`, formatNumber(state.player.resources[r.key]))
       setText(`rate-${r.key}`, formatRate(rates[r.key] ?? 0))
     }
+    syncCounters(state, activeModeDef, rates)
   }
 
   // Reflect any tab that unlocked this frame (e.g. generators panel upgrade).
@@ -278,4 +271,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
 
   // Delegate panel-specific updates to the active panel
   updateActivePanel(state)
+
+  // Last, so a panel that just re-rendered a counter shows the interpolated value.
+  paintCounters()
 }

@@ -129,7 +129,11 @@ describe('incomingAttacks — state and toasts', () => {
     expect(text).toBe('Enemy attack lands in 4.0s')
     expect(tone).toBe('warning')
     // Sticky: no timer of its own, so it cannot vanish before the strike lands.
-    expect(opts).toEqual({ icon: '⚠️', sticky: true })
+    expect(opts).toEqual({
+      icon: '⚠️',
+      sticky: true,
+      countdown: { template: 'Enemy attack lands in {}s', untilSec: 14 },
+    })
 
     // The same strike, rebroadcast as it counts down: the one toast is rewritten.
     game.handleServerMessage(snapshot(10.5, [{ readyAtSec: 14 }]))

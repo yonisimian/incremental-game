@@ -265,7 +265,7 @@ export function getAttackDurationSec(def: AttackDefinition, params: AttackParams
 
 /**
  * Seconds left on the debuff window `attackId` is currently inflicting, or
- * `null` when none is open — the window twin of the panel's `pendingRemaining`.
+ * `null` when none is open — the window twin of a pending strike's `readyAtSec`.
  * Reads `meta.gameSec` off `state` as every other attack-timing path does.
  *
  * Expired entries the server has not swept yet read as `null`, so a caller

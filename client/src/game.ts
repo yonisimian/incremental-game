@@ -81,7 +81,7 @@ import {
 import type { ToastHandle } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
-import { formatDecimal, formatNumber } from './ui/format-number.js'
+import { formatCountdown, formatDecimal, formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -258,6 +258,13 @@ let confirmedHighlight: string | null = null
 /** The server-confirmed highlight (see {@link confirmedHighlight}). */
 export function getConfirmedHighlight(): string | null {
   return confirmedHighlight
+}
+
+/** Bumped on every `STATE_UPDATE`, so display code can tell a snapshot from a local action. */
+let snapshotCount = 0
+
+export function getSnapshotCount(): number {
+  return snapshotCount
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -827,6 +834,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   state.player = reconciled
+  snapshotCount++
   if (msg.attackEvents) showAttackEvents(msg.attackEvents, modeDef)
   if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
@@ -962,7 +970,8 @@ const incomingAttackToasts = new Map<string, ToastHandle>()
 
 /**
  * Keep one sticky `warning` toast per enemy strike in view: spawned when the
- * strike first appears, its countdown rewritten on each snapshot, and dismissed
+ * strike first appears, its countdown re-synced on each snapshot (and ticked
+ * every frame by the counters painter), and dismissed
  * once the strike leaves the list (it landed) — so the warning never vanishes
  * before the attack does, however long the lead. The remaining time is read
  * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
@@ -980,15 +989,19 @@ function syncIncomingAttackToasts(
     for (const a of next) {
       const key = incomingAttackKey(a)
       inView.add(key)
-      // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
-      // toast reading "4s" beside them would look like a different clock.
-      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
-      const text = `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in ${inSec}s`
+      const countdown = {
+        template: `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in {}s`,
+        untilSec: a.readyAtSec,
+      }
+      const text = formatCountdown(countdown, gameSec)
       const toast = incomingAttackToasts.get(key)
       if (toast) toast.update(text)
       else {
         const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
-        incomingAttackToasts.set(key, spawnToast(text, 'warning', { icon, sticky: true }))
+        incomingAttackToasts.set(
+          key,
+          spawnToast(text, 'warning', { icon, sticky: true, countdown }),
+        )
       }
     }
   }

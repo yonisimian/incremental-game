@@ -19,7 +19,8 @@ import {
 } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
-import { formatNumber } from './format-number.js'
+import { formatCountdown, formatNumber } from './format-number.js'
+import type { Countdown } from './format-number.js'
 
 // ─── Shared DOM Root ─────────────────────────────────────────────────
 
@@ -33,7 +34,8 @@ export const app =
 
 export function setText(id: string, text: string): void {
   const el = document.getElementById(id)
-  if (el) el.textContent = text
+  // Per-frame painters call this with unchanged text most frames.
+  if (el && el.textContent !== text) el.textContent = text
 }
 
 export function formatTime(seconds: number): string {
@@ -203,8 +205,21 @@ export function purchaseLockLabel(
   scope: CostScope,
   id: string,
 ): string {
+  const lock = purchaseLockCountdown(state, scope, id)
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  return lock === null ? '🔒 Locked' : formatCountdown(lock, gameSec)
+}
+
+/** {@link purchaseLockLabel} as a {@link Countdown}, or `null` when no lock is stamped. */
+export function purchaseLockCountdown(
+  state: Readonly<GameState>,
+  scope: CostScope,
+  id: string,
+): Countdown | null {
   const remaining = purchaseLockRemainingSec(state.player, scope, id)
-  return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
+  if (remaining === null) return null
+  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  return { template: '🔒 Locked {}s', untilSec: gameSec + remaining }
 }
 
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
