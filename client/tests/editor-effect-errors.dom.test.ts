@@ -42,6 +42,11 @@ function mount(initial: EffectEntry) {
       input.value = value
       input.dispatchEvent(new Event('change'))
     },
+    setSelect: (label: string, value: string): void => {
+      const select = row(label).querySelector('select')!
+      select.value = value
+      select.dispatchEvent(new Event('change'))
+    },
   }
 }
 
@@ -80,5 +85,32 @@ describe('effects editor — per-field errors', () => {
 
     expect(form.blockError()).toContain('attackAlert must grant a lead')
     expect(form.fieldError('leadSec (optional)')).toBe('')
+  })
+
+  it('reports the edited variant’s issue when no union option accepts the params', () => {
+    const form = mount({ type: 'stealResource', resource: 'r0', fraction: 0.5 })
+
+    // Clearing the variant's only number fails both options, so zod nests the issues.
+    form.setNumber('fraction', '')
+
+    expect(form.fieldError('fraction')).toBe('fraction is required')
+    expect(form.blockError()).toBe('')
+  })
+
+  it('keeps a field error after an edit that rebuilds the form', () => {
+    const attacks = parseTreeFile(idlerTreeFile).attacks
+    const [first, second] = attacks.filter((a) => a.kind === 'active')
+    // `0` has no mirrored value, so the option repair leaves it invalid.
+    const form = mount({
+      type: 'attackStat',
+      attack: first.id,
+      stat: 'power',
+      op: 'mult',
+      value: 0,
+    })
+
+    form.setSelect('attack', second.id)
+
+    expect(form.fieldError('value')).toContain('got 0')
   })
 })
