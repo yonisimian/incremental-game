@@ -127,7 +127,8 @@ operations, so they can't desync. Tests compare unfloored values with
 - `shared/src/modes/index.ts`: `grantUpgradeLevel`, used by `applyPurchase`.
 - `client/src/game.ts`: the replay's `grantUpgrade` becomes `grantUpgradeLevel`
   (the local helper is deleted), and `clonePlayerState` copies the new field.
-- `shared/trees/idler.json`: dpf `scalingFactor` 0.9 → 0.85.
+- `shared/trees/idler.json`: `g1-dpf`/`g2-dpf` `scalingFactor` 0.9 → 0.85, and
+  the dp/dpf descriptions corrected to their real values.
 - `shared/src/effects/seed/generator-cost.ts`, `shared/src/effects/types.ts`:
   doc lines for `scalingFactor` say "from the current copy on".
 
@@ -201,9 +202,13 @@ dead.
 | Real - Tal (buy-upgrade)   | 75.0 s          | 78.3 s           | 76.3 s | 74.5 s |
 | Real - Tal 2 (buy-upgrade) | 66.8 s          | 67.0 s           | 65.3 s | 64.0 s |
 
-Settled on **0.85** for all four dpf nodes: it has the smallest worst-case
-drift from the old numbers (≤2.2%). g3/g4 follow for consistency; no strategy
-buys them, so their value is unmeasured.
+Settled on **0.85** for `g1-dpf` and `g2-dpf`: it has the smallest worst-case
+drift from the old numbers (≤2.2%). `g3-dpf`/`g4-dpf` stay at 0.9; no strategy
+buys them, so there is no data to tune them against.
+
+The dp/dpf descriptions had drifted from their values ("5%" for a 0.9
+`costFactor`, "2%" for a 0.9 `scalingFactor`); they now state the real
+percentages, and the scaling ones say "from your next copy".
 
 ## Resolved questions
 
