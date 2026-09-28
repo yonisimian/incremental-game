@@ -1071,6 +1071,10 @@ body {
   min-height: 1em;
 }
 
+.ed-field-error:empty {
+  display: none;
+}
+
 /* Resolved preview of an effect ref's params — empty (and so invisible) for
    every effect that has nothing extra to say. */
 .ed-effect-preview {
