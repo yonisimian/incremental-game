@@ -8,7 +8,7 @@ import {
 } from '@game/shared'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 import { cloneTree } from '../src/dev/editor/model.js'
-import { effectFieldOptions } from '../src/dev/editor/effects-editor.js'
+import { describeParamIssue, effectFieldOptions } from '../src/dev/editor/effects-editor.js'
 import { defaultParamsForEffect, describeEffectSchema } from '../src/dev/editor/effect-schema.js'
 
 const idler = (): ReturnType<typeof parseTreeFile> => cloneTree(parseTreeFile(idlerTreeFile))
@@ -218,5 +218,36 @@ describe('effect hosts', () => {
       ...typesFor('activePact'),
     ])
     expect([...listEffectTypes()].filter((t) => !reachable.has(t))).toEqual([])
+  })
+})
+
+describe('describeParamIssue', () => {
+  const issueFor = (schema: unknown, params: Record<string, unknown>) => {
+    const result = (
+      schema as {
+        safeParse(v: unknown): { error?: { issues: Parameters<typeof describeParamIssue>[0][] } }
+      }
+    ).safeParse(params)
+    return result.error!.issues[0]
+  }
+
+  it('names the param and its value for a range violation', () => {
+    const schema = resolveEffect('attackSlots')!.schema
+    const at = (value?: number) => issueFor(schema, { attackKind: 'active', value })
+    expect(describeParamIssue(at(-2), 'value', -2)).toBe('value must be > 0; got -2')
+    expect(describeParamIssue(at(1.5), 'value', 1.5)).toBe('value must be a whole number; got 1.5')
+    expect(describeParamIssue(at(), 'value', undefined)).toBe('value is required')
+  })
+
+  it('uses the form’s display name for a renamed param', () => {
+    const issue = { code: 'invalid_value', message: 'x', path: ['op'], values: ['add', 'mult'] }
+    expect(describeParamIssue(issue, 'op', 'pow')).toBe(
+      "operator must be one of 'add', 'mult'; got 'pow'",
+    )
+  })
+
+  it('keeps an effect guard’s own message, which already names the param', () => {
+    const issue = { code: 'custom', message: 'bespoke', path: ['value'] }
+    expect(describeParamIssue(issue, 'value', 3)).toBe('bespoke')
   })
 })

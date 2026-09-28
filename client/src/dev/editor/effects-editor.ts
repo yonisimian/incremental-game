@@ -66,9 +66,23 @@ export interface EffectsHost {
   setEffects(next: EffectEntry[]): void
 }
 
+/** The slice of a zod issue the form reads to place and phrase a complaint. */
+interface ParamIssue {
+  readonly code: string
+  readonly message: string
+  readonly path: readonly PropertyKey[]
+  readonly minimum?: number | bigint
+  readonly maximum?: number | bigint
+  readonly inclusive?: boolean
+  readonly expected?: string
+  readonly values?: readonly unknown[]
+  /** Per-union-option issues, for an `invalid_union`. */
+  readonly errors?: readonly (readonly ParamIssue[])[]
+}
+
 /** zod's `safeParse` is all this module needs from a resolved effect schema. */
 interface ScalarSchema {
-  safeParse(value: unknown): { success: boolean; error?: { issues: { message: string }[] } }
+  safeParse(value: unknown): { success: boolean; error?: { issues: readonly ParamIssue[] } }
 }
 
 function paramsOf(ref: EffectEntry): Record<string, unknown> {
@@ -273,10 +287,56 @@ const FIELD_LABELS: Record<string, string> = {
   op: 'operator',
 }
 
+/** A param's display name, without the form's `(optional)` suffix. */
+function fieldName(key: string): string {
+  return FIELD_LABELS[key] ?? key
+}
+
 /** How a param is titled in the form. */
 function fieldLabel(spec: FieldSpec): string {
-  const name = FIELD_LABELS[spec.key] ?? spec.key
+  const name = fieldName(spec.key)
   return spec.optional ? `${name} (optional)` : name
+}
+
+function formatParamValue(value: unknown): string {
+  return typeof value === 'string' ? `'${value}'` : String(value)
+}
+
+/**
+ * Phrase a schema issue about one param so it names the param and the value it
+ * holds — zod's stock messages ("Too small: expected number to be >0") say
+ * neither. A `custom` issue is an effect's own guard, which already does.
+ *
+ * Exported for testing.
+ */
+export function describeParamIssue(issue: ParamIssue, key: string, value: unknown): string {
+  const name = fieldName(key)
+  const got = `; got ${formatParamValue(value)}`
+  switch (issue.code) {
+    case 'too_small':
+      if (issue.minimum !== undefined) {
+        return `${name} must be ${issue.inclusive ? '≥' : '>'} ${issue.minimum}${got}`
+      }
+      break
+    case 'too_big':
+      if (issue.maximum !== undefined) {
+        return `${name} must be ${issue.inclusive ? '≤' : '<'} ${issue.maximum}${got}`
+      }
+      break
+    case 'invalid_type':
+      if (value === undefined) return `${name} is required`
+      if (issue.expected === 'int') return `${name} must be a whole number${got}`
+      if (issue.expected) return `${name} must be a ${issue.expected}${got}`
+      break
+    case 'invalid_value':
+      if (issue.values) {
+        return `${name} must be one of ${issue.values.map(formatParamValue).join(', ')}${got}`
+      }
+      break
+    case 'custom':
+      return issue.message
+  }
+  return `${name}: ${issue.message}`
 }
 
 /**
@@ -433,7 +493,10 @@ function buildEffectBlock(
   let params = paramsOf(ref)
   let variant = matchVariant(spec, params)
   const fieldsWrap = el('div', 'ed-fields')
+  // Issues about one param sit under that param's row; the block-level line is
+  // for the rest (a cross-field rule like "set at least one of…").
   const error = el('p', 'ed-error')
+  const fieldErrors = new Map<string, HTMLElement>()
   // What the authored params actually resolve to, for the refs whose numbers are
   // two abstractions from the outcome (see `describeEffectRef`). Empty for every
   // other effect, so the row simply collapses.
@@ -443,17 +506,40 @@ function buildEffectBlock(
     preview.textContent = describeEffectRef(host.tree, { type: ref.type, ...values }) ?? ''
   }
 
-  /** Report (or clear) the schema's first complaint about `values`. */
+  const clearErrors = (): void => {
+    error.textContent = ''
+    for (const line of fieldErrors.values()) line.textContent = ''
+  }
+
+  /** Report (or clear) the schema's complaints about `values`, each under its param. */
   const showError = (values: Record<string, unknown>): boolean => {
+    clearErrors()
     const result = schema.safeParse(values)
-    error.textContent = result.success ? '' : (result.error?.issues[0]?.message ?? 'Invalid params')
-    return result.success
+    if (result.success) return true
+    // A union that no option accepted nests each option's issues; the form is
+    // editing one option, so those are the ones to show.
+    const issues = (result.error?.issues ?? []).flatMap((issue) =>
+      issue.code === 'invalid_union' && issue.errors?.[variant.index]
+        ? issue.errors[variant.index]
+        : [issue],
+    )
+    for (const issue of issues) {
+      const key = issue.path[0]
+      const line = typeof key === 'string' ? fieldErrors.get(key) : undefined
+      if (line && typeof key === 'string') {
+        line.textContent ||= describeParamIssue(issue, key, values[key])
+      } else {
+        error.textContent ||= issue.message
+      }
+    }
+    if (!issues.length) error.textContent = 'Invalid params'
+    return false
   }
 
   const writeFrom = (values: Record<string, unknown>, silent = false): void => {
     renderPreview(values)
     if (!showError(values)) {
-      if (silent) error.textContent = ''
+      if (silent) clearErrors()
       return
     }
     host.setEffects(
@@ -463,6 +549,7 @@ function buildEffectBlock(
 
   const buildFields = (): void => {
     fieldsWrap.replaceChildren()
+    fieldErrors.clear()
     const reads = new Map<string, () => unknown>()
     const collect = (): Record<string, unknown> => {
       const out: Record<string, unknown> = {}
@@ -486,8 +573,8 @@ function buildEffectBlock(
               schema,
               repairOptionValues(host.tree, ref.type, variant, collect()),
             )
-            writeFrom(params)
             buildFields()
+            writeFrom(params)
             return
           }
           writeFrom(collect())
@@ -495,6 +582,9 @@ function buildEffectBlock(
         effectFieldOptions(host.tree, ref.type, fieldSpec.key, params),
       )
       reads.set(fieldSpec.key, read)
+      const line = el('p', 'ed-error ed-field-error')
+      fieldErrors.set(fieldSpec.key, line)
+      row.append(line)
       fieldsWrap.append(row)
     }
   }
