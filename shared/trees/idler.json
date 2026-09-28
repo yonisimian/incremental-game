@@ -1437,7 +1437,7 @@
                     {
                       "type": "generatorCost",
                       "generator": "g0",
-                      "scalingFactor": 0.9
+                      "scalingFactor": 0.85
                     }
                   ],
                   "offset": {
@@ -1579,7 +1579,7 @@
                     {
                       "type": "generatorCost",
                       "generator": "g1",
-                      "scalingFactor": 0.9
+                      "scalingFactor": 0.85
                     }
                   ],
                   "offset": {
@@ -1719,7 +1719,7 @@
                         {
                           "type": "generatorCost",
                           "generator": "g2",
-                          "scalingFactor": 0.9
+                          "scalingFactor": 0.85
                         }
                       ],
                       "offset": {
@@ -1829,7 +1829,7 @@
                         {
                           "type": "generatorCost",
                           "generator": "g3",
-                          "scalingFactor": 0.9
+                          "scalingFactor": 0.85
                         }
                       ],
                       "offset": {

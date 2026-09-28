@@ -1,6 +1,6 @@
 # 46 — Forward-only generator cost scaling
 
-## Status: Proposed
+## Status: Implemented
 
 ---
 
@@ -127,8 +127,7 @@ operations, so they can't desync. Tests compare unfloored values with
 - `shared/src/modes/index.ts`: `grantUpgradeLevel`, used by `applyPurchase`.
 - `client/src/game.ts`: the replay's `grantUpgrade` becomes `grantUpgradeLevel`
   (the local helper is deleted), and `clonePlayerState` copies the new field.
-- `shared/trees/idler.json` (and `shared/strategies/idler/*.json` /
-  `shared/balance/idler.json` if the retune requires it).
+- `shared/trees/idler.json`: dpf `scalingFactor` 0.9 → 0.85.
 - `shared/src/effects/seed/generator-cost.ts`, `shared/src/effects/types.ts`:
   doc lines for `scalingFactor` say "from the current copy on".
 
@@ -188,6 +187,23 @@ effect can be seen on its own.
 
 Changing envelope bands is out of scope. If the numbers can't land inside the
 current bands, I stop and report back rather than moving the goalposts.
+
+### Result
+
+Round counts are low (g0/g1 grow ×1.15), so the mechanic moved little. Every
+envelope passed before and after, and dpf coverage didn't change: `g1-dpf` and
+`g2-dpf` are still bought by viable builds, and `g3-dpf`/`g4-dpf` were already
+dead.
+
+| Strategy (envelope)        | Retroactive 0.9 | Forward-only 0.9 | 0.85   | 0.8    |
+| -------------------------- | --------------- | ---------------- | ------ | ------ |
+| Real - Tal (timed)         | 536             | 533              | 533    | 536    |
+| Real - Tal (buy-upgrade)   | 75.0 s          | 78.3 s           | 76.3 s | 74.5 s |
+| Real - Tal 2 (buy-upgrade) | 66.8 s          | 67.0 s           | 65.3 s | 64.0 s |
+
+Settled on **0.85** for all four dpf nodes: it has the smallest worst-case
+drift from the old numbers (≤2.2%). g3/g4 follow for consistency; no strategy
+buys them, so their value is unmeasured.
 
 ## Resolved questions
 
