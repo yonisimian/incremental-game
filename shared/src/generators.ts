@@ -27,6 +27,13 @@ function generatorCostEntry(def: GeneratorDefinition): CostEntry {
   return Object.values(def.cost)[0] ?? { baseCost: 0 }
 }
 
+/** The generator's cost curve with this player's anchored base (if any) swapped in. */
+function anchoredCostEntry(def: GeneratorDefinition, state: Readonly<PlayerState>): CostEntry {
+  const entry = generatorCostEntry(def)
+  const baseCost = state.generatorCostBases?.[def.id]
+  return baseCost === undefined ? entry : { ...entry, baseCost }
+}
+
 /**
  * Whether a generator price is being *paid* or *refunded*. The two resolve
  * different factor sets: buying pays the player's own reductions **and** any
@@ -104,9 +111,41 @@ export function applyGeneratorCostFactors(
 }
 
 /**
+ * Make own cost-scaling changes forward-only: for every generator whose own
+ * `scalingFactor` differs between `before` (own factors collected before an
+ * upgrade was granted) and now, re-anchor its base so the price at the current
+ * owned count is unchanged and only later copies follow the new growth.
+ *
+ * `costFactor` needs no anchor (it scales every level alike), and stamped enemy
+ * or pact factors stay out of it so they apply on top and vanish cleanly.
+ */
+export function anchorGeneratorCurves(
+  state: PlayerState,
+  mode: ModeDefinition,
+  before: ReadonlyMap<string, CostFactors>,
+): void {
+  const after = collectGeneratorCostFactors(state, mode, 'sell')
+  for (const def of mode.generators) {
+    const was = before.get(def.id)?.scalingFactor ?? 1
+    const now = after.get(def.id)?.scalingFactor ?? 1
+    const owned = state.generators[def.id] ?? 0
+    if (was === now || owned === 0) continue
+    const entry = anchoredCostEntry(def, state)
+    if (entry.scaleType === undefined || entry.scaleFactor === undefined) continue
+    const price = scaledCost(applyCostFactors(entry, { costFactor: 1, scalingFactor: was }), owned)
+    const step = 1 + (entry.scaleFactor - 1) * now
+    const baseCost =
+      entry.scaleType === 'exponential'
+        ? price / step ** owned
+        : price - entry.scaleFactor * now * owned
+    state.generatorCostBases = { ...state.generatorCostBases, [def.id]: baseCost }
+  }
+}
+
+/**
  * Resolve a generator's cost-adjusted definition for a given player + mode.
  * Convenience over `collectGeneratorCostFactors` + `applyGeneratorCostFactors`
- * for single-generator call sites.
+ * for single-generator call sites, with the player's anchored base applied.
  *
  * `purpose` decides whether the opponent's cost inflation is folded in: a price
  * being paid carries it, a refund does not. Required rather than defaulted so a
@@ -119,7 +158,12 @@ export function resolveGeneratorDef(
   purpose: CostPurpose,
 ): GeneratorDefinition {
   const factors = collectGeneratorCostFactors(state, mode, purpose).get(def.id)
-  return applyGeneratorCostFactors(def, factors)
+  const baseCost = state.generatorCostBases?.[def.id]
+  const anchored =
+    baseCost === undefined
+      ? def
+      : { ...def, cost: { [generatorCostCurrency(def)]: anchoredCostEntry(def, state) } }
+  return applyGeneratorCostFactors(anchored, factors)
 }
 
 /** Compute the cost of the next copy of a generator. */

@@ -216,6 +216,13 @@ export interface PlayerState {
   upgrades: Record<string, number>
   /** Owned generators, keyed by generator ID. */
   generators: Record<string, number>
+  /**
+   * Per-generator base cost replacing the authored one, keyed by generator ID.
+   * Written by `anchorGeneratorCurves` when an upgrade changes a generator's own
+   * cost scaling, so the new growth applies from the current copy on instead of
+   * repricing copies already bought. Absent (the default) = the authored base.
+   */
+  generatorCostBases?: Record<string, number>
   /** Active attacks that have been paid for and are waiting out their preparation. */
   pendingAttacks: PendingAttack[]
   /**

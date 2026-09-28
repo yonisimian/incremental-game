@@ -30,6 +30,7 @@ import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
 import { validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost, upgradeCostFactors } from '../upgrade-costs.js'
+import { anchorGeneratorCurves, collectGeneratorCostFactors } from '../generators.js'
 import {
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
@@ -1721,13 +1722,30 @@ export function applyPurchase(state: PlayerState, upgradeId: string, mode: ModeD
   }
 
   // Grant upgrade
-  state.upgrades[upgradeId] = owned + 1
+  grantUpgradeLevel(state, upgradeId, mode)
 
   // Date the purchase. Every level is kept for the upgrades a time clock reads
   // (`timedUpgradeIds`), whose levels are priced individually; everything else
   // keeps just its first buy, so a cheap unlimited upgrade can't grow the
   // broadcast state one entry per click.
   recordPurchaseTime(state, upgradeId, timedUpgradeIds(mode).has(upgradeId))
+}
+
+/**
+ * Add one level of `upgradeId`, re-anchoring any generator cost curve whose own
+ * scaling the new level changes (see `anchorGeneratorCurves`). The single place
+ * an upgrade level is granted, so every purchase path prices generators alike.
+ */
+export function grantUpgradeLevel(
+  state: PlayerState,
+  upgradeId: string,
+  mode: ModeDefinition,
+): void {
+  const def = mode.upgrades.find((u) => u.id === upgradeId)
+  const touchesCost = def?.effects?.some((e) => e.type === 'generatorCost') ?? false
+  const before = touchesCost ? collectGeneratorCostFactors(state, mode, 'sell') : undefined
+  state.upgrades[upgradeId] = (state.upgrades[upgradeId] ?? 0) + 1
+  if (before) anchorGeneratorCurves(state, mode, before)
 }
 
 /**
