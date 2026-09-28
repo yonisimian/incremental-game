@@ -233,6 +233,12 @@ describe('canBuy', () => {
     })
     expect(canBuy(state, u)).toBe(true)
   })
+
+  it('returns false for a coming-soon upgrade even when free and unlocked', () => {
+    const u = makeUpgrade({ cost: {}, comingSoon: true })
+    const state = makeState({ resources: { r0: 9999, r1: 9999 } })
+    expect(canBuy(state, u)).toBe(false)
+  })
 })
 
 // ─── formatUpgradesPurchased ─────────────────────────────────────────

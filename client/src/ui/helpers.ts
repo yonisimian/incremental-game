@@ -99,6 +99,8 @@ export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boo
 export const INFLATED_COST_MARKER = '⬆'
 /** Marker appended to a price a pact in force is discounting. */
 export const DISCOUNTED_COST_MARKER = '⬇'
+/** Price label for an upgrade shown on the tree but not purchasable yet. */
+const COMING_SOON_LABEL = '🚧 Coming soon'
 
 /**
  * The marker for a price bent off the authored one: up when the factors in
@@ -129,7 +131,8 @@ function costMapChangeMarker(
 
 /**
  * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
- * the cost map plus the owned count for an unlimited upgrade.
+ * the cost map plus the owned count for an unlimited upgrade. A coming-soon
+ * upgrade has no price to show, only its label.
  *
  * Priced with the factors in force, so it matches what a buy will actually
  * charge, and marked (see {@link costChangeMarker}) when an opponent's
@@ -142,6 +145,7 @@ export function formatUpgradeCost(
   u: UpgradeDefinition,
   flavor: ModeFlavor,
 ): string {
+  if (u.comingSoon) return COMING_SOON_LABEL
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return 'Maxed'
   const factors = upgradeCostFactors(state.player, u.id)
@@ -213,6 +217,7 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
   if (!state.mode) return false
   const modeDef = getModeDefinition(state.mode)
   return (
+    !u.comingSoon &&
     isUnlocked(state, u) &&
     isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
     !isAttackSlotBlocked(state, u) &&

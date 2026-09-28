@@ -179,6 +179,7 @@ const UpgradeNodeSchema = z
     purchaseLimit: z.number().nullable(),
     choiceGroup: z.string().optional(),
     choiceLabel: z.string().optional(),
+    comingSoon: z.boolean().optional(),
     prerequisites: PrerequisiteSchema.optional(),
     goalType: z.enum(['timed', 'target-score', 'buy-upgrade']).optional(),
     effects: z.array(EffectRefSchema).optional(),

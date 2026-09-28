@@ -177,7 +177,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       // income problem — the node is embargoed for a few seconds, and it
       // should read that way at a glance.
       let stateClass = ''
-      if (!unlocked) stateClass = 'locked'
+      if (!unlocked || u.comingSoon) stateClass = 'locked'
       else if (maxed) stateClass = 'owned'
       else if (choiceBlocked || slotBlocked) stateClass = 'locked'
       else if (attackLocked) stateClass = 'locked-by-attack'

@@ -78,7 +78,8 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   // inflated price.
   let lockReason = ''
   let lockCountdown: Countdown | null = null
-  if (!unlocked)
+  if (u.comingSoon) lockReason = 'Not available yet — planned for a later update'
+  else if (!unlocked)
     lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
   else if (choiceBlocked) lockReason = 'Another choice in this group has already been selected'
   else if (slotBlocked) lockReason = 'No attack slots left'
@@ -102,7 +103,14 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
     description: getUpgradeDescription(flavor, u.id),
     lockReason,
     lockCountdown,
-    buyable: unlocked && !choiceBlocked && !slotBlocked && !attackLocked && affordable && !maxed,
+    buyable:
+      !u.comingSoon &&
+      unlocked &&
+      !choiceBlocked &&
+      !slotBlocked &&
+      !attackLocked &&
+      affordable &&
+      !maxed,
   }
 }
 

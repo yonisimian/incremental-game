@@ -79,6 +79,8 @@ export interface UpgradeDefinition {
   readonly choiceGroup?: string
   /** Optional human-readable label for the choice group. */
   readonly choiceLabel?: string
+  /** Shown on the tree but never purchasable — a feature announced ahead of its release. */
+  readonly comingSoon?: boolean
   /**
    * Which upgrades must be owned before this one is buyable: a recursive
    * `all` / `any` expression over upgrade and meta requirements.

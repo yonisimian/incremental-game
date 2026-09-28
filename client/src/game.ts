@@ -524,7 +524,7 @@ export function doBuy(upgradeId: string): void {
   if (!state.mode) return
 
   const def = state.upgrades.find((u) => u.id === upgradeId)
-  if (!def) return
+  if (!def || def.comingSoon) return
 
   const modeDef = getModeDefinition(state.mode)
   const owned = state.player.upgrades[upgradeId] ?? 0

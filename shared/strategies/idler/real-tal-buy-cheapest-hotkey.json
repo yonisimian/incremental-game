@@ -14,14 +14,6 @@
     },
     {
       "kind": "buy",
-      "upgradeId": "sc-clicking"
-    },
-    {
-      "kind": "buy",
-      "upgradeId": "sb-unlock"
-    },
-    {
-      "kind": "buy",
       "upgradeId": "a-unlock"
     },
     {
