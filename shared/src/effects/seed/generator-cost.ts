@@ -9,7 +9,8 @@ import type { EffectDef } from '../types.js'
  * The "price decrease" / "price factor decrease" track: while the owning upgrade
  * is owned, the named generator's cost curve is reduced. `costFactor` scales the
  * base cost (e.g. `0.95` = 5% cheaper); `scalingFactor` scales the growth portion
- * of `costScaling` (e.g. `0.98` = 2% slower price growth). Both default to `1`
+ * of `costScaling` (e.g. `0.98` = 2% slower price growth) from the current copy
+ * on, leaving copies already owned at their price. Both default to `1`
  * (no change) and compound with the owning upgrade's owned count.
  */
 const schema = z.strictObject({

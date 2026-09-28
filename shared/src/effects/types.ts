@@ -23,7 +23,10 @@ export interface GeneratorCostOutput {
   readonly generator: string
   /** Multiplies the generator's base cost (e.g. `0.95` = 5% cheaper). */
   readonly costFactor?: number
-  /** Multiplies the growth portion (`costScaling - 1`) of the cost curve. */
+  /**
+   * Multiplies the growth portion (`costScaling - 1`) of the cost curve, from the
+   * current copy on (see `anchorGeneratorCurves`).
+   */
   readonly scalingFactor?: number
 }
 

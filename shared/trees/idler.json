@@ -495,25 +495,25 @@
           "id": "g1-dp",
           "name": "⚙️ G1 Cheap",
           "icon": "⚙️",
-          "description": "G1 price decrease by 5%"
+          "description": "G1 price −10% per level"
         },
         {
           "id": "g1-dpf",
           "name": "⚙️ G1 Very Cheap",
           "icon": "⚙️",
-          "description": "G1 price factor decrease by 2%"
+          "description": "G1 price growth −15% per level, from your next copy"
         },
         {
           "id": "g2-dpf",
           "name": "⚙️ G2 Very Cheap",
           "icon": "⚙️",
-          "description": "G2 price factor decrease by 2%"
+          "description": "G2 price growth −15% per level, from your next copy"
         },
         {
           "id": "g2-dp",
           "name": "⚙️ G2 Cheap",
           "icon": "⚙️",
-          "description": "G2 price decrease by 5%"
+          "description": "G2 price −10% per level"
         },
         {
           "id": "g2-mf",
@@ -549,13 +549,13 @@
           "id": "g3-dp",
           "name": "⚙️ G3 Cheap",
           "icon": "⚙️",
-          "description": "G3 price decrease by 5%"
+          "description": "G3 price −10% per level"
         },
         {
           "id": "g3-dpf",
           "name": "⚙️ G3 Very Cheap",
           "icon": "⚙️",
-          "description": "G3 price factor decrease by 2%"
+          "description": "G3 price growth −10% per level, from your next copy"
         },
         {
           "id": "g4-af",
@@ -573,13 +573,13 @@
           "id": "g4-dp",
           "name": "⚙️ G4 Cheap",
           "icon": "⚙️",
-          "description": "G4 price decrease by 5%"
+          "description": "G4 price −10% per level"
         },
         {
           "id": "g4-dpf",
           "name": "⚙️ G4 Very Cheap",
           "icon": "⚙️",
-          "description": "G4 price factor decrease by 2%"
+          "description": "G4 price growth −10% per level, from your next copy"
         },
         {
           "id": "lower-g",
@@ -1437,7 +1437,7 @@
                     {
                       "type": "generatorCost",
                       "generator": "g0",
-                      "scalingFactor": 0.9
+                      "scalingFactor": 0.85
                     }
                   ],
                   "offset": {
@@ -1579,7 +1579,7 @@
                     {
                       "type": "generatorCost",
                       "generator": "g1",
-                      "scalingFactor": 0.9
+                      "scalingFactor": 0.85
                     }
                   ],
                   "offset": {

@@ -40,6 +40,7 @@ import {
   getUpgradeNextCost,
   upgradeCostFactors,
   applyPurchase,
+  grantUpgradeLevel,
   isClickUnlocked,
   readHighlight,
   readGameSec,
@@ -798,7 +799,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           for (const [currency, amount] of Object.entries(cost)) {
             reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
           }
-          grantUpgrade(reconciled, action.upgradeId)
+          grantUpgradeLevel(reconciled, action.upgradeId, modeDef)
           break
         }
         case 'sell_generator': {
@@ -899,11 +900,6 @@ function stopCountdown(): void {
 }
 
 // ─── Private: helpers ────────────────────────────────────────────────
-
-/** Increment the owned count of an upgrade. */
-function grantUpgrade(player: PlayerState, uid: string): void {
-  player.upgrades[uid] = (player.upgrades[uid] ?? 0) + 1
-}
 
 /**
  * Surface landed attack strikes as transient toasts. `outgoing` = one of our
@@ -1072,6 +1068,8 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     resources: { ...s.resources },
     upgrades: { ...s.upgrades },
     generators: { ...s.generators },
+    // A replayed generator buy must be priced from the server's anchored curve.
+    ...(s.generatorCostBases ? { generatorCostBases: { ...s.generatorCostBases } } : {}),
     pendingAttacks: [...s.pendingAttacks],
     // Carried through reconciliation: a re-applied optimistic purchase must be
     // priced with the same inflation the server charged (entries are readonly,

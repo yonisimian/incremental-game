@@ -16,6 +16,8 @@ import {
 } from '../src/generators.js'
 import type { GeneratorDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
 import { MAX_RESOURCE } from '../src/game-config.js'
+import { scaledCost } from '../src/cost.js'
+import { applyPurchase, grantUpgradeLevel } from '../src/modes/index.js'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -510,5 +512,124 @@ describe('applyGeneratorPurchase with cost reductions', () => {
 
     expect(state.resources.r0).toBe(50) // 100 - (100 * 0.5)
     expect(state.generators.g0).toBe(1)
+  })
+})
+
+// ─── Forward-only cost scaling ───────────────────────────────────────
+
+describe('forward-only cost scaling', () => {
+  // Authored growth 0.5 (×1.5); each level of `u-dpf` halves it (×1.25, ×1.125, …).
+  const expDef = makeDef({ baseCost: 10, costScaling: 1.5 })
+  const dpf = makeUpgrade({
+    id: 'u-dpf',
+    purchaseLimit: Infinity,
+    effects: [{ type: 'generatorCost', generator: 'g0', scalingFactor: 0.5 }],
+  })
+  const dp = makeUpgrade({
+    id: 'u-dp',
+    effects: [{ type: 'generatorCost', generator: 'g0', costFactor: 0.5 }],
+  })
+
+  /** Unfloored own price of copy `n` (no stamped factors). */
+  function price(def: GeneratorDefinition, state: PlayerState, mode: ModeDefinition, n: number) {
+    return scaledCost(entry(resolveGeneratorDef(def, state, mode, 'sell')), n)
+  }
+
+  it('is identical to today when bought with no copies owned', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const state = makeState()
+    grantUpgradeLevel(state, 'u-dpf', mode)
+    expect(state.generatorCostBases).toBeUndefined()
+    expect(price(expDef, state, mode, 3)).toBeCloseTo(10 * 1.25 ** 3)
+  })
+
+  it('keeps the current price and bends only later copies', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const state = makeState({ generators: { g0: 4 } })
+    const before = price(expDef, state, mode, 4) // 10 · 1.5⁴ = 50.625
+    grantUpgradeLevel(state, 'u-dpf', mode)
+    expect(price(expDef, state, mode, 4)).toBeCloseTo(before)
+    expect(price(expDef, state, mode, 5)).toBeCloseTo(before * 1.25)
+  })
+
+  it('anchors through applyPurchase', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const state = makeState({ resources: { r0: 100 }, generators: { g0: 4 } })
+    applyPurchase(state, 'u-dpf', mode)
+    expect(state.upgrades['u-dpf']).toBe(1)
+    expect(price(expDef, state, mode, 4)).toBeCloseTo(50.625)
+  })
+
+  it('chains anchors across levels bought at different counts', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const state = makeState({ generators: { g0: 2 } })
+    grantUpgradeLevel(state, 'u-dpf', mode) // anchored at 22.5, then ×1.25
+    state.generators.g0 = 4
+    const atFour = 22.5 * 1.25 ** 2
+    expect(price(expDef, state, mode, 4)).toBeCloseTo(atFour)
+    grantUpgradeLevel(state, 'u-dpf', mode) // anchored at atFour, then ×1.125
+    expect(price(expDef, state, mode, 4)).toBeCloseTo(atFour)
+    expect(price(expDef, state, mode, 6)).toBeCloseTo(atFour * 1.125 ** 2)
+  })
+
+  it('anchors a linear curve the same way', () => {
+    const linDef: GeneratorDefinition = {
+      id: 'g0',
+      cost: { r0: { baseCost: 10, scaleType: 'linear', scaleFactor: 5 } },
+      production: { resource: 'r0', rate: 1 },
+    }
+    const mode = makeModeWithUpgrades([linDef], [dpf])
+    const state = makeState({ generators: { g0: 4 } })
+    grantUpgradeLevel(state, 'u-dpf', mode)
+    expect(price(linDef, state, mode, 4)).toBeCloseTo(30)
+    expect(price(linDef, state, mode, 5)).toBeCloseTo(32.5)
+  })
+
+  it('leaves costFactor retroactive (nothing stored)', () => {
+    const mode = makeModeWithUpgrades([expDef], [dp])
+    const state = makeState({ generators: { g0: 4 } })
+    grantUpgradeLevel(state, 'u-dp', mode)
+    expect(state.generatorCostBases).toBeUndefined()
+    expect(price(expDef, state, mode, 4)).toBeCloseTo(0.5 * 50.625)
+  })
+
+  it('keeps a stamped enemy scaling out of the anchor', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const inflation = [{ scope: 'generator' as const, id: 'g0', scalingFactor: 2 }]
+    const state = makeState({ generators: { g0: 4 }, incomingCostFactors: inflation })
+    grantUpgradeLevel(state, 'u-dpf', mode)
+
+    // Under the stamp the ratio to the own price matches the un-anchored curve: (1.5 / 1.25)ⁿ.
+    const bought = scaledCost(entry(resolveGeneratorDef(expDef, state, mode, 'buy')), 4)
+    expect(bought / price(expDef, state, mode, 4)).toBeCloseTo((1.5 / 1.25) ** 4)
+
+    delete state.incomingCostFactors
+    const unstamped = scaledCost(entry(resolveGeneratorDef(expDef, state, mode, 'buy')), 5)
+    expect(unstamped).toBeCloseTo(50.625 * 1.25)
+  })
+
+  it('shares the anchored curve between selling and rebuying', () => {
+    const mode = makeModeWithUpgrades([expDef], [dpf])
+    const state = makeState({ resources: { r0: 0 }, generators: { g0: 4 } })
+    grantUpgradeLevel(state, 'u-dpf', mode)
+    const bases = state.generatorCostBases
+
+    applyGeneratorSell(state, 'g0', mode) // copy 3 extrapolated back: 50.625 / 1.25 = 40.5
+    expect(state.resources.r0).toBe(20)
+    expect(state.generatorCostBases).toEqual(bases)
+
+    state.resources.r0 = 100
+    applyGeneratorPurchase(state, 'g0', mode)
+    expect(state.resources.r0).toBe(60)
+    expect(state.generators.g0).toBe(4)
+  })
+
+  it('skips anchoring for an upgrade with no generatorCost effect', () => {
+    const plain = makeUpgrade({ id: 'u-plain' })
+    const mode = makeModeWithUpgrades([expDef], [plain])
+    const state = makeState({ generators: { g0: 4 } })
+    grantUpgradeLevel(state, 'u-plain', mode)
+    expect(state.upgrades['u-plain']).toBe(1)
+    expect(state.generatorCostBases).toBeUndefined()
   })
 })

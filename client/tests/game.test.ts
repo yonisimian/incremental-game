@@ -1044,6 +1044,44 @@ describe('game.ts', () => {
     })
   })
 
+  // ── Idler: forward-only cost scaling ──────────────────────────
+
+  describe('idler forward-only cost scaling', () => {
+    /** 10 g0 owned and `g1-dpf` (g0 growth ×0.9) affordable but unbought. */
+    function snapshot(): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq: 0,
+        player: {
+          score: 0,
+          resources: { r0: 1000, r1: 1000 },
+          upgrades: { ...defaultUpgrades, 'g1-g2': 1, 'g1-af': 1, 'g1-dp': 1, 'g1-dpf': 0 },
+          generators: { g0: 10 },
+          pendingAttacks: [],
+          meta: { highlight: 'r0', gameSec: 20 },
+        },
+      })
+    }
+
+    it('replays [scaling upgrade, generator] at the anchored price', () => {
+      enterIdlerPlaying(game)
+      const server = snapshot()
+      game.handleServerMessage(server)
+
+      game.doBuy('g1-dpf')
+      game.doBuyGenerator('g0')
+      const predicted = structuredClone(game.getState().player)
+      expect(predicted.generators.g0).toBe(11)
+      expect(predicted.generatorCostBases?.g0).toBeDefined()
+
+      // Unacked: the replay must anchor just as the optimistic buy did, or the
+      // generator would be re-priced retroactively and the resources would jump.
+      game.handleServerMessage(server)
+      const replayed = game.getState().player
+      expect(replayed.resources).toEqual(predicted.resources)
+      expect(replayed.generatorCostBases).toEqual(predicted.generatorCostBases)
+    })
+  })
+
   // ── Idler: pact discount ───────────────────────────────────────────
 
   describe('idler pact discount', () => {
