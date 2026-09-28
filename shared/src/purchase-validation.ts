@@ -43,21 +43,17 @@ export function isPurchaseLocked(
 }
 
 /**
- * Seconds until every lock barring `id` of `scope` lifts, or `null` when none
- * is stamped — the victim-side countdown, the twin of `activeDebuffRemainingSec`
- * on the attacker's side. Reads `meta.gameSec` off `state` as every
- * attack-timing path does, and floors at `0` so a stamp the server has not
- * refreshed yet never reads as a negative wait.
+ * Game-clock time every lock barring `id` of `scope` lifts, or `null` when none
+ * is stamped — the victim-side twin of `activeDebuffExpiresAtSec`. A stamp the
+ * server has not refreshed yet may already be in the past.
  */
-export function purchaseLockRemainingSec(
+export function purchaseLockUntilSec(
   state: Readonly<PlayerState>,
   scope: CostScope,
   id: string,
 ): number | null {
   const locks = (state.incomingPurchaseLocks ?? []).filter((l) => locksEntity(l, scope, id))
-  if (locks.length === 0) return null
-  const gameSec = (state.meta.gameSec as number | undefined) ?? 0
-  return Math.max(0, Math.max(...locks.map((l) => l.untilSec)) - gameSec)
+  return locks.length === 0 ? null : Math.max(...locks.map((l) => l.untilSec))
 }
 
 /**

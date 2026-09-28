@@ -189,6 +189,20 @@ export function formatMultiplier(value: number): string {
   return formatDecimal(value, 2)
 }
 
+/** A label counting down to game-clock time `untilSec`; `{}` in `template` marks the seconds. */
+export interface Countdown {
+  readonly template: string
+  readonly untilSec: number
+}
+
+/**
+ * The countdown's text at game-clock time `gameSec`, e.g. `Striking in 2.0s`.
+ * `toFixed`, not `formatDecimal`: a countdown keeps its tenths ("4.0s").
+ */
+export function formatCountdown(c: Countdown, gameSec: number): string {
+  return c.template.replace('{}', Math.max(0, c.untilSec - gameSec).toFixed(1))
+}
+
 /**
  * Format a number in an explicit notation / decimal separator, independent of
  * the persisted settings. Used to render settings previews that show the same

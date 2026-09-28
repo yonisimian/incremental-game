@@ -10,17 +10,20 @@ import {
   isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
+  readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
 import {
   canAfford,
   formatUpgradeCost,
   isAttackSlotBlocked,
-  isPurchaseLockedByAttack,
   isUnlocked,
   escapeAttr,
-  purchaseLockLabel,
+  purchaseLockCountdown,
 } from './helpers.js'
+import { countdownAttrs } from './counters.js'
+import { formatCountdown } from './format-number.js'
+import type { Countdown } from './format-number.js'
 
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
@@ -44,6 +47,8 @@ interface DetailView {
   readonly levelLabel: string
   readonly description: string
   readonly lockReason: string
+  /** Set while the lock reason is an enemy purchase lock ticking down. */
+  readonly lockCountdown: Countdown | null
   readonly buyable: boolean
 }
 
@@ -60,7 +65,8 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
   const slotBlocked = isAttackSlotBlocked(state, u)
-  const attackLocked = isPurchaseLockedByAttack(state, 'upgrade', u.id)
+  const attackLock = purchaseLockCountdown(state, 'upgrade', u.id)
+  const attackLocked = attackLock !== null
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -71,13 +77,17 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   // nothing on click, which reads as a bug — the same reasoning that marks an
   // inflated price.
   let lockReason = ''
+  let lockCountdown: Countdown | null = null
   if (!unlocked)
     lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
   else if (choiceBlocked) lockReason = 'Another choice in this group has already been selected'
   else if (slotBlocked) lockReason = 'No attack slots left'
   // Last of the reasons, since it is the only one that lifts on its own; the
   // countdown is what tells the player to wait rather than look for a fix.
-  else if (attackLocked) lockReason = `Enemy attack — ${purchaseLockLabel(state, 'upgrade', u.id)}`
+  else if (attackLocked) {
+    lockCountdown = { ...attackLock, template: `Enemy attack — ${attackLock.template}` }
+    lockReason = formatCountdown(lockCountdown, readGameSec(state.player))
+  }
 
   const name = getUpgradeName(flavor, u.id)
   const icon = getUpgradeIcon(flavor, u.id)
@@ -91,6 +101,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
     levelLabel,
     description: getUpgradeDescription(flavor, u.id),
     lockReason,
+    lockCountdown,
     buyable: unlocked && !choiceBlocked && !slotBlocked && !attackLocked && affordable && !maxed,
   }
 }
@@ -100,7 +111,7 @@ function renderMarkup(v: DetailView): string {
     ? `<span class="upgrade-detail-level">${escapeAttr(v.levelLabel)}</span>`
     : ''
   const lock = v.lockReason
-    ? `<p class="upgrade-detail-lock" id="upgrade-detail-lock">${escapeAttr(v.lockReason)}</p>`
+    ? `<p class="upgrade-detail-lock" id="upgrade-detail-lock"${countdownAttrs(v.lockCountdown)}>${escapeAttr(v.lockReason)}</p>`
     : ''
   const buyDisabled = v.buyable ? '' : 'disabled'
   return `
@@ -237,7 +248,16 @@ export function updateUpgradeDetail(state: Readonly<GameState>): void {
   if (buyBtn && buyBtn.disabled !== !v.buyable) buyBtn.disabled = !v.buyable
 
   const lockEl = document.getElementById('upgrade-detail-lock')
-  if (lockEl && lockEl.textContent !== v.lockReason) lockEl.textContent = v.lockReason
+  if (!lockEl) return
+  if (v.lockCountdown) {
+    // The per-frame painter owns the text while it counts down.
+    lockEl.dataset.until = String(v.lockCountdown.untilSec)
+    lockEl.dataset.countdown = v.lockCountdown.template
+  } else {
+    delete lockEl.dataset.until
+    delete lockEl.dataset.countdown
+    if (lockEl.textContent !== v.lockReason) lockEl.textContent = v.lockReason
+  }
 }
 
 /**

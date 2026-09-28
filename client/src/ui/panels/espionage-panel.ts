@@ -2,6 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { formatTime } from '../helpers.js'
+import { countdownSpan, counterAttr } from '../counters.js'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -17,6 +18,7 @@ import {
   hasEnemyDataAccess,
   highlightDebuffFactor,
   HIGHLIGHT_FACTOR_TARGET,
+  readGameSec,
 } from '@game/shared'
 import { getAttackIcon, getAttackName } from '@game/shared'
 import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
@@ -99,18 +101,19 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
  */
 function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   const locks = state.player.incomingPurchaseLocks ?? []
-  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
-  const span = (untilSec: number) => `${Math.max(0, untilSec - gameSec).toFixed(1)}s`
+  const gameSec = readGameSec(state.player)
+  const line = (template: string, untilSec: number) =>
+    countdownSpan({ template, untilSec }, gameSec)
   const allUpgrades = locks.find((l) => l.scope === 'upgrade' && l.id === undefined)
   const allGenerators = locks.find((l) => l.scope === 'generator' && l.id === undefined)
   const combined = allUpgrades !== undefined && allUpgrades.untilSec === allGenerators?.untilSec
   const lines: string[] = []
   if (combined)
-    lines.push(`🔒 You cannot buy upgrades or generators for ${span(allUpgrades.untilSec)}.`)
+    lines.push(line('🔒 You cannot buy upgrades or generators for {}s.', allUpgrades.untilSec))
   for (const lock of locks) {
     if (combined && (lock === allUpgrades || lock === allGenerators)) continue
     const what = describeTarget(flavor, lock.scope, lock.id)
-    lines.push(`🔒 You cannot buy ${what} for ${span(lock.untilSec)}.`)
+    lines.push(line(`🔒 You cannot buy ${what} for {}s.`, lock.untilSec))
   }
   return lines
 }
@@ -119,20 +122,21 @@ function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): 
  * One line per enemy strike inside the viewer's alert lead, soonest
  * first, counting down against the viewer's own `meta.gameSec` — the same clock
  * `readyAtSec` was stamped on (both advance in lockstep). Named when the alert
- * reveals the attack; a bare "Enemy attack" otherwise. Steps at snapshot
- * cadence like the panel's other countdowns.
+ * reveals the attack; a bare "Enemy attack" otherwise.
  */
 function describeIncomingAttacks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   if (state.incomingAttacks.length === 0) return []
-  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  const gameSec = readGameSec(state.player)
   return [...state.incomingAttacks]
     .sort((a, b) => a.readyAtSec - b.readyAtSec)
     .map((a) => {
-      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
       const what = a.attack
         ? `${getAttackIcon(flavor, a.attack)} ${getAttackName(flavor, a.attack)}`
         : 'Enemy attack'
-      return `⚠️ ${what} lands in ${inSec}s.`
+      return countdownSpan(
+        { template: `⚠️ ${what} lands in {}s.`, untilSec: a.readyAtSec },
+        gameSec,
+      )
     })
 }
 
@@ -198,11 +202,12 @@ function renderResources(
   const body = rows
     .map(({ key, amount, rate }) => {
       const amountCell = amount ? formatNumber(state.opponent.resources[key] ?? 0) : LOCKED_CELL
+      const amountAttr = amount ? counterAttr('theirs', key) : ''
       const rateCell = rate ? `${formatNumber(rates[key] ?? 0, 1)}/s` : LOCKED_CELL
       return `
         <tr>
           <td class="espionage-res-name">${getResourceIcon(flavor, key)} ${getResourceName(flavor, key)}</td>
-          <td class="espionage-res-value">${amountCell}</td>
+          <td class="espionage-res-value"${amountAttr}>${amountCell}</td>
           <td class="espionage-res-value">${rateCell}</td>
         </tr>
       `

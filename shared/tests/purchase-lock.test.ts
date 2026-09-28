@@ -10,7 +10,7 @@ import {
   generatorSellBlockReason,
   isPurchaseLocked,
   purchaseBlockReason,
-  purchaseLockRemainingSec,
+  purchaseLockUntilSec,
   resolveAttackStrike,
 } from '../src/index.js'
 import type {
@@ -226,20 +226,20 @@ describe('collectEnemyPurchaseLocks', () => {
 
 // ─── Reading the stamp ───────────────────────────────────────────────
 
-describe('isPurchaseLocked / purchaseLockRemainingSec', () => {
+describe('isPurchaseLocked / purchaseLockUntilSec', () => {
   it('reads presence, not the clock', () => {
     // A stale stamp whose expiry has passed still blocks until the server
     // re-stamps: both sides then agree, whatever their clocks say.
     const stale = makeState({ incomingPurchaseLocks: [{ scope: 'upgrade', untilSec: 10 }] })
     expect(isPurchaseLocked(stale, 'upgrade', 'u-flat')).toBe(true)
     expect(isPurchaseLocked(stale, 'generator', 'g0')).toBe(false)
-    expect(purchaseLockRemainingSec(stale, 'upgrade', 'u-flat')).toBe(0)
+    expect(purchaseLockUntilSec(stale, 'upgrade', 'u-flat')).toBe(10)
   })
 
-  it('counts down against the victim’s own game clock', () => {
+  it('reports when the lock on that scope lifts', () => {
     const state = makeState({ incomingPurchaseLocks: [{ scope: 'generator', untilSec: 27.5 }] })
-    expect(purchaseLockRemainingSec(state, 'generator', 'g0')).toBe(7.5)
-    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-flat')).toBeNull()
+    expect(purchaseLockUntilSec(state, 'generator', 'g0')).toBe(27.5)
+    expect(purchaseLockUntilSec(state, 'upgrade', 'u-flat')).toBeNull()
   })
 
   it('locks only the named entity for a single-entity lock', () => {
@@ -248,23 +248,23 @@ describe('isPurchaseLocked / purchaseLockRemainingSec', () => {
     })
     expect(isPurchaseLocked(state, 'upgrade', 'u-flat')).toBe(true)
     expect(isPurchaseLocked(state, 'upgrade', 'u-other')).toBe(false)
-    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-other')).toBeNull()
+    expect(purchaseLockUntilSec(state, 'upgrade', 'u-other')).toBeNull()
   })
 
-  it('counts down to the last lock covering the entity', () => {
+  it('waits for the last lock covering the entity', () => {
     const state = makeState({
       incomingPurchaseLocks: [
         { scope: 'upgrade', untilSec: 24 },
         { scope: 'upgrade', id: 'u-flat', untilSec: 28 },
       ],
     })
-    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-flat')).toBe(8)
-    expect(purchaseLockRemainingSec(state, 'upgrade', 'u-other')).toBe(4)
+    expect(purchaseLockUntilSec(state, 'upgrade', 'u-flat')).toBe(28)
+    expect(purchaseLockUntilSec(state, 'upgrade', 'u-other')).toBe(24)
   })
 
   it('is unlocked with no stamp at all', () => {
     expect(isPurchaseLocked(makeState(), 'upgrade', 'u-flat')).toBe(false)
-    expect(purchaseLockRemainingSec(makeState(), 'upgrade', 'u-flat')).toBeNull()
+    expect(purchaseLockUntilSec(makeState(), 'upgrade', 'u-flat')).toBeNull()
   })
 })
 

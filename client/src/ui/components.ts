@@ -11,6 +11,7 @@ import {
   playerDisplayName,
   opponentDisplayName,
 } from './helpers.js'
+import { TIME_LEFT_ATTR, counterAttr, scoreFillAttr } from './counters.js'
 import {
   getModeDefinition,
   getModeFlavor,
@@ -27,7 +28,7 @@ import {
 export function renderTimer(state: Readonly<GameState>): string {
   const isSafetyCap = state.goal?.type === 'target-score' || state.goal?.type === 'buy-upgrade'
   const cls = isSafetyCap ? 'timer safety-timer' : 'timer'
-  return `<div class="${cls}" id="timer">${formatTime(state.timeLeft)}</div>`
+  return `<div class="${cls}" id="timer"${TIME_LEFT_ATTR}>${formatTime(state.timeLeft)}</div>`
 }
 
 /**
@@ -43,14 +44,14 @@ export function renderProgressBars(state: Readonly<GameState>): string {
     <div class="target-progress">
       <div class="progress-row you">
         <div class="progress-bar bar-you">
-          <div class="progress-fill you" id="player-progress" style="width:${playerPct}%"></div>
-          <span class="bar-label">${playerDisplayName(state)}: <span id="player-bar-score">${formatScore(state.player.score, state)}</span></span>
+          <div class="progress-fill you" id="player-progress"${scoreFillAttr('own')} style="width:${playerPct}%"></div>
+          <span class="bar-label">${playerDisplayName(state)}: <span id="player-bar-score"${counterAttr('own')}>${formatScore(state.player.score, state)}</span></span>
         </div>
       </div>
       <div class="progress-row opponent">
         <div class="progress-bar bar-opponent">
-          <div class="progress-fill opponent" id="opponent-progress" style="width:${opponentPct}%"></div>
-          <span class="bar-label">${opponentDisplayName(state)}: <span id="opponent-bar-score">${formatScore(state.opponent.score ?? 0, state)}</span></span>
+          <div class="progress-fill opponent" id="opponent-progress"${scoreFillAttr('theirs')} style="width:${opponentPct}%"></div>
+          <span class="bar-label">${opponentDisplayName(state)}: <span id="opponent-bar-score"${counterAttr('theirs')}>${formatScore(state.opponent.score ?? 0, state)}</span></span>
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ import {
 import type { PurchaseLock, UpgradeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
-import { canBuy, isPurchaseLockedByAttack, purchaseLockLabel } from '../src/ui/helpers.js'
+import { canBuy, isPurchaseLockedByAttack, purchaseLockCountdown } from '../src/ui/helpers.js'
 import { espionagePanel } from '../src/ui/panels/espionage-panel.js'
 import { generatorsPanel } from '../src/ui/panels/generators-panel.js'
 
@@ -81,7 +81,10 @@ describe('helpers', () => {
     const state = makeState(LOCK_UPGRADES)
     expect(isPurchaseLockedByAttack(state, 'upgrade', FREE.id)).toBe(true)
     expect(isPurchaseLockedByAttack(state, 'generator', 'g0')).toBe(false)
-    expect(purchaseLockLabel(state, 'upgrade', FREE.id)).toBe('🔒 Locked 7.5s')
+    expect(purchaseLockCountdown(state, 'upgrade', FREE.id)).toEqual({
+      template: '🔒 Locked {}s',
+      untilSec: 27.5,
+    })
     expect(isPurchaseLockedByAttack(makeState(), 'upgrade', FREE.id)).toBe(false)
   })
 
@@ -196,7 +199,7 @@ describe('enemy-data panel — standing lock warning', () => {
   it('collapses both scopes into one sentence when they lift together', () => {
     const html = render(makeState(LOCK_BOTH))
     expect(html).toContain('🔒 You cannot buy upgrades or generators for 7.5s.')
-    expect(html.match(/🔒/gu)).toHaveLength(1)
+    expect(html.match(/class="espionage-warning"/gu)).toHaveLength(1)
   })
 
   it('gives each scope its own line when the countdowns differ', () => {

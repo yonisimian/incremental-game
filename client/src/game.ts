@@ -42,6 +42,7 @@ import {
   applyPurchase,
   isClickUnlocked,
   readHighlight,
+  readGameSec,
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
@@ -81,7 +82,7 @@ import {
 import type { ToastHandle } from './ui/vfx/index.js'
 import { recorderRoundStart, recorderTick, recorderRoundEnd } from './dev-recorder.js'
 import { roundStats } from './stats/round-stats.js'
-import { formatDecimal, formatNumber } from './ui/format-number.js'
+import { formatCountdown, formatDecimal, formatNumber } from './ui/format-number.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -258,6 +259,13 @@ let confirmedHighlight: string | null = null
 /** The server-confirmed highlight (see {@link confirmedHighlight}). */
 export function getConfirmedHighlight(): string | null {
   return confirmedHighlight
+}
+
+/** Bumped on every `STATE_UPDATE`, so display code can tell a snapshot from a local action. */
+let snapshotCount = 0
+
+export function getSnapshotCount(): number {
+  return snapshotCount
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -827,6 +835,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
 
   state.player = reconciled
+  snapshotCount++
   if (msg.attackEvents) showAttackEvents(msg.attackEvents, modeDef)
   if (modeDef) roundStats.recordTick(reconciled, modeDef)
   recorderTick(reconciled, state.timeLeft)
@@ -962,11 +971,11 @@ const incomingAttackToasts = new Map<string, ToastHandle>()
 
 /**
  * Keep one sticky `warning` toast per enemy strike in view: spawned when the
- * strike first appears, its countdown rewritten on each snapshot, and dismissed
- * once the strike leaves the list (it landed) — so the warning never vanishes
- * before the attack does, however long the lead. The remaining time is read
- * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
- * the attack, otherwise a generic "Enemy attack" — the espionage panel's wording.
+ * strike first appears (its countdown then ticked by the counters painter), and
+ * dismissed once the strike leaves the list (it landed) — so the warning never
+ * vanishes before the attack does, however long the lead. Named when the
+ * viewer's alert reveals the attack, otherwise a generic "Enemy attack" — the
+ * espionage panel's wording.
  */
 function syncIncomingAttackToasts(
   next: readonly IncomingAttack[],
@@ -975,21 +984,19 @@ function syncIncomingAttackToasts(
 ): void {
   const inView = new Set<string>()
   if (modeDef) {
-    const gameSec = (player.meta.gameSec as number | undefined) ?? 0
     const flavor = getModeFlavor(modeDef)
     for (const a of next) {
       const key = incomingAttackKey(a)
       inView.add(key)
-      // `toFixed`, not `formatDecimal`: the panel countdowns read "4.0s", and a
-      // toast reading "4s" beside them would look like a different clock.
-      const inSec = Math.max(0, a.readyAtSec - gameSec).toFixed(1)
-      const text = `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in ${inSec}s`
-      const toast = incomingAttackToasts.get(key)
-      if (toast) toast.update(text)
-      else {
-        const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
-        incomingAttackToasts.set(key, spawnToast(text, 'warning', { icon, sticky: true }))
+      // The key includes `readyAtSec`, so a toast's countdown never changes.
+      if (incomingAttackToasts.has(key)) continue
+      const countdown = {
+        template: `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in {}s`,
+        untilSec: a.readyAtSec,
       }
+      const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
+      const text = formatCountdown(countdown, readGameSec(player))
+      incomingAttackToasts.set(key, spawnToast(text, 'warning', { icon, sticky: true, countdown }))
     }
   }
   for (const [key, toast] of incomingAttackToasts) {

@@ -13,6 +13,7 @@
  */
 
 import { hasDom, getLayer, prefersReducedMotion } from './shared.js'
+import type { Countdown } from '../format-number.js'
 
 /** Severity of a toast — tints the border/text. */
 export type ToastVariant = 'info' | 'success' | 'warning' | 'danger'
@@ -27,18 +28,18 @@ export interface ToastOptions {
    * progress (an inbound attack).
    */
   sticky?: boolean
+  /** Count the text down every frame (see `paintCounters`); the announcer keeps the arrival text. */
+  countdown?: Countdown
 }
 
-/** A live toast, for the caller of a sticky one to rewrite or dismiss. */
+/** A live toast, for the caller of a sticky one to dismiss. */
 export interface ToastHandle {
-  /** Replace the banner's text (the icon, if any, is kept). */
-  update(text: string): void
   /** Fade the toast out; a no-op once it is already leaving. */
   dismiss(): void
 }
 
 /** The handle returned when there is no DOM to toast into. */
-const NO_TOAST: ToastHandle = { update: () => undefined, dismiss: () => undefined }
+const NO_TOAST: ToastHandle = { dismiss: () => undefined }
 
 /** Auto-dismiss delay by severity: bad news is actionable, so it stays longer. */
 const TOAST_DURATION_MS: Record<ToastVariant, number> = {
@@ -180,6 +181,10 @@ export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOpti
   const textEl = document.createElement('span')
   textEl.className = 'toast-text'
   textEl.textContent = text
+  if (opts?.countdown) {
+    textEl.dataset.until = String(opts.countdown.untilSec)
+    textEl.dataset.countdown = opts.countdown.template
+  }
   el.appendChild(textEl)
   slot.appendChild(el)
   const firstTransient = opts?.sticky
@@ -210,10 +215,6 @@ export function spawnToast(text: string, variant: ToastVariant, opts?: ToastOpti
   if (!opts?.sticky && !layerPaused) startTimer(slot, state)
 
   return {
-    // Visual only: the announcer keeps the arrival text, so a countdown isn't re-read.
-    update: (next) => {
-      textEl.textContent = next
-    },
     dismiss: () => {
       removeToast(slot)
     },

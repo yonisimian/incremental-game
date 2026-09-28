@@ -2,7 +2,8 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { costChangeMarker, isPurchaseLockedByAttack, purchaseLockLabel } from '../helpers.js'
+import { costChangeMarker, purchaseLockCountdown } from '../helpers.js'
+import { countdownSpan } from '../counters.js'
 import {
   type GeneratorDefinition,
   type ModeFlavor,
@@ -20,6 +21,7 @@ import {
   getResourceIcon,
   getGeneratorName,
   getGeneratorIcon,
+  readGameSec,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -54,7 +56,7 @@ export interface GeneratorCardNums {
   readonly locked?: boolean
   /**
    * An opponent's open attack window is barring every generator purchase.
-   * The buy buttons show this label — `🔒 Locked N.Ns` — in place of
+   * The buy buttons show this markup — a `🔒 Locked N.Ns` countdown — in place of
    * the price, since a price the player cannot pay for a few seconds reads as
    * a bug without the reason. Selling stays live: the lock is on spending.
    * Absent when no lock is in force.
@@ -148,7 +150,8 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const nextCost = getGeneratorCost(effectiveDef, owned)
       // Buying is gated exactly as `generatorBlockReason` gates it: unlocked,
       // no enemy purchase lock, then affordable.
-      const attackLocked = isPurchaseLockedByAttack(state, 'generator', def.id)
+      const lock = purchaseLockCountdown(state, 'generator', def.id)
+      const attackLocked = lock !== null
       const buyable = unlocked && !attackLocked
       const affordable = buyable && canAffordGenerator(state.player, effectiveDef)
       const maxAffordable = buyable ? getMaxAffordableGeneratorCount(state.player, effectiveDef) : 0
@@ -181,7 +184,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         costMarker,
         locked: !unlocked,
-        ...(attackLocked ? { attackLockLabel: purchaseLockLabel(state, 'generator', def.id) } : {}),
+        ...(lock ? { attackLockLabel: countdownSpan(lock, readGameSec(state.player)) } : {}),
       })
     })
     .join('')

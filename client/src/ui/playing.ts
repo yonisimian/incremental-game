@@ -1,25 +1,17 @@
 import type { GameState } from '../game.js'
-import { externalModifiers, quitMatch, togglePause, getState } from '../game.js'
+import { externalModifiers, quitMatch, togglePause } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
   getModeDefinition,
   getModeFlavor,
-  TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
-import {
-  app,
-  setText,
-  formatTime,
-  formatScore,
-  updateProgressBar,
-  playerDisplayName,
-  opponentDisplayName,
-} from './helpers.js'
+import { app, setText, formatScore, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
+import { counterAttr, paintCounters, syncCounters } from './counters.js'
 import {
   renderTabGrid,
   renderPanelContainer,
@@ -78,7 +70,7 @@ function renderResourceBar(state: Readonly<GameState>): string {
         .map((r) => {
           const cls = `resource-item${r.className ? ` ${r.className}` : ''}`
           return `<span class="${cls}">
-            <span class="resource-amount">${r.icon} <span id="header-${r.key}">${formatNumber(state.player.resources[r.key])}</span></span>
+            <span class="resource-amount">${r.icon} <span id="header-${r.key}"${counterAttr('own', r.key)}>${formatNumber(state.player.resources[r.key])}</span></span>
             <span class="resource-rate" id="rate-${r.key}">${formatRate(rates[r.key] ?? 0)}</span>
           </span>`
         })
@@ -114,12 +106,12 @@ function renderScoreboard(state: Readonly<GameState>): string {
     <div class="scoreboard">
       <div class="player-col you">
         <span class="label">${playerDisplayName(state)}</span>
-        <span class="score" id="player-score">${formatScore(state.player.score, state)}</span>
+        <span class="score" id="player-score"${counterAttr('own')}>${formatScore(state.player.score, state)}</span>
       </div>
       <div class="vs">vs</div>
       <div class="player-col opponent">
         <span class="label">${opponentDisplayName(state)}</span>
-        <span class="score" id="opponent-score">${formatScore(state.opponent.score ?? 0, state)}</span>
+        <span class="score" id="opponent-score"${counterAttr('theirs')}>${formatScore(state.opponent.score ?? 0, state)}</span>
       </div>
     </div>
   `
@@ -164,87 +156,17 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
   renderActivePanel(state)
 }
 
-// ─── Timer interpolation ─────────────────────────────────────────────
-//
-// The server only broadcasts `timeLeft` every 500ms, which is too coarse for
-// the centisecond readout the timer shows in its final 10 seconds. So we anchor
-// to the latest authoritative value and interpolate locally with rAF, counting
-// elapsed monotonic time (`performance.now()`) since the anchor. The anchor
-// re-syncs on every fresh broadcast (and on resume), so server time stays
-// authoritative and drift never accumulates beyond one broadcast interval.
-
-let timerRafId: number | null = null
-let timerAnchorPerf = 0
-let timerAnchorValue = Number.NaN
-let timerPrevPaused = false
-
-/** Predicted seconds remaining: the anchor value minus elapsed time (frozen while paused). */
-function predictedTimeLeft(state: Readonly<GameState>): number {
-  if (state.paused) return state.timeLeft
-  const elapsed = (performance.now() - timerAnchorPerf) / 1000
-  return Math.max(0, timerAnchorValue - elapsed)
-}
-
-/**
- * Re-anchor whenever the authoritative `timeLeft` changes (a fresh broadcast) or
- * when resuming from pause, so interpolation only ever counts time forward from
- * a known-good value and never advances during a pause.
- */
-function syncTimerAnchor(state: Readonly<GameState>): void {
-  const resumed = timerPrevPaused && !state.paused
-  if (state.timeLeft !== timerAnchorValue || resumed) {
-    timerAnchorValue = state.timeLeft
-    timerAnchorPerf = performance.now()
-  }
-  timerPrevPaused = state.paused
-}
-
-function tickTimerLoop(): void {
-  const state = getState()
-  if (state.screen !== 'playing' || state.paused) {
-    timerRafId = null
-    return
-  }
-  const remaining = predictedTimeLeft(state)
-  setText('timer', formatTime(remaining))
-  // Keep animating only inside the centisecond window; above it the 500ms server
-  // cadence is plenty and we fall back to event-driven updates.
-  timerRafId =
-    remaining < TIMER_CENTISECONDS_BELOW_SEC ? requestAnimationFrame(tickTimerLoop) : null
-}
-
-/** Start the rAF loop if we're in the centisecond window and not already running. */
-function ensureTimerLoop(state: Readonly<GameState>): void {
-  if (timerRafId !== null || state.paused || state.screen !== 'playing') return
-  if (predictedTimeLeft(state) >= TIMER_CENTISECONDS_BELOW_SEC) return
-  timerRafId = requestAnimationFrame(tickTimerLoop)
-}
-
 // ─── In-place Update ─────────────────────────────────────────────────
 
 let prevPlayerScore = 0
 
 export function updatePlaying(state: Readonly<GameState>): void {
-  // Update timer / safety-cap timer. Inside the final 10s a rAF loop takes over
-  // for smooth centiseconds; here we render the predicted value and (re)start it.
-  syncTimerAnchor(state)
-  setText('timer', formatTime(predictedTimeLeft(state)))
-  ensureTimerLoop(state)
-
   const scoreChanged = state.player.score !== prevPlayerScore
   prevPlayerScore = state.player.score
 
-  // Update target-score progress if applicable
   if (state.goal?.type === 'target-score') {
-    const target = state.goal.target
-    updateProgressBar('player-progress', state.player.score, target)
-    updateProgressBar('opponent-progress', state.opponent.score ?? 0, target)
-    setText('player-bar-score', formatScore(state.player.score, state))
-    setText('opponent-bar-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-bar-score')
   } else if (showsScoreboard(state.goal)) {
-    setText('player-score', formatScore(state.player.score, state))
-    setText('opponent-score', formatScore(state.opponent.score ?? 0, state))
     if (scoreChanged) bumpScore('player-score')
   }
 
@@ -264,13 +186,13 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBtn.setAttribute('title', label)
   }
 
-  // Update resource bar (visible across all tabs)
-  if (activeFlavor) {
+  // Amounts, scores and the timer are painted by the counters; only the rates are written here.
+  if (activeFlavor && activeModeDef) {
     const rates = passiveRates(state)
     for (const r of activeFlavor.resources) {
-      setText(`header-${r.key}`, formatNumber(state.player.resources[r.key]))
       setText(`rate-${r.key}`, formatRate(rates[r.key] ?? 0))
     }
+    syncCounters(state, activeModeDef, rates)
   }
 
   // Reflect any tab that unlocked this frame (e.g. generators panel upgrade).
@@ -278,4 +200,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
 
   // Delegate panel-specific updates to the active panel
   updateActivePanel(state)
+
+  // Last, so a panel that just re-rendered a counter shows the interpolated value.
+  paintCounters()
 }

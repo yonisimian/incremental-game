@@ -101,16 +101,12 @@ describe('spawnToast (DOM)', () => {
     expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
   })
 
-  it('keeps a sticky toast until it is dismissed, and rewrites its text in place', () => {
+  it('keeps a sticky toast until it is dismissed', () => {
     const layer = mountToastLayer()
 
     const toast = spawnToast('in 4.0s', 'warning', { sticky: true, icon: '⚠️' })
     vi.advanceTimersByTime(60_000)
     expect(layer.querySelectorAll('.toast-slot')).toHaveLength(1)
-
-    toast.update('in 1.0s')
-    expect(layer.querySelector('.toast-text')?.textContent).toBe('in 1.0s')
-    expect(layer.querySelector('.toast-icon')?.textContent).toBe('⚠️')
 
     toast.dismiss()
     vi.advanceTimersByTime(300)
@@ -119,6 +115,17 @@ describe('spawnToast (DOM)', () => {
     expect(() => {
       toast.dismiss()
     }).not.toThrow()
+  })
+
+  it("hands a countdown toast's text to the per-frame painter", () => {
+    const layer = mountToastLayer()
+    spawnToast('Raid lands in 4.0s', 'warning', {
+      sticky: true,
+      countdown: { template: 'Raid lands in {}s', untilSec: 14 },
+    })
+    const text = layer.querySelector<HTMLElement>('.toast-text')
+    expect(text?.dataset.until).toBe('14')
+    expect(text?.dataset.countdown).toBe('Raid lands in {}s')
   })
 
   it('never evicts a sticky toast to make room — the stack grows past the cap instead', () => {
@@ -223,9 +230,8 @@ describe('spawnToast (DOM)', () => {
       vi.advanceTimersByTime(EXIT_MS)
       expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
 
-      // The caller keeps using its handle; neither call resurrects the toast.
+      // The caller keeps using its handle; it does not resurrect the toast.
       expect(() => {
-        sticky.update('in 3.0s')
         sticky.dismiss()
       }).not.toThrow()
       expect(layer.querySelectorAll('.toast-slot')).toHaveLength(0)
@@ -255,16 +261,13 @@ describe('spawnToast (DOM)', () => {
   })
 
   describe('screen-reader announcer', () => {
-    it('announces a toast once on arrival, ignores updates, and drops it on exit', () => {
+    it('announces a toast once on arrival and drops it on exit', () => {
       mountToastLayer()
       const announcer = document.createElement('div')
       announcer.id = 'toast-announcer'
       document.body.appendChild(announcer)
 
       const toast = spawnToast('Raid lands in 4.0s', 'warning', { sticky: true, icon: '🗡️' })
-      expect([...announcer.children].map((n) => n.textContent)).toEqual(['🗡️ Raid lands in 4.0s'])
-
-      toast.update('Raid lands in 3.0s')
       expect([...announcer.children].map((n) => n.textContent)).toEqual(['🗡️ Raid lands in 4.0s'])
 
       toast.dismiss()

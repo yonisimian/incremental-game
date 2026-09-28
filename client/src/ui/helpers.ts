@@ -13,13 +13,14 @@ import {
   isUnlimited,
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
-  purchaseLockRemainingSec,
+  purchaseLockUntilSec,
   upgradeCostFactors,
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
 import { doBuy } from '../game.js'
 import { formatNumber } from './format-number.js'
+import type { Countdown } from './format-number.js'
 
 // ─── Shared DOM Root ─────────────────────────────────────────────────
 
@@ -33,7 +34,8 @@ export const app =
 
 export function setText(id: string, text: string): void {
   const el = document.getElementById(id)
-  if (el) el.textContent = text
+  // Per-frame painters call this with unchanged text most frames.
+  if (el && el.textContent !== text) el.textContent = text
 }
 
 export function formatTime(seconds: number): string {
@@ -193,18 +195,17 @@ export function isPurchaseLockedByAttack(
 }
 
 /**
- * The `🔒 Locked Ns` label a buy control shows under an enemy purchase lock —
- * one string for the tree node title, the detail popup, and the generator
- * card, so the three agree. Omits the seconds when the countdown is unknown
- * (`null`), which cannot happen for a stamped lock but keeps the helper total.
+ * The `🔒 Locked Ns` countdown a buy control shows under an enemy purchase lock —
+ * one wording for the detail popup and the generator card, so the two agree.
+ * `null` when no lock is stamped.
  */
-export function purchaseLockLabel(
+export function purchaseLockCountdown(
   state: Readonly<GameState>,
   scope: CostScope,
   id: string,
-): string {
-  const remaining = purchaseLockRemainingSec(state.player, scope, id)
-  return remaining === null ? '🔒 Locked' : `🔒 Locked ${remaining.toFixed(1)}s`
+): Countdown | null {
+  const untilSec = purchaseLockUntilSec(state.player, scope, id)
+  return untilSec === null ? null : { template: '🔒 Locked {}s', untilSec }
 }
 
 /** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
@@ -218,12 +219,6 @@ export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolea
     !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
     canAfford(state, u)
   )
-}
-
-/** Update a progress bar element's width. */
-export function updateProgressBar(id: string, score: number, target: number): void {
-  const el = document.getElementById(id)
-  if (el) el.style.width = `${Math.min(100, (score / target) * 100)}%`
 }
 
 /** Format purchased upgrade IDs as names with ×N suffix for repeats; preserves first-purchase order; unknown IDs fall back to the raw id. */

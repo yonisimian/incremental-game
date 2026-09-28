@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivateAttack } from '../../game.js'
 import {
-  activeDebuffRemainingSec,
+  activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
   attackSlotsHeld,
@@ -16,6 +16,7 @@ import {
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
+  readGameSec,
   unlockedAttacks,
 } from '@game/shared'
 import type {
@@ -27,6 +28,7 @@ import type {
   ModeFlavor,
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
+import { countdownSpan } from '../counters.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -111,12 +113,9 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
 }
 
-/** The seconds remaining before a pending strike lands, in game seconds. */
-function pendingRemaining(state: Readonly<GameState>, id: string): number | null {
-  const pending = state.player.pendingAttacks.find((p) => p.attack === id)
-  if (!pending) return null
-  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
-  return Math.max(0, pending.readyAtSec - gameSec)
+/** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
+function pendingReadyAt(state: Readonly<GameState>, id: string): number | null {
+  return state.player.pendingAttacks.find((p) => p.attack === id)?.readyAtSec ?? null
 }
 
 /** Short label describing why an active attack can't be activated right now. */
@@ -146,15 +145,16 @@ function renderActiveAttack(
   const def = modeDef.attacks.find((a) => a.id === id)
   if (!def) return ''
   const params = collectAttackParams(state.player, modeDef, id)
-  const remaining = pendingRemaining(state, id)
-  const preparing = remaining !== null
-  const activeFor = activeDebuffRemainingSec(state.player, id)
+  const gameSec = readGameSec(state.player)
+  const readyAt = pendingReadyAt(state, id)
+  const preparing = readyAt !== null
+  const expiresAt = activeDebuffExpiresAtSec(state.player, id)
   const reason = attackBlockReason(state.player, id, modeDef)
   const disabled = preparing || reason !== null
   const status = preparing
-    ? `<span class="attack-status attack-status--preparing">Striking in ${remaining.toFixed(1)}s</span>`
-    : activeFor !== null
-      ? `<span class="attack-status attack-status--active">Active for ${activeFor.toFixed(1)}s</span>`
+    ? `<span class="attack-status attack-status--preparing">${countdownSpan({ template: 'Striking in {}s', untilSec: readyAt }, gameSec)}</span>`
+    : expiresAt !== null
+      ? `<span class="attack-status attack-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>`
       : reason === 'unaffordable'
         ? renderShortfall(state.player.resources, flavor, def, params)
         : reason
@@ -162,7 +162,7 @@ function renderActiveAttack(
           : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${preparing ? ' preparing' : activeFor !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
