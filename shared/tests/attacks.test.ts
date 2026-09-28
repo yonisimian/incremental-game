@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ModeDefinition } from '../src/modes/types.js'
 import type { AttackDefinition, PlayerState, UpgradeDefinition } from '../src/types.js'
 import {
-  activeDebuffRemainingSec,
+  activeDebuffExpiresAtSec,
   attackBlockReason,
   collectAttackParams,
   isValidAttackActivation,
@@ -935,14 +935,14 @@ describe('resolveAttackStrike — debuff window', () => {
   })
 })
 
-// ─── activeDebuffRemainingSec / openDebuffWindows ────────────────────
+// ─── activeDebuffExpiresAtSec / openDebuffWindows ────────────────────
 
-describe('activeDebuffRemainingSec', () => {
+describe('activeDebuffExpiresAtSec', () => {
   it('is null with no windows at all', () => {
-    expect(activeDebuffRemainingSec(makeState(), 'a3')).toBeNull()
+    expect(activeDebuffExpiresAtSec(makeState(), 'a3')).toBeNull()
   })
 
-  it('reports the seconds left on an open window for that attack only', () => {
+  it('reports when an open window for that attack only closes', () => {
     const state = makeState({
       meta: { gameSec: 12.5 },
       activeDebuffs: [
@@ -950,9 +950,9 @@ describe('activeDebuffRemainingSec', () => {
         { attack: 'a4', expiresAtSec: 40 },
       ],
     })
-    expect(activeDebuffRemainingSec(state, 'a3')).toBeCloseTo(2.5)
-    expect(activeDebuffRemainingSec(state, 'a4')).toBeCloseTo(27.5)
-    expect(activeDebuffRemainingSec(state, 'a0')).toBeNull()
+    expect(activeDebuffExpiresAtSec(state, 'a3')).toBe(15)
+    expect(activeDebuffExpiresAtSec(state, 'a4')).toBe(40)
+    expect(activeDebuffExpiresAtSec(state, 'a0')).toBeNull()
   })
 
   it('reads an expired-but-unswept window as null', () => {
@@ -960,7 +960,7 @@ describe('activeDebuffRemainingSec', () => {
       meta: { gameSec: 15 },
       activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
     })
-    expect(activeDebuffRemainingSec(state, 'a3')).toBeNull()
+    expect(activeDebuffExpiresAtSec(state, 'a3')).toBeNull()
   })
 })
 

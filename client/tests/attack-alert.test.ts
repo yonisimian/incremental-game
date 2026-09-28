@@ -34,12 +34,12 @@ vi.mock('../src/network.js', () => ({
   sendBotRequest: vi.fn(),
 }))
 
-/** One mocked toast handle per spawn, so each warning's updates and dismissal are visible. */
+/** One mocked toast handle per spawn, so each warning's dismissal is visible. */
 const { spawnToast, handles } = vi.hoisted(() => {
-  const handles: { update: ReturnType<typeof vi.fn>; dismiss: ReturnType<typeof vi.fn> }[] = []
+  const handles: { dismiss: ReturnType<typeof vi.fn> }[] = []
   const spawnToast = vi.fn(
     (_text: string, _tone: string, _opts?: { icon?: string; sticky?: boolean }) => {
-      const handle = { update: vi.fn(), dismiss: vi.fn() }
+      const handle = { dismiss: vi.fn() }
       handles.push(handle)
       return handle
     },
@@ -122,7 +122,7 @@ describe('incomingAttacks — state and toasts', () => {
     expect(game.getState().incomingAttacks).toEqual([])
   })
 
-  it('keeps one sticky toast per strike, counting down on each snapshot', () => {
+  it('keeps one sticky toast per strike across snapshots', () => {
     game.handleServerMessage(snapshot(10, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
     const [text, tone, opts] = spawnToast.mock.calls[0]
@@ -135,11 +135,10 @@ describe('incomingAttacks — state and toasts', () => {
       countdown: { template: 'Enemy attack lands in {}s', untilSec: 14 },
     })
 
-    // The same strike, rebroadcast as it counts down: the one toast is rewritten.
+    // The same strike, rebroadcast as it counts down, keeps its one toast.
     game.handleServerMessage(snapshot(10.5, [{ readyAtSec: 14 }]))
     game.handleServerMessage(snapshot(11, [{ readyAtSec: 14 }]))
     expect(spawnToast).toHaveBeenCalledTimes(1)
-    expect(handles[0].update).toHaveBeenLastCalledWith('Enemy attack lands in 3.0s')
 
     // A second strike joining the list gets its own toast.
     game.handleServerMessage(snapshot(11.5, [{ readyAtSec: 14 }, { readyAtSec: 20 }]))

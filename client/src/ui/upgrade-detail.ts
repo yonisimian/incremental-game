@@ -10,19 +10,19 @@ import {
   isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
+  readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
 import {
   canAfford,
   formatUpgradeCost,
   isAttackSlotBlocked,
-  isPurchaseLockedByAttack,
   isUnlocked,
   escapeAttr,
   purchaseLockCountdown,
-  purchaseLockLabel,
 } from './helpers.js'
 import { countdownAttrs } from './counters.js'
+import { formatCountdown } from './format-number.js'
 import type { Countdown } from './format-number.js'
 
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
@@ -65,7 +65,8 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const maxed = isMaxed(u, owned)
   const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
   const slotBlocked = isAttackSlotBlocked(state, u)
-  const attackLocked = isPurchaseLockedByAttack(state, 'upgrade', u.id)
+  const attackLock = purchaseLockCountdown(state, 'upgrade', u.id)
+  const attackLocked = attackLock !== null
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -84,9 +85,8 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   // Last of the reasons, since it is the only one that lifts on its own; the
   // countdown is what tells the player to wait rather than look for a fix.
   else if (attackLocked) {
-    lockReason = `Enemy attack — ${purchaseLockLabel(state, 'upgrade', u.id)}`
-    const lock = purchaseLockCountdown(state, 'upgrade', u.id)
-    if (lock) lockCountdown = { ...lock, template: `Enemy attack — ${lock.template}` }
+    lockCountdown = { ...attackLock, template: `Enemy attack — ${attackLock.template}` }
+    lockReason = formatCountdown(lockCountdown, readGameSec(state.player))
   }
 
   const name = getUpgradeName(flavor, u.id)

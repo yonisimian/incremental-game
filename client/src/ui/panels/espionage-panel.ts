@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { formatTime } from '../helpers.js'
-import { countdownSpan } from '../counters.js'
+import { countdownSpan, counterAttr } from '../counters.js'
 import {
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -18,6 +18,7 @@ import {
   hasEnemyDataAccess,
   highlightDebuffFactor,
   HIGHLIGHT_FACTOR_TARGET,
+  readGameSec,
 } from '@game/shared'
 import { getAttackIcon, getAttackName } from '@game/shared'
 import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
@@ -100,7 +101,7 @@ function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): 
  */
 function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   const locks = state.player.incomingPurchaseLocks ?? []
-  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  const gameSec = readGameSec(state.player)
   const line = (template: string, untilSec: number) =>
     countdownSpan({ template, untilSec }, gameSec)
   const allUpgrades = locks.find((l) => l.scope === 'upgrade' && l.id === undefined)
@@ -125,7 +126,7 @@ function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): 
  */
 function describeIncomingAttacks(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   if (state.incomingAttacks.length === 0) return []
-  const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
+  const gameSec = readGameSec(state.player)
   return [...state.incomingAttacks]
     .sort((a, b) => a.readyAtSec - b.readyAtSec)
     .map((a) => {
@@ -201,12 +202,12 @@ function renderResources(
   const body = rows
     .map(({ key, amount, rate }) => {
       const amountCell = amount ? formatNumber(state.opponent.resources[key] ?? 0) : LOCKED_CELL
-      const amountId = amount ? ` id="esp-amount-${key}"` : ''
+      const amountAttr = amount ? counterAttr('theirs', key) : ''
       const rateCell = rate ? `${formatNumber(rates[key] ?? 0, 1)}/s` : LOCKED_CELL
       return `
         <tr>
           <td class="espionage-res-name">${getResourceIcon(flavor, key)} ${getResourceName(flavor, key)}</td>
-          <td class="espionage-res-value"${amountId}>${amountCell}</td>
+          <td class="espionage-res-value"${amountAttr}>${amountCell}</td>
           <td class="espionage-res-value">${rateCell}</td>
         </tr>
       `

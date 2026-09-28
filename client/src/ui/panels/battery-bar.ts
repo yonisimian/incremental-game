@@ -25,6 +25,7 @@ import { getConfirmedHighlight } from '../../game.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { setText } from '../helpers.js'
+import { fadeCorrection } from '../counters.js'
 
 /** Stable id of the bar's root, so the play panel can find/inject/remove it. */
 export const BATTERY_BAR_ID = 'battery-bar'
@@ -40,13 +41,6 @@ export interface ChargeAnchor {
   /** Display error at `atMs` (shown minus true charge), faded out over time. */
   offset: number
 }
-
-/**
- * Time constant of the correction fade. The snapshot that first shows a
- * highlight switch lands after the server already turned, by up to a broadcast
- * interval, so the bar has that much catching up to do.
- */
-const CORRECTION_TAU_MS = 120
 
 let anchor: ChargeAnchor | null = null
 /** The raw server charge the current anchor descends from. */
@@ -138,8 +132,7 @@ export function reanchor(
 
 /** The predicted charge plus the anchor's fading correction, clamped to the tank. */
 export function displayCharge(a: ChargeAnchor, nowMs: number): number {
-  const fade = Math.exp(-(nowMs - a.atMs) / CORRECTION_TAU_MS)
-  const shown = predictCharge(a, nowMs) + a.offset * fade
+  const shown = predictCharge(a, nowMs) + fadeCorrection(a.offset, nowMs - a.atMs)
   return Math.min(a.params.maxCharge, Math.max(0, shown))
 }
 

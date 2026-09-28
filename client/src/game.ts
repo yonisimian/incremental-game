@@ -42,6 +42,7 @@ import {
   applyPurchase,
   isClickUnlocked,
   readHighlight,
+  readGameSec,
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
@@ -970,12 +971,11 @@ const incomingAttackToasts = new Map<string, ToastHandle>()
 
 /**
  * Keep one sticky `warning` toast per enemy strike in view: spawned when the
- * strike first appears, its countdown re-synced on each snapshot (and ticked
- * every frame by the counters painter), and dismissed
- * once the strike leaves the list (it landed) — so the warning never vanishes
- * before the attack does, however long the lead. The remaining time is read
- * against the snapshot's `meta.gameSec`. Named when the viewer's alert reveals
- * the attack, otherwise a generic "Enemy attack" — the espionage panel's wording.
+ * strike first appears (its countdown then ticked by the counters painter), and
+ * dismissed once the strike leaves the list (it landed) — so the warning never
+ * vanishes before the attack does, however long the lead. Named when the
+ * viewer's alert reveals the attack, otherwise a generic "Enemy attack" — the
+ * espionage panel's wording.
  */
 function syncIncomingAttackToasts(
   next: readonly IncomingAttack[],
@@ -984,25 +984,19 @@ function syncIncomingAttackToasts(
 ): void {
   const inView = new Set<string>()
   if (modeDef) {
-    const gameSec = (player.meta.gameSec as number | undefined) ?? 0
     const flavor = getModeFlavor(modeDef)
     for (const a of next) {
       const key = incomingAttackKey(a)
       inView.add(key)
+      // The key includes `readyAtSec`, so a toast's countdown never changes.
+      if (incomingAttackToasts.has(key)) continue
       const countdown = {
         template: `${a.attack ? getAttackName(flavor, a.attack) : 'Enemy attack'} lands in {}s`,
         untilSec: a.readyAtSec,
       }
-      const text = formatCountdown(countdown, gameSec)
-      const toast = incomingAttackToasts.get(key)
-      if (toast) toast.update(text)
-      else {
-        const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
-        incomingAttackToasts.set(
-          key,
-          spawnToast(text, 'warning', { icon, sticky: true, countdown }),
-        )
-      }
+      const icon = a.attack ? getAttackIcon(flavor, a.attack) : '⚠️'
+      const text = formatCountdown(countdown, readGameSec(player))
+      incomingAttackToasts.set(key, spawnToast(text, 'warning', { icon, sticky: true, countdown }))
     }
   }
   for (const [key, toast] of incomingAttackToasts) {

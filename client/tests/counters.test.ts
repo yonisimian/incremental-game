@@ -5,7 +5,7 @@ import {
   bendRate,
   countdownSpan,
   extrapolate,
-  predictClock,
+  snapshotLeadSec,
   retarget,
   tweenAt,
   type Anchor,
@@ -99,19 +99,17 @@ describe('tween', () => {
   })
 })
 
-describe('predictClock', () => {
-  it('advances the snapshot clock by real time', () => {
-    expect(predictClock(10, T0, false, T0 + 300)).toBeCloseTo(10.3)
+describe('snapshotLeadSec', () => {
+  it('counts real time since the snapshot', () => {
+    expect(snapshotLeadSec(T0, false, T0 + 300)).toBeCloseTo(0.3)
   })
 
   it('stops after two broadcast intervals without a snapshot', () => {
-    expect(predictClock(10, T0, false, T0 + 60_000)).toBeCloseTo(
-      10 + (2 * BROADCAST_INTERVAL_MS) / 1000,
-    )
+    expect(snapshotLeadSec(T0, false, T0 + 60_000)).toBeCloseTo((2 * BROADCAST_INTERVAL_MS) / 1000)
   })
 
   it('holds still while paused', () => {
-    expect(predictClock(10, T0, true, T0 + 300)).toBe(10)
+    expect(snapshotLeadSec(T0, true, T0 + 300)).toBe(0)
   })
 })
 

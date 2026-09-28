@@ -2,6 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doClick, toggleHighlight, getClickTarget } from '../../game.js'
 import { formatNumber } from '../format-number.js'
+import { counterAttr } from '../counters.js'
 import {
   getModeDefinition,
   getModeFlavor,
@@ -62,7 +63,7 @@ function renderCurrencyCards(state: Readonly<GameState>): string {
       <button class="currency-card ${isHighlighted ? 'highlighted' : ''}" id="card-${key}" aria-pressed="${isHighlighted}">
         <span class="card-emoji">${getResourceIcon(flavor, key)}</span>
         <span class="card-name">${getResourceName(flavor, key)}</span>
-        <span class="card-balance" id="${key}-balance">${balance}</span>
+        <span class="card-balance" id="${key}-balance"${counterAttr('own', key)}>${balance}</span>
       </button>`
     })
     .join('')
@@ -161,7 +162,6 @@ export const playPanel: Panel = {
       cards = null
     }
     if (cards) {
-      // Balances are painted by the interpolated counters.
       const highlight = readHighlight(state.player)
       for (const key of modeDef.resources) {
         const card = document.getElementById(`card-${key}`)

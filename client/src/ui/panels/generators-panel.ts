@@ -2,7 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doBuyGenerator, doBuyGeneratorMax, doSellGenerator } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { costChangeMarker, isPurchaseLockedByAttack, purchaseLockCountdown } from '../helpers.js'
+import { costChangeMarker, purchaseLockCountdown } from '../helpers.js'
 import { countdownSpan } from '../counters.js'
 import {
   type GeneratorDefinition,
@@ -21,6 +21,7 @@ import {
   getResourceIcon,
   getGeneratorName,
   getGeneratorIcon,
+  readGameSec,
 } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -149,7 +150,8 @@ function renderAllGenerators(state: Readonly<GameState>): string {
       const nextCost = getGeneratorCost(effectiveDef, owned)
       // Buying is gated exactly as `generatorBlockReason` gates it: unlocked,
       // no enemy purchase lock, then affordable.
-      const attackLocked = isPurchaseLockedByAttack(state, 'generator', def.id)
+      const lock = purchaseLockCountdown(state, 'generator', def.id)
+      const attackLocked = lock !== null
       const buyable = unlocked && !attackLocked
       const affordable = buyable && canAffordGenerator(state.player, effectiveDef)
       const maxAffordable = buyable ? getMaxAffordableGeneratorCount(state.player, effectiveDef) : 0
@@ -172,8 +174,6 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         nextCost,
         getGeneratorCost(resolveGeneratorDef(def, state.player, modeDef, 'sell'), owned),
       )
-      const lock = attackLocked ? purchaseLockCountdown(state, 'generator', def.id) : null
-      const gameSec = (state.player.meta.gameSec as number | undefined) ?? 0
       return renderGeneratorCardView(def, getModeFlavor(modeDef), {
         owned,
         nextCost,
@@ -184,7 +184,7 @@ function renderAllGenerators(state: Readonly<GameState>): string {
         canSell,
         costMarker,
         locked: !unlocked,
-        ...(lock ? { attackLockLabel: countdownSpan(lock, gameSec) } : {}),
+        ...(lock ? { attackLockLabel: countdownSpan(lock, readGameSec(state.player)) } : {}),
       })
     })
     .join('')

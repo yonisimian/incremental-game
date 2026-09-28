@@ -42,8 +42,7 @@ export const COUNTDOWN_SEC = 0
 export const GENERATOR_SELL_REFUND_RATE = 0.5
 /**
  * Below this many seconds remaining, the round timer switches from `M:SS` to a
- * tense `seconds:centiseconds` readout (e.g. `9:99` … `0:00`). The client also
- * interpolates the timer locally (via rAF) only inside this window.
+ * tense `seconds:centiseconds` readout (e.g. `9:99` … `0:00`).
  */
 export const TIMER_CENTISECONDS_BELOW_SEC = 10
 

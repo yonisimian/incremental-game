@@ -2,6 +2,7 @@ import {
   type ModeDefinition,
   type PlayerState,
   isHighlightActive,
+  readGameSec,
   readHighlight,
 } from '@game/shared'
 
@@ -91,7 +92,7 @@ class RoundStats {
    * active.
    */
   recordTick(player: Readonly<PlayerState>, modeDef: ModeDefinition): void {
-    const gameSec = (player.meta.gameSec as number | undefined) ?? 0
+    const gameSec = readGameSec(player)
     const delta = gameSec - this.lastHighlightGameSec
     this.lastHighlightGameSec = gameSec
     if (delta <= 0) return
@@ -141,7 +142,7 @@ class RoundStats {
    * passive tick). Returns 0 until the clock has advanced.
    */
   averageCps(player: Readonly<PlayerState>): number {
-    const elapsed = (player.meta.gameSec as number | undefined) ?? 0
+    const elapsed = readGameSec(player)
     if (elapsed <= 0) return 0
     return this.clicks.totalClicks / elapsed
   }

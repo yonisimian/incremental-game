@@ -14,24 +14,37 @@
  *   score guessed ahead would have to run backwards when the guess was wrong.
  * - Countdowns (attack prep and windows, purchase locks, incoming strikes) run
  *   off a predicted game clock: the snapshot's `meta.gameSec` advanced by real
- *   time. The clock never runs backwards, so a countdown never ticks up.
+ *   time. The clock never runs backwards, so a countdown never ticks up. The
+ *   round timer advances the snapshot's `timeLeft` the same way.
+ *
+ * Elements opt in through attributes (`counterAttr`, `scoreFillAttr`,
+ * `TIME_LEFT_ATTR`, `countdownAttrs`), so the painter owns no panel's ids.
  */
 
-import { BROADCAST_INTERVAL_MS, MAX_RESOURCE, getModeDefinition } from '@game/shared'
+import { BROADCAST_INTERVAL_MS, MAX_RESOURCE, readGameSec } from '@game/shared'
 import type { ModeDefinition } from '@game/shared'
 import { getSnapshotCount, getState } from '../game.js'
 import type { GameState } from '../game.js'
 import { formatCountdown, formatNumber } from './format-number.js'
 import type { Countdown } from './format-number.js'
-import { escapeAttr, formatScore, setText, updateProgressBar } from './helpers.js'
+import { escapeAttr, formatScore, formatTime } from './helpers.js'
 
 /** How far past its snapshot a counter keeps climbing — covers one late broadcast. */
 const MAX_LEAD_MS = BROADCAST_INTERVAL_MS * 2
 
-/** Time constant of the fade that absorbs a snapshot's disagreement with the prediction. */
+/**
+ * Time constant of the fade that absorbs a snapshot's disagreement with the
+ * prediction — long enough to hide a tick of timing jitter, short enough that a
+ * real change (a theft, a highlight switch the server made first) shows at once.
+ */
 const CORRECTION_TAU_MS = 120
 
 // ─── Pure math ───────────────────────────────────────────────────────
+
+/** What remains `elapsedMs` after a correction of `offset` began fading. */
+export function fadeCorrection(offset: number, elapsedMs: number): number {
+  return offset * Math.exp(-elapsedMs / CORRECTION_TAU_MS)
+}
 
 /** How one of the player's counters advances past the value in state. */
 export interface Anchor {
@@ -57,8 +70,7 @@ function leadAt(a: Anchor, nowMs: number): number {
 /** The value to show for `value` (the live state) under anchor `a`. */
 export function extrapolate(value: number, a: Anchor, nowMs: number): number {
   if (a.paused) return value
-  const fade = Math.exp(-(nowMs - a.snapshotMs) / CORRECTION_TAU_MS)
-  const shown = value + leadAt(a, nowMs) + a.offset * fade
+  const shown = value + leadAt(a, nowMs) + fadeCorrection(a.offset, nowMs - a.snapshotMs)
   return Math.min(MAX_RESOURCE, Math.max(0, shown))
 }
 
@@ -102,13 +114,31 @@ export function retarget(prev: Tween | undefined, to: number, nowMs: number): Tw
   return { from: tweenAt(prev, nowMs), to, atMs: nowMs }
 }
 
-/** The snapshot's game clock `sec`, received at `atMs`, advanced to `nowMs`. */
-export function predictClock(sec: number, atMs: number, paused: boolean, nowMs: number): number {
-  if (paused) return sec
-  return sec + Math.min(Math.max(0, nowMs - atMs), MAX_LEAD_MS) / 1000
+/** Real seconds since a snapshot received at `atMs`, frozen while paused and capped. */
+export function snapshotLeadSec(atMs: number, paused: boolean, nowMs: number): number {
+  if (paused) return 0
+  return Math.min(Math.max(0, nowMs - atMs), MAX_LEAD_MS) / 1000
 }
 
-/** The attributes that hand an element's text to the per-frame countdown painter. */
+/** Key for the score among the resource keys (which are abstract `r0`, `r1`, …). */
+const SCORE_KEY = '#score'
+
+type Side = 'own' | 'theirs'
+
+/** Hands an element's text to the painter: resource `key`'s amount, or the score when omitted. */
+export function counterAttr(side: Side, key: string = SCORE_KEY): string {
+  return ` data-counter="${side}:${key}"`
+}
+
+/** Hands a progress fill's width to the painter: `side`'s score against the target. */
+export function scoreFillAttr(side: Side): string {
+  return ` data-score-fill="${side}"`
+}
+
+/** Hands an element's text to the painter as the round timer. */
+export const TIME_LEFT_ATTR = ' data-counter="time-left"'
+
+/** Hands an element's text to the painter as a countdown. */
 export function countdownAttrs(c: Countdown | null): string {
   if (!c) return ''
   return ` data-until="${c.untilSec}" data-countdown="${escapeAttr(c.template)}"`
@@ -121,13 +151,11 @@ export function countdownSpan(c: Countdown, gameSec: number): string {
 
 // ─── Tracking ────────────────────────────────────────────────────────
 
-/** Key for the score among the resource keys (which are abstract `r0`, `r1`, …). */
-const SCORE_KEY = '#score'
-
 const own = new Map<string, { value: number; anchor: Anchor }>()
 const theirs = new Map<string, Tween>()
-let clock = { sec: 0, atMs: 0, paused: false }
-/** The latest clock painted, so a snapshot behind the prediction stalls it instead of rewinding. */
+/** The last snapshot's clocks, and when it arrived. */
+let snapshot = { gameSec: 0, timeLeft: 0, atMs: 0, paused: false }
+/** The latest game clock painted, so a snapshot behind the prediction stalls it instead of rewinding. */
 let shownClock = 0
 let trackedMatch: string | null = null
 let lastSnapshot = -1
@@ -151,9 +179,9 @@ export function syncCounters(
     trackedMatch = state.matchId
   }
   const now = performance.now()
-  const snapshot = getSnapshotCount()
-  const fresh = newMatch || snapshot !== lastSnapshot
-  lastSnapshot = snapshot
+  const count = getSnapshotCount()
+  const fresh = newMatch || count !== lastSnapshot
+  lastSnapshot = count
 
   const track = (key: string, value: number, rate: number): void => {
     const prev = own.get(key)
@@ -168,10 +196,11 @@ export function syncCounters(
   }
   track(SCORE_KEY, state.player.score, rates[modeDef.scoreResource] ?? 0)
 
-  // The opponent's values and the game clock only ever change on a snapshot.
+  // The opponent's values and the clocks only ever change on a snapshot.
   if (fresh) {
-    clock = {
-      sec: (state.player.meta.gameSec as number | undefined) ?? 0,
+    snapshot = {
+      gameSec: readGameSec(state.player),
+      timeLeft: state.timeLeft,
       atMs: now,
       paused: state.paused,
     }
@@ -184,50 +213,52 @@ export function syncCounters(
   rafId ??= requestAnimationFrame(loop)
 }
 
-function shownOwn(key: string, nowMs: number): number {
+function shownOwn(key: string, nowMs: number): number | null {
   const t = own.get(key)
-  return t ? extrapolate(t.value, t.anchor, nowMs) : 0
+  return t ? extrapolate(t.value, t.anchor, nowMs) : null
 }
 
-function shownTheirs(key: string, nowMs: number): number {
+function shownTheirs(key: string, nowMs: number): number | null {
   const t = theirs.get(key)
-  return t ? tweenAt(t, nowMs) : 0
+  return t ? tweenAt(t, nowMs) : null
 }
 
-/**
- * Write every counter on screen: header resources, highlight-card balances,
- * scoreboard / target bars, the espionage stockpiles, and every countdown.
- * Elements that aren't mounted are skipped, so this is safe from any tab.
- */
+/** A `data-counter` element's text, or `null` for a counter not tracked yet. */
+function counterText(counter: string, state: Readonly<GameState>, nowMs: number): string | null {
+  if (counter === 'time-left') {
+    const lead = snapshotLeadSec(snapshot.atMs, snapshot.paused, nowMs)
+    return formatTime(snapshot.timeLeft - lead)
+  }
+  const [side, key] = counter.split(':')
+  const value = side === 'own' ? shownOwn(key, nowMs) : shownTheirs(key, nowMs)
+  if (value === null) return null
+  return key === SCORE_KEY ? formatScore(value, state) : formatNumber(value)
+}
+
+/** Write every element that opted in through one of the markup helpers above. */
 export function paintCounters(): void {
   const state = getState()
-  if (!state.mode) return
-  const modeDef = getModeDefinition(state.mode)
   const now = performance.now()
 
-  shownClock = Math.max(shownClock, predictClock(clock.sec, clock.atMs, clock.paused, now))
+  const lead = snapshotLeadSec(snapshot.atMs, snapshot.paused, now)
+  shownClock = Math.max(shownClock, snapshot.gameSec + lead)
   for (const el of document.querySelectorAll<HTMLElement>('[data-until][data-countdown]')) {
     const c = { template: el.dataset.countdown ?? '', untilSec: Number(el.dataset.until) }
     const text = formatCountdown(c, shownClock)
     if (el.textContent !== text) el.textContent = text
   }
 
-  for (const key of modeDef.resources) {
-    const text = formatNumber(shownOwn(key, now))
-    setText(`header-${key}`, text)
-    setText(`${key}-balance`, text)
-    if (theirs.has(key)) setText(`esp-amount-${key}`, formatNumber(shownTheirs(key, now)))
+  for (const el of document.querySelectorAll<HTMLElement>('[data-counter]')) {
+    const text = counterText(el.dataset.counter ?? '', state, now)
+    if (text !== null && el.textContent !== text) el.textContent = text
   }
 
-  const score = shownOwn(SCORE_KEY, now)
-  const opponentScore = shownTheirs(SCORE_KEY, now)
-  setText('player-score', formatScore(score, state))
-  setText('opponent-score', formatScore(opponentScore, state))
-  setText('player-bar-score', formatScore(score, state))
-  setText('opponent-bar-score', formatScore(opponentScore, state))
   if (state.goal?.type === 'target-score') {
-    updateProgressBar('player-progress', score, state.goal.target)
-    updateProgressBar('opponent-progress', opponentScore, state.goal.target)
+    for (const el of document.querySelectorAll<HTMLElement>('[data-score-fill]')) {
+      const score =
+        el.dataset.scoreFill === 'own' ? shownOwn(SCORE_KEY, now) : shownTheirs(SCORE_KEY, now)
+      if (score !== null) el.style.width = `${Math.min(100, (score / state.goal.target) * 100)}%`
+    }
   }
 }
 

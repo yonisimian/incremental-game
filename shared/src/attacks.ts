@@ -8,6 +8,7 @@
 // the client re-uses `applyAttackActivation` for optimistic prediction.
 
 import { scaledCost } from './cost.js'
+import { readGameSec } from './game-clock.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import { creditResource } from './modifiers/pipeline.js'
 import { createInitialState, isAttackUnlocked, unlockedAttacks } from './modes/index.js'
@@ -264,25 +265,25 @@ export function getAttackDurationSec(def: AttackDefinition, params: AttackParams
 }
 
 /**
- * Seconds left on the debuff window `attackId` is currently inflicting, or
- * `null` when none is open — the window twin of a pending strike's `readyAtSec`.
- * Reads `meta.gameSec` off `state` as every other attack-timing path does.
+ * Game-clock time the debuff window `attackId` is currently inflicting closes,
+ * or `null` when none is open — the window twin of a pending strike's
+ * `readyAtSec`. Reads `meta.gameSec` off `state` as every other attack-timing
+ * path does.
  *
  * Expired entries the server has not swept yet read as `null`, so a caller
  * never needs to know about the sweep.
  */
-export function activeDebuffRemainingSec(
+export function activeDebuffExpiresAtSec(
   state: Readonly<PlayerState>,
   attackId: string,
 ): number | null {
-  const gameSec = (state.meta.gameSec as number | undefined) ?? 0
-  let remaining: number | null = null
+  const gameSec = readGameSec(state)
+  let expiresAt: number | null = null
   for (const window of state.activeDebuffs ?? []) {
-    if (window.attack !== attackId) continue
-    const left = window.expiresAtSec - gameSec
-    if (left > 0 && (remaining === null || left > remaining)) remaining = left
+    if (window.attack !== attackId || window.expiresAtSec <= gameSec) continue
+    if (expiresAt === null || window.expiresAtSec > expiresAt) expiresAt = window.expiresAtSec
   }
-  return remaining
+  return expiresAt
 }
 
 /**
@@ -347,7 +348,7 @@ export function attackBlockReason(
   // is the cheap, legible option: no stacking arithmetic, no refresh-vs-extend
   // decision, and the card shows a countdown instead of a price. *Different*
   // attacks stack freely — they are separate modifiers in the pipeline.
-  if (activeDebuffRemainingSec(state, attackId) !== null) return 'already-active'
+  if (activeDebuffExpiresAtSec(state, attackId) !== null) return 'already-active'
   const params = collectAttackParams(state, mode, attackId)
   if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
   return null
