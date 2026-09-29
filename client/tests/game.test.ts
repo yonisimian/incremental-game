@@ -41,7 +41,7 @@ async function loadGame(): Promise<GameModule> {
   // resetModules wipes the runtime mode registry — re-register the tree on the
   // fresh module instance before importing code that reads it.
   const shared = await import('@game/shared')
-  shared.loadTree(idlerTreeFile)
+  shared.loadTree('idler', idlerTreeFile)
   return await import('../src/game.js')
 }
 

@@ -95,7 +95,7 @@ beforeEach(async () => {
   // afterEach resets modules, wiping the runtime mode registry — re-register
   // the tree on the fresh instance the dynamic imports will resolve to.
   const shared = await import('@game/shared')
-  shared.loadTree(idlerTreeFile)
+  shared.loadTree('idler', idlerTreeFile)
 })
 
 afterEach(() => {

@@ -52,11 +52,11 @@ describe('canonical tree files', () => {
 })
 
 describe('tree discovery', () => {
-  it("rejects a file whose name doesn't match its id", () => {
-    // It would otherwise be served at `/trees/renamed.json` but registered as
-    // `idler`, silently overwriting the real idler mode.
+  it('registers each tree under its file name', () => {
+    // The same content under two names is two modes — the file name is the id.
     const dir = treeDir({ 'idler.json': IDLER_TREE, 'renamed.json': IDLER_TREE })
-    expect(() => loadTreeFiles(dir)).toThrow(/'renamed\.json' declares id 'idler'/u)
+    expect([...loadTreeFiles(dir).keys()]).toEqual(['idler', 'renamed'])
+    expect(getModeDefinition('renamed')).toEqual(getModeDefinition('idler'))
   })
 
   it('rejects a file name that is not URL-safe', () => {

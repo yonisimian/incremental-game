@@ -39,8 +39,7 @@ test('BOOT-04 server serves canonical tree bytes and headers', async ({ players,
   expect(response.headers()['content-type']).toContain('application/json')
   expect(response.headers()['access-control-allow-origin']).toBe('*')
   expect(response.headers()['cache-control']).toBe('no-cache')
-  const tree = (await response.json()) as { id: string; upgrades: unknown[] }
-  expect(tree.id).toBe('idler')
+  const tree = (await response.json()) as { upgrades: unknown[] }
   const serialized = JSON.stringify(tree.upgrades)
   for (const id of ['sc-unlock', 'g1-g2', 'sh-unlock']) expect(serialized).toContain(`"${id}"`)
 })

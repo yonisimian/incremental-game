@@ -104,7 +104,9 @@ export async function connect(): Promise<void> {
       const trees = await Promise.all(
         modes.map((mode) => fetchJson(`${httpUrl}trees/${mode}.json`)),
       )
-      for (const tree of trees) loadTree(tree)
+      modes.forEach((mode, i) => {
+        loadTree(mode, trees[i])
+      })
       treeLoaded = true
     } catch {
       // A bad/unreachable tree is fatal for play — surface a retryable error

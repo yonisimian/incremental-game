@@ -26,15 +26,18 @@ export function treeToJson(tree: TreeFile): string {
   return serializeTree(tree)
 }
 
-/** Serialize the working tree and trigger a browser download. */
-export function exportTree(tree: TreeFile): void {
+/**
+ * Serialize the working tree and trigger a browser download as `<name>.json`.
+ * `name` is the tree's mode id — trees don't carry one; it is their file name.
+ */
+export function exportTree(tree: TreeFile, name: string): void {
   assertLoadable(tree)
   const json = serializeTree(tree)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${tree.id}.json`
+  a.download = `${name}.json`
   a.click()
   URL.revokeObjectURL(url)
 }

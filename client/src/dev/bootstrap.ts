@@ -16,5 +16,5 @@ import { loadBalance, loadTree } from '@game/shared'
 import idlerBalanceFile from '@game/shared/balance/idler.json'
 import idlerTreeFile from '@game/shared/trees/idler.json'
 
-loadTree(idlerTreeFile)
+loadTree('idler', idlerTreeFile)
 loadBalance(idlerBalanceFile)

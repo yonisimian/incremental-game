@@ -1,6 +1,5 @@
 {
-  "version": 4,
-  "id": "idler",
+  "version": 5,
   "resources": [
     "r0",
     "r1"

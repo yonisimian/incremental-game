@@ -12,9 +12,11 @@ const trees = import.meta.glob<unknown>('../../shared/trees/*.json', {
   eager: true,
   import: 'default',
 })
-const isDefault = (path: string): boolean => path.endsWith(`/${DEFAULT_MODE}.json`)
+// A tree's mode id is its file name.
+const modeOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1, -'.json'.length)
+const isDefault = (path: string): boolean => modeOf(path) === DEFAULT_MODE
 const paths = Object.keys(trees).sort(
   (a, b) => Number(isDefault(b)) - Number(isDefault(a)) || a.localeCompare(b),
 )
-for (const path of paths) loadTree(trees[path])
+for (const path of paths) loadTree(modeOf(path), trees[path])
 loadBalance(idlerBalanceFile)

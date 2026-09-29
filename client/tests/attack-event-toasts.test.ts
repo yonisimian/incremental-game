@@ -48,7 +48,7 @@ type GameModule = typeof import('../src/game.js')
 async function loadGame(): Promise<GameModule> {
   vi.resetModules()
   const shared = await import('@game/shared')
-  shared.loadTree(idlerTreeFile)
+  shared.loadTree('idler', idlerTreeFile)
   return await import('../src/game.js')
 }
 

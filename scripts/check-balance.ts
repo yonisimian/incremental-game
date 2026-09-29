@@ -61,8 +61,10 @@ const ANALYZE = process.argv.includes('--analyze')
 // data); the sidecar registers its envelopes (dev/CI metadata) — envelopes are
 // validated against the loaded mode's goals. A mode without a sidecar has no
 // envelopes, so nothing here gates it.
+// A tree's mode id is its file name.
 for (const file of readdirSync(join(SHARED_ROOT, 'trees')).filter((f) => f.endsWith('.json'))) {
-  loadTree(JSON.parse(readFileSync(join(SHARED_ROOT, 'trees', file), 'utf8')))
+  const mode = file.slice(0, -'.json'.length)
+  loadTree(mode, JSON.parse(readFileSync(join(SHARED_ROOT, 'trees', file), 'utf8')))
   const balancePath = join(SHARED_ROOT, 'balance', file)
   if (existsSync(balancePath)) loadBalance(JSON.parse(readFileSync(balancePath, 'utf8')))
 }

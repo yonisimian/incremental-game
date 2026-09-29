@@ -140,6 +140,15 @@ function migrateV3toV4(json: unknown): unknown {
 }
 
 /**
+ * V4 → V5: the top-level `id` is dropped. A tree's mode id is now its file name
+ * (`trees/<mode>.json`), so the field only duplicated it.
+ */
+function migrateV4toV5(json: unknown): unknown {
+  const { id: _id, ...rest } = json as Record<string, unknown>
+  return { ...rest, version: 5 }
+}
+
+/**
  * Bring a raw, untrusted object up to the current schema version before it is
  * validated. The single seam for backward compatibility: when the file shape
  * changes, bump `CURRENT_TREE_VERSION` and add a step that upgrades the previous
@@ -153,6 +162,7 @@ function migrateTreeFile(json: unknown): unknown {
   if ((raw as { version?: unknown } | null)?.version === 1) raw = migrateV1toV2(raw)
   if ((raw as { version?: unknown } | null)?.version === 2) raw = migrateV2toV3(raw)
   if ((raw as { version?: unknown } | null)?.version === 3) raw = migrateV3toV4(raw)
+  if ((raw as { version?: unknown } | null)?.version === 4) raw = migrateV4toV5(raw)
   const version = (raw as { version?: unknown } | null)?.version
   if (version === CURRENT_TREE_VERSION) return raw
   throw new Error(
@@ -190,8 +200,9 @@ function toRuntimeNode(node: TreeUpgradeNode): UpgradeTreeNode {
  * map sentinels, flatten the offset tree to absolute positions, then run the
  * existing mode/prerequisite/choice-group/effect validation. Throws on any
  * inconsistency (duplicate id, unknown effect type, malformed effect params, …).
+ * `name` only labels those errors — the tree itself carries no mode id.
  */
-export function toModeDefinition(tree: TreeFile): ModeDefinition {
+export function toModeDefinition(tree: TreeFile, name = 'tree'): ModeDefinition {
   const def: ModeDefinition = {
     resources: tree.resources,
     scoreResource: tree.scoreResource,
@@ -211,7 +222,7 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
     // result stays minimal.
     ...(tree.startingEffects.length > 0 ? { effects: tree.startingEffects } : {}),
   }
-  validateModeDefinition(tree.id, def)
+  validateModeDefinition(name, def)
   return def
 }
 
@@ -220,21 +231,19 @@ export function toModeDefinition(tree: TreeFile): ModeDefinition {
  * `parse → migrate → validate → flatten → assemble → re-validate`. Returns a
  * ready-to-register {@link ModeDefinition}, or throws on any invalid input.
  */
-export function parseTree(json: unknown): ModeDefinition {
-  return toModeDefinition(parseTreeFile(json))
+export function parseTree(json: unknown, name?: string): ModeDefinition {
+  return toModeDefinition(parseTreeFile(json), name)
 }
 
 /**
  * Parse, validate, and register a tree file as a runtime mode in one step — the
  * boot entry point. The server reads the file from disk and the client fetches
  * it from the server, then both call this before any `getModeDefinition`.
- * Returns the registered mode id. Throws on any invalid input.
+ * `mode` is the tree's file name (`trees/<mode>.json`) — the mode id it is
+ * registered under. Throws on any invalid input.
  */
-export function loadTree(json: unknown): GameMode {
-  const file = parseTreeFile(json)
-  const id = file.id
-  registerMode(id, toModeDefinition(file))
-  return id
+export function loadTree(mode: GameMode, json: unknown): void {
+  registerMode(mode, toModeDefinition(parseTreeFile(json), mode))
 }
 
 // ─── Serialize (authoring tree → JSON) ───────────────────────────────

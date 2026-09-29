@@ -7,7 +7,7 @@ import type { PrerequisiteExpression } from '../types.js'
  * On-disk schema version. Bump when the file shape changes incompatibly and add
  * a migration step in `migrateTreeFile` (see `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 4
+export const CURRENT_TREE_VERSION = 5
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -216,8 +216,8 @@ const UpgradeNodeSchema = z
  */
 export const TreeFileSchema = z.strictObject({
   version: z.literal(CURRENT_TREE_VERSION),
-  /** Mode key (e.g. 'idler') — used for validation messages and registration. */
-  id: z.string(),
+  // No `id`: a tree's mode id is its file name (`trees/<mode>.json`), passed to
+  // `loadTree` by whoever read the file.
   resources: z.array(z.string()),
   scoreResource: z.string(),
   clicksEnabled: z.boolean(),

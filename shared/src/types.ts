@@ -29,9 +29,9 @@ export type PrerequisiteExpression =
 export type UpgradePrerequisites = PrerequisiteExpression
 
 /**
- * A game mode id — the `id` of a tree file in `shared/trees/`, which must match
- * its file name (`<mode>.json`). Modes are discovered at runtime, so this is an
- * open string; check untrusted ids with `isAvailableMode`.
+ * A game mode id — the file name of its tree in `shared/trees/` (`<mode>.json`).
+ * Modes are discovered at runtime, so this is an open string; check untrusted
+ * ids with `isAvailableMode`.
  */
 export type GameMode = string
 

@@ -64,6 +64,8 @@ function buildLayout(): string {
 
 interface ShellState {
   tree: TreeFile
+  /** File name (without `.json`) the tree exports as — its mode id. */
+  name: string
   dirty: boolean
   section: Section
 }
@@ -83,6 +85,7 @@ export function initEditor(pane: HTMLElement): () => void {
 
   const state: ShellState = {
     tree: cloneTree(parseTreeFile(idlerTreeFile)),
+    name: 'idler',
     dirty: false,
     section: 'tree',
   }
@@ -138,6 +141,7 @@ export function initEditor(pane: HTMLElement): () => void {
     void importTreeFromFile(file)
       .then((tree) => {
         state.tree = tree
+        state.name = file.name.replace(/\.json$/iu, '')
         state.dirty = false
         mountSection()
         setStatus(`Loaded ${file.name}`)
@@ -152,13 +156,13 @@ export function initEditor(pane: HTMLElement): () => void {
 
   exportBtn.addEventListener('click', () => {
     try {
-      exportTree(state.tree)
+      exportTree(state.tree, state.name)
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Export failed', true)
       return
     }
     state.dirty = false
-    setStatus(`Exported ${state.tree.id}.json`)
+    setStatus(`Exported ${state.name}.json`)
   })
 
   copyBtn.addEventListener('click', () => {
@@ -172,7 +176,7 @@ export function initEditor(pane: HTMLElement): () => void {
     void navigator.clipboard
       .writeText(json)
       .then(() => {
-        setStatus(`Copied ${state.tree.id}.json to clipboard`)
+        setStatus(`Copied ${state.name}.json to clipboard`)
       })
       .catch(() => {
         setStatus('Copy to clipboard failed', true)
@@ -181,6 +185,7 @@ export function initEditor(pane: HTMLElement): () => void {
 
   resetBtn.addEventListener('click', () => {
     state.tree = cloneTree(parseTreeFile(idlerTreeFile))
+    state.name = 'idler'
     state.dirty = false
     mountSection()
     setStatus('Reset to idler tree')
