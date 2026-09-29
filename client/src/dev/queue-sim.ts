@@ -464,11 +464,8 @@ export function initQueueSim(pane: HTMLElement): void {
     loadStrategyFromFile().then(
       (loaded) => {
         if (!loaded) return // cancelled
-        // Compare as strings: `GameMode` is a single-member union today, so a
-        // typed `!==` would be flagged as an always-false comparison.
-        const loadedMode: string = loaded.mode
-        if (loadedMode !== (MODE as string)) {
-          setStatus(`Strategy is for mode "${loadedMode}"; this panel runs "${MODE}".`, true)
+        if (loaded.mode !== MODE) {
+          setStatus(`Strategy is for mode "${loaded.mode}"; this panel runs "${MODE}".`, true)
           return
         }
         strategies.push(loaded)

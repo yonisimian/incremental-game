@@ -12,7 +12,7 @@ import type {
   PlayerAction,
   ServerMessage,
 } from '@game/shared'
-import { AVAILABLE_MODES, loadTree } from '@game/shared'
+import { loadTree } from '@game/shared'
 
 import { recorderAction } from './dev-recorder.js'
 
@@ -92,16 +92,17 @@ export async function connect(): Promise<void> {
 
   // Load every mode tree once, server-authoritative: the tree data is not
   // bundled, it is fetched from the server so both ends agree on the exact tree.
-  // All modes load up front — the lobby's mode picker reads each one.
+  // The server's mode list comes first; all trees then load up front, in that
+  // order — the lobby's mode picker reads each one.
   if (!treeLoaded) {
     onConnectionState('loading')
     try {
+      const modes = await fetchJson(`${httpUrl}trees.json`)
+      if (!Array.isArray(modes) || !modes.every((m) => typeof m === 'string')) {
+        throw new Error('mode list is not an array of strings')
+      }
       const trees = await Promise.all(
-        AVAILABLE_MODES.map(async (mode) => {
-          const res = await fetch(`${httpUrl}trees/${mode}.json`)
-          if (!res.ok) throw new Error(`tree fetch failed for '${mode}': ${res.status}`)
-          return (await res.json()) as unknown
-        }),
+        modes.map((mode) => fetchJson(`${httpUrl}trees/${mode}.json`)),
       )
       for (const tree of trees) loadTree(tree)
       treeLoaded = true
@@ -114,6 +115,13 @@ export async function connect(): Promise<void> {
   }
 
   openWebSocket(wsUrl)
+}
+
+/** GET a JSON document, throwing on a non-2xx response. */
+async function fetchJson(url: string): Promise<unknown> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`)
+  return (await res.json()) as unknown
 }
 
 /** Queue a player action to be sent in the next batch. */

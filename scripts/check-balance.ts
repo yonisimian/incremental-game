@@ -20,17 +20,15 @@
  *   tsx scripts/check-balance.ts --analyze  # also print coverage findings (non-gating)
  */
 
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createRequire } from 'node:module'
 
 import {
   allEnvelopes,
   analyzeCoverage,
   analyzeDominance,
   analyzePacing,
-  AVAILABLE_MODES,
   firstTimeAtScore,
   getModeDefinition,
   isPacingEnvelope,
@@ -52,20 +50,21 @@ import {
 } from '@game/shared'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
-const STRATEGY_ROOT = join(ROOT, '..', 'shared', 'strategies')
+const SHARED_ROOT = join(ROOT, '..', 'shared')
+const STRATEGY_ROOT = join(SHARED_ROOT, 'strategies')
 
 const SUGGEST = process.argv.includes('--suggest')
 const ANALYZE = process.argv.includes('--analyze')
 
-// Register every mode's tree, then its balance sidecar, before simulating. The
-// tree loads the mode (gameplay data); the sidecar registers its envelopes
-// (dev/CI metadata) — envelopes are validated against the loaded mode's goals.
-const require = createRequire(import.meta.url)
-for (const mode of AVAILABLE_MODES) {
-  loadTree(JSON.parse(readFileSync(require.resolve(`@game/shared/trees/${mode}.json`), 'utf8')))
-  loadBalance(
-    JSON.parse(readFileSync(require.resolve(`@game/shared/balance/${mode}.json`), 'utf8')),
-  )
+// Register every mode's tree (each file in `shared/trees/`), then its balance
+// sidecar if it has one, before simulating. The tree loads the mode (gameplay
+// data); the sidecar registers its envelopes (dev/CI metadata) — envelopes are
+// validated against the loaded mode's goals. A mode without a sidecar has no
+// envelopes, so nothing here gates it.
+for (const file of readdirSync(join(SHARED_ROOT, 'trees')).filter((f) => f.endsWith('.json'))) {
+  loadTree(JSON.parse(readFileSync(join(SHARED_ROOT, 'trees', file), 'utf8')))
+  const balancePath = join(SHARED_ROOT, 'balance', file)
+  if (existsSync(balancePath)) loadBalance(JSON.parse(readFileSync(balancePath, 'utf8')))
 }
 
 /** Load and parse every authored strategy JSON for a mode. */

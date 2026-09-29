@@ -232,7 +232,7 @@ export function parseTree(json: unknown): ModeDefinition {
  */
 export function loadTree(json: unknown): GameMode {
   const file = parseTreeFile(json)
-  const id = file.id as GameMode
+  const id = file.id
   registerMode(id, toModeDefinition(file))
   return id
 }

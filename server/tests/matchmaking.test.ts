@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import idlerAlternativeTreeFile from '@game/shared/trees/idler-alternative.json' with { type: 'json' }
-import idlerTreeFile from '@game/shared/trees/idler.json' with { type: 'json' }
 
 function mockWs(): WebSocket {
   return { readyState: 1, send: vi.fn() } as unknown as WebSocket
@@ -81,9 +79,8 @@ describe('rooms', () => {
     vi.useFakeTimers()
     // resetModules wipes the runtime mode registry too — re-register the trees
     // on the fresh module instance before the re-imported code uses them.
-    const shared = await import('@game/shared')
-    shared.loadTree(idlerTreeFile)
-    shared.loadTree(idlerAlternativeTreeFile)
+    const { loadTreeFiles } = await import('../src/trees.js')
+    loadTreeFiles()
     const mod = await import('../src/matchmaking.js')
     createRoom = mod.createRoom
     joinRoom = mod.joinRoom

@@ -126,7 +126,7 @@ export function validateEnvelopes(
  */
 export function loadBalance(json: unknown): GameMode {
   const file = parseBalanceFile(json)
-  const mode = file.mode as GameMode
+  const mode = file.mode
   const def = getModeDefinition(mode)
   const envelopes = file.envelopes.map((e) => toEnvelope(mode, e))
   validateEnvelopes(mode, def.goals, envelopes)

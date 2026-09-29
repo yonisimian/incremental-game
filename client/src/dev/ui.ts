@@ -2,7 +2,6 @@
  * Dev panel UI — DOM construction and event wiring.
  */
 
-import type { GameMode } from '@game/shared'
 import { getModeDefinition, getModeFlavor, liveActionsToStrategy } from '@game/shared'
 import { updateChart } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
@@ -45,7 +44,7 @@ export function initDevPanel(root: HTMLElement): void {
       return
     }
     const name = `Live ${state.mode} ${new Date().toLocaleTimeString()}`
-    const strategy = liveActionsToStrategy(state.actions, state.mode as GameMode, name)
+    const strategy = liveActionsToStrategy(state.actions, state.mode, name)
     importStrategyToQueue(strategy)
     saveStrategyToFile(strategy).catch((err: unknown) => {
       liveExportStatus.textContent = `Save failed: ${err instanceof Error ? err.message : String(err)}`
@@ -214,7 +213,7 @@ function renderLiveCharts(
   const result = liveStateToSimResult(state)
   if (!result || !state.mode) return
 
-  const modeDef = getModeDefinition(state.mode as GameMode)
+  const modeDef = getModeDefinition(state.mode)
   const xData = result.snapshots.map((s) => s.timeSec)
 
   // Score chart

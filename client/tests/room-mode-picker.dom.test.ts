@@ -6,7 +6,7 @@
 // lobby, not the settings logic (covered server-side in matchmaking.test.ts).
 
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { AVAILABLE_MODES, getModeDefinition, getModeFlavor } from '@game/shared'
+import { getAvailableModes, getModeDefinition, getModeFlavor } from '@game/shared'
 import type { GameMode } from '@game/shared'
 import type { GameState } from '../src/game.js'
 
@@ -44,9 +44,9 @@ const chips = (): HTMLButtonElement[] => [
 describe('room mode picker (DOM)', () => {
   it('shows one chip per tree, labelled with its display name, current one selected', () => {
     renderRoomScreen(roomState('idler-alternative'))
-    expect(chips().map((c) => c.dataset.mode)).toEqual([...AVAILABLE_MODES])
+    expect(chips().map((c) => c.dataset.mode)).toEqual(getAvailableModes())
     expect(chips().map((c) => c.textContent)).toEqual(
-      AVAILABLE_MODES.map((m) => getModeFlavor(getModeDefinition(m)).displayName),
+      getAvailableModes().map((m) => getModeFlavor(getModeDefinition(m)).displayName),
     )
     const selected = chips().filter((c) => c.classList.contains('selected'))
     expect(selected.map((c) => c.dataset.mode)).toEqual(['idler-alternative'])

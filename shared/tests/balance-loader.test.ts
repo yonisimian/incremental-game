@@ -7,7 +7,7 @@ import {
   parseBalanceFile,
   validateEnvelopes,
 } from '../src/index.js'
-import type { BalanceEnvelope, GameMode, Goal } from '../src/index.js'
+import type { BalanceEnvelope, Goal } from '../src/index.js'
 import idlerBalanceFile from '../balance/idler.json' with { type: 'json' }
 
 // The shared test setup (`setup.ts`) already loads the idler tree + balance
@@ -57,7 +57,7 @@ describe('loadBalance', () => {
   })
 
   it('fails soft: an unregistered mode yields no envelope', () => {
-    expect(envelopeFor('nope' as GameMode, 'timed')).toBeUndefined()
+    expect(envelopeFor('nope', 'timed')).toBeUndefined()
   })
 
   it('throws when the sidecar targets a mode that is not loaded', () => {
