@@ -3,20 +3,11 @@
 // `shared/trees/`), so tests that call `getModeDefinition` need the trees
 // registered first; the balance sidecar (`loadBalance`) then registers the idler
 // envelopes, which the dev-panel envelope helpers (`envelopeFor`) depend on.
-import { DEFAULT_MODE, loadBalance, loadTree } from '@game/shared'
+import { loadBalance, loadTree } from '@game/shared'
 import idlerBalanceFile from '@game/shared/balance/idler.json'
+// Every tree file, keyed by file name — default mode first, as the live client
+// receives them.
+import { BUNDLED_TREES } from '../src/dev/bundled-modes.js'
 
-// Every tree file, like the server's discovery — default mode first, as the
-// live client receives them.
-const trees = import.meta.glob<unknown>('../../shared/trees/*.json', {
-  eager: true,
-  import: 'default',
-})
-// A tree's mode id is its file name.
-const modeOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1, -'.json'.length)
-const isDefault = (path: string): boolean => modeOf(path) === DEFAULT_MODE
-const paths = Object.keys(trees).sort(
-  (a, b) => Number(isDefault(b)) - Number(isDefault(a)) || a.localeCompare(b),
-)
-for (const path of paths) loadTree(modeOf(path), trees[path])
+for (const [mode, tree] of BUNDLED_TREES) loadTree(mode, tree)
 loadBalance(idlerBalanceFile)
