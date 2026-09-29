@@ -213,8 +213,6 @@ function renderCreatorSettings(mode: GameMode, goal: Goal): string {
         <span class="setting-label">Mode</span>
         <div class="mode-chips" id="mode-chips">${AVAILABLE_MODES.map((m) => {
           const def = getModeDefinition(m)
-          // Always true while only one mode exists; kept for when AVAILABLE_MODES grows.
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           const selected = m === mode ? ' selected' : ''
           return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(getModeFlavor(def).displayName)}</button>`
         }).join('')}</div>

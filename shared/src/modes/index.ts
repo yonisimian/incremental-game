@@ -852,7 +852,7 @@ export function getLoadedModeDefinitions(): ModeDefinition[] {
  * available before any tree is loaded — distinct from whether a mode's data has
  * been loaded into the registry. Used for input validation and the lobby picker.
  */
-export const AVAILABLE_MODES: readonly GameMode[] = ['idler']
+export const AVAILABLE_MODES: readonly GameMode[] = ['idler', 'idler-alternative']
 
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {

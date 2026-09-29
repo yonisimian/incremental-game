@@ -28,8 +28,8 @@ export type PrerequisiteExpression =
 
 export type UpgradePrerequisites = PrerequisiteExpression
 
-/** Available game modes. Idler-only for now; the union is kept so re-adding modes stays cheap. */
-export type GameMode = 'idler'
+/** Available game modes — one per tree file in `shared/trees/` (`<mode>.json`). */
+export type GameMode = 'idler' | 'idler-alternative'
 
 /** A 2D position on the upgrade-tree canvas (logical units; render-time scale applies). */
 export interface UpgradePosition {

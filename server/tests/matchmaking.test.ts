@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
+import idlerAlternativeTreeFile from '@game/shared/trees/idler-alternative.json' with { type: 'json' }
 import idlerTreeFile from '@game/shared/trees/idler.json' with { type: 'json' }
 
 function mockWs(): WebSocket {
@@ -78,10 +79,11 @@ describe('rooms', () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.useFakeTimers()
-    // resetModules wipes the runtime mode registry too — re-register the tree
-    // on the fresh module instance before the re-imported code uses it.
+    // resetModules wipes the runtime mode registry too — re-register the trees
+    // on the fresh module instance before the re-imported code uses them.
     const shared = await import('@game/shared')
     shared.loadTree(idlerTreeFile)
+    shared.loadTree(idlerAlternativeTreeFile)
     const mod = await import('../src/matchmaking.js')
     createRoom = mod.createRoom
     joinRoom = mod.joinRoom
@@ -170,6 +172,15 @@ describe('rooms', () => {
     expect(res.ok).toBe(true)
     if (!res.ok) return
     expect(res.settings.mode).toBe('idler')
+  })
+
+  it('lets the creator switch the room to the alternative idler tree', () => {
+    createRoom(player('p1'), noop)
+    const res = updateRoomSettings('p1', { mode: 'idler-alternative' })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.settings.mode).toBe('idler-alternative')
+    expect(getRoomByPlayerId('p1')!.mode).toBe('idler-alternative')
   })
 
   it('rejects settings update from non-creator', () => {

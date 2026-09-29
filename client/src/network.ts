@@ -12,7 +12,7 @@ import type {
   PlayerAction,
   ServerMessage,
 } from '@game/shared'
-import { loadTree } from '@game/shared'
+import { AVAILABLE_MODES, loadTree } from '@game/shared'
 
 import { recorderAction } from './dev-recorder.js'
 
@@ -90,14 +90,20 @@ export async function connect(): Promise<void> {
     return
   }
 
-  // Load the mode tree once, server-authoritative: the tree data is not bundled,
-  // it is fetched from the server so both ends agree on the exact tree.
+  // Load every mode tree once, server-authoritative: the tree data is not
+  // bundled, it is fetched from the server so both ends agree on the exact tree.
+  // All modes load up front — the lobby's mode picker reads each one.
   if (!treeLoaded) {
     onConnectionState('loading')
     try {
-      const res = await fetch(`${httpUrl}trees/idler.json`)
-      if (!res.ok) throw new Error(`tree fetch failed: ${res.status}`)
-      loadTree((await res.json()) as unknown)
+      const trees = await Promise.all(
+        AVAILABLE_MODES.map(async (mode) => {
+          const res = await fetch(`${httpUrl}trees/${mode}.json`)
+          if (!res.ok) throw new Error(`tree fetch failed for '${mode}': ${res.status}`)
+          return (await res.json()) as unknown
+        }),
+      )
+      for (const tree of trees) loadTree(tree)
       treeLoaded = true
     } catch {
       // A bad/unreachable tree is fatal for play — surface a retryable error
