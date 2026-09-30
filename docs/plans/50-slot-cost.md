@@ -1,6 +1,9 @@
 # 50 — Slot cost: how much of the limit each attack and pact takes
 
-## Status: Planned
+## Status: Implemented
+
+As built, following the plan. The editor rounds a typed slot cost to a whole
+number. Open questions 1–2 (content, glyph) remain for the balance pass.
 
 Builds on [38 — attack limit](38-attack-limit.md) and
 [49 — pact limit](49-pact-limit.md). Today every held attack or pact fills
