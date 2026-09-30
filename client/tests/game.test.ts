@@ -911,7 +911,7 @@ describe('game.ts', () => {
   // ── Idler: attack slots ────────────────────────────────────────────
 
   describe('idler attack slots', () => {
-    /** The idler's free unlock node for `attack`. */
+    /** The idler's unlock node for `attack`. */
     const unlockOf = (attack: string): string =>
       idlerDef.upgrades.find((u) =>
         u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
@@ -942,7 +942,7 @@ describe('game.ts', () => {
         ackSeq,
         player: {
           score: 0,
-          resources: { r0: 1000, r1: 1000 },
+          resources: { r0: 10000, r1: 10000 },
           upgrades: { ...defaultUpgrades, 'a-unlock': 1, [A0]: 0, [A1]: 0, ...owned },
           generators: {},
           pendingAttacks: [],
