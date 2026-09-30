@@ -260,6 +260,19 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // asks one question in that context: does this ref still do something at every
   // level a player can buy?
   const attacksById = new Map(def.attacks.map((a) => [a.id, a]))
+  // `slotCost` is a whole number of slots; the schema covers the file path,
+  // this a programmatically built mode.
+  const checkSlotCosts = (
+    what: 'attack' | 'pact',
+    defs: readonly { id: string; slotCost?: number }[],
+  ): void => {
+    for (const d of defs) {
+      if (d.slotCost !== undefined && !(Number.isInteger(d.slotCost) && d.slotCost > 0))
+        throw new Error(
+          `[${id}] ${what} '${d.id}' has slotCost ${d.slotCost} — it must be a positive whole number of slots`,
+        )
+    }
+  }
   const checkAttackStat = (where: string, ref: EffectRef, purchaseLimit: number): void => {
     if (ref.type !== 'attackStat') return
     // A negative `add` resolves as `1 + value × owned`, so it reaches `0` at
@@ -374,28 +387,46 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   }
   const cappedKinds = new Set<AttackKind>()
   const baseSlots = new Map<AttackKind, number>()
-  const noteSlotGrant = (ref: EffectRef, fromMode: boolean): void => {
+  // The greatest limit a player could ever reach: the base plus every grant
+  // bought to its purchase limit (infinite when any grant is unlimited).
+  const reachableSlots = new Map<AttackKind, number>()
+  const noteSlotGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
     if (ref.type !== 'attackSlots') return
     const kind = ref.attackKind
     if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
     cappedKinds.add(kind)
-    if (fromMode && typeof ref.value === 'number')
-      baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
+    if (typeof ref.value !== 'number') return
+    if (fromMode) baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
+    reachableSlots.set(kind, (reachableSlots.get(kind) ?? 0) + ref.value * levels)
   }
-  for (const ref of def.effects ?? []) noteSlotGrant(ref, true)
-  for (const u of def.upgrades) for (const ref of u.effects ?? []) noteSlotGrant(ref, false)
+  for (const ref of def.effects ?? []) noteSlotGrant(ref, 1, true)
+  for (const u of def.upgrades)
+    for (const ref of u.effects ?? []) noteSlotGrant(ref, u.purchaseLimit, false)
+  checkSlotCosts('attack', def.attacks)
   for (const kind of cappedKinds) {
-    const held = startingUnlocks.get(kind)?.size ?? 0
+    let held = 0
+    for (const attackId of startingUnlocks.get(kind) ?? []) {
+      held += attacksById.get(attackId)?.slotCost ?? 1
+    }
     const base = baseSlots.get(kind) ?? 0
     if (held > base)
       throw new Error(
-        `[${id}] the mode's starting effects unlock ${held} ${kind} attack(s) but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
+        `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} attacks but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
       )
+    const reachable = reachableSlots.get(kind) ?? 0
+    for (const attack of def.attacks) {
+      if (attack.kind !== kind) continue
+      const cost = attack.slotCost ?? 1
+      if (cost > reachable)
+        throw new Error(
+          `[${id}] ${kind} attack '${attack.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} attack slot(s) can ever be granted — it can never be held`,
+        )
+    }
   }
 
-  // `pactSlots`: the same rule for pacts — starting effects that unlock more
-  // pacts of a capped kind than the mode's base grant would open the round
-  // over budget.
+  // `pactSlots`: the same rules for pacts — starting effects that unlock more
+  // slots of a capped kind than the mode's base grant would open the round
+  // over budget, and a pact heavier than any reachable limit is never held.
   {
     const pactsById = new Map(def.pacts.map((p) => [p.id, p]))
     const startingPacts = new Map<PactKind, Set<string>>()
@@ -409,23 +440,39 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
     const cappedPactKinds = new Set<PactKind>()
     const basePactSlots = new Map<PactKind, number>()
-    const notePactSlotGrant = (ref: EffectRef, fromMode: boolean): void => {
+    const reachablePactSlots = new Map<PactKind, number>()
+    const notePactSlotGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
       if (ref.type !== 'pactSlots') return
       const kind = ref.pactKind
       if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
       cappedPactKinds.add(kind)
-      if (fromMode && typeof ref.value === 'number')
-        basePactSlots.set(kind, (basePactSlots.get(kind) ?? 0) + ref.value)
+      if (typeof ref.value !== 'number') return
+      if (fromMode) basePactSlots.set(kind, (basePactSlots.get(kind) ?? 0) + ref.value)
+      reachablePactSlots.set(kind, (reachablePactSlots.get(kind) ?? 0) + ref.value * levels)
     }
-    for (const ref of def.effects ?? []) notePactSlotGrant(ref, true)
-    for (const u of def.upgrades) for (const ref of u.effects ?? []) notePactSlotGrant(ref, false)
+    for (const ref of def.effects ?? []) notePactSlotGrant(ref, 1, true)
+    for (const u of def.upgrades)
+      for (const ref of u.effects ?? []) notePactSlotGrant(ref, u.purchaseLimit, false)
+    checkSlotCosts('pact', def.pacts)
     for (const kind of cappedPactKinds) {
-      const held = startingPacts.get(kind)?.size ?? 0
+      let held = 0
+      for (const pactId of startingPacts.get(kind) ?? []) {
+        held += pactsById.get(pactId)?.slotCost ?? 1
+      }
       const base = basePactSlots.get(kind) ?? 0
       if (held > base)
         throw new Error(
-          `[${id}] the mode's starting effects unlock ${held} ${kind} pact(s) but grant only ${base} ${kind} pact slot(s) — the round would open over budget, which no purchase can repair`,
+          `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} pacts but grant only ${base} ${kind} pact slot(s) — the round would open over budget, which no purchase can repair`,
         )
+      const reachable = reachablePactSlots.get(kind) ?? 0
+      for (const pact of def.pacts) {
+        if (pact.kind !== kind) continue
+        const cost = pact.slotCost ?? 1
+        if (cost > reachable)
+          throw new Error(
+            `[${id}] ${kind} pact '${pact.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} pact slot(s) can ever be granted — it can never be held`,
+          )
+      }
     }
   }
 

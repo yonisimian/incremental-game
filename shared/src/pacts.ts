@@ -427,6 +427,11 @@ export function applyPactActivation(
 // monotonic; the cap refuses the *purchase* that would exceed it. No player
 // state — the count is the unlocked pacts, the limit a sum over owned grants.
 
+/** Slots of its kind's budget `def` takes while held (`slotCost`, default 1). */
+export function pactSlotCost(def: PactDefinition): number {
+  return def.slotCost ?? 1
+}
+
 /** Whether an effect output is a pact-slot grant. */
 function isPactSlotsOutput(out: EffectOutput): out is PactSlotsOutput {
   return 'kind' in out && out.kind === 'pactSlots'
@@ -501,22 +506,29 @@ export function pactLimit(
 }
 
 /**
- * How many pacts of `kind` this player holds — the unlocked pacts of the kind.
- * Counts *pacts*, not unlock routes, as `attackSlotsHeld` does.
+ * How many slots of `kind` this player's held pacts fill — the unlocked pacts
+ * of the kind, each weighted by its {@link pactSlotCost}. Counts *pacts*, not
+ * unlock routes, as `attackSlotsHeld` does.
  */
 export function pactSlotsHeld(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   kind: PactKind,
 ): number {
-  const kindOf = new Map(mode.pacts.map((p) => [p.id, p.kind]))
-  return unlockedPacts(state, mode).filter((id) => kindOf.get(id) === kind).length
+  const byId = new Map(mode.pacts.map((p) => [p.id, p]))
+  let held = 0
+  for (const id of unlockedPacts(state, mode)) {
+    const def = byId.get(id)
+    if (def?.kind === kind) held += pactSlotCost(def)
+  }
+  return held
 }
 
 /**
  * Whether buying one more level of `def` fits the player's pact budget: the
  * pacts its `unlockPact` refs would newly unlock, bucketed by kind, must fit
- * `held + adding <= limit` — the limit including any slots `def` itself grants.
+ * `held + adding <= limit` — `adding` their summed slot costs, the limit
+ * including any slots `def` itself grants.
  * All-or-nothing, and an upgrade unlocking no pact is never blocked here —
  * `hasAttackSlotsFor`'s rules.
  */
@@ -526,13 +538,13 @@ export function hasPactSlotsFor(
   mode: ModeDefinition,
 ): boolean {
   const adding = new Map<PactKind, Set<string>>()
-  const kindOf = new Map(mode.pacts.map((p) => [p.id, p.kind]))
+  const byId = new Map(mode.pacts.map((p) => [p.id, p]))
   for (const ref of def.effects ?? []) {
     if (ref.type !== 'unlockPact') continue
     for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
       if (!('kind' in out) || out.kind !== 'pactUnlock') continue
       if (isPactUnlocked(state, mode, out.pact)) continue
-      const kind = kindOf.get(out.pact)
+      const kind = byId.get(out.pact)?.kind
       if (!kind) continue // unknown pact — rejected at boot
       let ids = adding.get(kind)
       if (!ids) {
@@ -544,7 +556,9 @@ export function hasPactSlotsFor(
   }
   for (const [kind, ids] of adding) {
     const limit = pactLimit(state, mode, kind) + pactSlotsGranted(def.effects, 1, state, mode, kind)
-    if (pactSlotsHeld(state, mode, kind) + ids.size > limit) return false
+    let cost = 0
+    for (const id of ids) cost += pactSlotCost(byId.get(id)!)
+    if (pactSlotsHeld(state, mode, kind) + cost > limit) return false
   }
   return true
 }
