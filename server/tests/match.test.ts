@@ -2445,4 +2445,160 @@ describe('Match', () => {
       }
     })
   })
+
+  describe('active pacts', () => {
+    const mode = getModeDefinition('idler')
+    const relationsUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) =>
+          e.type === 'panelUnlock' &&
+          (e as { panel?: string }).panel === 'international-relationship',
+      ),
+    )!
+    const signP3 = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+    )!
+    const WINDOW_SEC = 3
+    const REST_SEC = 5
+
+    /**
+     * The idler with `p3` (Trade route: +2% 🪵 per enemy woodcutter, mutual)
+     * re-authored as an active pact: 10 🪵, open `WINDOW_SEC`, resting `REST_SEC`.
+     */
+    function withActiveTradeRoute(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        pacts: base.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                kind: 'active' as const,
+                activationCost: { r0: { baseCost: 10 } },
+                durationSec: WINDOW_SEC,
+                cooldownSec: REST_SEC,
+              }
+            : p,
+        ),
+      }
+    }
+
+    function withActivePactMode(body: () => void) {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        body()
+      } finally {
+        registerMode('idler', base)
+      }
+    }
+
+    function activatePactMsg(pactId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'activate_pact', timestamp: Date.now(), pactId }],
+      })
+    }
+
+    /** Unlock the relations panel and p3 for p1, with Wood to activate it. */
+    function armSigner(m: Match) {
+      m.handleMessage('p1', buyMsg(relationsUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(signP3.id, 2))
+      m.grantResourcesForTest('p1', { r0: 100 })
+    }
+
+    function incomeOver(ws: WebSocket): number {
+      const before = latestUpdate(ws).player.resources.r0
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      return latestUpdate(ws).player.resources.r0 - before
+    }
+
+    it('activates on the wire: pays, opens the window, stamps the rest', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const player = latestUpdate(ws1).player
+        const window = player.activePacts![0]
+        expect(window.pact).toBe('p3')
+        expect(player.cooldowns).toEqual([
+          { kind: 'pact', id: 'p3', untilSec: window.expiresAtSec + REST_SEC },
+        ])
+        // Paid 10, then earned a little income.
+        expect(player.resources.r0).toBeLessThan(before)
+      })
+    })
+
+    it('refuses re-activation while open and while resting, however rich; accepts after', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const first = latestUpdate(ws1).player.activePacts![0]
+
+        m.grantResourcesForTest('p1', { r0: 1_000_000 })
+        m.handleMessage('p1', activatePactMsg('p3', 4))
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        // Closed and swept, but still resting: the second activation was dropped.
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 6))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const second = latestUpdate(ws1).player.activePacts![0]
+        expect(second.expiresAtSec).toBeGreaterThan(first.expiresAtSec)
+      })
+    })
+
+    it('pays both sides while the mutual window is open, and only then', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        // p2 holds woodcutters, so p1's window is worth something to p1…
+        m.handleMessage('p2', buyMsg('g1-g2', 1))
+        m.grantResourcesForTest('p2', { r1: 100_000 })
+        for (let i = 0; i < 5; i++) m.handleMessage('p2', buyGenMsg('g0', 2 + i))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const p1Baseline = incomeOver(ws1)
+        expect(p1Baseline).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // +2% × 5 woodcutters.
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1.1, 6)
+        // …and, mutual, p2 sees the treaty p1 signed.
+        expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1, 6)
+        expect(latestUpdate(ws2).opponent.pacts).toBeUndefined()
+      })
+    })
+
+    it('freezes the window while paused', () => {
+      withActivePactMode(() => {
+        const m = enterPlayingVsBot()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const window = latestUpdate(ws1).player.activePacts
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(WINDOW_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toEqual(window)
+      })
+    })
+  })
 })

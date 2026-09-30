@@ -510,8 +510,9 @@ export type EffectOutput =
  *   *benefit* drawn from the opponent, and only the pact outputs
  *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
  *   `collectPactBonuses` in `pacts.ts`).
- * - `activePact` — an active pact's `effects`: nothing reads this host yet, so
- *   no effect declares it and boot rejects any effect authored there.
+ * - `activePact` — an active pact's `effects`: the passive-pact outputs, in
+ *   force only while the pact's window is open (`pactsInForce` lists open
+ *   windows beside the unlocked passive pacts).
  */
 export type EffectHost =
   'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'

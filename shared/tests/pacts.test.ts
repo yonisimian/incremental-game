@@ -32,6 +32,7 @@ import {
   readEnemyStat,
   resolveEnemyDebuffs,
   resolveGeneratorDef,
+  sharedPacts,
   upgradeCostFactors,
   validateModeDefinition,
 } from '../src/index.js'
@@ -346,9 +347,9 @@ describe('pactsInForce', () => {
     expect(ids(pactsInForce(both, player({ signed: ['p-trade'] }), MODE))).toEqual(['p-trade'])
   })
 
-  it('skips active pacts and locked ones', () => {
-    // Signed active pact: the active-pact lifecycle, not in force here. Unsigned
-    // passive pact: locked, whatever its `mutual`.
+  it('skips a signed active pact with no open window, and locked ones', () => {
+    // Signed active pact: in force only while activated. Unsigned passive pact:
+    // locked, whatever its `mutual`.
     expect(pactsInForce(player({ signed: ['p-active'] }), player(), MODE)).toEqual([])
     expect(pactsInForce(player(), player({ signed: ['p-active'] }), MODE)).toEqual([])
   })
@@ -463,6 +464,73 @@ describe('active pact activation', () => {
     expect(activePactExpiresAtSec(state, ACCORD.id)).toBeNull()
     expect(activePactExpiresAtSec(state, QUICK.id)).toBe(30)
     expect(openPactWindows(state, 25)).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+  })
+
+  describe('open windows are in force', () => {
+    /** The mutual twin of ACCORD. */
+    const CEASEFIRE: PactDefinition = { ...ACCORD, id: 'p-ceasefire', mutual: true }
+    const withMutual: ModeDefinition = { ...mode, pacts: [...mode.pacts, CEASEFIRE] }
+    const open = (pact: string, gameSec: number, expiresAtSec: number): PlayerState =>
+      signer(gameSec, { activePacts: [{ pact, expiresAtSec }] })
+
+    it('lists the owner’s open window after the passive pacts, and drops it once closed', () => {
+      const owner = open(ACCORD.id, 10, 25)
+      owner.upgrades['sign-p-trade'] = 1
+      expect(ids(pactsInForce(owner, player(), mode))).toEqual(['p-trade', ACCORD.id])
+      owner.meta.gameSec = 25
+      expect(ids(pactsInForce(owner, player(), mode))).toEqual(['p-trade'])
+    })
+
+    it('shares a partner’s open window only when the pact is mutual', () => {
+      expect(ids(pactsInForce(player(), open(ACCORD.id, 10, 25), withMutual))).toEqual([])
+      expect(ids(pactsInForce(player(), open(CEASEFIRE.id, 10, 25), withMutual))).toEqual([
+        CEASEFIRE.id,
+      ])
+      // Judged on the partner's clock: closed for them, gone for the owner too.
+      expect(pactsInForce(player(), open(CEASEFIRE.id, 25, 25), withMutual)).toEqual([])
+    })
+
+    it('lists a window both sides have open once', () => {
+      const both = pactsInForce(open(CEASEFIRE.id, 10, 25), open(CEASEFIRE.id, 10, 30), withMutual)
+      expect(ids(both)).toEqual([CEASEFIRE.id])
+    })
+
+    it('makes the window’s effects pay while it is open', () => {
+      // ACCORD mirrors +1 r0 rate per enemy r0 held.
+      const partner = { state: player({ r0: 40 }), rates: {} }
+      expect(collectPactBonuses(open(ACCORD.id, 10, 25), partner, mode)).toEqual([
+        { pact: ACCORD.id, modifiers: [{ stage: 'additive', field: 'r0', value: 40 }] },
+      ])
+      expect(collectPactBonuses(open(ACCORD.id, 25, 25), partner, mode)).toEqual([])
+    })
+
+    it('reveals the partner’s open mutual windows, never a one-sided one', () => {
+      expect(sharedPacts(open(CEASEFIRE.id, 10, 25), withMutual)).toEqual([CEASEFIRE.id])
+      expect(sharedPacts(open(ACCORD.id, 10, 25), withMutual)).toEqual([])
+    })
+
+    it('boots with the mirror effects on an active pact', () => {
+      expect(() => {
+        validateModeDefinition('test', {
+          ...withMutual,
+          flavors: withMutual.flavors.map((f) => ({
+            ...f,
+            upgrades: withMutual.upgrades.map((u) => ({
+              id: u.id,
+              name: u.id,
+              icon: '🔧',
+              description: '',
+            })),
+            pacts: withMutual.pacts.map((p) => ({
+              id: p.id,
+              name: p.id,
+              icon: '🤝',
+              description: '',
+            })),
+          })),
+        })
+      }).not.toThrow()
+    })
   })
 })
 

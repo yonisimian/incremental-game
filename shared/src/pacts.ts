@@ -26,17 +26,19 @@ export type { PartnerSnapshot } from './effects/enemy-stats.js'
 // ─── In force ────────────────────────────────────────────────────────
 
 /**
- * The passive pacts whose buffs `owner` enjoys right now, in a stable order:
- * every passive pact `owner` has unlocked, then every **mutual** passive pact
- * `partner` has unlocked that `owner` has not. The single walk both pact
- * collectors share, so "what is in force" can't be answered differently for
- * prices than for production.
+ * The pacts whose buffs `owner` enjoys right now, in a stable order: every
+ * passive pact `owner` has unlocked, then every **mutual** passive pact
+ * `partner` has unlocked, then `owner`'s open active-pact windows, then
+ * `partner`'s open **mutual** active-pact windows — each skipping a pact
+ * already listed. The single walk both pact collectors share, so "what is in
+ * force" can't be answered differently for prices than for production. An
+ * open window is simply a pact in force for a while.
  *
  * Every pact listed resolves against the *partner*: an owner-held pact reads
  * the enemy by definition, and a partner-held mutual pact benefits `owner` by
  * reading its holder — who is, from `owner`'s side, the enemy. A pact both
  * players have signed appears once, not twice: "the enemy gains the same from
- * yours" is one treaty, not a doubled one. Active pacts will append their open windows.
+ * yours" is one treaty, not a doubled one.
  */
 export function pactsInForce(
   owner: Readonly<PlayerState>,
@@ -58,21 +60,44 @@ export function pactsInForce(
     inForce.push(pact)
     seen.add(id)
   }
+  for (const id of openWindowIds(owner)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active' || seen.has(id)) continue
+    inForce.push(pact)
+    seen.add(id)
+  }
+  for (const id of openWindowIds(partner)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active' || pact.mutual !== true || seen.has(id)) continue
+    inForce.push(pact)
+    seen.add(id)
+  }
   return inForce
 }
 
+/** Ids of the active-pact windows open on `state` at its own game clock. */
+function openWindowIds(state: Readonly<PlayerState>): string[] {
+  return openPactWindows(state, readGameSec(state)).map((w) => w.pact)
+}
+
 /**
- * The mutual passive pacts `partner` has unlocked — the treaties the other
- * player also benefits from, in mode declaration order. What the server
- * reveals of a partner's pacts (`OpponentView.pacts`): only these already
- * affect the viewer, so a one-sided pact stays hidden.
+ * The mutual pacts in force from `partner`'s side — unlocked passive ones in
+ * mode declaration order, then open active-pact windows — the treaties the
+ * other player also benefits from. What the server reveals of a partner's
+ * pacts (`OpponentView.pacts`): only these already affect the viewer, so a
+ * one-sided pact stays hidden.
  */
 export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition): string[] {
   const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
-  return unlockedPacts(partner, mode).filter((id) => {
+  const passive = unlockedPacts(partner, mode).filter((id) => {
     const pact = pactById.get(id)
     return pact?.kind === 'passive' && pact.mutual === true
   })
+  const windows = openWindowIds(partner).filter((id) => {
+    const pact = pactById.get(id)
+    return pact?.kind === 'active' && pact.mutual === true
+  })
+  return [...passive, ...windows]
 }
 
 // ─── Cost factors ────────────────────────────────────────────────────

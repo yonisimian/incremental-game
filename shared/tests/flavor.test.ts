@@ -1432,6 +1432,32 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/non-positive cooldownSec/)
   })
 
+  it('requires an activation cost and a duration on an active pact with effects', () => {
+    const effects = [
+      {
+        type: 'mirrorCostModifier',
+        target: 'upgrades',
+        costFactor: 0.75,
+      },
+    ]
+    const full = {
+      id: 'p0',
+      kind: 'active' as const,
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      effects,
+    }
+    expect(() => {
+      validateModeDefinition('test', defWithPact(full))
+    }).not.toThrow()
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ ...full, activationCost: undefined }))
+    }).toThrow(/active pact 'p0' carries effects but has no activationCost/)
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ ...full, durationSec: undefined }))
+    }).toThrow(/active pact 'p0' carries effects but has no durationSec/)
+  })
+
   it('throws for an activation cost in an unknown resource', () => {
     const def = defWithPact({ id: 'p0', kind: 'active', activationCost: { rX: { baseCost: 1 } } })
     expect(() => {
@@ -1467,7 +1493,7 @@ describe('validateModeDefinition — negative tests', () => {
     )
   })
 
-  it('rejects a pact effect on an active pact — nothing resolves one yet', () => {
+  it('accepts the pact effects on an active pact, which resolves them while its window is open', () => {
     for (const effect of [
       { type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 },
       {
@@ -1478,14 +1504,16 @@ describe('validateModeDefinition — negative tests', () => {
         perUnit: 1,
       },
     ]) {
-      const def = defWithPact({ id: 'p0', kind: 'active', effects: [effect] })
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'active',
+        activationCost: { r0: { baseCost: 10 } },
+        durationSec: 10,
+        effects: [effect],
+      })
       expect(() => {
         validateModeDefinition('test', def)
-      }).toThrow(
-        new RegExp(
-          `active pact 'p0' carries a '${effect.type}' effect, which only applies on a passive pact`,
-        ),
-      )
+      }).not.toThrow()
     }
   })
 
