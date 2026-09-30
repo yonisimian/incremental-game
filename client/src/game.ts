@@ -8,6 +8,7 @@ import {
   type PactBonus,
   type PlayerState,
   type PurchaseEvent,
+  type PurchaseBlockReason,
   type AttackEvent,
   type RoomSettings,
   type RoomErrorReason,
@@ -33,13 +34,10 @@ import {
   canSellGenerator,
   isGeneratorUnlocked,
   resolveGeneratorDef,
-  isMaxed,
-  isPrerequisiteSatisfied,
-  isChoiceGroupAvailable,
-  isCostAffordable,
   getUpgradeNextCost,
   upgradeCostFactors,
   applyPurchase,
+  purchaseBlockReason,
   grantUpgradeLevel,
   isClickUnlocked,
   readHighlight,
@@ -47,7 +45,6 @@ import {
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
-  hasAttackSlotsFor,
   isPurchaseLocked,
   getModeFlavor,
   getAttackName,
@@ -518,37 +515,37 @@ export function toggleHighlight(target: string): void {
   setHighlight(readHighlight(state.player) === target ? null : target)
 }
 
+const upgradeMaps = new WeakMap<
+  readonly UpgradeDefinition[],
+  ReadonlyMap<string, UpgradeDefinition>
+>()
+
+/**
+ * Why `player` can't buy `upgradeId` right now — the server's `purchaseBlockReason`
+ * over this round's upgrades — or `null` if it can.
+ */
+export function upgradeBlockReason(
+  s: Readonly<GameState>,
+  upgradeId: string,
+  player: PlayerState = s.player,
+): PurchaseBlockReason | null {
+  if (!s.mode) return 'unknown'
+  let map = upgradeMaps.get(s.upgrades)
+  if (!map) {
+    map = new Map(s.upgrades.map((u) => [u.id, u]))
+    upgradeMaps.set(s.upgrades, map)
+  }
+  return purchaseBlockReason(player, upgradeId, map, getModeDefinition(s.mode))
+}
+
 /** Attempt to purchase an upgrade (optimistic). */
 export function doBuy(upgradeId: string): void {
   if (state.screen !== 'playing' || state.paused) return
   if (!state.mode) return
+  // The server's own rule, so a predicted buy it would drop never happens here.
+  if (upgradeBlockReason(state, upgradeId) !== null) return
 
-  const def = state.upgrades.find((u) => u.id === upgradeId)
-  if (!def || def.comingSoon) return
-
-  const modeDef = getModeDefinition(state.mode)
-  const owned = state.player.upgrades[upgradeId] ?? 0
-  if (isMaxed(def, owned)) return
-
-  if (!isPrerequisiteSatisfied(def.prerequisites, state.player)) return
-
-  if (!isChoiceGroupAvailable(def, state.player, modeDef.upgrades)) return
-
-  // Mirrors the server's `purchaseBlockReason` rule: an unlock that would exceed
-  // the player's attack slots is refused, not predicted.
-  if (!hasAttackSlotsFor(state.player, def, modeDef)) return
-
-  // An enemy purchase lock is server-stamped on our own state, so the
-  // same read the server makes refuses the buy here — a predicted buy the
-  // server would drop only snaps back on the next snapshot.
-  if (isPurchaseLocked(state.player, 'upgrade', upgradeId)) return
-
-  // Every currency in the cost map must be affordable, at the price the server
-  // will charge — enemy cost inflation included.
-  const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state.player, upgradeId))
-  if (!isCostAffordable(state.player.resources, cost)) return
-
-  applyPurchase(state.player, upgradeId, modeDef)
+  applyPurchase(state.player, upgradeId, getModeDefinition(state.mode))
 
   // Visual effects
   flashPurchase(upgradeId)
@@ -779,23 +776,17 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
         }
         case 'buy': {
           if (!modeDef) break
-          const def = state.upgrades.find((u) => u.id === action.upgradeId)
-          if (!def) break
-
-          const owned = reconciled.upgrades[action.upgradeId] ?? 0
-          if (isMaxed(def, owned)) break
-          if (!isPrerequisiteSatisfied(def.prerequisites, reconciled)) break
           // Replayed against the *server's* state, so a buy the server will
-          // refuse for want of a slot — or under an enemy purchase lock — is
-          // dropped here rather than flickering back until the next snapshot.
-          if (!hasAttackSlotsFor(reconciled, def, modeDef)) break
-          if (isPurchaseLocked(reconciled, 'upgrade', action.upgradeId)) break
+          // refuse is dropped here rather than flickering back until the next
+          // snapshot.
+          if (upgradeBlockReason(state, action.upgradeId, reconciled) !== null) break
+          const def = state.upgrades.find((u) => u.id === action.upgradeId)!
+          const owned = reconciled.upgrades[action.upgradeId] ?? 0
           const cost = getUpgradeNextCost(
             def,
             owned,
             upgradeCostFactors(reconciled, action.upgradeId),
           )
-          if (!isCostAffordable(reconciled.resources, cost)) break
           for (const [currency, amount] of Object.entries(cost)) {
             reconciled.resources[currency] = (reconciled.resources[currency] ?? 0) - amount
           }

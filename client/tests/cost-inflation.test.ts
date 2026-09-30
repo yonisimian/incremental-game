@@ -19,8 +19,8 @@ import {
 } from '@game/shared'
 import type { EnemyCostFactor, PactCostFactor, UpgradeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
+import { upgradeBlockReason } from '../src/game.js'
 import {
-  canAfford,
   DISCOUNTED_COST_MARKER,
   formatUpgradeCost,
   INFLATED_COST_MARKER,
@@ -114,8 +114,9 @@ describe('upgrade price label', () => {
   // The card's affordability shading has to agree with the quote, or a node
   // reads as buyable at a price the server will refuse.
   it('shades affordability against the inflated price', () => {
-    expect(canAfford(makeState(), UPGRADE)).toBe(true)
-    expect(canAfford(makeState(DOUBLE_ALL), UPGRADE)).toBe(false)
+    const withUpgrade = (s: GameState): GameState => ({ ...s, upgrades: [UPGRADE] })
+    expect(upgradeBlockReason(withUpgrade(makeState()), UPGRADE.id)).toBeNull()
+    expect(upgradeBlockReason(withUpgrade(makeState(DOUBLE_ALL)), UPGRADE.id)).toBe('unaffordable')
   })
 
   // A pact discount is the same seam in the other direction: the

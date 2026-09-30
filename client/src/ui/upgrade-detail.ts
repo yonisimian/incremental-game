@@ -1,26 +1,17 @@
 import type { GameState } from '../game.js'
-import { doBuy, getState } from '../game.js'
+import { doBuy, getState, upgradeBlockReason } from '../game.js'
 import {
   getModeDefinition,
   getModeFlavor,
   getUpgradeName,
   getUpgradeIcon,
   getUpgradeDescription,
-  isChoiceGroupAvailable,
-  isMaxed,
   isUnlimited,
   formatPrerequisiteExpression,
   readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
-import {
-  canAfford,
-  formatUpgradeCost,
-  isAttackSlotBlocked,
-  isUnlocked,
-  escapeAttr,
-  purchaseLockCountdown,
-} from './helpers.js'
+import { formatUpgradeCost, escapeAttr, purchaseLockCountdown } from './helpers.js'
 import { countdownAttrs } from './counters.js'
 import { formatCountdown } from './format-number.js'
 import type { Countdown } from './format-number.js'
@@ -60,32 +51,28 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
   const owned = state.player.upgrades[u.id] ?? 0
-  const unlocked = isUnlocked(state, u)
-  const affordable = canAfford(state, u)
-  const maxed = isMaxed(u, owned)
-  const choiceBlocked = !isChoiceGroupAvailable(u, state.player, modeDef.upgrades)
-  const slotBlocked = isAttackSlotBlocked(state, u)
-  const attackLock = purchaseLockCountdown(state, 'upgrade', u.id)
-  const attackLocked = attackLock !== null
+  const reason = upgradeBlockReason(state, u.id)
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
   const levelLabel =
     u.purchaseLimit > 1 && !isUnlimited(u) && owned > 0 ? `${owned}/${u.purchaseLimit}` : ''
 
-  // Without a stated reason a slot-blocked node looks affordable and does
-  // nothing on click, which reads as a bug — the same reasoning that marks an
-  // inflated price.
+  // Without a stated reason a blocked node looks affordable and does nothing on
+  // click, which reads as a bug. Maxed and unaffordable need no words: the cost
+  // label already says it.
   let lockReason = ''
   let lockCountdown: Countdown | null = null
-  if (u.comingSoon) lockReason = 'Not available yet — planned for a later update'
-  else if (!unlocked)
+  if (reason === 'coming-soon') lockReason = 'Not available yet — planned for a later update'
+  else if (reason === 'prerequisite')
     lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
-  else if (choiceBlocked) lockReason = 'Another choice in this group has already been selected'
-  else if (slotBlocked) lockReason = 'No attack slots left'
-  // Last of the reasons, since it is the only one that lifts on its own; the
-  // countdown is what tells the player to wait rather than look for a fix.
-  else if (attackLocked) {
+  else if (reason === 'choice-group')
+    lockReason = 'Another choice in this group has already been selected'
+  else if (reason === 'attack-slots') lockReason = 'No attack slots left'
+  // The only reason that lifts on its own; the countdown is what tells the
+  // player to wait rather than look for a fix.
+  else if (reason === 'locked-by-attack') {
+    const attackLock = purchaseLockCountdown(state, 'upgrade', u.id)!
     lockCountdown = { ...attackLock, template: `Enemy attack — ${attackLock.template}` }
     lockReason = formatCountdown(lockCountdown, readGameSec(state.player))
   }
@@ -103,14 +90,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
     description: getUpgradeDescription(flavor, u.id),
     lockReason,
     lockCountdown,
-    buyable:
-      !u.comingSoon &&
-      unlocked &&
-      !choiceBlocked &&
-      !slotBlocked &&
-      !attackLocked &&
-      affordable &&
-      !maxed,
+    buyable: reason === null,
   }
 }
 

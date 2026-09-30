@@ -11,7 +11,6 @@ import {
   ROUND_DURATION_SEC,
   createInitialState,
   getModeDefinition,
-  getPrerequisiteUpgradeIds,
   registerMode,
   type UpgradeDefinition,
 } from '@game/shared'
@@ -20,7 +19,8 @@ import type { GameState } from '../src/game.js'
 /** The state the popup reads; swapped per test. */
 let current: GameState
 
-vi.mock('../src/game.js', () => ({
+vi.mock('../src/game.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/game.js')>()),
   getState: () => current,
   doBuy: vi.fn(),
 }))
@@ -119,14 +119,19 @@ describe('upgrade detail — attack slots', () => {
 })
 
 describe('upgrade detail — choice group', () => {
-  const purchasable = mode.upgrades.filter((u) => u.choiceGroup && !u.comingSoon)
-  const taken = purchasable[0]
-  const sibling = purchasable.find((u) => u !== taken && u.choiceGroup === taken.choiceGroup)!
+  const pick = (id: string): UpgradeDefinition => ({
+    id,
+    cost: {},
+    purchaseLimit: 1,
+    choiceGroup: 'fork',
+  })
 
   it('blocks the sibling of an owned choice', () => {
-    const prereqs = getPrerequisiteUpgradeIds(sibling.prerequisites).map((id) => [id, 1])
-    current = makeState({ ...Object.fromEntries(prereqs), [taken.id]: 1 })
-    openUpgradeDetail(sibling.id)
+    current = {
+      ...makeState({ 'fork-a': 1 }),
+      upgrades: [...mode.upgrades, pick('fork-a'), pick('fork-b')],
+    }
+    openUpgradeDetail('fork-b')
     expect(lockText()).toBe('Another choice in this group has already been selected')
     expect(buyDisabled()).toBe(true)
   })

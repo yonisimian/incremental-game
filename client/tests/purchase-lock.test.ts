@@ -17,8 +17,9 @@ import {
 } from '@game/shared'
 import type { PurchaseLock, UpgradeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
+import { upgradeBlockReason } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
-import { canBuy, isPurchaseLockedByAttack, purchaseLockCountdown } from '../src/ui/helpers.js'
+import { canBuy, purchaseLockCountdown } from '../src/ui/helpers.js'
 import { espionagePanel } from '../src/ui/panels/espionage-panel.js'
 import { generatorsPanel } from '../src/ui/panels/generators-panel.js'
 
@@ -79,13 +80,13 @@ function makeState(locks?: PurchaseLock[]): GameState {
 describe('helpers', () => {
   it('reads the lock per scope and counts it down on the game clock', () => {
     const state = makeState(LOCK_UPGRADES)
-    expect(isPurchaseLockedByAttack(state, 'upgrade', FREE.id)).toBe(true)
-    expect(isPurchaseLockedByAttack(state, 'generator', 'g0')).toBe(false)
+    expect(upgradeBlockReason(state, FREE.id)).toBe('locked-by-attack')
+    expect(purchaseLockCountdown(state, 'generator', 'g0')).toBeNull()
     expect(purchaseLockCountdown(state, 'upgrade', FREE.id)).toEqual({
       template: '🔒 Locked {}s',
       untilSec: 27.5,
     })
-    expect(isPurchaseLockedByAttack(makeState(), 'upgrade', FREE.id)).toBe(false)
+    expect(upgradeBlockReason(makeState(), FREE.id)).toBeNull()
   })
 
   // `canBuy` feeds the `C` buy-all hotkey and the node class, so a buy the

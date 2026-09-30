@@ -3,7 +3,7 @@
 // The upgrade detail popup names an enemy purchase lock as the lock
 // reason, with its countdown. Without it a locked node looks affordable and
 // does nothing on click, which reads as a bug. DOM tier for the same reason as
-// the slots twin: the popup mounts into a live host, and its Buy button's
+// `upgrade-detail.dom.test.ts`: the popup mounts into a live host, and its Buy button's
 // `disabled` state is what the player actually meets.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,7 +19,8 @@ import type { GameState } from '../src/game.js'
 /** The state the popup reads; swapped per test. */
 let current: GameState
 
-vi.mock('../src/game.js', () => ({
+vi.mock('../src/game.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/game.js')>()),
   getState: () => current,
   doBuy: vi.fn(),
 }))
