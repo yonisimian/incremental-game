@@ -159,6 +159,27 @@ describe('renderUpgradeTree', () => {
     expect(nodes).not.toContain('upgrade-hotkey')
   })
 
+  it('renders a coming-soon node locked, with an unlit edge from its owned parent', () => {
+    const state: GameState = {
+      ...makeIdlerState(),
+      upgrades: [
+        { id: 'parent', cost: {}, purchaseLimit: 1, position: { x: 0, y: 0 } },
+        {
+          id: 'soon',
+          cost: {},
+          purchaseLimit: 1,
+          comingSoon: true,
+          position: { x: 0, y: 200 },
+          prerequisites: { type: 'upgrade', id: 'parent' },
+        },
+      ],
+    }
+    state.player.upgrades = { parent: 1 }
+    const { nodes, edgesSvg } = renderUpgradeTree(state)
+    expect(nodes).toMatch(/class="upgrade-btn tree-node locked"[^>]*data-upgrade="soon"/)
+    expect(edgesSvg).toMatch(/^<line class="" /)
+  })
+
   it('skips degenerate edges where source and dest centers are too close', () => {
     // Build a synthetic state with two tree upgrades whose positions are
     // closer than 2 * NODE_CLEARANCE (60). Dest's prereq edge must be

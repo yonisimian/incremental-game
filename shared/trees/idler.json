@@ -148,10 +148,6 @@
       ]
     },
     {
-      "id": "a3",
-      "kind": "passive"
-    },
-    {
       "id": "a4",
       "kind": "active",
       "prepareCost": {
@@ -417,229 +413,229 @@
           "id": "be-af-mr",
           "name": "🌱 Axe Handling",
           "icon": "🌱",
-          "description": "+1 base 🪵/sec"
+          "description": "+1 base 🪵/sec per level."
         },
         {
           "id": "be-mf-mr",
           "name": "🌱 Sharpen Axe",
           "icon": "🌱",
-          "description": "*1.1 base 🪵/sec"
+          "description": "×1.1 base 🪵/sec per level."
         },
         {
           "id": "be-mr-bank",
           "name": "🌱 Wood Bank",
           "icon": "🌱",
-          "description": "For each 1000 🪵 you have, gain 1% base 🪵/sec"
+          "description": "+1% base 🪵/sec for every 1,000 🪵 you hold."
         },
         {
           "id": "be-af-sr",
-          "name": "🌱 Brew for dummies",
+          "name": "🌱 Brewing for Dummies",
           "icon": "🌱",
-          "description": "+1 base 🍺/sec"
+          "description": "+1 base 🍺/sec per level."
         },
         {
           "id": "be-mf-sr",
-          "name": "🌱 Samogon tutorial",
+          "name": "🌱 Secret Recipe",
           "icon": "🌱",
-          "description": "*1.1 base 🍺/sec"
+          "description": "×1.1 base 🍺/sec per level."
         },
         {
           "id": "be-sr-bank",
           "name": "🌱 Ale Bank",
           "icon": "🌱",
-          "description": "For each 1000 🍺 you have, gain 1% base 🍺/sec"
+          "description": "+1% base 🍺/sec for every 1,000 🍺 you hold."
         },
         {
           "id": "ae-mf-ar",
-          "name": "🌳 Work optimization",
+          "name": "🌳 Work Optimization",
           "icon": "🌳",
-          "description": "All resources gain *1.1/sec"
+          "description": "×1.1 production of all resources per level."
         },
         {
           "id": "ae-mf-ar-time",
-          "name": "🌳 Timed schedule",
+          "name": "🌳 Timed Schedule",
           "icon": "🌳",
-          "description": "A global multiplier that increased as time pass after its purchase\n(minute gives 10% boost (base))"
+          "description": "All production grows the longer you own this: +10% per minute since purchase, up to ×10."
         },
         {
           "id": "ae-atf",
-          "name": "🌳 Better timing",
+          "name": "🌳 Better Timing",
           "icon": "🌳",
-          "description": "Increase the time bonus factor for new seconds"
+          "description": "Timed Schedule grows +10% per minute faster, per level. Each level only counts time from when you buy it."
         },
         {
           "id": "ae-tf-retro",
-          "name": "🌳 Retro time",
+          "name": "🌳 Retro Time",
           "icon": "🌳",
-          "description": "The better time factor now works retro which give big bonus."
+          "description": "Better Timing levels count all the time since you bought Timed Schedule, not just since each level — an instant boost."
         },
         {
           "id": "g1-g2",
           "name": "⚙️ First Generation",
           "icon": "⚙️",
-          "description": "Unlock the Generators Panel and give access to G1 and G2."
+          "description": "Unlock the Generators panel with Woodcutters (🪵) and Brewers (🍺)."
         },
         {
           "id": "g1-af",
-          "name": "⚙️ G1 Good",
+          "name": "⚙️ Stronger Woodcutters",
           "icon": "⚙️",
-          "description": "G1 doing +1/sec"
+          "description": "+1 🪵/sec per Woodcutter, per level."
         },
         {
           "id": "g1-mf",
-          "name": "⚙️ G1 Very Good",
+          "name": "⚙️ Efficient Woodcutters",
           "icon": "⚙️",
-          "description": "G1 doing *1.1/sec"
+          "description": "×1.1 Woodcutter output per level."
         },
         {
           "id": "g1-dp",
-          "name": "⚙️ G1 Cheap",
+          "name": "⚙️ Cheaper Woodcutters",
           "icon": "⚙️",
-          "description": "G1 price −10% per level"
+          "description": "Woodcutters cost 10% less per level."
         },
         {
           "id": "g1-dpf",
-          "name": "⚙️ G1 Very Cheap",
+          "name": "⚙️ Bulk Woodcutters",
           "icon": "⚙️",
-          "description": "G1 price growth −15% per level, from your next copy"
+          "description": "Woodcutter price growth −15% per level, starting with your next Woodcutter."
         },
         {
           "id": "g2-dpf",
-          "name": "⚙️ G2 Very Cheap",
+          "name": "⚙️ Bulk Brewers",
           "icon": "⚙️",
-          "description": "G2 price growth −15% per level, from your next copy"
+          "description": "Brewer price growth −15% per level, starting with your next Brewer."
         },
         {
           "id": "g2-dp",
-          "name": "⚙️ G2 Cheap",
+          "name": "⚙️ Cheaper Brewers",
           "icon": "⚙️",
-          "description": "G2 price −10% per level"
+          "description": "Brewers cost 10% less per level."
         },
         {
           "id": "g2-mf",
-          "name": "⚙️ G2 Very Good",
+          "name": "⚙️ Efficient Brewers",
           "icon": "⚙️",
-          "description": "G2 doing *1.1/sec"
+          "description": "×1.1 Brewer output per level."
         },
         {
           "id": "g2-af",
-          "name": "⚙️ G2 Good",
+          "name": "⚙️ Stronger Brewers",
           "icon": "⚙️",
-          "description": "G2 doing +1/sec"
+          "description": "+1 🍺/sec per Brewer, per level."
         },
         {
           "id": "g3-g4",
           "name": "⚙️ Second Generation",
           "icon": "⚙️",
-          "description": "Give access to G3 and G4."
+          "description": "Unlock Sawmills (🪵) and Taverns (🍺)."
         },
         {
           "id": "g3-af",
-          "name": "⚙️ G3 Good",
+          "name": "⚙️ Stronger Sawmills",
           "icon": "⚙️",
-          "description": "G3 doing +1/sec"
+          "description": "+1 🪵/sec per Sawmill, per level."
         },
         {
           "id": "g3-mf",
-          "name": "⚙️ G3 Very Good",
+          "name": "⚙️ Efficient Sawmills",
           "icon": "⚙️",
-          "description": "G3 doing *1.1/sec"
+          "description": "×1.1 Sawmill output per level."
         },
         {
           "id": "g3-dp",
-          "name": "⚙️ G3 Cheap",
+          "name": "⚙️ Cheaper Sawmills",
           "icon": "⚙️",
-          "description": "G3 price −10% per level"
+          "description": "Sawmills cost 10% less per level."
         },
         {
           "id": "g3-dpf",
-          "name": "⚙️ G3 Very Cheap",
+          "name": "⚙️ Bulk Sawmills",
           "icon": "⚙️",
-          "description": "G3 price growth −10% per level, from your next copy"
+          "description": "Sawmill price growth −10% per level, starting with your next Sawmill."
         },
         {
           "id": "g4-af",
-          "name": "⚙️ G4 Good",
+          "name": "⚙️ Stronger Taverns",
           "icon": "⚙️",
-          "description": "G4 doing +1/sec"
+          "description": "+1 🍺/sec per Tavern, per level."
         },
         {
           "id": "g4-mf",
-          "name": "⚙️ G4 Very Good",
+          "name": "⚙️ Efficient Taverns",
           "icon": "⚙️",
-          "description": "G4 doing *1.1/sec"
+          "description": "×1.1 Tavern output per level."
         },
         {
           "id": "g4-dp",
-          "name": "⚙️ G4 Cheap",
+          "name": "⚙️ Cheaper Taverns",
           "icon": "⚙️",
-          "description": "G4 price −10% per level"
+          "description": "Taverns cost 10% less per level."
         },
         {
           "id": "g4-dpf",
-          "name": "⚙️ G4 Very Cheap",
+          "name": "⚙️ Bulk Taverns",
           "icon": "⚙️",
-          "description": "G4 price growth −10% per level, from your next copy"
+          "description": "Tavern price growth −10% per level, starting with your next Tavern."
         },
         {
           "id": "lower-g",
           "name": "⚙️ Pyramid",
           "icon": "⚙️",
-          "description": "Lower tier G give boost to higher tiers."
+          "description": "Each generator type produces +10% more for every generator you own of the types below it (Woodcutter → Brewer → Sawmill → Tavern). Exclusive with Socialism and Capitalism."
         },
         {
           "id": "balance-g",
           "name": "⚙️ Socialism",
           "icon": "⚙️",
-          "description": "Gain a boost that grows the more evenly your generators are owned, peaking when they all have the same amount."
+          "description": "All production up to ×2, growing the more evenly your generators are owned — full bonus when you own the same number of each. Exclusive with Pyramid and Capitalism."
         },
         {
           "id": "higher-g",
           "name": "⚙️ Capitalism",
           "icon": "⚙️",
-          "description": "The generator with the highest amount gain additional boost."
+          "description": "Your most-owned generator type produces ×3. Exclusive with Pyramid and Socialism."
         },
         {
           "id": "sc-unlock",
           "name": "🖱️ Click",
           "icon": "🖱️",
-          "description": "Unlock clicking."
+          "description": "Unlock clicking: earn 1 resource per click."
         },
         {
           "id": "sc-af-cp",
           "name": "🖱️ Stronger Click",
           "icon": "🖱️",
-          "description": "Clicking give +1 more resource per click."
+          "description": "+1 per click, per level."
         },
         {
           "id": "sc-mf-cp",
           "name": "🖱️ Smarter Click",
           "icon": "🖱️",
-          "description": "Clicking give *1.1 more resource per click."
+          "description": "×1.1 per-click income per level."
         },
         {
           "id": "sc-clicking",
-          "name": "sc-clicking",
+          "name": "🖱️ Power Clicks",
           "icon": "🖱️",
-          "description": "Global production boosts clicking power."
+          "description": "Your production rate boosts your click power. Exclusive with Click Momentum."
         },
         {
           "id": "sc-production",
-          "name": "sc-production",
+          "name": "🖱️ Click Momentum",
           "icon": "🖱️",
-          "description": "Clicks affects global production factor."
+          "description": "Your clicking boosts all your production. Exclusive with Power Clicks."
         },
         {
           "id": "sh-unlock",
           "name": "🔎 Highlight",
           "icon": "🔎",
-          "description": "Unlock highlight."
+          "description": "Unlock highlighting: the resource you highlight is produced ×2."
         },
         {
           "id": "sh-mf-hp",
           "name": "🔎 Clearer Lens",
           "icon": "🔎",
-          "description": "Increase highlight factor."
+          "description": "×1.1 highlight bonus per level."
         },
         {
           "id": "shb-unlock",
@@ -685,75 +681,75 @@
         },
         {
           "id": "sb-unlock",
-          "name": "sb-unlock",
+          "name": "🏛️ Bank",
           "icon": "🏛️",
-          "description": "Bank system"
+          "description": "Unlock the Bank."
         },
         {
           "id": "a-unlock",
-          "name": "a-unlock",
+          "name": "💥 Warfare",
           "icon": "💥",
-          "description": "Unlock attack panel"
+          "description": "Unlock the Attack panel."
         },
         {
           "id": "ir-unlock",
-          "name": "ir-unlock",
+          "name": "🌍 Diplomacy",
           "icon": "🌍",
-          "description": "Unlock international relationship \npanel"
+          "description": "Unlock the Relations panel, where you sign pacts."
         },
         {
           "id": "e-se-mr",
           "name": "🕵 First Spy",
           "icon": "🕵",
-          "description": "Unlock Espionage Panel and See enemy main resource (maybe move the espionage unlocks to the espionage panel itself)"
+          "description": "Unlock the Espionage panel and see the enemy's 🪵."
         },
         {
           "id": "e-se-mr-ps",
           "name": "🕵 Better Spy",
           "icon": "🕵",
-          "description": "See enemy main resources per sec."
+          "description": "See the enemy's 🪵 per second."
         },
         {
           "id": "e-se-sr",
           "name": "🕵 Second Spy",
           "icon": "🕵",
-          "description": "See enemy secondary resources."
+          "description": "See the enemy's 🍺."
         },
         {
           "id": "e-se-sr-ps",
-          "name": "🕵 Better second spy",
+          "name": "🕵 Better Second Spy",
           "icon": "🕵",
-          "description": "See enemy secondary resources per sec."
+          "description": "See the enemy's 🍺 per second."
         },
         {
           "id": "e-se-cps",
-          "name": "🕵 How much he clicks",
+          "name": "🕵 Click Counter",
           "icon": "🕵",
-          "description": "See enemy clicks per second."
+          "description": "See the enemy's peak clicks per second."
         },
         {
           "id": "e-se-p",
-          "name": "🕵 Purchase receipts",
+          "name": "🕵 Purchase Receipts",
           "icon": "🕵",
-          "description": "A popup when enemy purchase generator or upgrade."
+          "description": "Get notified whenever the enemy buys an upgrade or a generator."
         },
         {
           "id": "e-p-ug",
-          "name": "🕵 Upgrade/Generator",
+          "name": "🕵 Itemized Receipts",
           "icon": "🕵",
-          "description": "The popup differs when enemy purchase upgrade or generator."
+          "description": "Notifications say whether the enemy bought an upgrade or a generator."
         },
         {
           "id": "e-p-g",
-          "name": "🕵 Know the generator",
+          "name": "🕵 Know the Generator",
           "icon": "🕵",
-          "description": "The popup tells which generator the enemy brought."
+          "description": "Notifications name the generator the enemy bought."
         },
         {
           "id": "e-p-u",
-          "name": "🕵 Know the upgrade",
+          "name": "🕵 Know the Upgrade",
           "icon": "🕵",
-          "description": "The popup tells which upgrade the enemy brought."
+          "description": "Notifications name the upgrade the enemy bought."
         },
         {
           "id": "d-alert",
@@ -775,57 +771,51 @@
         },
         {
           "id": "sc-pcps",
-          "name": "🖱️ Gotta click fast",
+          "name": "🖱️ Gotta Click Fast",
           "icon": "🖱️",
-          "description": "Gain additional click income as your peak cps."
+          "description": "+1 click income for every click/sec of your peak click speed."
         },
         {
           "id": "node",
-          "name": "node",
-          "icon": "💥",
-          "description": ""
+          "name": "🪓 Steal Wood",
+          "icon": "🪓",
+          "description": "Unlock Steal Wood: take 10% of the enemy's 🪵."
         },
         {
           "id": "node-2",
-          "name": "node-2",
-          "icon": "💥",
-          "description": ""
+          "name": "🍺 Ale Heist",
+          "icon": "🍺",
+          "description": "Unlock Ale Heist: take up to 500 of the enemy's 🍺."
         },
         {
           "id": "node-3",
-          "name": "node-3",
-          "icon": "💥",
-          "description": ""
-        },
-        {
-          "id": "node-4",
-          "name": "node-4",
-          "icon": "💥",
-          "description": ""
+          "name": "🍄 Dry Rot",
+          "icon": "🍄",
+          "description": "Unlock Dry Rot: a passive attack that cuts the enemy's 🪵 production by 10%."
         },
         {
           "id": "node-5",
-          "name": "node-5",
-          "icon": "💥",
-          "description": "Unlock Raid Woodcutters"
+          "name": "🪓 Raid Woodcutters",
+          "icon": "🪓",
+          "description": "Unlock Raid Woodcutters: steal half the enemy's Woodcutters."
         },
         {
           "id": "node-6",
-          "name": "node-6",
-          "icon": "💥",
-          "description": "Unlock Poach Sawmill"
+          "name": "🏗️ Poach Sawmill",
+          "icon": "🏗️",
+          "description": "Unlock Poach Sawmill: steal one of the enemy's Sawmills."
         },
         {
           "id": "node-7",
-          "name": "node-7",
+          "name": "💥 Click Sabotage",
           "icon": "💥",
-          "description": "Unlock the click-income debuffs"
+          "description": "Unlock Less Click Power and Less Click Power (flat): two passive attacks that cut the enemy's click income."
         },
         {
           "id": "node-8",
-          "name": "node-8",
+          "name": "🌫️ Highlight Sabotage",
           "icon": "🌫️",
-          "description": "Unlock the highlight-bonus debuffs"
+          "description": "Unlock Dim Highlight and Dim Highlight (flat): two passive attacks that weaken the enemy's highlight."
         },
         {
           "id": "pact-node",
@@ -921,25 +911,19 @@
           "id": "a0",
           "name": "Steal Wood",
           "icon": "🪓",
-          "description": "Steal enemy's wood. (does not affect score)"
+          "description": "Steal 10% of the enemy's Wood. (does not affect score)"
         },
         {
           "id": "a1",
-          "name": "Second Attack",
-          "icon": "💥",
-          "description": "Steal enemy's ale. (does not affect score)"
+          "name": "Ale Heist",
+          "icon": "🍺",
+          "description": "Steal up to 500 of the enemy's Ale. (does not affect score)"
         },
         {
           "id": "a2",
-          "name": "First Passive Attack",
-          "icon": "💥",
+          "name": "Dry Rot",
+          "icon": "🍄",
           "description": "Passively reduces the enemy's Wood production by 10% while unlocked."
-        },
-        {
-          "id": "a3",
-          "name": "Second Passive Attack",
-          "icon": "💥",
-          "description": ""
         },
         {
           "id": "a4",
@@ -2006,6 +1990,7 @@
           "cost": {},
           "purchaseLimit": 1,
           "choiceGroup": "clicking-choice",
+          "comingSoon": true,
           "prerequisites": {
             "type": "upgrade",
             "id": "sc-unlock"
@@ -2020,6 +2005,7 @@
           "cost": {},
           "purchaseLimit": 1,
           "choiceGroup": "clicking-choice",
+          "comingSoon": true,
           "prerequisites": {
             "type": "upgrade",
             "id": "sc-unlock"
@@ -2274,6 +2260,7 @@
           "id": "sb-unlock",
           "cost": {},
           "purchaseLimit": 1,
+          "comingSoon": true,
           "offset": {
             "x": 0,
             "y": 768
@@ -2379,25 +2366,6 @@
           "offset": {
             "x": -48,
             "y": 96
-          }
-        },
-        {
-          "id": "node-4",
-          "cost": {},
-          "purchaseLimit": 1,
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "a-unlock"
-          },
-          "effects": [
-            {
-              "type": "unlockAttack",
-              "attack": "a3"
-            }
-          ],
-          "offset": {
-            "x": -48,
-            "y": 192
           }
         },
         {
@@ -2546,7 +2514,7 @@
           ],
           "offset": {
             "x": -48,
-            "y": 480
+            "y": 192
           }
         },
         {

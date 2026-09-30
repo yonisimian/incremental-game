@@ -802,8 +802,8 @@ describe('attacks', () => {
 
   it('setAttackKind switches an attack between passive and active', () => {
     const tree = idler()
-    setAttackKind(tree, 'a3', 'active')
-    expect(tree.attacks.find((a) => a.id === 'a3')?.kind).toBe('active')
+    setAttackKind(tree, 'a2', 'active')
+    expect(tree.attacks.find((a) => a.id === 'a2')?.kind).toBe('active')
   })
 
   it('renameResource rewrites an attack enemyProductionModifier field', () => {

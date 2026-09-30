@@ -1,15 +1,10 @@
 import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
-  getModeDefinition,
   getResourceIcon,
   getUpgradeName,
-  hasAttackSlotsFor,
-  isChoiceGroupAvailable,
-  isCostAffordable,
   isMaxed,
   isNeutralCostFactors,
   isPrerequisiteSatisfied,
-  isPurchaseLocked,
   isUnlimited,
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
@@ -18,7 +13,7 @@ import {
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { doBuy } from '../game.js'
+import { doBuy, upgradeBlockReason } from '../game.js'
 import { formatNumber } from './format-number.js'
 import type { Countdown } from './format-number.js'
 
@@ -86,19 +81,12 @@ export function formatScore(score: number, state: Readonly<GameState>): string {
   return formatNumber(score)
 }
 
-/** Can the player afford this upgrade (and is it still purchasable)? */
-export function canAfford(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
-  const owned = state.player.upgrades[u.id] ?? 0
-  if (isMaxed(u, owned)) return false
-  if (!state.mode) return false
-  const cost = getUpgradeNextCost(u, owned, upgradeCostFactors(state.player, u.id))
-  return isCostAffordable(state.player.resources, cost)
-}
-
 /** Marker appended to a price an opponent's passive attack is inflating. */
 export const INFLATED_COST_MARKER = '⬆'
 /** Marker appended to a price a pact in force is discounting. */
 export const DISCOUNTED_COST_MARKER = '⬇'
+/** Price label for an upgrade shown on the tree but not purchasable yet. */
+const COMING_SOON_LABEL = '🚧 Coming soon'
 
 /**
  * The marker for a price bent off the authored one: up when the factors in
@@ -129,7 +117,8 @@ function costMapChangeMarker(
 
 /**
  * The next-level price label an upgrade node / detail popup shows: `Maxed`, else
- * the cost map plus the owned count for an unlimited upgrade.
+ * the cost map plus the owned count for an unlimited upgrade. A coming-soon
+ * upgrade has no price to show, only its label.
  *
  * Priced with the factors in force, so it matches what a buy will actually
  * charge, and marked (see {@link costChangeMarker}) when an opponent's
@@ -142,6 +131,7 @@ export function formatUpgradeCost(
   u: UpgradeDefinition,
   flavor: ModeFlavor,
 ): string {
+  if (u.comingSoon) return COMING_SOON_LABEL
   const owned = state.player.upgrades[u.id] ?? 0
   if (isMaxed(u, owned)) return 'Maxed'
   const factors = upgradeCostFactors(state.player, u.id)
@@ -171,30 +161,6 @@ export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): bo
 }
 
 /**
- * Would buying this upgrade unlock more attacks of a kind than the player has
- * slots for? The client-side face of `purchaseBlockReason`'s `'attack-slots'`
- * rule; false for an upgrade that unlocks nothing, or in an uncapped
- * mode.
- */
-export function isAttackSlotBlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
-  if (!state.mode) return false
-  return !hasAttackSlotsFor(state.player, u, getModeDefinition(state.mode))
-}
-
-/**
- * Is an opponent's open attack window barring this player from buying `id` of
- * `scope`? The client-side face of the `'locked-by-attack'` block reason,
- * reading the same server-stamped field the server validates against.
- */
-export function isPurchaseLockedByAttack(
-  state: Readonly<GameState>,
-  scope: CostScope,
-  id: string,
-): boolean {
-  return isPurchaseLocked(state.player, scope, id)
-}
-
-/**
  * The `🔒 Locked Ns` countdown a buy control shows under an enemy purchase lock —
  * one wording for the detail popup and the generator card, so the two agree.
  * `null` when no lock is stamped.
@@ -208,17 +174,9 @@ export function purchaseLockCountdown(
   return untilSec === null ? null : { template: '🔒 Locked {}s', untilSec }
 }
 
-/** Combined check: prerequisites satisfied AND can afford (repeatability/balance/owned). */
+/** Can the player buy this upgrade right now, by the server's own rule? */
 export function canBuy(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
-  if (!state.mode) return false
-  const modeDef = getModeDefinition(state.mode)
-  return (
-    isUnlocked(state, u) &&
-    isChoiceGroupAvailable(u, state.player, modeDef.upgrades) &&
-    !isAttackSlotBlocked(state, u) &&
-    !isPurchaseLockedByAttack(state, 'upgrade', u.id) &&
-    canAfford(state, u)
-  )
+  return upgradeBlockReason(state, u.id) === null
 }
 
 /** Format purchased upgrade IDs as names with ×N suffix for repeats; preserves first-purchase order; unknown IDs fall back to the raw id. */

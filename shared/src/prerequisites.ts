@@ -196,7 +196,10 @@ export function validatePrerequisiteExpression(
   validateNode(prerequisites)
 }
 
-/** Validate all upgrade prerequisite definitions and detect cycles. */
+/**
+ * Validate all upgrade prerequisite definitions, detect cycles, and reject any
+ * upgrade that can only unlock through a coming-soon one.
+ */
 export function validateUpgradePrerequisites(upgrades: readonly UpgradeDefinition[]): void {
   const upgradeById = new Map(upgrades.map((u) => [u.id, u]))
 
@@ -230,5 +233,29 @@ export function validateUpgradePrerequisites(upgrades: readonly UpgradeDefinitio
 
   for (const upgrade of upgrades) {
     visit(upgrade.id, [])
+  }
+
+  // Acyclic by now, so plain memoized recursion terminates.
+  const reachable = new Map<string, boolean>()
+  const canReach = (id: string): boolean => {
+    let known = reachable.get(id)
+    if (known === undefined) {
+      const u = upgradeById.get(id)!
+      known = !u.comingSoon && canSatisfy(u.prerequisites)
+      reachable.set(id, known)
+    }
+    return known
+  }
+  const canSatisfy = (expr: PrerequisiteExpression | undefined): boolean => {
+    if (!expr || expr.type === 'meta') return true
+    if (expr.type === 'upgrade') return canReach(expr.id)
+    return expr.type === 'all' ? expr.items.every(canSatisfy) : expr.items.some(canSatisfy)
+  }
+  for (const upgrade of upgrades) {
+    if (!upgrade.comingSoon && !canReach(upgrade.id)) {
+      throw new Error(
+        `[prerequisites] upgrade '${upgrade.id}' can never unlock: it requires a coming-soon upgrade`,
+      )
+    }
   }
 }

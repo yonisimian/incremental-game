@@ -195,10 +195,14 @@ describe('isUnlocked', () => {
 // ─── canBuy ──────────────────────────────────────────────────────────
 
 describe('canBuy', () => {
+  /** `canBuy` as the tree calls it: on an upgrade that is part of the round. */
+  const canBuyIn = (state: GameState, u: UpgradeDefinition): boolean =>
+    canBuy({ ...state, upgrades: [u] }, u)
+
   it('returns true when unlocked AND can afford', () => {
     const u = makeUpgrade({ cost: { r0: { baseCost: 50 } } })
     const state = makeState({ resources: { r0: 100, r1: 0 } })
-    expect(canBuy(state, u)).toBe(true)
+    expect(canBuyIn(state, u)).toBe(true)
   })
 
   it('returns false when locked even if affordable', () => {
@@ -207,13 +211,13 @@ describe('canBuy', () => {
       prerequisites: { type: 'all', items: [{ type: 'upgrade', id: 'ghost' }] },
     })
     const state = makeState({ resources: { r0: 9999, r1: 9999 } })
-    expect(canBuy(state, u)).toBe(false)
+    expect(canBuyIn(state, u)).toBe(false)
   })
 
   it('returns false when unlocked but cannot afford', () => {
     const u = makeUpgrade({ cost: { r0: { baseCost: 50 } } })
     const state = makeState({ resources: { r0: 0, r1: 9999 } })
-    expect(canBuy(state, u)).toBe(false)
+    expect(canBuyIn(state, u)).toBe(false)
   })
 
   it('returns false for one-shot upgrade already owned', () => {
@@ -222,7 +226,7 @@ describe('canBuy', () => {
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 1 },
     })
-    expect(canBuy(state, u)).toBe(false)
+    expect(canBuyIn(state, u)).toBe(false)
   })
 
   it('returns true for unlimited upgrades already owned (with funds)', () => {
@@ -231,7 +235,20 @@ describe('canBuy', () => {
       resources: { r0: 9999, r1: 0 },
       upgrades: { 'test-upgrade': 3 },
     })
-    expect(canBuy(state, u)).toBe(true)
+    expect(canBuyIn(state, u)).toBe(true)
+  })
+
+  it('returns false for a coming-soon upgrade even when free and unlocked', () => {
+    const u = makeUpgrade({ cost: {}, comingSoon: true })
+    const state = makeState({ resources: { r0: 9999, r1: 9999 } })
+    expect(canBuyIn(state, u)).toBe(false)
+  })
+
+  it('returns false for the sibling of an owned choice', () => {
+    const a = makeUpgrade({ id: 'fork-a', choiceGroup: 'fork' })
+    const b = makeUpgrade({ id: 'fork-b', choiceGroup: 'fork' })
+    const state = { ...makeState({ upgrades: { 'fork-a': 1 } }), upgrades: [a, b] }
+    expect(canBuy(state, b)).toBe(false)
   })
 })
 

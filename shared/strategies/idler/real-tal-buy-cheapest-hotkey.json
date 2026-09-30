@@ -14,14 +14,6 @@
     },
     {
       "kind": "buy",
-      "upgradeId": "sc-clicking"
-    },
-    {
-      "kind": "buy",
-      "upgradeId": "sb-unlock"
-    },
-    {
-      "kind": "buy",
       "upgradeId": "a-unlock"
     },
     {
@@ -51,10 +43,6 @@
     {
       "kind": "buy",
       "upgradeId": "node-3"
-    },
-    {
-      "kind": "buy",
-      "upgradeId": "node-4"
     },
     {
       "kind": "buy",

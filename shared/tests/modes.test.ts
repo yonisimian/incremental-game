@@ -362,10 +362,22 @@ describe('collectEnemyDebuffs', () => {
   })
 
   it('ignores a passive attack that carries no offensive effect', () => {
-    const def = getModeDefinition('idler')
-    // a3 is a passive attack with no effects → contributes nothing.
+    const base = getModeDefinition('idler')
+    const def: ModeDefinition = {
+      ...base,
+      attacks: [...base.attacks, { id: 'a-empty', kind: 'passive' }],
+      upgrades: [
+        ...base.upgrades,
+        {
+          id: 'unlock-a-empty',
+          cost: {},
+          purchaseLimit: 1,
+          effects: [{ type: 'unlockAttack', attack: 'a-empty' }],
+        },
+      ],
+    }
     const state = createInitialState(def)
-    state.upgrades[attackGate(def, 'a3').id] = 1
+    state.upgrades[attackGate(def, 'a-empty').id] = 1
     expect(collectEnemyDebuffs(state, def)).toEqual([])
   })
 

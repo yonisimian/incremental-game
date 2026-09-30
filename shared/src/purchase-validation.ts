@@ -63,6 +63,7 @@ export function purchaseLockUntilSec(
  */
 export type PurchaseBlockReason =
   | 'unknown' // no such upgrade
+  | 'coming-soon' // announced on the tree, not yet purchasable
   | 'maxed' // already at purchaseLimit
   | 'prerequisite' // prerequisites not satisfied
   | 'choice-group' // a mutually exclusive sibling was already taken
@@ -88,6 +89,7 @@ export function purchaseBlockReason(
 ): PurchaseBlockReason | null {
   const def = upgradeMap.get(upgradeId)
   if (!def) return 'unknown'
+  if (def.comingSoon) return 'coming-soon'
 
   const owned = state.upgrades[upgradeId] ?? 0
   if (isMaxed(def, owned)) return 'maxed'

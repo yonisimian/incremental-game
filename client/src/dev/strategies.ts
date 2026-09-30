@@ -59,8 +59,8 @@ const MAX_ENUM_UPGRADES = 8
  * 4. Insert highlight switches before currency transitions
  */
 export function generateStrategies(modeDef: ModeDefinition): Strategy[] {
-  // Filter to timed-goal upgrades only (exclude trophy/buy-upgrade goals)
-  const upgrades = modeDef.upgrades.filter((u) => !u.goalType)
+  // Timed-goal upgrades only (exclude trophy/buy-upgrade goals), minus unreleased ones
+  const upgrades = modeDef.upgrades.filter((u) => !u.goalType && !u.comingSoon)
 
   // Build prereq map and choice groups
   const prereqMap = new Map<string, readonly string[]>()

@@ -338,4 +338,38 @@ describe('validateUpgradePrerequisites', () => {
       }).toThrow(/invalid min/)
     }
   })
+
+  describe('coming-soon reachability', () => {
+    const soon = (id: string, prerequisites?: UpgradeDefinition['prerequisites']) => ({
+      ...makeUpgrade(id, prerequisites),
+      comingSoon: true,
+    })
+
+    it('rejects an upgrade whose only path runs through a coming-soon one', () => {
+      expect(() => {
+        validateUpgradePrerequisites([
+          soon('bank'),
+          makeUpgrade('vault', { type: 'upgrade', id: 'bank' }),
+          makeUpgrade('heist', { type: 'upgrade', id: 'vault' }),
+        ])
+      }).toThrow(/'vault' can never unlock/)
+    })
+
+    it('accepts one with another way in, and coming-soon chains', () => {
+      expect(() => {
+        validateUpgradePrerequisites([
+          makeUpgrade('u0'),
+          soon('bank'),
+          soon('bank-2', { type: 'upgrade', id: 'bank' }),
+          makeUpgrade('vault', {
+            type: 'any',
+            items: [
+              { type: 'upgrade', id: 'bank' },
+              { type: 'upgrade', id: 'u0' },
+            ],
+          }),
+        ])
+      }).not.toThrow()
+    })
+  })
 })

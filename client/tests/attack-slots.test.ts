@@ -20,8 +20,9 @@ import {
 } from '@game/shared'
 import type { ModeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
+import { upgradeBlockReason } from '../src/game.js'
 import { renderUpgradeTree } from '../src/ui/components.js'
-import { canBuy, isAttackSlotBlocked } from '../src/ui/helpers.js'
+import { canBuy } from '../src/ui/helpers.js'
 import { attackPanel } from '../src/ui/panels/attack-panel.js'
 
 // ─── Mode with a one-slot active budget ──────────────────────────────
@@ -149,7 +150,7 @@ describe('slot-blocked upgrades', () => {
     const mode = register(ONE_ACTIVE)
     const state = makeState(mode, { [A0]: 1 })
     const a1 = mode.upgrades.find((u) => u.id === A1)!
-    expect(isAttackSlotBlocked(state, a1)).toBe(true)
+    expect(upgradeBlockReason(state, A1)).toBe('attack-slots')
     expect(canBuy(state, a1)).toBe(false)
     expect(nodeClass(state, A1)).toContain('locked')
   })
@@ -158,7 +159,7 @@ describe('slot-blocked upgrades', () => {
     const mode = register(ONE_ACTIVE)
     const state = makeState(mode, {})
     const a1 = mode.upgrades.find((u) => u.id === A1)!
-    expect(isAttackSlotBlocked(state, a1)).toBe(false)
+    expect(upgradeBlockReason(state, A1)).toBeNull()
     expect(canBuy(state, a1)).toBe(true)
     expect(nodeClass(state, A1)).not.toContain('locked')
   })
@@ -166,14 +167,12 @@ describe('slot-blocked upgrades', () => {
   it('never slot-blocks a node that unlocks nothing', () => {
     const mode = register(ONE_ACTIVE)
     const state = makeState(mode, { [A0]: 1 })
-    const plain = mode.upgrades.find((u) => u.id === PLAIN)!
-    expect(isAttackSlotBlocked(state, plain)).toBe(false)
+    expect(upgradeBlockReason(state, PLAIN)).not.toBe('attack-slots')
   })
 
   it('keeps the passive budget independent of a full active one', () => {
     const mode = register(ONE_ACTIVE)
     const state = makeState(mode, { [A0]: 1 })
-    const p0 = mode.upgrades.find((u) => u.id === P0)!
-    expect(isAttackSlotBlocked(state, p0)).toBe(false)
+    expect(upgradeBlockReason(state, P0)).not.toBe('attack-slots')
   })
 })

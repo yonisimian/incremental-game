@@ -223,29 +223,6 @@ test('ACT-05 excess rapid clicks reconcile down to the server-accepted state', a
     .toBeLessThanOrEqual(1)
 })
 
-test('ACT-06 choice ownership blocks its sibling in the real dialog', async ({ players }) => {
-  const actor = await players.create('Choice-A')
-  const observer = await players.create('Choice-B')
-  const wire = new WireObserver(actor.page)
-  await Promise.all([actor.open(), observer.open()])
-  await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
-  await unlockClicking(actor.page)
-  await buyUpgrade(actor.page, 'sc-clicking')
-  await expect
-    .poll(
-      () =>
-        (wire.received('STATE_UPDATE') as ObservedStateUpdate[]).at(-1)?.player.upgrades[
-          'sc-clicking'
-        ] ?? 0,
-    )
-    .toBeGreaterThan(0)
-
-  await openPanel(actor.page, 1)
-  await actor.page.locator('[data-upgrade="sc-production"]').click()
-  await expect(actor.page.locator('#upgrade-detail-buy')).toBeDisabled()
-  await expect(actor.page.locator('#upgrade-detail-lock')).toBeVisible()
-})
-
 test('ACT-07 detail dialog supports locked, cancel, backdrop, and Escape paths', async ({
   players,
 }) => {

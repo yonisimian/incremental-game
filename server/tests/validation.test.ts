@@ -144,6 +144,23 @@ describe('isValidPurchase — choice groups', () => {
     expect(isValidPurchase(state, 'choice-b', groupMap, groupMode)).toBe(false)
   })
 })
+
+describe('isValidPurchase — coming soon', () => {
+  const soon: UpgradeDefinition = { id: 'soon', cost: {}, purchaseLimit: 1, comingSoon: true }
+  const soonMode = { ...idlerDef, upgrades: [soon] }
+
+  it('rejects a free, unlocked upgrade that is marked coming soon', () => {
+    const state: PlayerState = {
+      score: 0,
+      resources: { r0: 9999 },
+      upgrades: {},
+      generators: {},
+      pendingAttacks: [],
+      meta: {},
+    }
+    expect(isValidPurchase(state, 'soon', new Map([['soon', soon]]), soonMode)).toBe(false)
+  })
+})
 // ─── isValidPurchase: goal-tagged upgrades ───────────────────────────
 
 describe('isValidPurchase — goal-tagged upgrades', () => {
