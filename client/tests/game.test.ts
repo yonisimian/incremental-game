@@ -607,6 +607,29 @@ describe('game.ts', () => {
       expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
     })
 
+    it('keeps the enemy’s gift windows and the incoming click rate from each snapshot', () => {
+      enterIdlerPlaying(game)
+      const window = { pact: 'p-accord', expiresAtSec: 20 }
+      game.handleServerMessage(
+        makeStateUpdate({
+          opponent: {
+            score: 0,
+            resources: {},
+            rates: {},
+            pacts: ['p-accord'],
+            pactWindows: [window],
+          },
+          incomingAutoClicksPerSec: 3,
+        }),
+      )
+      expect(game.getState().opponentPactWindows).toEqual([window])
+      expect(game.getState().incomingAutoClicksPerSec).toBe(3)
+      // Replaced, not accumulated: a quiet snapshot clears both.
+      game.handleServerMessage(makeStateUpdate())
+      expect(game.getState().opponentPactWindows).toEqual([])
+      expect(game.getState().incomingAutoClicksPerSec).toBe(0)
+    })
+
     it('replays an unacked activation on the next snapshot, and drops one it refuses', async () => {
       await withActivePact()
       enterIdlerPlaying(game)

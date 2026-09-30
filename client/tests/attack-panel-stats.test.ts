@@ -100,6 +100,8 @@ function makeState(wood: number, stats: Record<string, number> = {}): GameState 
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,

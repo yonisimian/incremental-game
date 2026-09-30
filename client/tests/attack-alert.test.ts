@@ -198,6 +198,8 @@ describe('espionage panel — incoming strikes', () => {
       debuffs: [],
       pactBonuses: [],
       opponentPacts: [],
+      opponentPactWindows: [],
+      incomingAutoClicksPerSec: 0,
       incomingAttacks,
       timeLeft: 60,
       paused: false,

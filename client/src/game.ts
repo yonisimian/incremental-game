@@ -5,6 +5,7 @@ import {
   type ModeDefinition,
   type Modifier,
   type OpponentView,
+  type ActivePact,
   type PactBonus,
   type PlayerState,
   type PurchaseEvent,
@@ -135,12 +136,23 @@ export interface GameState {
    */
   pactBonuses: PactBonus[]
   /**
-   * The opponent's unlocked *mutual* pacts — treaties this player also benefits
-   * from. Replaced from each `STATE_UPDATE`'s opponent view (empty
-   * when none); the relations panel lists them as shared treaties, and a toast
-   * announces one the first time it appears. Reset at the start of each match.
+   * The opponent's pacts that reach this player — mutual ones, and open
+   * active-pact windows that carry a gift. Replaced from each `STATE_UPDATE`'s
+   * opponent view (empty when none); the relations panel lists them as shared
+   * treaties, and a toast announces one each time it appears. Reset at the
+   * start of each match.
    */
   opponentPacts: string[]
+  /**
+   * Closing times of the opponent's open windows among {@link opponentPacts},
+   * for the shared-treaty countdown. Replaced like it; reset like it.
+   */
+  opponentPactWindows: ActivePact[]
+  /**
+   * Automatic clicks per second the opponent's pacts are granting this player
+   * right now (0 when none). Replaced from each `STATE_UPDATE`; reset per match.
+   */
+  incomingAutoClicksPerSec: number
   /** Seconds remaining this round. */
   timeLeft: number
   /** Whether the server has paused the current match. */
@@ -225,6 +237,8 @@ const state: GameState = {
   incomingAttacks: [],
   pactBonuses: [],
   opponentPacts: [],
+  opponentPactWindows: [],
+  incomingAutoClicksPerSec: 0,
   timeLeft: 0,
   paused: false,
   vsBot: false,
@@ -634,6 +648,11 @@ export function doActivatePact(pactId: string): void {
   const modeDef = getModeDefinition(state.mode)
   if (!isValidPactActivation(state.player, pactId, modeDef)) return
   applyPactActivation(state.player, pactId, modeDef)
+  const def = modeDef.pacts.find((p) => p.id === pactId)
+  const flavor = getModeFlavor(modeDef)
+  spawnToast(`${getPactName(flavor, pactId)} signed — ${def?.durationSec ?? 0}s`, 'success', {
+    icon: getPactIcon(flavor, pactId),
+  })
   queueAction({ type: 'activate_pact', timestamp: Date.now(), pactId })
   trackPredicted({ kind: 'activate_pact', pactId })
   notify()
@@ -685,6 +704,8 @@ export function resetForMatch(): void {
   state.incomingAttacks = []
   state.pactBonuses = []
   state.opponentPacts = []
+  state.opponentPactWindows = []
+  state.incomingAutoClicksPerSec = 0
   clearIncomingAttackToasts()
   state.timeLeft = 0
   state.matchId = null
@@ -726,6 +747,8 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.incomingAttacks = []
   state.pactBonuses = []
   state.opponentPacts = []
+  state.opponentPactWindows = []
+  state.incomingAutoClicksPerSec = 0
   clearIncomingAttackToasts()
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
@@ -772,6 +795,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const shared = msg.opponent.pacts ?? []
   showSharedPactsSigned(state.opponentPacts, shared, modeDefForAlerts)
   state.opponentPacts = shared
+  state.opponentPactWindows = msg.opponent.pactWindows ?? []
+  state.incomingAutoClicksPerSec = msg.incomingAutoClicksPerSec ?? 0
 
   // Prune acknowledged batches
   while (pendingBatches.length > 0 && pendingBatches[0].seq <= msg.ackSeq) {

@@ -31,6 +31,8 @@ function makeState(
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
