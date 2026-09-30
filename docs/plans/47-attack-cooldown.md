@@ -1,6 +1,12 @@
 # 47 — Attack cooldown: a rest after an active attack finishes
 
-## Status: Planned
+## Status: Implemented (steps 1–5; step 6, content, not done)
+
+As built, with two departures from the order below: steps 1–3 landed as one
+commit (knip rejects the cooldowns module's exports until something uses
+them), and the round-end clear in `endRound` is untested, like the
+debuff-window clear beside it. No idler attack authors a `cooldownSec` yet, so
+gameplay is unchanged until §10 is tuned.
 
 The attack half of [43 — activation cooldowns](43-activation-cooldowns.md), with
 43's open questions settled and every touch point verified against the current
