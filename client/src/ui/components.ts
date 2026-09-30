@@ -86,6 +86,7 @@ const NODE_STATE_CLASS: Record<PurchaseBlockReason, string> = {
   prerequisite: 'locked',
   'choice-group': 'locked',
   'attack-slots': 'locked',
+  'pact-slots': 'locked',
   'locked-by-attack': 'locked-by-attack',
   unaffordable: 'too-expensive',
 }

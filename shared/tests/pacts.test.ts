@@ -21,6 +21,10 @@ import {
   getGeneratorSellRefund,
   getModeDefinition,
   getPactActivationCost,
+  hasPactSlotsFor,
+  isPactKindCapped,
+  pactLimit,
+  pactSlotsHeld,
   getUpgradeNextCost,
   isValidPactActivation,
   NEUTRAL_COST_FACTORS,
@@ -598,6 +602,87 @@ describe('active pact activation', () => {
         })
       }).not.toThrow()
     })
+  })
+})
+
+// ─── Pact slots ──────────────────────────────────────────────────────
+
+describe('pact slots', () => {
+  /** One more passive pact reachable two ways, plus a raise and an unlock-and-raise node. */
+  const EXTRA: PactDefinition = { id: 'p-extra', kind: 'passive' }
+  const SECOND_ROUTE: UpgradeDefinition = {
+    id: 'route-research',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [{ type: 'unlockPact', pact: 'p-research' }],
+  }
+  const RAISE: UpgradeDefinition = {
+    id: 'raise',
+    cost: {},
+    purchaseLimit: 3,
+    effects: [{ type: 'pactSlots', pactKind: 'passive', value: 1 }],
+  }
+  const UNLOCK_AND_RAISE: UpgradeDefinition = {
+    id: 'unlock-and-raise',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [
+      { type: 'unlockPact', pact: EXTRA.id },
+      { type: 'pactSlots', pactKind: 'passive', value: 1 },
+    ],
+  }
+  /** MODE, capped at two passive pacts by its own grant; actives left uncapped. */
+  const capped: ModeDefinition = {
+    ...MODE,
+    effects: [{ type: 'pactSlots', pactKind: 'passive', value: 2 }],
+    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE],
+    pacts: [...MODE.pacts, EXTRA],
+  }
+  const byId = (id: string) => capped.upgrades.find((u) => u.id === id)!
+
+  it('leaves a kind no grant names uncapped', () => {
+    expect(isPactKindCapped(MODE, 'passive')).toBe(false)
+    expect(pactLimit(player(), MODE, 'passive')).toBe(Infinity)
+    expect(isPactKindCapped(capped, 'active')).toBe(false)
+    expect(pactLimit(player(), capped, 'active')).toBe(Infinity)
+  })
+
+  it('sums the base grant and every owned raise, times its level', () => {
+    const state = player()
+    expect(pactLimit(state, capped, 'passive')).toBe(2)
+    state.upgrades.raise = 3
+    expect(pactLimit(state, capped, 'passive')).toBe(5)
+  })
+
+  it('counts held pacts by kind, not by route', () => {
+    const state = player({ signed: ['p-research', 'p-trade', 'p-active'] })
+    state.upgrades['route-research'] = 1
+    expect(pactSlotsHeld(state, capped, 'passive')).toBe(2)
+    expect(pactSlotsHeld(state, capped, 'active')).toBe(1)
+  })
+
+  it('refuses the unlock that would exceed the budget, all the way to purchaseBlockReason', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('sign-p-empty'), capped)).toBe(false)
+    const map = new Map(capped.upgrades.map((u) => [u.id, u]))
+    expect(purchaseBlockReason(full, 'sign-p-empty', map, capped)).toBe('pact-slots')
+    // An upgrade that unlocks nothing, and one unlocking an uncapped kind, are fine.
+    expect(hasPactSlotsFor(full, byId('raise'), capped)).toBe(true)
+    expect(hasPactSlotsFor(full, byId('sign-p-active'), capped)).toBe(true)
+    // With room, the same unlock goes through.
+    expect(hasPactSlotsFor(player({ signed: ['p-research'] }), byId('sign-p-empty'), capped)).toBe(
+      true,
+    )
+  })
+
+  it('charges nothing for a second route to a held pact', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('route-research'), capped)).toBe(true)
+  })
+
+  it('lets one purchase unlock a pact and grant the slot it fills', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('unlock-and-raise'), capped)).toBe(true)
   })
 })
 

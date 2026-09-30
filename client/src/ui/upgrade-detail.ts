@@ -69,6 +69,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   else if (reason === 'choice-group')
     lockReason = 'Another choice in this group has already been selected'
   else if (reason === 'attack-slots') lockReason = 'No attack slots left'
+  else if (reason === 'pact-slots') lockReason = 'No pact slots left'
   // The only reason that lifts on its own; the countdown is what tells the
   // player to wait rather than look for a fix.
   else if (reason === 'locked-by-attack') {

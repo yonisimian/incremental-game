@@ -2163,6 +2163,32 @@ describe('Match', () => {
       m.handleMessage(playerId, buyMsg(signP2.id, seq + 1))
     }
 
+    it('refuses a sign past the passive pact budget', () => {
+      const base = getModeDefinition('idler')
+      const signP3 = mode.upgrades.find((u) =>
+        u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+      )!
+      const capped: ModeDefinition = {
+        ...base,
+        effects: [
+          ...(base.effects ?? []).filter((e) => e.type !== 'pactSlots'),
+          { type: 'pactSlots', pactKind: 'passive', value: 1 },
+        ],
+      }
+      validateModeDefinition('idler', capped)
+      registerMode('idler', capped)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        m.handleMessage('p1', buyMsg(signP3.id, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.upgrades[signP2.id]).toBe(1)
+        expect(latestUpdate(ws1).player.upgrades[signP3.id] ?? 0).toBe(0)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('stamps the discount on the signatory while the partner is ahead, and only then', () => {
       const base = getModeDefinition('idler')
       const patched = withResearchPact()

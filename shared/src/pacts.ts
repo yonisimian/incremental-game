@@ -13,13 +13,26 @@ import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { readEnemyStat } from './effects/enemy-stats.js'
 import type { PartnerSnapshot } from './effects/enemy-stats.js'
 import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
-import type { MirrorCostOutput, MirrorModifierOutput } from './effects/types.js'
+import type {
+  EffectOutput,
+  MirrorCostOutput,
+  MirrorModifierOutput,
+  PactSlotsOutput,
+} from './effects/types.js'
 import type { Modifier } from './modifiers/types.js'
 import { readGameSec } from './game-clock.js'
-import { isPactUnlocked, unlockedPacts } from './modes/index.js'
+import { createInitialState, isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
 import { isCostAffordable } from './upgrade-costs.js'
-import type { ActivePact, PactCostFactor, PactDefinition, PlayerState } from './types.js'
+import type {
+  ActivePact,
+  EffectRef,
+  PactCostFactor,
+  PactDefinition,
+  PactKind,
+  PlayerState,
+  UpgradeDefinition,
+} from './types.js'
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
 
@@ -405,4 +418,133 @@ export function applyPactActivation(
   state.activePacts = [...others, { pact: pactId, expiresAtSec }]
   if (def.cooldownSec !== undefined)
     startCooldown(state, 'pact', pactId, expiresAtSec + def.cooldownSec)
+}
+
+// ─── Pact slots ──────────────────────────────────────────────────────
+//
+// The pact twin of the attack budget (`attacks.ts § Attack slots`): how many
+// pacts of each kind a player can *hold*. Unlocking stays derived and
+// monotonic; the cap refuses the *purchase* that would exceed it. No player
+// state — the count is the unlocked pacts, the limit a sum over owned grants.
+
+/** Whether an effect output is a pact-slot grant. */
+function isPactSlotsOutput(out: EffectOutput): out is PactSlotsOutput {
+  return 'kind' in out && out.kind === 'pactSlots'
+}
+
+/**
+ * The pact kinds a mode caps: those any `pactSlots` effect names, on the mode
+ * or on any upgrade, owned or not. Derived topology, cached per mode.
+ */
+const cappedPactKindsCache = new WeakMap<ModeDefinition, ReadonlySet<PactKind>>()
+
+function cappedPactKinds(mode: ModeDefinition): ReadonlySet<PactKind> {
+  const cached = cappedPactKindsCache.get(mode)
+  if (cached) return cached
+  const kinds = new Set<PactKind>()
+  // State-independent effect, so a fresh initial state is probe enough.
+  const probe = createInitialState(mode)
+  const scan = (refs: readonly EffectRef[] | undefined): void => {
+    for (const ref of refs ?? []) {
+      if (ref.type !== 'pactSlots') continue
+      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
+        if (isPactSlotsOutput(out)) kinds.add(out.pactKind)
+      }
+    }
+  }
+  scan(mode.effects)
+  for (const upgrade of mode.upgrades) scan(upgrade.effects)
+  cappedPactKindsCache.set(mode, kinds)
+  return kinds
+}
+
+/** Whether the mode caps how many pacts of `kind` a player may hold. */
+export function isPactKindCapped(mode: ModeDefinition, kind: PactKind): boolean {
+  return cappedPactKinds(mode).has(kind)
+}
+
+/** The pact slots one host's refs grant for `kind`, at `owned` levels. */
+function pactSlotsGranted(
+  refs: readonly EffectRef[] | undefined,
+  owned: number,
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  kind: PactKind,
+): number {
+  let total = 0
+  for (const ref of refs ?? []) {
+    if (ref.type !== 'pactSlots') continue
+    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+      if (isPactSlotsOutput(out) && out.pactKind === kind) total += out.value * owned
+    }
+  }
+  return total
+}
+
+/**
+ * How many pacts of `kind` this player may hold: the mode's base grant plus
+ * `value × owned` for every owned `pactSlots` upgrade naming the kind.
+ * `Infinity` for a kind the mode never caps.
+ */
+export function pactLimit(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  kind: PactKind,
+): number {
+  if (!isPactKindCapped(mode, kind)) return Infinity
+  let limit = pactSlotsGranted(mode.effects, 1, state, mode, kind)
+  for (const upgrade of mode.upgrades) {
+    const owned = state.upgrades[upgrade.id] ?? 0
+    if (owned > 0) limit += pactSlotsGranted(upgrade.effects, owned, state, mode, kind)
+  }
+  return limit
+}
+
+/**
+ * How many pacts of `kind` this player holds — the unlocked pacts of the kind.
+ * Counts *pacts*, not unlock routes, as `attackSlotsHeld` does.
+ */
+export function pactSlotsHeld(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  kind: PactKind,
+): number {
+  const kindOf = new Map(mode.pacts.map((p) => [p.id, p.kind]))
+  return unlockedPacts(state, mode).filter((id) => kindOf.get(id) === kind).length
+}
+
+/**
+ * Whether buying one more level of `def` fits the player's pact budget: the
+ * pacts its `unlockPact` refs would newly unlock, bucketed by kind, must fit
+ * `held + adding <= limit` — the limit including any slots `def` itself grants.
+ * All-or-nothing, and an upgrade unlocking no pact is never blocked here —
+ * `hasAttackSlotsFor`'s rules.
+ */
+export function hasPactSlotsFor(
+  state: Readonly<PlayerState>,
+  def: UpgradeDefinition,
+  mode: ModeDefinition,
+): boolean {
+  const adding = new Map<PactKind, Set<string>>()
+  const kindOf = new Map(mode.pacts.map((p) => [p.id, p.kind]))
+  for (const ref of def.effects ?? []) {
+    if (ref.type !== 'unlockPact') continue
+    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
+      if (!('kind' in out) || out.kind !== 'pactUnlock') continue
+      if (isPactUnlocked(state, mode, out.pact)) continue
+      const kind = kindOf.get(out.pact)
+      if (!kind) continue // unknown pact — rejected at boot
+      let ids = adding.get(kind)
+      if (!ids) {
+        ids = new Set()
+        adding.set(kind, ids)
+      }
+      ids.add(out.pact)
+    }
+  }
+  for (const [kind, ids] of adding) {
+    const limit = pactLimit(state, mode, kind) + pactSlotsGranted(def.effects, 1, state, mode, kind)
+    if (pactSlotsHeld(state, mode, kind) + ids.size > limit) return false
+  }
+  return true
 }
