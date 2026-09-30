@@ -1,6 +1,20 @@
 # 48 — Active pacts: sign, enjoy a window, rest
 
-## Status: Planned
+## Status: Implemented
+
+As built, with these departures from the text below:
+
+- **No `PactEvent`.** `OpponentView.pacts` stays `string[]` and now also lists
+  the opponent's open windows that reach the viewer (mutual, or carrying a
+  gift); a new `OpponentView.pactWindows` carries their closing times. The
+  client's existing "signed by the enemy" toast already fires when a new id
+  appears, so each activation announces itself to the partner with no new
+  event type. The signer's own toast is raised client-side on the predicted
+  activation.
+- **No `BotAction` member.** The bot does not sign pacts, so nothing would
+  emit it.
+- Steps 1–8 landed one commit each, the editor step also moving
+  `resourceSelect` into the shared editor controls.
 
 The buildable cut of [44 — active pacts](44-active-pacts.md), on top of
 [47 — attack cooldown](47-attack-cooldown.md) (whose `PlayerState.cooldowns`
