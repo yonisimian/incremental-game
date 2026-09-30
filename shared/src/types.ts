@@ -137,7 +137,10 @@ export type AttackKind = 'active' | 'passive'
  * `stealResource`). An active attack may also carry the passive vocabulary
  * (`enemyProductionModifier` / `enemyCostModifier`): those open a *debuff
  * window* of `durationSec` game seconds when the strike lands, tracked on the
- * attacker as `PlayerState.activeDebuffs`. Display data lives in
+ * attacker as `PlayerState.activeDebuffs`. Once the attack *finishes* — its
+ * window closes, or the strike lands when it opens none — an optional
+ * `cooldownSec` rest starts (`PlayerState.cooldowns`), during which it cannot
+ * be activated again. Display data lives in
  * `AttackFlavor`. `kind` groups attacks into separate blocks in the panel.
  */
 export interface AttackDefinition {
@@ -169,6 +172,15 @@ export interface AttackDefinition {
    * *attack*, not per effect — several debuff effects on one attack share it.
    */
   readonly durationSec?: number
+  /**
+   * Seconds after this attack *finishes* before it can be activated again, in
+   * game seconds (so it freezes with the round). The attack finishes when its
+   * debuff window closes, or at the strike when it opens no window. Stamped at
+   * the strike, when both ends are known, into `PlayerState.cooldowns`. Active
+   * attacks only; optional (none = re-activatable at once). Unlike `durationSec`
+   * it needs no particular effect — a rest is meaningful on a steal too.
+   */
+  readonly cooldownSec?: number
   /**
    * Offensive effects this attack carries. Each ref names a registered effect
    * plus its params. On a *passive* attack an `enemyModifier`-emitting effect
@@ -288,6 +300,14 @@ export interface PlayerState {
    * field arrives like any other reconciled `PlayerState` field.
    */
   activeDebuffs?: ActiveDebuff[]
+  /**
+   * Activations resting after their effect ended (see `cooldowns.ts`). Stamped
+   * server-side when the end time is known — for an attack, at the strike — and
+   * judged at read time by `cooldownUntilSec`, so the server's tick sweep is
+   * hygiene. Absent when empty. Never predicted for attacks, only carried, like
+   * `activeDebuffs`.
+   */
+  cooldowns?: Cooldown[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
 }
@@ -303,6 +323,19 @@ export interface ActiveDebuff {
   readonly attack: string
   /** `meta.gameSec` value at which the window closes. */
   readonly expiresAtSec: number
+}
+
+/**
+ * A rest after an activation's effect ended: until `meta.gameSec` reaches
+ * `untilSec` the activation is refused. `kind` keeps attack and pact ids in
+ * separate namespaces, so one list serves both.
+ */
+export interface Cooldown {
+  readonly kind: 'attack' | 'pact'
+  /** Attack or pact id, per `kind`. */
+  readonly id: string
+  /** `meta.gameSec` value at which the cooldown lifts. */
+  readonly untilSec: number
 }
 
 /** Which kind of priced entity a cost factor applies to. */

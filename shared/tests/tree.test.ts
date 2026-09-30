@@ -496,6 +496,25 @@ describe('tree codec — stealResource take', () => {
   })
 })
 
+// ─── Attack cooldown ─────────────────────────────────────────────────
+
+describe('tree codec — attack cooldownSec', () => {
+  /** The steal tree with `cooldownSec` set on its attack. */
+  function treeWithCooldown(cooldownSec: unknown): TreeFile {
+    const tree = treeWithSteal({ fraction: 0.1 })
+    return { ...tree, attacks: [{ ...tree.attacks[0], cooldownSec }] } as TreeFile
+  }
+
+  it('accepts a positive cooldown and carries it into the mode', () => {
+    expect(toModeDefinition(treeWithCooldown(12)).attacks[0].cooldownSec).toBe(12)
+  })
+
+  it('rejects a zero or negative cooldown', () => {
+    expect(() => parseTreeFile(treeWithCooldown(0))).toThrow()
+    expect(() => parseTreeFile(treeWithCooldown(-3))).toThrow()
+  })
+})
+
 // ─── stealGenerator: share vs flat copy count ────────────────────────
 
 /** A tree with one generator whose lone active attack steals it with `params`. */

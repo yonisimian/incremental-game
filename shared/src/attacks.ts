@@ -9,6 +9,7 @@
 
 import { scaledCost } from './cost.js'
 import { readGameSec } from './game-clock.js'
+import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import { creditResource } from './modifiers/pipeline.js'
 import { createInitialState, isAttackUnlocked, unlockedAttacks } from './modes/index.js'
@@ -73,6 +74,13 @@ export interface AttackParams {
    * {@link getAttackDurationSec} owns the floor at zero.
    */
   readonly durationOffsetSec: number
+  /** Scales `cooldownSec`, the rest after the attack finishes. */
+  readonly cooldown: number
+  /**
+   * Seconds shifted onto the *scaled* cooldown — `cooldown`'s absolute
+   * counterpart. {@link getAttackCooldownSec} owns the floor at zero.
+   */
+  readonly cooldownOffsetSec: number
 }
 
 /**
@@ -88,15 +96,22 @@ export const NEUTRAL_ATTACK_PARAMS: AttackParams = {
   prepareTimeOffsetSec: 0,
   duration: 1,
   durationOffsetSec: 0,
+  cooldown: 1,
+  cooldownOffsetSec: 0,
 }
 
 /**
  * The stats only an *active* attack can use. A passive attack is always-on and
  * never activated — `validateModeDefinition` forbids it from declaring a
- * `prepareCost`, `prepareTimeSec` or `durationSec` at all — so a stat moving any
- * of them would be authored dead weight.
+ * `prepareCost`, `prepareTimeSec`, `durationSec` or `cooldownSec` at all — so a
+ * stat moving any of them would be authored dead weight.
  */
-const ACTIVE_ONLY_ATTACK_STATS: readonly AttackStat[] = ['prepareCost', 'prepareTime', 'duration']
+const ACTIVE_ONLY_ATTACK_STATS: readonly AttackStat[] = [
+  'prepareCost',
+  'prepareTime',
+  'duration',
+  'cooldown',
+]
 
 /**
  * The `attackStat` stats that mean something on an attack of `kind`.
@@ -120,12 +135,14 @@ export function attackStatsFor(kind: AttackKind): readonly AttackStat[] {
  * - `prepareTime` — `0` already means "strike on the next tick".
  * - `duration` — a window of no length is gathered by no tick; negative would
  *   stamp an `expiresAtSec` in the past, which reads the same.
+ * - `cooldown` — `0` is no rest at all; negative would lift it in the past.
  */
 const ATTACK_PARAM_FLOORS: Record<AttackStat, number> = {
   power: 0,
   prepareCost: 0,
   prepareTime: 0,
   duration: 0,
+  cooldown: 0,
 }
 
 /**
@@ -221,6 +238,7 @@ export function collectAttackParams(
     ...resolved,
     prepareTimeOffsetSec: clampOffsetSec(offsets.prepareTime),
     durationOffsetSec: clampOffsetSec(offsets.duration),
+    cooldownOffsetSec: clampOffsetSec(offsets.cooldown),
   }
 }
 
@@ -265,6 +283,19 @@ export function getAttackDurationSec(def: AttackDefinition, params: AttackParams
 }
 
 /**
+ * The rest after the attack finishes before it can be activated again, in game
+ * seconds, with the attacker's stats applied — {@link getAttackDurationSec}'s
+ * twin: the authored `cooldownSec` **scaled** by `cooldown`, then **shifted** by
+ * `cooldownOffsetSec`, floored at `0`. An attack with no `cooldownSec` has no
+ * rest, whatever its stats say.
+ */
+export function getAttackCooldownSec(def: AttackDefinition, params: AttackParams): number {
+  if (def.cooldownSec === undefined) return 0
+  const scaled = def.cooldownSec * params.cooldown
+  return Math.max(0, scaled + params.cooldownOffsetSec)
+}
+
+/**
  * Game-clock time the debuff window `attackId` is currently inflicting closes,
  * or `null` when none is open — the window twin of a pending strike's
  * `readyAtSec`. Reads `meta.gameSec` off `state` as every other attack-timing
@@ -298,6 +329,7 @@ export type AttackBlockReason =
   | 'no-effects' // an effect-less placeholder — nothing to activate
   | 'already-preparing' // an activation of this attack is already pending
   | 'already-active' // this attack's debuff window is still open
+  | 'cooling-down' // the attack finished; its cooldown has not elapsed
   | 'unaffordable' // valid target, cannot pay the prepare cost yet
 
 /**
@@ -349,6 +381,10 @@ export function attackBlockReason(
   // decision, and the card shows a countdown instead of a price. *Different*
   // attacks stack freely — they are separate modifiers in the pipeline.
   if (activeDebuffExpiresAtSec(state, attackId) !== null) return 'already-active'
+  // After `already-active`, so a rest stamped at the strike but still queued
+  // behind the open window reads as the window; before `unaffordable`, so a
+  // player who can pay is still refused.
+  if (cooldownUntilSec(state, 'attack', attackId) !== null) return 'cooling-down'
   const params = collectAttackParams(state, mode, attackId)
   if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
   return null
@@ -356,8 +392,8 @@ export function attackBlockReason(
 
 /**
  * Validate an activation. True if the attack exists, is an unlocked active attack
- * carrying effects, isn't already preparing or inflicting a window, and the
- * player can pay its prepare cost.
+ * carrying effects, isn't already preparing, inflicting a window or cooling
+ * down, and the player can pay its prepare cost.
  */
 export function isValidAttackActivation(
   state: Readonly<PlayerState>,
@@ -474,6 +510,13 @@ export function isDebuffOutput(out: EffectOutput): boolean {
  *   Re-activation while the window is open is refused by `attackBlockReason`,
  *   so an attack has at most one open window at a time.
  *
+ * - `cooldownSec` — once the strike resolves, the attack's rest is stamped into
+ *   `attacker.cooldowns`: {@link getAttackCooldownSec} seconds after the window
+ *   just opened closes, or after the strike itself when it opened none. Both
+ *   ends are known here, so no "window closed" event is needed. Stamped even
+ *   when the strike moved nothing — the activation was paid and resolved. Frozen
+ *   like the window: a cooldown upgrade bought mid-rest shortens the next rest.
+ *
  * - `resourceSteal` — either `fraction × (victim's held amount)` or a flat
  *   `amount`, whichever the effect authored. Capped at what the victim holds, so
  *   a flat steal against an emptier stockpile takes the stockpile rather than
@@ -531,15 +574,19 @@ export function resolveAttackStrike(
       }
     }
   }
+  const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  let finishesAtSec = gameSec
   if (opensWindow) {
     const durationSec = getAttackDurationSec(def, params)
     if (durationSec > 0) {
-      const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
       const window: ActiveDebuff = { attack: def.id, expiresAtSec: gameSec + durationSec }
       attacker.activeDebuffs = [...(attacker.activeDebuffs ?? []), window]
       results.push({ kind: 'debuff', durationSec })
+      finishesAtSec = window.expiresAtSec
     }
   }
+  const cooldownSec = getAttackCooldownSec(def, params)
+  if (cooldownSec > 0) startCooldown(attacker, 'attack', def.id, finishesAtSec + cooldownSec)
   return results
 }
 
