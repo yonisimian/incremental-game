@@ -504,6 +504,34 @@ describe('active pact activation', () => {
       expect(collectPactBonuses(open(ACCORD.id, 25, 25), partner, mode)).toEqual([])
     })
 
+    it('keeps a flat pactModifier verbatim, beside the mirrors, while the window is open', () => {
+      const FRENZY: PactDefinition = {
+        ...ACCORD,
+        id: 'p-frenzy',
+        effects: [
+          {
+            type: 'pactProductionModifier',
+            stage: 'multiplicative',
+            field: 'clickIncome',
+            value: 2,
+          },
+          ...(ACCORD.effects ?? []),
+        ],
+      }
+      const withFrenzy: ModeDefinition = { ...mode, pacts: [...mode.pacts, FRENZY] }
+      const partner = { state: player({ r0: 40 }), rates: {} }
+      expect(collectPactBonuses(open(FRENZY.id, 10, 25), partner, withFrenzy)).toEqual([
+        {
+          pact: FRENZY.id,
+          modifiers: [
+            { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+            { stage: 'additive', field: 'r0', value: 40 },
+          ],
+        },
+      ])
+      expect(collectPactBonuses(open(FRENZY.id, 25, 25), partner, withFrenzy)).toEqual([])
+    })
+
     it('reveals the partner’s open mutual windows, never a one-sided one', () => {
       expect(sharedPacts(open(CEASEFIRE.id, 10, 25), withMutual)).toEqual([CEASEFIRE.id])
       expect(sharedPacts(open(ACCORD.id, 10, 25), withMutual)).toEqual([])

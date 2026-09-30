@@ -1517,6 +1517,26 @@ describe('validateModeDefinition — negative tests', () => {
     }
   })
 
+  it('validates a pactProductionModifier field against the pact target catalog', () => {
+    const withBonus = (field: string, stage = 'multiplicative') =>
+      defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'pactProductionModifier', stage, field, value: 2 }],
+      })
+    for (const field of ['clickIncome', 'r0', 'highlightFactor']) {
+      expect(() => {
+        validateModeDefinition('test', withBonus(field))
+      }).not.toThrow()
+    }
+    expect(() => {
+      validateModeDefinition('test', withBonus('g0'))
+    }).toThrow(/pactProductionModifier effect references unknown or unsupported field 'g0'/)
+    expect(() => {
+      validateModeDefinition('test', withBonus('highlightFactor', 'additive'))
+    }).toThrow(/only 'multiplicative' is supported/)
+  })
+
   it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {
     const def = defWithPact({
       id: 'p0',

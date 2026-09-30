@@ -662,6 +662,23 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `pactProductionModifier` (a flat pact bonus) lands on the same catalog as a
+  // mirrored one, with the same highlight-factor rule; its value's direction is
+  // the schema's `guardModifierValue('bonus')`.
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'pactProductionModifier') continue
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be boosted from a pact)`,
+        )
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+    }
+  }
+
   // Active-pact cost/timing — the attack rules below with the strike removed. An
   // active pact that carries effects is *activated* (pay `activationCost`, stay
   // in force `durationSec`), so both must be present; a passive pact is

@@ -166,10 +166,12 @@ export function effectFieldOptions(
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))
   }
-  // A pact's mirrored bonus lands on the same targets a debuff may hit (a bonus
-  // merges in after generator output is folded, for the same reason).
+  // A pact's bonus (mirrored or flat) lands on the same targets a debuff may
+  // hit (a bonus merges in after generator output is folded, for the same reason).
   if (
-    (effectType === 'enemyProductionModifier' || effectType === 'mirrorStatModifier') &&
+    (effectType === 'enemyProductionModifier' ||
+      effectType === 'mirrorStatModifier' ||
+      effectType === 'pactProductionModifier') &&
     fieldKey === 'field'
   ) {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
@@ -668,7 +670,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     ],
   },
   { label: 'Defense', types: ['attackAlert'] },
-  { label: 'Pacts', types: ['mirrorCostModifier', 'mirrorStatModifier'] },
+  { label: 'Pacts', types: ['mirrorCostModifier', 'mirrorStatModifier', 'pactProductionModifier'] },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

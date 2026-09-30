@@ -217,6 +217,9 @@ function resolveMirroredModifier(
  * So one snapshot suffices, and the server calls this once per player with the
  * roles swapped.
  *
+ * A `pactModifier` output (from `pactProductionModifier`) needs no partner: it
+ * is kept verbatim, in authoring order beside the resolved mirrors.
+ *
  * Bonuses come out **as authored**, which can include the virtual
  * `highlightFactor` field. Run them through `resolveEnemyDebuffs` (whose
  * arithmetic is direction-neutral) before handing them to the pipeline, as the
@@ -232,9 +235,13 @@ export function collectPactBonuses(
     const modifiers: Modifier[] = []
     for (const ref of pact.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, owner, mode))) {
-        if (!('kind' in out) || out.kind !== 'mirrorModifier') continue
-        const modifier = resolveMirroredModifier(out, partner)
-        if (modifier) modifiers.push(modifier)
+        if (!('kind' in out)) continue
+        if (out.kind === 'pactModifier') {
+          modifiers.push(out.modifier)
+        } else if (out.kind === 'mirrorModifier') {
+          const modifier = resolveMirroredModifier(out, partner)
+          if (modifier) modifiers.push(modifier)
+        }
       }
     }
     if (modifiers.length > 0) bonuses.push({ pact: pact.id, modifiers })

@@ -187,8 +187,9 @@ describe('effect hosts', () => {
 
   // The pact effects are passive-only until active pacts have a lifecycle.
   it('offers only the pact effects on pacts, passive and active alike', () => {
-    expect(typesFor('passivePact')).toEqual(['mirrorCostModifier', 'mirrorStatModifier'])
-    expect(typesFor('activePact')).toEqual(['mirrorCostModifier', 'mirrorStatModifier'])
+    const pactEffects = ['mirrorCostModifier', 'mirrorStatModifier', 'pactProductionModifier']
+    expect(typesFor('passivePact')).toEqual(pactEffects)
+    expect(typesFor('activePact')).toEqual(pactEffects)
     expect(typesFor('upgrade')).not.toContain('mirrorCostModifier')
     expect(typesFor('upgrade')).not.toContain('mirrorStatModifier')
     expect(typesFor('passiveAttack')).not.toContain('mirrorCostModifier')

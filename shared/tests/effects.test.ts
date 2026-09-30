@@ -83,6 +83,7 @@ describe('effect registry', () => {
       'lowerTierBoost',
       'mirrorCostModifier',
       'mirrorStatModifier',
+      'pactProductionModifier',
       'panelUnlock',
       'relativeModifier',
       'stealGenerator',
@@ -744,6 +745,49 @@ describe('mirrorStatModifier params', () => {
     // It reads the *partner's* state, which the data panel's live-bonus
     // section (owner-side) cannot show; the relations panel reports it instead.
     expect(isDynamicEffect('mirrorStatModifier')).toBe(false)
+  })
+})
+
+// ─── pactProductionModifier ──────────────────────────────────────────
+
+describe('pactProductionModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the modifier as a pactModifier output', () => {
+    expect(
+      apply({
+        type: 'pactProductionModifier',
+        stage: 'multiplicative',
+        field: 'clickIncome',
+        value: 2,
+      }),
+    ).toEqual({
+      kind: 'pactModifier',
+      modifier: { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+    })
+  })
+
+  it('rejects a value that is not a bonus', () => {
+    for (const [stage, value] of [
+      ['multiplicative', 0.5],
+      ['multiplicative', 1],
+      ['additive', 0],
+      ['additive', -1],
+    ] as const) {
+      expect(() =>
+        apply({ type: 'pactProductionModifier', stage, field: 'clickIncome', value }),
+      ).toThrow(/pactProductionModifier/)
+    }
+  })
+
+  it('lives on pacts only, passive and active', () => {
+    expect(isEffectAllowedOn('pactProductionModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('pactProductionModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('pactProductionModifier', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('pactProductionModifier', 'activeAttack')).toBe(false)
   })
 })
 

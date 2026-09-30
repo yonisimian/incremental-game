@@ -653,6 +653,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
       if (typeof ref.source === 'string' && enemyDataResourceKey(ref.source) === key)
         refs.push('a mirrorStatModifier source')
       if (ref.field === key) refs.push('a mirrorStatModifier field')
+    } else if (ref.type === 'pactProductionModifier' && ref.field === key) {
+      refs.push('a pactProductionModifier field')
     }
   }
   return refs
@@ -729,6 +731,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
           ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
           : newKey
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'pactProductionModifier' && ref.field === oldKey) {
+      ref.field = newKey
     }
   }
   for (const f of tree.flavors) {

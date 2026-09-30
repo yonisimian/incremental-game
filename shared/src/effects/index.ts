@@ -17,6 +17,7 @@ import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { mirrorCostModifier } from './seed/mirror-cost-modifier.js'
 import { mirrorStatModifier } from './seed/mirror-stat-modifier.js'
+import { pactProductionModifier } from './seed/pact-production-modifier.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { stealGenerator } from './seed/steal-generator.js'
@@ -52,6 +53,7 @@ registerEffect('enemyCostModifier', enemyCostModifier)
 registerEffect('enemyPurchaseLock', enemyPurchaseLock)
 registerEffect('mirrorCostModifier', mirrorCostModifier)
 registerEffect('mirrorStatModifier', mirrorStatModifier)
+registerEffect('pactProductionModifier', pactProductionModifier)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
 registerEffect('timeScaledModifier', timeScaledModifier)

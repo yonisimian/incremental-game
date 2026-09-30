@@ -2586,6 +2586,60 @@ describe('Match', () => {
       })
     })
 
+    it('doubles the signer’s clicks while a pactProductionModifier window is open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      const frenzy: ModeDefinition = {
+        ...patched,
+        pacts: patched.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                mutual: false,
+                effects: [
+                  {
+                    type: 'pactProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'clickIncome',
+                    value: 2,
+                  },
+                ],
+              }
+            : p,
+        ),
+      }
+      validateModeDefinition('idler', frenzy)
+      registerMode('idler', frenzy)
+      try {
+        const m = enterPlaying()
+        armSigner(m)
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        /** What one click adds over a broadcast interval, net of passive income. */
+        const clickWorth = (seq: number): number => {
+          const passive = incomeOver(ws1)
+          const before = latestUpdate(ws1).player.resources.r0
+          m.handleMessage('p1', clickMsg(seq))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          return latestUpdate(ws1).player.resources.r0 - before - passive
+        }
+        const plain = clickWorth(4)
+        expect(plain).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activatePactMsg('p3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(clickWorth(6)).toBeCloseTo(plain * 2, 6)
+        // The partner's clicks are untouched: the pact is one-sided.
+        expect(latestUpdate(ws2).pactBonuses ?? []).toEqual([])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(clickWorth(7)).toBeCloseTo(plain, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     it('freezes the window while paused', () => {
       withActivePactMode(() => {
         const m = enterPlayingVsBot()

@@ -261,6 +261,18 @@ export interface MirrorModifierOutput {
 }
 
 /**
+ * A *flat pact bonus*: a modifier the pact's beneficiary takes as authored
+ * while the pact is in force. Emitted by the `pactProductionModifier` effect
+ * and kept verbatim by `collectPactBonuses`, beside the resolved
+ * {@link MirrorModifierOutput}s. Same target catalog; the distinct `kind`
+ * keeps it off the production pipeline's own collector.
+ */
+export interface PactModifierOutput {
+  readonly kind: 'pactModifier'
+  readonly modifier: Modifier
+}
+
+/**
  * An *offensive embargo*: the opponent cannot buy the named scopes while the
  * owning active attack's debuff window is open. Emitted by the
  * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
@@ -479,6 +491,7 @@ export type EffectOutput =
   | EnemyPurchaseLockOutput
   | MirrorCostOutput
   | MirrorModifierOutput
+  | PactModifierOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -508,7 +521,7 @@ export type EffectOutput =
  *   `durationSec`, during which their collectors gather them.
  * - `passivePact` — a passive pact's `effects`: continuous while unlocked, a
  *   *benefit* drawn from the opponent, and only the pact outputs
- *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
+ *   (`mirrorCost`, `mirrorModifier`, `pactModifier`) survive (`collectPactCostFactors` /
  *   `collectPactBonuses` in `pacts.ts`).
  * - `activePact` — an active pact's `effects`: the passive-pact outputs, in
  *   force only while the pact's window is open (`pactsInForce` lists open
