@@ -389,6 +389,20 @@ function buildPurchaseLimitSection(ctx: InspectorContext, onLimitChange?: () => 
   return field('Purchase limit', control)
 }
 
+function buildComingSoonField(ctx: InspectorContext): HTMLElement {
+  const box = el('input')
+  box.type = 'checkbox'
+  box.checked = ctx.node.comingSoon === true
+  box.addEventListener('change', () => {
+    if (box.checked) ctx.node.comingSoon = true
+    else delete ctx.node.comingSoon
+    ctx.onChange()
+  })
+  const label = el('label', 'ed-checkbox')
+  label.append(box, document.createTextNode(' coming soon (shown, not buyable)'))
+  return field('Availability', label)
+}
+
 function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   const section = el('div', 'ed-section')
   section.append(el('h4', 'ed-section-title', 'Prerequisites'))
@@ -572,6 +586,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
     buildParentSection(ctx),
     cost.element,
     buildPurchaseLimitSection(ctx, cost.refresh),
+    buildComingSoonField(ctx),
     buildPrerequisitesSection(ctx),
     buildEffectsSection({
       effectHost: 'upgrade',
