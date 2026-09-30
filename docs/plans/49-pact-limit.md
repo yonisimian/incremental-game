@@ -1,6 +1,10 @@
 # 49 — Pact limit: slots for active and passive pacts
 
-## Status: Planned
+## Status: Implemented
+
+As built. One addition to §7: the bot's plan signed every live passive pact,
+and past the budget a refused sign would stall it for good, so it now signs
+mutual pacts first and no more than the mode's base passive budget.
 
 The pact twin of [38 — attack limit](38-attack-limit.md). Builds on
 [48 — active pacts](48-active-pacts.md) (both kinds now do something, so
