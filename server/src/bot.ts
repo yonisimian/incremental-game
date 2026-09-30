@@ -26,6 +26,8 @@ import {
   collectAttackParams,
   getAttackPrepareCost,
   unlockedAttacks,
+  createInitialState,
+  pactLimit,
 } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -105,27 +107,36 @@ function botAttackTarget(
 }
 
 /**
- * The pact-signing upgrades the bot picks up: the unlock node of
- * every *passive* pact that carries effects — the treaties that do something.
- * A solo player then meets a live pact from the bot's side: a one-sided one
- * discounts the bot, a mutual one pays the human too and fills their "Shared
- * treaties" list without a second human. Active pacts and
- * placeholders are skipped — nothing to sign for.
+ * The pact-signing upgrades the bot picks up: the unlock node of *passive*
+ * pacts that carry effects — the treaties that do something — **mutual ones
+ * first**, and no more than the mode's base passive pact budget (`pactSlots`).
+ * A solo player then meets a live pact from the bot's side: a mutual one pays
+ * the human too and fills their "Shared treaties" list without a second human,
+ * a one-sided one discounts the bot. Past the budget a sign would be refused
+ * forever and stall the plan, so the list stops there. Active pacts and
+ * placeholders are skipped — the bot does not activate pacts.
  */
 function botPactUnlocks(
   modeDef: ModeDefinition,
   availableUpgrades: readonly UpgradeDefinition[],
 ): UpgradeDefinition[] {
-  const live = new Set(
-    modeDef.pacts
-      .filter((p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0)
-      .map((p) => p.id),
+  const unlockOf = (pactId: string): UpgradeDefinition | undefined =>
+    availableUpgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === pactId),
+    )
+  const signable = modeDef.pacts.filter(
+    (p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0 && unlockOf(p.id) !== undefined,
   )
-  return availableUpgrades.filter((u) =>
-    u.effects?.some(
-      (e) => e.type === 'unlockPact' && typeof e.pact === 'string' && live.has(e.pact),
-    ),
-  )
+  const budget = pactLimit(createInitialState(modeDef), modeDef, 'passive')
+  const chosen = signable
+    .sort((a, b) => Number(b.mutual === true) - Number(a.mutual === true))
+    .slice(0, Number.isFinite(budget) ? budget : undefined)
+  const unlocks: UpgradeDefinition[] = []
+  for (const pact of chosen) {
+    const unlock = unlockOf(pact.id)
+    if (unlock && !unlocks.includes(unlock)) unlocks.push(unlock)
+  }
+  return unlocks
 }
 
 /** Does owning this upgrade unlock the named player-action system? */
