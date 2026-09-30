@@ -50,6 +50,7 @@ import {
   setAttackKind,
   setAttackEffects,
   setAttackPrepareTime,
+  setAttackCooldown,
   setAttackDuration,
   setAttackPrepareCost,
   setAttackPrepareCurrency,
@@ -906,6 +907,32 @@ describe('attacks', () => {
     const attack = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!
     expect(attack.durationSec).toBeUndefined()
     expect(attack.prepareTimeSec).toBeUndefined()
+  })
+
+  it('surfaces no cooldown until one is set, then carries it into a loadable mode', () => {
+    const tree = idler()
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeNull()
+    setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(12)
+    const def = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(def.cooldownSec).toBe(12)
+  })
+
+  it('setAttackCooldown clears on null or a non-positive value, keeping the tree loadable', () => {
+    const tree = idler()
+    for (const cleared of [null, 0, -3]) {
+      setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+      setAttackCooldown(tree, ACTIVE_ATTACK, cleared)
+      expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeUndefined()
+    }
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('switching to passive strips the cooldown', () => {
+    const tree = idler()
+    setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+    setAttackKind(tree, ACTIVE_ATTACK, 'passive')
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeUndefined()
   })
 
   it('charges several currencies at once and keeps the tree loadable', () => {
