@@ -30,6 +30,9 @@ import {
   applyAttackActivation,
   dueAttacks,
   openDebuffWindows,
+  openPactWindows,
+  applyPactActivation,
+  isValidPactActivation,
   resolveAttackStrike,
   sweepCooldowns,
   hasEnemyDataAccess,
@@ -502,6 +505,9 @@ export class Match {
       } else if (action.type === 'activate_attack' && action.attackId) {
         if (!isValidAttackActivation(player.state, action.attackId, this.modeDef)) continue
         applyAttackActivation(player.state, action.attackId, this.modeDef)
+      } else if (action.type === 'activate_pact' && action.pactId) {
+        if (!isValidPactActivation(player.state, action.pactId, this.modeDef)) continue
+        applyPactActivation(player.state, action.pactId, this.modeDef)
       }
     }
     player.ackSeq = seq
@@ -657,7 +663,8 @@ export class Match {
    * consequence, accepted: `applyPassiveIncome` runs before this in the tick and
    * reads the windows through that same filter, so a window is worth whole
    * ticks at `TICK_INTERVAL_MS` granularity, exactly as `prepareTimeSec` is.
-   * Lifted `cooldowns` are swept the same way, for the same reason.
+   * Lifted `cooldowns` and closed `activePacts` windows are swept the same
+   * way, for the same reason.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
@@ -674,6 +681,12 @@ export class Match {
           attacker.state.activeDebuffs = open
       }
       sweepCooldowns(attacker.state, gameSec)
+      if (attacker.state.activePacts !== undefined) {
+        const open = openPactWindows(attacker.state, gameSec)
+        if (open.length === 0) delete attacker.state.activePacts
+        else if (open.length !== attacker.state.activePacts.length)
+          attacker.state.activePacts = open
+      }
 
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
@@ -1060,6 +1073,8 @@ export class Match {
     delete p2.state.activeDebuffs
     delete p1.state.cooldowns
     delete p2.state.cooldowns
+    delete p1.state.activePacts
+    delete p2.state.activePacts
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

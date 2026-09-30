@@ -662,6 +662,45 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // Active-pact cost/timing — the attack rules below with the strike removed. An
+  // active pact that carries effects is *activated* (pay `activationCost`, stay
+  // in force `durationSec`), so both must be present; a passive pact is
+  // always-on and never activated, so declaring any timing field is a mistake.
+  // Effect-less active pacts stay legal — they're placeholders.
+  for (const pact of def.pacts) {
+    const timing =
+      pact.activationCost !== undefined ||
+      pact.durationSec !== undefined ||
+      pact.cooldownSec !== undefined
+    if (pact.kind === 'passive') {
+      if (timing)
+        throw new Error(
+          `[${id}] passive pact '${pact.id}' declares activationCost/durationSec/cooldownSec, but a passive pact is always-on and never activated`,
+        )
+      continue
+    }
+    if ((pact.effects?.length ?? 0) > 0) {
+      if (Object.keys(pact.activationCost ?? {}).length === 0)
+        throw new Error(
+          `[${id}] active pact '${pact.id}' carries effects but has no activationCost`,
+        )
+      if (pact.durationSec === undefined)
+        throw new Error(`[${id}] active pact '${pact.id}' carries effects but has no durationSec`)
+    }
+    // The schema's `.positive()` covers the file path; these cover a
+    // programmatically built mode.
+    if (pact.durationSec !== undefined && !(pact.durationSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive durationSec`)
+    if (pact.cooldownSec !== undefined && !(pact.cooldownSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive cooldownSec`)
+    for (const currency of Object.keys(pact.activationCost ?? {})) {
+      if (!resourceKeys.has(currency))
+        throw new Error(
+          `[${id}] active pact '${pact.id}' activationCost references unknown resource '${currency}'`,
+        )
+    }
+  }
+
   // Active-attack cost/timing + `stealResource` integrity. An active attack that
   // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
   // strike), so both fields must be present and well-formed; a passive attack is

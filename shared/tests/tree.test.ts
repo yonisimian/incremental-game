@@ -632,12 +632,17 @@ describe('tree codec — pacts', () => {
     })
   })
 
-  // The active-only fields are not authored yet (plans 43/44), so declaring one
-  // is a schema error — the strict object catches it as an unknown key.
-  it('rejects the active-only fields until they exist', () => {
-    expect(() => parseTreeFile(treeWithPact({ durationSec: 10 }))).toThrow()
-    expect(() => parseTreeFile(treeWithPact({ activationCost: { r0: { baseCost: 1 } } }))).toThrow()
-    expect(() => parseTreeFile(treeWithPact({ cooldownSec: 5 }))).toThrow()
+  it('parses the active fields, rejecting non-positive timings', () => {
+    const active = {
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    }
+    expect(parseTreeFile(treeWithPact(active)).pacts[0]).toEqual({ id: 'p0', ...active })
+    for (const bad of [{ durationSec: 0 }, { durationSec: -1 }, { cooldownSec: 0 }]) {
+      expect(() => parseTreeFile(treeWithPact({ ...active, ...bad }))).toThrow()
+    }
   })
 
   it('rejects a non-boolean mutual', () => {

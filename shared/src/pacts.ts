@@ -8,14 +8,18 @@
 // ships their results — cost factors stamped on `PlayerState.pactCostFactors`,
 // production bonuses on `STATE_UPDATE.pactBonuses`.
 
+import { scaledCost } from './cost.js'
+import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { readEnemyStat } from './effects/enemy-stats.js'
 import type { PartnerSnapshot } from './effects/enemy-stats.js'
 import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
 import type { MirrorCostOutput, MirrorModifierOutput } from './effects/types.js'
 import type { Modifier } from './modifiers/types.js'
-import { unlockedPacts } from './modes/index.js'
+import { readGameSec } from './game-clock.js'
+import { isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { PactCostFactor, PactDefinition, PlayerState } from './types.js'
+import { isCostAffordable } from './upgrade-costs.js'
+import type { ActivePact, PactCostFactor, PactDefinition, PlayerState } from './types.js'
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
 
@@ -216,4 +220,108 @@ export function collectPactBonuses(
 /** Flatten resolved bonuses for the pipeline (still unresolved for the virtual target). */
 export function pactModifiers(bonuses: readonly PactBonus[]): Modifier[] {
   return bonuses.flatMap((b) => b.modifiers)
+}
+
+// ─── Activation ──────────────────────────────────────────────────────
+//
+// The active-attack lifecycle with the strike removed: activate (pay) → window
+// (`durationSec`) → cooldown (`cooldownSec`). The window opens on the
+// activating tick, so the client predicts it with the same function the server
+// applies — `applyPactActivation` — and the reconcile replays it.
+
+/**
+ * Why an active pact cannot be activated right now. `unaffordable` is the only
+ * transient reason (wait for income); the rest are permanent for the current
+ * state — the order `attackBlockReason` uses.
+ */
+export type PactBlockReason =
+  | 'unknown' // no such pact
+  | 'not-active' // a passive pact (always-on, never activated)
+  | 'locked' // not yet unlocked (no gating upgrade owned)
+  | 'no-effects' // an effect-less placeholder — nothing to activate
+  | 'already-active' // this pact's window is still open
+  | 'cooling-down' // the window closed; its cooldown has not elapsed
+  | 'unaffordable' // valid target, cannot pay the activation cost yet
+
+/**
+ * An active pact's activation cost resolved to concrete per-currency amounts,
+ * each evaluated at level 0 (pacts have no cost curve). Empty when unset.
+ */
+export function getPactActivationCost(def: PactDefinition): Record<string, number> {
+  const cost: Record<string, number> = {}
+  for (const [currency, entry] of Object.entries(def.activationCost ?? {})) {
+    cost[currency] = scaledCost(entry, 0)
+  }
+  return cost
+}
+
+/**
+ * Game-clock time pact `pactId`'s open window closes, or `null` when none is
+ * open. A closed window the server has not swept yet reads as `null`.
+ */
+export function activePactExpiresAtSec(
+  state: Readonly<PlayerState>,
+  pactId: string,
+): number | null {
+  const gameSec = readGameSec(state)
+  const window = state.activePacts?.find((w) => w.pact === pactId && w.expiresAtSec > gameSec)
+  return window?.expiresAtSec ?? null
+}
+
+/**
+ * The pact windows in `state` still open at `gameSec` (strictly before
+ * `expiresAtSec`). Pure. The server's tick sweeps with it; readers apply the
+ * same test at read time.
+ */
+export function openPactWindows(state: Readonly<PlayerState>, gameSec: number): ActivePact[] {
+  return (state.activePacts ?? []).filter((w) => w.expiresAtSec > gameSec)
+}
+
+/** The reason pact `pactId` cannot be activated right now, or `null` if it can. */
+export function pactBlockReason(
+  state: Readonly<PlayerState>,
+  pactId: string,
+  mode: ModeDefinition,
+): PactBlockReason | null {
+  const def = mode.pacts.find((p) => p.id === pactId)
+  if (!def) return 'unknown'
+  if (def.kind !== 'active') return 'not-active'
+  if (!isPactUnlocked(state, mode, pactId)) return 'locked'
+  if ((def.effects?.length ?? 0) === 0) return 'no-effects'
+  if (activePactExpiresAtSec(state, pactId) !== null) return 'already-active'
+  if (cooldownUntilSec(state, 'pact', pactId) !== null) return 'cooling-down'
+  if (!isCostAffordable(state.resources, getPactActivationCost(def))) return 'unaffordable'
+  return null
+}
+
+/** Whether pact `pactId` can be activated right now (`pactBlockReason === null`). */
+export function isValidPactActivation(
+  state: Readonly<PlayerState>,
+  pactId: string,
+  mode: ModeDefinition,
+): boolean {
+  return pactBlockReason(state, pactId, mode) === null
+}
+
+/**
+ * Activate pact `pactId` on `state`: deduct the activation cost, open its
+ * window for `durationSec`, and — the window's end being known now — stamp its
+ * cooldown to lift `cooldownSec` after that. Mutates `state`; callers validate
+ * first (`isValidPactActivation`). Never touches `score`.
+ */
+export function applyPactActivation(
+  state: PlayerState,
+  pactId: string,
+  mode: ModeDefinition,
+): void {
+  const def = mode.pacts.find((p) => p.id === pactId)
+  if (!def) return
+  for (const [currency, amount] of Object.entries(getPactActivationCost(def))) {
+    state.resources[currency] = (state.resources[currency] ?? 0) - amount
+  }
+  const expiresAtSec = readGameSec(state) + (def.durationSec ?? 0)
+  const others = (state.activePacts ?? []).filter((w) => w.pact !== pactId)
+  state.activePacts = [...others, { pact: pactId, expiresAtSec }]
+  if (def.cooldownSec !== undefined)
+    startCooldown(state, 'pact', pactId, expiresAtSec + def.cooldownSec)
 }

@@ -202,7 +202,9 @@ export type PactKind = 'active' | 'passive'
  * unlocked — gathered by the collectors in `pacts.ts` — and describe a benefit
  * the owner draws *from the opponent*: a discount on what the enemy already
  * bought (`mirrorCostModifier`), a production bonus scaled by an enemy stat
- * (`mirrorStatModifier`). An `active` pact has no behavior yet.
+ * (`mirrorStatModifier`). An `active` pact is *activated* for its
+ * `activationCost`: its effects are in force for `durationSec` game seconds
+ * (`PlayerState.activePacts`), then it rests for `cooldownSec`.
  * Display data lives in `PactFlavor`. `kind` groups pacts into separate blocks
  * in the panel.
  */
@@ -222,6 +224,24 @@ export interface PactDefinition {
    * to the partner's too). Optional — an effect-less pact is a placeholder.
    */
   readonly effects?: readonly EffectRef[]
+  /**
+   * What activating this pact costs, paid up front — the pact twin of an
+   * attack's `prepareCost`, evaluated at level 0 (no cost curve). Required on
+   * an active pact that carries effects; forbidden on a passive one.
+   */
+  readonly activationCost?: Readonly<Record<string, CostEntry>>
+  /**
+   * Game seconds the pact stays in force after activation — its window opens
+   * on the activating tick (there is no preparation). Required on an active
+   * pact that carries effects; forbidden on a passive one.
+   */
+  readonly durationSec?: number
+  /**
+   * Game seconds the pact rests after its window closes before it can be
+   * activated again (`PlayerState.cooldowns`, `kind: 'pact'`). Active pacts
+   * only; optional.
+   */
+  readonly cooldownSec?: number
 }
 
 /** Full state of a single player within a match. */
@@ -308,6 +328,14 @@ export interface PlayerState {
    * `activeDebuffs`.
    */
   cooldowns?: Cooldown[]
+  /**
+   * Windows of this player's *activated* active pacts that are still open
+   * (see `applyPactActivation`). Absent when none. Unlike `activeDebuffs` this
+   * **is predicted** client-side: the activation opens the window on the spot,
+   * with no strike in between, so the client can push it exactly as the
+   * server will. Judged at read time; the server's sweep is hygiene.
+   */
+  activePacts?: ActivePact[]
   /** Mode-specific metadata (e.g., idler highlight). */
   meta: Record<string, unknown>
 }
@@ -322,6 +350,14 @@ export interface ActiveDebuff {
   /** Attack id (matches {@link AttackDefinition.id}). */
   readonly attack: string
   /** `meta.gameSec` value at which the window closes. */
+  readonly expiresAtSec: number
+}
+
+/** An open window of an activated active pact, on the signer's state. */
+export interface ActivePact {
+  /** Pact id (matches {@link PactDefinition.id}). */
+  readonly pact: string
+  /** The signer's `meta.gameSec` value at which the window closes. */
   readonly expiresAtSec: number
 }
 
@@ -415,7 +451,13 @@ export interface PendingAttack {
 
 /** Possible action types a client can send. */
 export type ActionType =
-  'click' | 'buy' | 'buy_generator' | 'sell_generator' | 'set_highlight' | 'activate_attack'
+  | 'click'
+  | 'buy'
+  | 'buy_generator'
+  | 'sell_generator'
+  | 'set_highlight'
+  | 'activate_attack'
+  | 'activate_pact'
 
 /** A single player action with a timestamp. */
 export interface PlayerAction {
@@ -436,6 +478,8 @@ export interface PlayerAction {
   resource?: string
   /** For 'activate_attack' actions: which attack to activate. */
   attackId?: string
+  /** For 'activate_pact' actions: which pact to activate. */
+  pactId?: string
 }
 
 // ─── Goal / Win Condition ────────────────────────────────────────────

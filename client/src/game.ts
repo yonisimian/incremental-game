@@ -45,6 +45,8 @@ import {
   applyHighlightSelection,
   isValidAttackActivation,
   applyAttackActivation,
+  applyPactActivation,
+  isValidPactActivation,
   isPurchaseLocked,
   getModeFlavor,
   getAttackName,
@@ -182,6 +184,7 @@ type PredictedAction =
   | { kind: 'sell_generator'; generatorId: string }
   | { kind: 'set_highlight'; highlight: string | null }
   | { kind: 'activate_attack'; attackId: string }
+  | { kind: 'activate_pact'; pactId: string }
 
 /** Pending actions whose seq > ackSeq (for optimistic reconciliation). */
 interface PendingBatch {
@@ -620,6 +623,22 @@ export function doActivateAttack(attackId: string): void {
   notify()
 }
 
+/**
+ * Activate an active pact (optimistic) — pays the activation cost and opens its
+ * window on the spot. Unlike an attack there is no strike to wait for, so the
+ * window (and the cooldown behind it) is predicted exactly as the server will
+ * apply it.
+ */
+export function doActivatePact(pactId: string): void {
+  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  const modeDef = getModeDefinition(state.mode)
+  if (!isValidPactActivation(state.player, pactId, modeDef)) return
+  applyPactActivation(state.player, pactId, modeDef)
+  queueAction({ type: 'activate_pact', timestamp: Date.now(), pactId })
+  trackPredicted({ kind: 'activate_pact', pactId })
+  notify()
+}
+
 /** Cancel matchmaking queue or leave the room and return to lobby. */
 export function cancelQueue(): void {
   if (state.screen !== 'waiting' && state.screen !== 'room') return
@@ -820,6 +839,12 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
           if (!modeDef) break
           if (!isValidAttackActivation(reconciled, action.attackId, modeDef)) break
           applyAttackActivation(reconciled, action.attackId, modeDef)
+          break
+        }
+        case 'activate_pact': {
+          if (!modeDef) break
+          if (!isValidPactActivation(reconciled, action.pactId, modeDef)) break
+          applyPactActivation(reconciled, action.pactId, modeDef)
           break
         }
       }
@@ -1077,6 +1102,9 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     // Same for cooldowns, which the strike stamps — and a replayed activation
     // must be refused under the cooldown the server refused it under.
     ...(s.cooldowns ? { cooldowns: [...s.cooldowns] } : {}),
+    // Predicted (the activation opens the window) and replayed, so it must be
+    // copied for the replay to push onto its own list.
+    ...(s.activePacts ? { activePacts: [...s.activePacts] } : {}),
     meta: structuredClone(s.meta),
   }
 }

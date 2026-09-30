@@ -1396,6 +1396,49 @@ describe('validateModeDefinition — negative tests', () => {
     })
   }
 
+  // ── Active pact cost / timing ─────────────────────────────────────
+
+  it('accepts the activation fields on an active pact', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws for any activation field on a passive pact', () => {
+    for (const patch of [
+      { activationCost: { r0: { baseCost: 1 } } },
+      { durationSec: 5 },
+      { cooldownSec: 5 },
+    ]) {
+      expect(() => {
+        validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'passive', ...patch }))
+      }).toThrow(/passive pact 'p0' declares activationCost\/durationSec\/cooldownSec/)
+    }
+  })
+
+  it('throws for a non-positive duration or cooldown on an active pact', () => {
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'active', durationSec: 0 }))
+    }).toThrow(/non-positive durationSec/)
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'active', cooldownSec: -1 }))
+    }).toThrow(/non-positive cooldownSec/)
+  })
+
+  it('throws for an activation cost in an unknown resource', () => {
+    const def = defWithPact({ id: 'p0', kind: 'active', activationCost: { rX: { baseCost: 1 } } })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/activationCost references unknown resource 'rX'/)
+  })
+
   it('rejects a baseModifier on a pact — a pact that ignores the enemy is an upgrade', () => {
     const def = defWithPact({
       id: 'p0',

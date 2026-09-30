@@ -4,7 +4,9 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  activePactExpiresAtSec,
   applyGeneratorPurchase,
+  applyPactActivation,
   applyPurchase,
   collectEnemyCostFactors,
   collectGeneratorCostFactors,
@@ -17,9 +19,13 @@ import {
   getGeneratorCost,
   getGeneratorSellRefund,
   getModeDefinition,
+  getPactActivationCost,
   getUpgradeNextCost,
+  isValidPactActivation,
   NEUTRAL_COST_FACTORS,
   pactCostFactors,
+  openPactWindows,
+  pactBlockReason,
   pactModifiers,
   pactsInForce,
   purchaseBlockReason,
@@ -345,6 +351,118 @@ describe('pactsInForce', () => {
     // passive pact: locked, whatever its `mutual`.
     expect(pactsInForce(player({ signed: ['p-active'] }), player(), MODE)).toEqual([])
     expect(pactsInForce(player(), player({ signed: ['p-active'] }), MODE)).toEqual([])
+  })
+})
+
+// ─── Activation ──────────────────────────────────────────────────────
+
+describe('active pact activation', () => {
+  /** An active pact carrying an effect: 300 r0, in force 15s, resting 45s after. */
+  const ACCORD: PactDefinition = {
+    id: 'p-accord',
+    kind: 'active',
+    activationCost: { r0: { baseCost: 300 } },
+    durationSec: 15,
+    cooldownSec: 45,
+    effects: [
+      { type: 'mirrorStatModifier', source: 'r0', field: 'r0', stage: 'additive', perUnit: 1 },
+    ],
+  }
+  /** The same pact with no cooldown. */
+  const QUICK: PactDefinition = { ...ACCORD, id: 'p-quick', cooldownSec: undefined }
+  const mode: ModeDefinition = {
+    ...MODE,
+    upgrades: [...MODE.upgrades, sign(ACCORD.id), sign(QUICK.id)],
+    pacts: [...MODE.pacts, ACCORD, QUICK],
+  }
+
+  /** A player at `gameSec` who has signed the given pacts and holds `r0`. */
+  function signer(gameSec: number, patch: Partial<PlayerState> = {}, r0 = 1000): PlayerState {
+    const state = createInitialState(mode)
+    state.upgrades[`sign-${ACCORD.id}`] = 1
+    state.upgrades[`sign-${QUICK.id}`] = 1
+    state.resources.r0 = r0
+    state.meta.gameSec = gameSec
+    return Object.assign(state, patch)
+  }
+
+  it('prices the activation at level 0', () => {
+    expect(getPactActivationCost(ACCORD)).toEqual({ r0: 300 })
+    expect(getPactActivationCost({ id: 'x', kind: 'active' })).toEqual({})
+  })
+
+  describe('pactBlockReason', () => {
+    it('allows a signed, affordable, resting-free active pact', () => {
+      expect(pactBlockReason(signer(0), ACCORD.id, mode)).toBeNull()
+      expect(isValidPactActivation(signer(0), ACCORD.id, mode)).toBe(true)
+    })
+
+    it('names each permanent reason, in order', () => {
+      expect(pactBlockReason(signer(0), 'nope', mode)).toBe('unknown')
+      expect(pactBlockReason(player({ signed: ['p-trade'] }), 'p-trade', mode)).toBe('not-active')
+      expect(pactBlockReason(createInitialState(mode), ACCORD.id, mode)).toBe('locked')
+      expect(pactBlockReason(player({ signed: ['p-active'] }), 'p-active', mode)).toBe('no-effects')
+    })
+
+    it('is already-active while the window is open, then cooling-down, then free', () => {
+      const state = signer(10, {
+        activePacts: [{ pact: ACCORD.id, expiresAtSec: 25 }],
+        cooldowns: [{ kind: 'pact', id: ACCORD.id, untilSec: 70 }],
+      })
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBe('already-active')
+      state.meta.gameSec = 25
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBe('cooling-down')
+      state.meta.gameSec = 70
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBeNull()
+    })
+
+    it('refuses while cooling down however rich the signer is, and ignores an attack cooldown', () => {
+      const cooling = signer(0, { cooldowns: [{ kind: 'pact', id: ACCORD.id, untilSec: 9 }] }, 1e9)
+      expect(pactBlockReason(cooling, ACCORD.id, mode)).toBe('cooling-down')
+      const attackRest = signer(0, { cooldowns: [{ kind: 'attack', id: ACCORD.id, untilSec: 9 }] })
+      expect(pactBlockReason(attackRest, ACCORD.id, mode)).toBeNull()
+    })
+
+    it('is unaffordable short of the activation cost', () => {
+      expect(pactBlockReason(signer(0, {}, 299), ACCORD.id, mode)).toBe('unaffordable')
+    })
+  })
+
+  describe('applyPactActivation', () => {
+    it('pays, opens the window, and stamps the cooldown behind it', () => {
+      const state = signer(10)
+      applyPactActivation(state, ACCORD.id, mode)
+      expect(state.resources.r0).toBe(700)
+      expect(state.score).toBe(0)
+      expect(state.activePacts).toEqual([{ pact: ACCORD.id, expiresAtSec: 25 }])
+      expect(state.cooldowns).toEqual([{ kind: 'pact', id: ACCORD.id, untilSec: 70 }])
+      expect(activePactExpiresAtSec(state, ACCORD.id)).toBe(25)
+    })
+
+    it('stamps no cooldown for a pact without one', () => {
+      const state = signer(0)
+      applyPactActivation(state, QUICK.id, mode)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 15 }])
+      expect(state).not.toHaveProperty('cooldowns')
+    })
+
+    it('replaces a closed window of the same pact rather than listing it twice', () => {
+      const state = signer(30, { activePacts: [{ pact: QUICK.id, expiresAtSec: 15 }] })
+      applyPactActivation(state, QUICK.id, mode)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 45 }])
+    })
+  })
+
+  it('reads a closed window as null before the sweep, and the sweep keeps only open ones', () => {
+    const state = signer(25, {
+      activePacts: [
+        { pact: ACCORD.id, expiresAtSec: 25 },
+        { pact: QUICK.id, expiresAtSec: 30 },
+      ],
+    })
+    expect(activePactExpiresAtSec(state, ACCORD.id)).toBeNull()
+    expect(activePactExpiresAtSec(state, QUICK.id)).toBe(30)
+    expect(openPactWindows(state, 25)).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
   })
 })
 
