@@ -148,10 +148,6 @@
       ]
     },
     {
-      "id": "a3",
-      "kind": "passive"
-    },
-    {
       "id": "a4",
       "kind": "active",
       "prepareCost": {
@@ -699,7 +695,7 @@
           "id": "ir-unlock",
           "name": "🌍 Diplomacy",
           "icon": "🌍",
-          "description": "Unlock the Relations panel, where you sign pacts that affect both players."
+          "description": "Unlock the Relations panel, where you sign pacts."
         },
         {
           "id": "e-se-mr",
@@ -796,12 +792,6 @@
           "name": "🍄 Dry Rot",
           "icon": "🍄",
           "description": "Unlock Dry Rot: a passive attack that cuts the enemy's 🪵 production by 10%."
-        },
-        {
-          "id": "node-4",
-          "name": "💥 Placeholder Passive",
-          "icon": "💥",
-          "description": "Unlock Placeholder Passive, a passive attack with no effect yet."
         },
         {
           "id": "node-5",
@@ -934,12 +924,6 @@
           "name": "Dry Rot",
           "icon": "🍄",
           "description": "Passively reduces the enemy's Wood production by 10% while unlocked."
-        },
-        {
-          "id": "a3",
-          "name": "Placeholder Passive",
-          "icon": "💥",
-          "description": "No effect yet."
         },
         {
           "id": "a4",
@@ -2385,25 +2369,6 @@
           }
         },
         {
-          "id": "node-4",
-          "cost": {},
-          "purchaseLimit": 1,
-          "prerequisites": {
-            "type": "upgrade",
-            "id": "a-unlock"
-          },
-          "effects": [
-            {
-              "type": "unlockAttack",
-              "attack": "a3"
-            }
-          ],
-          "offset": {
-            "x": -48,
-            "y": 192
-          }
-        },
-        {
           "id": "node-5",
           "cost": {},
           "purchaseLimit": 1,
@@ -2549,7 +2514,7 @@
           ],
           "offset": {
             "x": -48,
-            "y": 480
+            "y": 192
           }
         },
         {

@@ -46,10 +46,6 @@
     },
     {
       "kind": "buy",
-      "upgradeId": "node-4"
-    },
-    {
-      "kind": "buy",
       "upgradeId": "pact-node"
     },
     {

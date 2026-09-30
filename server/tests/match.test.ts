@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { Goal, ModeDefinition } from '@game/shared'
+import type { AttackDefinition, Goal, ModeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
@@ -48,6 +48,37 @@ function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
     for (const [k, v] of Object.entries(node)) wireHazards(v, `${path}.${k}`, out)
   }
   return out
+}
+
+/** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
+const FIXTURE_ATTACK = 'fx-attack'
+const FIXTURE_UNLOCK = 'fx-unlock'
+
+/** The idler tree plus the fixture attack authored as `attack`. */
+function withFixtureAttack(attack: Omit<AttackDefinition, 'id'>): ModeDefinition {
+  const base = getModeDefinition('idler')
+  return {
+    ...base,
+    attacks: [...base.attacks, { ...attack, id: FIXTURE_ATTACK }],
+    upgrades: [
+      ...base.upgrades,
+      {
+        id: FIXTURE_UNLOCK,
+        cost: {},
+        purchaseLimit: 1,
+        prerequisites: { type: 'upgrade', id: 'a-unlock' },
+        effects: [{ type: 'unlockAttack', attack: FIXTURE_ATTACK }],
+      },
+    ],
+    flavors: base.flavors.map((f) => ({
+      ...f,
+      attacks: [...f.attacks, { id: FIXTURE_ATTACK, name: 'Fixture', icon: '🧪', description: '' }],
+      upgrades: [
+        ...f.upgrades,
+        { id: FIXTURE_UNLOCK, name: 'Fixture', icon: '🧪', description: '' },
+      ],
+    })),
+  }
 }
 
 describe('Match', () => {
@@ -341,37 +372,29 @@ describe('Match', () => {
 
     it('sends a highlight-factor debuff unresolved, and lands it on the held resource', () => {
       const base = getModeDefinition('idler')
-      // `a3` is an effect-less passive placeholder — give it a ×0.9 debuff on the
-      // *highlight factor* (the virtual target, not a resource).
-      const patched: ModeDefinition = {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                effects: [
-                  {
-                    type: 'enemyProductionModifier',
-                    stage: 'multiplicative',
-                    field: 'highlightFactor',
-                    value: 0.9,
-                  },
-                ],
-              }
-            : a,
-        ),
-      }
+      // A ×0.9 debuff on the *highlight factor* (the virtual target, not a resource).
+      const patched = withFixtureAttack({
+        kind: 'passive',
+        effects: [
+          {
+            type: 'enemyProductionModifier',
+            stage: 'multiplicative',
+            field: 'highlightFactor',
+            value: 0.9,
+          },
+        ],
+      })
       validateModeDefinition('idler', patched)
       registerMode('idler', patched)
       try {
         const m = enterPlaying()
         // Both buy sh-unlock (×2 on the highlighted resource) out of their 50
         // starting r0, and both open holding r0 (`initialMeta`), so their
-        // production is identical apart from the debuff. Only p1 unlocks a3.
+        // production is identical apart from the debuff. Only p1 unlocks the fixture.
         m.handleMessage('p1', buyMsg('sh-unlock', 1))
         m.handleMessage('p2', buyMsg('sh-unlock', 1))
         m.handleMessage('p1', buyMsg('a-unlock', 2))
-        m.handleMessage('p1', buyMsg('node-4', 3))
+        m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
         // The wire carries the *virtual* target, not a resource: once translated
@@ -401,39 +424,31 @@ describe('Match', () => {
 
     it("applies an enemy clickIncome debuff to the victim's click credit", () => {
       const base = getModeDefinition('idler')
-      // `a3` is an effect-less passive placeholder in the tree — giving it a
-      // ×0.5 *click* debuff (and nothing else) leaves both players' passive
+      // A ×0.5 *click* debuff (and nothing else) leaves both players' passive
       // production identical, so the only asymmetry left is click income.
-      const patched: ModeDefinition = {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                effects: [
-                  {
-                    type: 'enemyProductionModifier',
-                    stage: 'multiplicative',
-                    field: 'clickIncome',
-                    value: 0.5,
-                  },
-                ],
-              }
-            : a,
-        ),
-      }
+      const patched = withFixtureAttack({
+        kind: 'passive',
+        effects: [
+          {
+            type: 'enemyProductionModifier',
+            stage: 'multiplicative',
+            field: 'clickIncome',
+            value: 0.5,
+          },
+        ],
+      })
       validateModeDefinition('idler', patched)
       registerMode('idler', patched)
       try {
         const m = enterPlaying()
         // Both unlock clicking (sc-unlock — +1 clickIncome, no passive change);
-        // only p1 unlocks a3, and an attacker never debuffs itself.
+        // only p1 unlocks the fixture, and an attacker never debuffs itself.
         m.grantResourcesForTest('p1', { r0: 50 })
         m.grantResourcesForTest('p2', { r0: 50 })
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
         m.handleMessage('p1', buyMsg('a-unlock', 2))
-        m.handleMessage('p1', buyMsg('node-4', 3))
+        m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
         // Snapshot before clicking: no timers advance between here and the
@@ -456,27 +471,20 @@ describe('Match', () => {
 
     it("applies a flat (additive) enemy clickIncome debuff to the victim's click credit", () => {
       const base = getModeDefinition('idler')
-      // Same isolation as above, but a −2 *additive* click debuff on `a3`: it
+      // Same isolation as above, but a −2 *additive* click debuff: it
       // subtracts a flat 2 from the victim's per-click income, flooring a base-1
       // click to 0 (`computeClickIncome` clamps at 0, so nothing is drained).
-      const patched: ModeDefinition = {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                effects: [
-                  {
-                    type: 'enemyProductionModifier',
-                    stage: 'additive',
-                    field: 'clickIncome',
-                    value: -2,
-                  },
-                ],
-              }
-            : a,
-        ),
-      }
+      const patched = withFixtureAttack({
+        kind: 'passive',
+        effects: [
+          {
+            type: 'enemyProductionModifier',
+            stage: 'additive',
+            field: 'clickIncome',
+            value: -2,
+          },
+        ],
+      })
       validateModeDefinition('idler', patched)
       registerMode('idler', patched)
       try {
@@ -486,7 +494,7 @@ describe('Match', () => {
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
         m.handleMessage('p1', buyMsg('a-unlock', 2))
-        m.handleMessage('p1', buyMsg('node-4', 3))
+        m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
         const before1 = latestUpdate(ws1).player.resources.r0
@@ -507,27 +515,19 @@ describe('Match', () => {
 
     it('inflates the victim’s upgrade prices and rejects a buy at the authored price', () => {
       const base = getModeDefinition('idler')
-      // `a3` is an effect-less passive placeholder — give it a ×100 inflation on
-      // every upgrade, big enough that the victim's whole balance can't cover a
-      // price it could otherwise afford outright.
-      const patched: ModeDefinition = {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 }],
-              }
-            : a,
-        ),
-      }
+      // A ×100 inflation on every upgrade, big enough that the victim's whole
+      // balance can't cover a price it could otherwise afford outright.
+      const patched = withFixtureAttack({
+        kind: 'passive',
+        effects: [{ type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 }],
+      })
       validateModeDefinition('idler', patched)
       registerMode('idler', patched)
       try {
         const m = enterPlaying()
-        // Only p1 unlocks a3 — an attacker never inflates its own prices.
+        // Only p1 unlocks the fixture — an attacker never inflates its own prices.
         m.handleMessage('p1', buyMsg('a-unlock', 1))
-        m.handleMessage('p1', buyMsg('node-4', 2))
+        m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
         // The victim's own state carries the inflation, which is where every
@@ -1497,42 +1497,32 @@ describe('Match', () => {
     // ── Duration attacks ───────────────────────────────────────────
 
     /**
-     * The idler tree with `a3` — its effect-less passive placeholder, unlocked by
-     * `a-unlock → node-4` — re-authored as a duration attack: halve the victim's
-     * r0 and ×100 their upgrade prices for `durationSec` after a 1s strike.
+     * The fixture attack as a duration attack: halve the victim's r0 and ×100
+     * their upgrade prices for `durationSec` after a 1s strike.
      */
     const WINDOW_SEC = 3
     function withDurationAttack(): ModeDefinition {
-      const base = getModeDefinition('idler')
-      return {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                kind: 'active' as const,
-                prepareCost: { r0: { baseCost: 10 } },
-                prepareTimeSec: 1,
-                durationSec: WINDOW_SEC,
-                effects: [
-                  {
-                    type: 'enemyProductionModifier',
-                    stage: 'multiplicative',
-                    field: 'r0',
-                    value: 0.5,
-                  },
-                  { type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 },
-                ],
-              }
-            : a,
-        ),
-      }
+      return withFixtureAttack({
+        kind: 'active',
+        prepareCost: { r0: { baseCost: 10 } },
+        prepareTimeSec: 1,
+        durationSec: WINDOW_SEC,
+        effects: [
+          {
+            type: 'enemyProductionModifier',
+            stage: 'multiplicative',
+            field: 'r0',
+            value: 0.5,
+          },
+          { type: 'enemyCostModifier', target: 'upgrades', costFactor: 100 },
+        ],
+      })
     }
 
-    /** Unlock a3 for p1 with enough Wood to fire it. */
+    /** Unlock the fixture attack for p1 with enough Wood to fire it. */
     function armWindowAttacker(m: Match) {
       m.handleMessage('p1', buyMsg('a-unlock', 1))
-      m.handleMessage('p1', buyMsg('node-4', 2))
+      m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
       m.grantResourcesForTest('p1', { r0: 100 })
     }
 
@@ -1557,12 +1547,12 @@ describe('Match', () => {
         const baseline = latestUpdate(ws2).player.resources.r0 - b0
         expect(baseline).toBeGreaterThan(0)
 
-        m.handleMessage('p1', activateMsg('a3', 3))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
         // Past the 1s preparation and into the window.
         vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
         expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
         expect(latestUpdate(ws1).player.activeDebuffs).toEqual([
-          expect.objectContaining({ attack: 'a3' }),
+          expect.objectContaining({ attack: FIXTURE_ATTACK }),
         ])
         // The window is a plain debuff on the wire, and a stamped cost factor.
         expect(latestUpdate(ws2).debuffs).toContainEqual({
@@ -1604,21 +1594,21 @@ describe('Match', () => {
       try {
         const m = enterPlaying()
         armWindowAttacker(m)
-        m.handleMessage('p1', activateMsg('a3', 3))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
         vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
 
         // One `debuff` event per side, however many debuff effects the attack
         // carries (two here), and never a `none` — a window is not a miss.
         expect(debuffEvents(ws1)).toEqual([
           expect.objectContaining({
-            attack: 'a3',
+            attack: FIXTURE_ATTACK,
             direction: 'outgoing',
             durationSec: WINDOW_SEC,
           }),
         ])
         expect(debuffEvents(ws2)).toEqual([
           expect.objectContaining({
-            attack: 'a3',
+            attack: FIXTURE_ATTACK,
             direction: 'incoming',
             durationSec: WINDOW_SEC,
           }),
@@ -1629,7 +1619,7 @@ describe('Match', () => {
         // A second activation while the window is open is rejected outright:
         // nothing pending, nothing paid.
         const held = latestUpdate(ws1).player.resources.r0
-        m.handleMessage('p1', activateMsg('a3', 4))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 4))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
         expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(0)
         expect(latestUpdate(ws1).player.resources.r0).toBeGreaterThanOrEqual(held)
@@ -1637,7 +1627,7 @@ describe('Match', () => {
         // Once it closes, the same attack can be fired again.
         vi.advanceTimersByTime(WINDOW_SEC * 1000)
         expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
-        m.handleMessage('p1', activateMsg('a3', 5))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 5))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
         expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
       } finally {
@@ -1653,7 +1643,7 @@ describe('Match', () => {
       try {
         const m = enterPlayingVsBot()
         armWindowAttacker(m)
-        m.handleMessage('p1', activateMsg('a3', 3))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
         vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
         const window = latestUpdate(ws1).player.activeDebuffs?.[0]
         expect(window).toBeDefined()
@@ -1677,24 +1667,15 @@ describe('Match', () => {
 
     // ── Purchase lock ──────────────────────────────────────────────
 
-    /** `a3` re-authored as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
+    /** The fixture attack as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
     function withLockAttack(): ModeDefinition {
-      const base = getModeDefinition('idler')
-      return {
-        ...base,
-        attacks: base.attacks.map((a) =>
-          a.id === 'a3'
-            ? {
-                ...a,
-                kind: 'active' as const,
-                prepareCost: { r0: { baseCost: 10 } },
-                prepareTimeSec: 1,
-                durationSec: WINDOW_SEC,
-                effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }],
-              }
-            : a,
-        ),
-      }
+      return withFixtureAttack({
+        kind: 'active',
+        prepareCost: { r0: { baseCost: 10 } },
+        prepareTimeSec: 1,
+        durationSec: WINDOW_SEC,
+        effects: [{ type: 'enemyPurchaseLock', target: 'purchases' }],
+      })
     }
 
     function sellGenMsg(generatorId: string, seq: number) {
@@ -1725,7 +1706,7 @@ describe('Match', () => {
         expect(latestUpdate(ws2).player.generators.g0).toBe(1)
         expect(latestUpdate(ws2).player.upgrades['sh-unlock']).toBe(0)
 
-        m.handleMessage('p1', activateMsg('a3', 3))
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
         vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
 
         // The stamp lands on the victim only, both scopes, one expiry.
@@ -1738,7 +1719,7 @@ describe('Match', () => {
         expect(latestUpdate(ws1).player.incomingPurchaseLocks).toBeUndefined()
         // It is a plain debuff on the wire — nothing new for the toast to learn.
         expect(debuffEvents(ws2)).toEqual([
-          expect.objectContaining({ attack: 'a3', direction: 'incoming' }),
+          expect.objectContaining({ attack: FIXTURE_ATTACK, direction: 'incoming' }),
         ])
 
         // Mid-window: a *free* upgrade and an affordable generator are both
