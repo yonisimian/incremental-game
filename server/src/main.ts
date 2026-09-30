@@ -1,15 +1,13 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
   SERVER_STATUS_INTERVAL_MS,
   getAvailableUpgrades,
   getModeDefinition,
-  loadTree,
-  AVAILABLE_MODES,
+  getAvailableModes,
+  isAvailableMode,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -33,6 +31,7 @@ import {
 import type { Room } from './matchmaking.js'
 import { Match } from './match.js'
 import { createBot } from './bot.js'
+import { loadTreeFiles } from './trees.js'
 import { GAME_TIME_SCALE, realTimeDelay } from './runtime-config.js'
 
 const PORT = Number(process.env.PORT) || 10000
@@ -41,24 +40,15 @@ const HOST = process.env.HOST
 // ─── Mode trees (server-authoritative) ───────────────────────────────
 //
 // The canonical tree files are the single source of truth, owned by the shared
-// package and edited via the dev-page tree editor. The server resolves
-// each one through the package's `exports` map (works from both `tsx` in dev and
-// `node dist` in prod), validates + registers it as a runtime mode, and caches
-// the raw bytes to serve verbatim. Clients fetch the same bytes from
-// `/trees/:mode`, so both ends agree on the exact tree (multiplayer integrity).
-const require = createRequire(import.meta.url)
-const rawTrees = new Map<GameMode, string>()
-for (const mode of AVAILABLE_MODES) {
-  const raw = readFileSync(require.resolve(`@game/shared/trees/${mode}.json`), 'utf8')
-  loadTree(JSON.parse(raw) as unknown)
-  rawTrees.set(mode, raw)
-}
+// package and edited via the dev-page tree editor. Every file in its `trees/`
+// folder is a mode (see `trees.ts`): the server validates + registers each one
+// and caches the raw bytes to serve verbatim. Clients fetch the mode list from
+// `/trees.json` and each tree from `/trees/:mode.json`, so both ends agree on
+// the exact trees (multiplayer integrity).
+const rawTrees = loadTreeFiles()
+const modeList = JSON.stringify([...rawTrees.keys()])
 
-// ─── Helper: valid modes ─────────────────────────────────────────────
-
-function isValidMode(mode: unknown): mode is GameMode {
-  return typeof mode === 'string' && (AVAILABLE_MODES as readonly string[]).includes(mode)
-}
+// ─── Helper: valid goals ─────────────────────────────────────────────
 
 /** Check that a goal matches one of the mode's defined goals (by type). */
 function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
@@ -70,10 +60,19 @@ function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
 // ─── HTTP Server (health check + tree files) ────────────────────────
 
 const httpServer = createServer((req, res) => {
-  // Serve the canonical tree files (server-authoritative).
+  // Serve the mode list and the canonical tree files (server-authoritative).
+  if (req.url === '/trees.json') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    })
+    res.end(modeList)
+    return
+  }
   const treeMatch = /^\/trees\/([a-z0-9-]+)\.json$/u.exec(req.url ?? '/')
   if (treeMatch) {
-    const raw = rawTrees.get(treeMatch[1] as GameMode)
+    const raw = rawTrees.get(treeMatch[1])
     if (raw === undefined) {
       res.writeHead(404, { 'Access-Control-Allow-Origin': '*' })
       res.end('not found')
@@ -164,7 +163,8 @@ function getRematchEntry(playerId: string): RematchEntry | undefined {
 
 /** Roll random settings for quick-match. */
 function rollRandomSettings(): { mode: GameMode; goal: Goal } {
-  const mode = AVAILABLE_MODES[Math.floor(Math.random() * AVAILABLE_MODES.length)]
+  const modes = getAvailableModes()
+  const mode = modes[Math.floor(Math.random() * modes.length)]
   const modeDef = getModeDefinition(mode)
   const goal = modeDef.goals[Math.floor(Math.random() * modeDef.goals.length)]
   return { mode, goal }
@@ -235,7 +235,7 @@ wss.on('connection', (ws: WebSocket) => {
     if (msg.type === 'REMATCH') {
       if (getQueuedPlayer(data.id)) return // already in queue
       if (getRoomByPlayerId(data.id)) return // already in a room
-      if (!isValidMode(msg.mode)) return
+      if (!isAvailableMode(msg.mode)) return
       if (!isValidGoal(msg.mode, msg.goal)) return
       if (!msg.matchId || typeof msg.matchId !== 'string') return
 
@@ -320,7 +320,7 @@ wss.on('connection', (ws: WebSocket) => {
     // ── ROOM_UPDATE ──────────────────────────────────────────────
     if (msg.type === 'ROOM_UPDATE') {
       const result = updateRoomSettings(data.id, {
-        mode: isValidMode(msg.mode) ? msg.mode : undefined,
+        mode: isAvailableMode(msg.mode) ? msg.mode : undefined,
         goal: msg.goal,
       })
       if (!result.ok) return

@@ -2,8 +2,15 @@
  * Dev panel UI — DOM construction and event wiring.
  */
 
+import {
+  DEFAULT_MODE,
+  getAvailableModes,
+  getModeDefinition,
+  getModeFlavor,
+  isAvailableMode,
+  liveActionsToStrategy,
+} from '@game/shared'
 import type { GameMode } from '@game/shared'
-import { getModeDefinition, getModeFlavor, liveActionsToStrategy } from '@game/shared'
 import { updateChart } from './chart.js'
 import { startLiveListener, stopLiveListener, getLiveState, liveStateToSimResult } from './live.js'
 import type { LiveState } from './live.js'
@@ -15,9 +22,35 @@ import { saveStrategyToFile } from './strategy-io.js'
 type Tab = 'balance' | 'editor'
 type BalanceSubtab = 'queue' | 'live' | 'envelopes'
 
+// ─── Selected tree ───────────────────────────────────────────────────
+//
+// The Queue, Envelopes, and Editor tabs all work on one selected tree (mode).
+// The choice is a per-browser convenience, so storage failures are ignored.
+
+const MODE_STORAGE_KEY = 'dev-panel:mode'
+
+function loadSelectedMode(): GameMode {
+  try {
+    const saved = localStorage.getItem(MODE_STORAGE_KEY)
+    if (isAvailableMode(saved)) return saved
+  } catch {
+    // Storage blocked — fall through to the default.
+  }
+  return DEFAULT_MODE
+}
+
+function saveSelectedMode(mode: GameMode): void {
+  try {
+    localStorage.setItem(MODE_STORAGE_KEY, mode)
+  } catch {
+    // Storage blocked — the choice just won't survive a reload.
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────
 
 export function initDevPanel(root: HTMLElement): void {
+  let activeMode = loadSelectedMode()
   root.innerHTML = buildLayout()
 
   const tabs = root.querySelectorAll<HTMLButtonElement>('.dev-tab[data-tab]')
@@ -45,7 +78,7 @@ export function initDevPanel(root: HTMLElement): void {
       return
     }
     const name = `Live ${state.mode} ${new Date().toLocaleTimeString()}`
-    const strategy = liveActionsToStrategy(state.actions, state.mode as GameMode, name)
+    const strategy = liveActionsToStrategy(state.actions, state.mode, name)
     importStrategyToQueue(strategy)
     saveStrategyToFile(strategy).catch((err: unknown) => {
       liveExportStatus.textContent = `Save failed: ${err instanceof Error ? err.message : String(err)}`
@@ -91,7 +124,7 @@ export function initDevPanel(root: HTMLElement): void {
 
     if (activeTab === 'editor') {
       // Mount only once the pane is visible so pan/zoom sees real dimensions.
-      editorTeardown ??= initEditor(editorPane)
+      editorTeardown ??= initEditor(editorPane, activeMode)
     } else if (editorTeardown) {
       editorTeardown()
       editorTeardown = null
@@ -99,12 +132,12 @@ export function initDevPanel(root: HTMLElement): void {
 
     if (sub === 'queue' && !queueMounted) {
       queueMounted = true
-      initQueueSim(queuePane)
+      initQueueSim(queuePane, activeMode)
     }
 
     if (sub === 'envelopes' && !envelopesMounted) {
       envelopesMounted = true
-      initEnvelopes(envelopesPane)
+      initEnvelopes(envelopesPane, activeMode)
     }
   }
 
@@ -122,6 +155,33 @@ export function initDevPanel(root: HTMLElement): void {
     })
   })
 
+  // ── Tree selection ──
+  // Switching trees discards the tree-bound tabs' working state (like leaving
+  // the editor tab already does) and remounts whichever one is visible; the
+  // others remount on next entry. The Live tab follows the running game, not
+  // the selection, so it is left alone.
+  const treeSelect = root.querySelector<HTMLSelectElement>('#dev-tree-select')!
+  for (const mode of getAvailableModes()) {
+    const name = getModeFlavor(getModeDefinition(mode)).displayName
+    const option = document.createElement('option')
+    option.value = mode
+    option.textContent = `${name} (${mode}.json)`
+    option.selected = mode === activeMode
+    treeSelect.append(option)
+  }
+  treeSelect.addEventListener('change', () => {
+    if (!isAvailableMode(treeSelect.value)) return
+    activeMode = treeSelect.value
+    saveSelectedMode(activeMode)
+    editorTeardown?.()
+    editorTeardown = null
+    queueMounted = false
+    envelopesMounted = false
+    queuePane.innerHTML = ''
+    envelopesPane.innerHTML = ''
+    render()
+  })
+
   // Open Balance › Queue by default.
   render()
 }
@@ -132,6 +192,9 @@ function buildLayout(): string {
   return `
     <header class="dev-header">
       <h1>incremenTal — Dev Panel</h1>
+      <label class="dev-tree-picker">
+        Tree <select id="dev-tree-select"></select>
+      </label>
     </header>
     <nav class="dev-tabs">
       <button class="dev-tab" data-tab="balance">Balance</button>
@@ -214,7 +277,7 @@ function renderLiveCharts(
   const result = liveStateToSimResult(state)
   if (!result || !state.mode) return
 
-  const modeDef = getModeDefinition(state.mode as GameMode)
+  const modeDef = getModeDefinition(state.mode)
   const xData = result.snapshots.map((s) => s.timeSec)
 
   // Score chart

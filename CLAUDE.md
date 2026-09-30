@@ -58,7 +58,7 @@ Upgrade behavior is **data-driven via effects**. Effect implementations are regi
 
 ### The idler mode is authored as JSON
 
-[shared/trees/idler.json](shared/trees/idler.json) is the single source of truth for the idler mode's upgrade tree, generators, and effect wiring. It's loaded at runtime, decoded by `shared/src/tree/codec.ts` against `schema.ts`, and flattened from a nested authoring tree (`offset`-relative layout) into the flat `UpgradeDefinition[]` the engine consumes (`flattenUpgradeTree` in [shared/src/modes/upgrade-tree.ts](shared/src/modes/upgrade-tree.ts)). **Layout children ≠ prerequisites** — gating lives entirely in each node's `prerequisites`. There is a visual tree editor under `client/src/dev/editor/` (served at `/dev.html`).
+[shared/trees/idler.json](shared/trees/idler.json) is the single source of truth for the idler mode's upgrade tree, generators, and effect wiring. It's loaded at runtime, decoded by `shared/src/tree/codec.ts` against `schema.ts`, and flattened from a nested authoring tree (`offset`-relative layout) into the flat `UpgradeDefinition[]` the engine consumes (`flattenUpgradeTree` in [shared/src/modes/upgrade-tree.ts](shared/src/modes/upgrade-tree.ts)). **Layout children ≠ prerequisites** — gating lives entirely in each node's `prerequisites`. Every `<mode>.json` in `shared/trees/` is a mode, discovered at boot ([server/src/trees.ts](server/src/trees.ts)); the file name _is_ the mode id (trees carry no `id` field), and each one shows up in the room lobby's mode picker. Adding a mode = adding a file. There is a visual tree editor under `client/src/dev/editor/` (served at `/dev.html`).
 
 ### Client UI structure
 

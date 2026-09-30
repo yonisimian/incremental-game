@@ -27,7 +27,6 @@ function idlerTreeFileInput(): unknown {
 function minimalTree(): TreeFile {
   return {
     version: CURRENT_TREE_VERSION,
-    id: 'test',
     resources: ['r0'],
     scoreResource: 'r0',
     clicksEnabled: false,
@@ -223,6 +222,12 @@ describe('tree codec — versioning', () => {
     const { startingEffects: _dropped, ...base } = minimalTree()
     const parsed = parseTreeFile({ ...base, version: 3 })
     expect(parsed.startingEffects).toEqual([])
+  })
+
+  it('drops the top-level id when migrating v4 → v5 (the file name is the mode id)', () => {
+    const parsed = parseTreeFile({ ...minimalTree(), version: 4, id: 'old-id' })
+    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
+    expect(parsed).not.toHaveProperty('id')
   })
 
   it('preserves the rate a v3 nativeModifier produced after migrating it', () => {

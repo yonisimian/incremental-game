@@ -90,10 +90,7 @@ export function loadBundledStrategies(mode: GameMode): QueueStrategy[] {
   for (const [path, raw] of Object.entries(BUNDLED)) {
     try {
       const strategy = parseStrategy(raw)
-      // Widen to `string`: `GameMode` is presently a single-member union, so a
-      // typed `===` would be flagged as an always-true comparison.
-      const strategyMode: string = strategy.mode
-      if (strategyMode === mode) out.push(structuredClone(strategy))
+      if (strategy.mode === mode) out.push(structuredClone(strategy))
     } catch (err) {
       console.warn(`Skipping invalid reference strategy ${path}:`, err)
     }

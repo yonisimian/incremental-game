@@ -848,11 +848,25 @@ export function getLoadedModeDefinitions(): ModeDefinition[] {
 }
 
 /**
- * All game mode keys the app knows about. Static (the `GameMode` union), so it is
- * available before any tree is loaded — distinct from whether a mode's data has
- * been loaded into the registry. Used for input validation and the lobby picker.
+ * The mode new rooms start on. Its tree (`trees/idler.json`) must always exist —
+ * the server refuses to boot without it.
  */
-export const AVAILABLE_MODES: readonly GameMode[] = ['idler']
+export const DEFAULT_MODE: GameMode = 'idler'
+
+/**
+ * Ids of every loaded mode, in registration order. Modes are discovered at
+ * runtime (the server scans `shared/trees/`; the client loads the server's
+ * list), so this is empty until the trees are loaded. Used for input
+ * validation and the lobby picker.
+ */
+export function getAvailableModes(): GameMode[] {
+  return [...MODE_REGISTRY.keys()]
+}
+
+/** Whether `mode` names a loaded mode — the check for untrusted mode ids. */
+export function isAvailableMode(mode: unknown): mode is GameMode {
+  return typeof mode === 'string' && MODE_REGISTRY.has(mode)
+}
 
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {

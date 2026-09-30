@@ -7,5 +7,5 @@ import { loadBalance, loadTree } from '../src/index.js'
 import idlerBalanceFile from '../balance/idler.json' with { type: 'json' }
 import idlerTreeFile from '../trees/idler.json' with { type: 'json' }
 
-loadTree(idlerTreeFile)
+loadTree('idler', idlerTreeFile)
 loadBalance(idlerBalanceFile)

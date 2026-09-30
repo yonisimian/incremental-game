@@ -12,9 +12,8 @@
 import { z } from 'zod'
 
 import { MAX_CPS } from '../game-config.js'
-import { AVAILABLE_MODES } from '../modes/index.js'
+import { isAvailableMode } from '../modes/index.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { GameMode } from '../types.js'
 
 // ─── Wait conditions ─────────────────────────────────────────────────
 //
@@ -62,7 +61,8 @@ export const QueueStrategySchema = z.strictObject({
   /** Schema version for forward-compatible save files. */
   version: z.literal(1),
   name: z.string(),
-  mode: z.enum(AVAILABLE_MODES as unknown as [GameMode, ...GameMode[]]),
+  /** A loaded mode's id — modes are discovered at runtime, so load trees first. */
+  mode: z.string().refine(isAvailableMode, { error: 'unknown or unloaded mode' }),
   /** Processed strictly in order; no timestamps. */
   actions: z.array(SimActionSchema),
 })

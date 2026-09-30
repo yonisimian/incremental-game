@@ -2,7 +2,8 @@ import type { GameMode, Goal } from '@game/shared'
 import {
   getModeDefinition,
   getModeFlavor,
-  AVAILABLE_MODES,
+  getAvailableModes,
+  isAvailableMode,
   customizeGoal,
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
@@ -205,19 +206,20 @@ function renderPlayerSlots(players: string[]): string {
 
 function renderCreatorSettings(mode: GameMode, goal: Goal): string {
   const modeDef = getModeDefinition(mode)
+  const modes = getAvailableModes()
   // Hide the mode picker entirely when there's only one mode to choose from.
   const modeRow =
-    AVAILABLE_MODES.length > 1
+    modes.length > 1
       ? `
       <div class="setting-row">
         <span class="setting-label">Mode</span>
-        <div class="mode-chips" id="mode-chips">${AVAILABLE_MODES.map((m) => {
-          const def = getModeDefinition(m)
-          // Always true while only one mode exists; kept for when AVAILABLE_MODES grows.
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          const selected = m === mode ? ' selected' : ''
-          return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(getModeFlavor(def).displayName)}</button>`
-        }).join('')}</div>
+        <div class="mode-chips" id="mode-chips">${modes
+          .map((m) => {
+            const def = getModeDefinition(m)
+            const selected = m === mode ? ' selected' : ''
+            return `<button class="mode-chip${selected}" data-mode="${m}">${escapeAttr(getModeFlavor(def).displayName)}</button>`
+          })
+          .join('')}</div>
       </div>`
       : ''
 
@@ -308,8 +310,8 @@ function wireCreatorSettings(currentMode: GameMode): void {
   // Mode chips
   document.querySelectorAll<HTMLButtonElement>('#mode-chips .mode-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
-      const mode = chip.dataset.mode as GameMode | undefined
-      if (mode && AVAILABLE_MODES.includes(mode)) {
+      const mode = chip.dataset.mode
+      if (isAvailableMode(mode)) {
         updateRoomSettings({ mode })
       }
     })

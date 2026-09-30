@@ -90,14 +90,23 @@ export async function connect(): Promise<void> {
     return
   }
 
-  // Load the mode tree once, server-authoritative: the tree data is not bundled,
-  // it is fetched from the server so both ends agree on the exact tree.
+  // Load every mode tree once, server-authoritative: the tree data is not
+  // bundled, it is fetched from the server so both ends agree on the exact tree.
+  // The server's mode list comes first; all trees then load up front, in that
+  // order — the lobby's mode picker reads each one.
   if (!treeLoaded) {
     onConnectionState('loading')
     try {
-      const res = await fetch(`${httpUrl}trees/idler.json`)
-      if (!res.ok) throw new Error(`tree fetch failed: ${res.status}`)
-      loadTree((await res.json()) as unknown)
+      const modes = await fetchJson(`${httpUrl}trees.json`)
+      if (!Array.isArray(modes) || !modes.every((m) => typeof m === 'string')) {
+        throw new Error('mode list is not an array of strings')
+      }
+      const trees = await Promise.all(
+        modes.map((mode) => fetchJson(`${httpUrl}trees/${mode}.json`)),
+      )
+      modes.forEach((mode, i) => {
+        loadTree(mode, trees[i])
+      })
       treeLoaded = true
     } catch {
       // A bad/unreachable tree is fatal for play — surface a retryable error
@@ -108,6 +117,13 @@ export async function connect(): Promise<void> {
   }
 
   openWebSocket(wsUrl)
+}
+
+/** GET a JSON document, throwing on a non-2xx response. */
+async function fetchJson(url: string): Promise<unknown> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`)
+  return (await res.json()) as unknown
 }
 
 /** Queue a player action to be sent in the next batch. */

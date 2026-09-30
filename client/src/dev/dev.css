@@ -35,11 +35,35 @@ body {
 
 /* ─── Header ──────────────────────────────────────────────────────── */
 
+.dev-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
 .dev-header h1 {
   font-size: 1.4rem;
   font-weight: 600;
-  margin-bottom: 12px;
   color: var(--dev-accent);
+}
+
+.dev-tree-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dev-muted);
+}
+
+.dev-tree-picker select {
+  background: var(--dev-surface);
+  color: var(--dev-text);
+  border: 1px solid var(--dev-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
 }
 
 /* ─── Tabs ────────────────────────────────────────────────────────── */

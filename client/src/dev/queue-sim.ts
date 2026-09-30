@@ -42,8 +42,6 @@ import {
 import type { Option } from './queue-model.js'
 import { generateStrategies } from './strategies.js'
 
-const MODE: GameMode = 'idler'
-
 // ─── Cross-tab import bridge ─────────────────────────────────────────
 //
 // The Live tab exports a recorded playthrough as a strategy and hands it here.
@@ -68,16 +66,17 @@ const ACTION_KINDS: { value: SimAction['kind']; label: string }[] = [
   { value: 'wait', label: 'Wait' },
 ]
 
-export function initQueueSim(pane: HTMLElement): void {
-  const mode = modeDefOf(MODE)
+/** Mount the Queue tab into `pane` for mode `modeId` (the dev panel's selected tree). */
+export function initQueueSim(pane: HTMLElement, modeId: GameMode): void {
+  const mode = modeDefOf(modeId)
 
   // ── Session state ──
   // Seed with bundled reference strategies for this mode; fall back to one
   // empty scratch strategy so the editor always has a selection.
-  const bundled = loadBundledStrategies(MODE)
+  const bundled = loadBundledStrategies(modeId)
   const strategies: QueueStrategy[] = bundled.length
     ? bundled
-    : [makeEmptyStrategy('Strategy 1', MODE)]
+    : [makeEmptyStrategy('Strategy 1', modeId)]
   let selected = 0
   const runChecked = new Set<number>(strategies.map((_, i) => i))
   let editingRow: number | null = null
@@ -416,7 +415,7 @@ export function initQueueSim(pane: HTMLElement): void {
   })
 
   pane.querySelector<HTMLButtonElement>('#q-new')!.addEventListener('click', () => {
-    strategies.push(makeEmptyStrategy(`Strategy ${strategies.length + 1}`, MODE))
+    strategies.push(makeEmptyStrategy(`Strategy ${strategies.length + 1}`, modeId))
     selected = strategies.length - 1
     runChecked.add(selected)
     editingRow = null
@@ -464,11 +463,8 @@ export function initQueueSim(pane: HTMLElement): void {
     loadStrategyFromFile().then(
       (loaded) => {
         if (!loaded) return // cancelled
-        // Compare as strings: `GameMode` is a single-member union today, so a
-        // typed `!==` would be flagged as an always-false comparison.
-        const loadedMode: string = loaded.mode
-        if (loadedMode !== (MODE as string)) {
-          setStatus(`Strategy is for mode "${loadedMode}"; this panel runs "${MODE}".`, true)
+        if (loaded.mode !== modeId) {
+          setStatus(`Strategy is for mode "${loaded.mode}"; this panel runs "${modeId}".`, true)
           return
         }
         strategies.push(loaded)
@@ -498,7 +494,7 @@ export function initQueueSim(pane: HTMLElement): void {
       return
     }
     for (const g of generated) {
-      strategies.push(enumerationToQueue(g, MODE))
+      strategies.push(enumerationToQueue(g, modeId))
       runChecked.add(strategies.length - 1)
     }
     selected = strategies.length - 1
@@ -510,7 +506,7 @@ export function initQueueSim(pane: HTMLElement): void {
   pane.querySelector<HTMLButtonElement>('#q-run')!.addEventListener('click', () => {
     const toRun = strategies.filter((_, i) => runChecked.has(i))
     if (toRun.length === 0) return
-    runStrategies(toRun, mode, buildGoal(), chartsEl, reportEl, envelopeEl, collapsedCharts)
+    runStrategies(toRun, modeId, buildGoal(), chartsEl, reportEl, envelopeEl, collapsedCharts)
   })
 
   // Accept strategies handed over from other tabs (e.g. Live export): append,
@@ -532,7 +528,7 @@ export function initQueueSim(pane: HTMLElement): void {
 
 function runStrategies(
   toRun: QueueStrategy[],
-  mode: ModeDefinition,
+  modeId: GameMode,
   goal: SimGoal,
   chartsEl: HTMLDivElement,
   reportEl: HTMLDivElement,
@@ -541,7 +537,14 @@ function runStrategies(
 ): void {
   const results: SimResult[] = []
   const problems: { name: string; issues: string[] }[] = []
+  const mode = modeDefOf(modeId)
   for (const s of toRun) {
+    // A strategy imported from another tab (e.g. a Live recording) can be for
+    // a different tree than the one selected.
+    if (s.mode !== modeId) {
+      problems.push({ name: s.name, issues: [`is for mode "${s.mode}", not "${modeId}"`] })
+      continue
+    }
     const issues = validateStrategyForMode(s, mode)
     if (issues.length > 0) {
       problems.push({ name: s.name, issues })
@@ -550,9 +553,9 @@ function runStrategies(
     results.push(simulate(s, { modeDef: mode, goal }))
   }
 
-  renderCharts(results, mode, chartsEl, collapsed, envelopeBand(MODE, goal))
+  renderCharts(results, mode, chartsEl, collapsed, envelopeBand(modeId, goal))
   renderReport(results, goal, problems, reportEl)
-  renderEnvelopeSection(MODE, results, goal, envelopeEl)
+  renderEnvelopeSection(modeId, results, goal, envelopeEl)
 }
 
 function markersFor(result: SimResult): ChartMarker[] {

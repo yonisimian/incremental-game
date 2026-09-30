@@ -11,8 +11,8 @@
  * reference swapped underneath them.
  */
 
-import { parseTreeFile, type TreeFile } from '@game/shared'
-import idlerTreeFile from '@game/shared/trees/idler.json'
+import { parseTreeFile, type GameMode, type TreeFile } from '@game/shared'
+import { bundledTree } from '../bundled-modes.js'
 import { cloneTree } from './model.js'
 import { exportTree, importTreeFromFile, treeToJson } from './io.js'
 import type { EditorContext, EditorView } from './views/types.js'
@@ -43,7 +43,7 @@ const VIEW_FACTORIES: Record<Section, () => EditorView> = {
   tree: createTreeView,
 }
 
-function buildLayout(): string {
+function buildLayout(mode: GameMode): string {
   const tabs = SECTIONS.map(
     (s) => `<button class="dev-tab" data-section="${s.id}">${s.label}</button>`,
   ).join('')
@@ -54,7 +54,7 @@ function buildLayout(): string {
         <input type="file" id="ed-file" accept="application/json,.json" hidden />
         <button id="ed-export-btn" class="ed-btn">💾 Export</button>
         <button id="ed-copy-btn" class="ed-btn">📋 Copy JSON</button>
-        <button id="ed-reset-btn" class="ed-btn">↺ Reset to idler</button>
+        <button id="ed-reset-btn" class="ed-btn">↺ Reset to ${mode}</button>
         <span id="ed-status" class="ed-status"></span>
       </div>
       <nav class="dev-tabs dev-tabs--sub">${tabs}</nav>
@@ -64,13 +64,18 @@ function buildLayout(): string {
 
 interface ShellState {
   tree: TreeFile
+  /** File name (without `.json`) the tree exports as — its mode id. */
+  name: string
   dirty: boolean
   section: Section
 }
 
-/** Mount the editor into a pane element. Returns a teardown function. */
-export function initEditor(pane: HTMLElement): () => void {
-  pane.innerHTML = buildLayout()
+/**
+ * Mount the editor into a pane element, working on a copy of `mode`'s bundled
+ * tree. Returns a teardown function.
+ */
+export function initEditor(pane: HTMLElement, mode: GameMode): () => void {
+  pane.innerHTML = buildLayout(mode)
 
   const host = pane.querySelector<HTMLDivElement>('#ed-section-host')!
   const status = pane.querySelector<HTMLSpanElement>('#ed-status')!
@@ -82,7 +87,8 @@ export function initEditor(pane: HTMLElement): () => void {
   const tabs = Array.from(pane.querySelectorAll<HTMLButtonElement>('.dev-tab[data-section]'))
 
   const state: ShellState = {
-    tree: cloneTree(parseTreeFile(idlerTreeFile)),
+    tree: cloneTree(parseTreeFile(bundledTree(mode))),
+    name: mode,
     dirty: false,
     section: 'tree',
   }
@@ -138,6 +144,7 @@ export function initEditor(pane: HTMLElement): () => void {
     void importTreeFromFile(file)
       .then((tree) => {
         state.tree = tree
+        state.name = file.name.replace(/\.json$/iu, '')
         state.dirty = false
         mountSection()
         setStatus(`Loaded ${file.name}`)
@@ -152,13 +159,13 @@ export function initEditor(pane: HTMLElement): () => void {
 
   exportBtn.addEventListener('click', () => {
     try {
-      exportTree(state.tree)
+      exportTree(state.tree, state.name)
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Export failed', true)
       return
     }
     state.dirty = false
-    setStatus(`Exported ${state.tree.id}.json`)
+    setStatus(`Exported ${state.name}.json`)
   })
 
   copyBtn.addEventListener('click', () => {
@@ -172,7 +179,7 @@ export function initEditor(pane: HTMLElement): () => void {
     void navigator.clipboard
       .writeText(json)
       .then(() => {
-        setStatus(`Copied ${state.tree.id}.json to clipboard`)
+        setStatus(`Copied ${state.name}.json to clipboard`)
       })
       .catch(() => {
         setStatus('Copy to clipboard failed', true)
@@ -180,10 +187,11 @@ export function initEditor(pane: HTMLElement): () => void {
   })
 
   resetBtn.addEventListener('click', () => {
-    state.tree = cloneTree(parseTreeFile(idlerTreeFile))
+    state.tree = cloneTree(parseTreeFile(bundledTree(mode)))
+    state.name = mode
     state.dirty = false
     mountSection()
-    setStatus('Reset to idler tree')
+    setStatus(`Reset to ${mode} tree`)
   })
 
   mountSection()

@@ -85,7 +85,7 @@ describe('treeToJson / exportTree validation', () => {
 
   it('exportTree also refuses an invalid tree before producing a download', () => {
     expect(() => {
-      exportTree(treeWithOverLeveledPrereq())
+      exportTree(treeWithOverLeveledPrereq(), 'idler')
     }).toThrow(/greater than max level/)
   })
 })

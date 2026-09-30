@@ -6,7 +6,8 @@ import {
   getModeDefinition,
   getDefaultGoal,
   customizeGoal,
-  AVAILABLE_MODES,
+  DEFAULT_MODE,
+  isAvailableMode,
 } from '@game/shared'
 import { realTimeDelay } from './runtime-config.js'
 
@@ -115,14 +116,13 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
   if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
 
   const code = generateRoomCode()
-  const defaultMode: GameMode = 'idler'
-  const defaultGoal = getDefaultGoal(defaultMode)
+  const defaultGoal = getDefaultGoal(DEFAULT_MODE)
 
   const room: Room = {
     code,
     creatorId: player.id,
     players: [player],
-    mode: defaultMode,
+    mode: DEFAULT_MODE,
     goal: defaultGoal,
     createdAt: Date.now(),
     ttlTimer: null,
@@ -188,7 +188,7 @@ export function updateRoomSettings(
 
   // Validate mode
   if (update.mode !== undefined) {
-    if (!AVAILABLE_MODES.includes(update.mode)) return { ok: false }
+    if (!isAvailableMode(update.mode)) return { ok: false }
     room.mode = update.mode
     // Check if current goal is still valid for the new mode
     const modeDef = getModeDefinition(room.mode)
