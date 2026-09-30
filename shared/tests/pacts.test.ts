@@ -34,6 +34,7 @@ import {
   resolveEnemyDebuffs,
   resolveGeneratorDef,
   sharedPacts,
+  sharedPactWindows,
   upgradeCostFactors,
   validateModeDefinition,
 } from '../src/index.js'
@@ -552,6 +553,22 @@ describe('active pact activation', () => {
       expect(collectPartnerAutoClicks(signer(25), withGifts)).toBe(0)
       // A window without the effect grants nothing.
       expect(collectPartnerAutoClicks(open(ACCORD.id, 10, 25), withGifts)).toBe(0)
+    })
+
+    it('reveals a one-sided window that carries a gift, with its closing time', () => {
+      const DRUMS: PactDefinition = {
+        ...ACCORD,
+        id: 'p-drums',
+        effects: [{ type: 'partnerAutoClick', clicksPerSec: 3 }],
+      }
+      const withDrums: ModeDefinition = { ...mode, pacts: [...mode.pacts, DRUMS] }
+      const signer = open(DRUMS.id, 10, 25)
+      expect(sharedPacts(signer, withDrums)).toEqual([DRUMS.id])
+      expect(sharedPactWindows(signer, withDrums)).toEqual([{ pact: DRUMS.id, expiresAtSec: 25 }])
+      // A plain one-sided window stays hidden.
+      expect(sharedPactWindows(open(ACCORD.id, 10, 25), withDrums)).toEqual([])
+      // And a closed one is gone.
+      expect(sharedPactWindows(open(DRUMS.id, 25, 25), withDrums)).toEqual([])
     })
 
     it('reveals the partner’s open mutual windows, never a one-sided one', () => {

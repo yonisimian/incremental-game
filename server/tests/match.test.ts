@@ -2704,11 +2704,21 @@ describe('Match', () => {
           expect(gift).toBeCloseTo(click * CLICKS_PER_SEC * (BROADCAST_INTERVAL_MS / 1000), 6)
           // Not a real click: the partner's peak CPS never moves.
           expect(latestUpdate(ws2).player.meta.peakCps).toBe(peakCps)
+          // The partner sees the treaty, when it closes, and the rate it grants.
+          const window = latestUpdate(ws1).player.activePacts![0]
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+          expect(latestUpdate(ws2).opponent.pactWindows).toEqual([window])
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBe(CLICKS_PER_SEC)
+          // The signer receives nothing, and the partner holds nothing to reveal.
+          expect(latestUpdate(ws1).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws1).opponent.pacts).toBeUndefined()
           // The signer gets nothing from it.
           expect(incomeOver(ws1)).toBeGreaterThan(0)
 
           vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000)
           expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pactWindows).toBeUndefined()
         })
       })
 
@@ -2740,6 +2750,9 @@ describe('Match', () => {
           vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
           expect(latestUpdate(ws1).player.activePacts).toHaveLength(1)
           expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          // No rate is advertised either — though the treaty itself is visible.
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
         })
       })
     })

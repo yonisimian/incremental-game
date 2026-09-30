@@ -80,10 +80,39 @@ function openWindowIds(state: Readonly<PlayerState>): string[] {
   return openPactWindows(state, readGameSec(state)).map((w) => w.pact)
 }
 
+/** The effect types that act on the signer's *partner* rather than the signer. */
+const PARTNER_DIRECTED_EFFECTS: ReadonlySet<string> = new Set(['partnerAutoClick'])
+
 /**
- * The mutual pacts in force from `partner`'s side — unlocked passive ones in
- * mode declaration order, then open active-pact windows — the treaties the
- * other player also benefits from. What the server reveals of a partner's
+ * Whether `pact` reaches the other player while in force: it is `mutual` (they
+ * get the same buffs), or it carries a partner-directed effect (a gift such as
+ * `partnerAutoClick`). Judged by ref type, as the validator does.
+ */
+function reachesPartner(pact: PactDefinition): boolean {
+  if (pact.mutual === true) return true
+  return (pact.effects ?? []).some((ref) => PARTNER_DIRECTED_EFFECTS.has(ref.type))
+}
+
+/**
+ * `partner`'s open active-pact windows that reach the other player (see
+ * {@link reachesPartner}), with their closing time on `partner`'s clock — what
+ * lets the viewer count down a treaty they did not sign.
+ */
+export function sharedPactWindows(
+  partner: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): ActivePact[] {
+  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  return openPactWindows(partner, readGameSec(partner)).filter((w) => {
+    const pact = pactById.get(w.pact)
+    return pact?.kind === 'active' && reachesPartner(pact)
+  })
+}
+
+/**
+ * The pacts of `partner`'s that reach the other player right now — unlocked
+ * mutual passive ones in mode declaration order, then open active-pact windows
+ * that are mutual or carry a gift. What the server reveals of a partner's
  * pacts (`OpponentView.pacts`): only these already affect the viewer, so a
  * one-sided pact stays hidden.
  */
@@ -93,11 +122,7 @@ export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition
     const pact = pactById.get(id)
     return pact?.kind === 'passive' && pact.mutual === true
   })
-  const windows = openWindowIds(partner).filter((id) => {
-    const pact = pactById.get(id)
-    return pact?.kind === 'active' && pact.mutual === true
-  })
-  return [...passive, ...windows]
+  return [...passive, ...sharedPactWindows(partner, mode).map((w) => w.pact)]
 }
 
 // ─── Cost factors ────────────────────────────────────────────────────

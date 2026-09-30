@@ -18,6 +18,7 @@ import {
   pactModifiers,
   pactsInForce,
   sharedPacts,
+  sharedPactWindows,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -667,6 +668,17 @@ export class Match {
   }
 
   /**
+   * The automatic clicks per second `player` is receiving from `opponent`'s
+   * pacts, for the wire — `undefined` when none, or when `player` cannot click
+   * (the same gate {@link applyAutoClicks} applies to the credit itself).
+   */
+  private incomingAutoClicks(player: MatchPlayer, opponent: MatchPlayer): number | undefined {
+    if (!isClickUnlocked(player.state, this.modeDef)) return undefined
+    const clicksPerSec = collectPartnerAutoClicks(opponent.state, this.modeDef)
+    return clicksPerSec > 0 ? clicksPerSec : undefined
+  }
+
+  /**
    * Credit the automatic clicks `opponent`'s open `partnerAutoClick` pacts
    * grant `player` this tick: `clicksPerSec × tickSec` clicks, each worth
    * `player`'s own click income, onto what they last clicked on (the score
@@ -905,6 +917,8 @@ export class Match {
     // enemy stats they read. Absent when nothing is in force.
     const p1Pacts = p1.pactBonuses.length ? p1.pactBonuses : undefined
     const p2Pacts = p2.pactBonuses.length ? p2.pactBonuses : undefined
+    const p1AutoClicks = this.incomingAutoClicks(p1, p2)
+    const p2AutoClicks = this.incomingAutoClicks(p2, p1)
 
     this.send(p1, {
       type: 'STATE_UPDATE',
@@ -915,6 +929,7 @@ export class Match {
       debuffs: p2Debuffs,
       attackEvents: p1Attacks,
       pactBonuses: p1Pacts,
+      incomingAutoClicksPerSec: p1AutoClicks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -928,6 +943,7 @@ export class Match {
       debuffs: p1Debuffs,
       attackEvents: p2Attacks,
       pactBonuses: p2Pacts,
+      incomingAutoClicksPerSec: p2AutoClicks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -992,11 +1008,14 @@ export class Match {
 
     this.projectIncomingAttacks(viewer, opponent, view)
 
-    // The opponent's mutual pacts already benefit the viewer, so naming them
-    // reveals nothing the viewer's own income doesn't; their one-sided pacts
-    // stay hidden.
+    // The opponent's pacts that reach the viewer (mutual ones, and windows
+    // carrying a gift) already show in the viewer's own income, so naming them
+    // — and when an open window closes — reveals nothing new; their one-sided
+    // pacts stay hidden.
     const shared = sharedPacts(opponent.state, mode)
     if (shared.length > 0) view.pacts = shared
+    const windows = sharedPactWindows(opponent.state, mode)
+    if (windows.length > 0) view.pactWindows = windows
 
     return view
   }
