@@ -1006,6 +1006,18 @@ export interface AttackRow {
    * `durationSec`: absence is legal, zero never is.
    */
   readonly cooldownSec: number | null
+  /** Slots of its kind's budget this attack takes while held (1 when unset). */
+  readonly slotCost: number
+}
+
+/**
+ * The value written for an authored slot cost: a positive whole number, or
+ * `undefined` (absent) for the default of 1 and anything below it, so the file
+ * stays minimal and loadable mid-edit.
+ */
+function normalizeSlotCost(slotCost: number): number | undefined {
+  const whole = Math.round(slotCost)
+  return whole > 1 ? whole : undefined
 }
 
 /** The next free `aN` attack id. */
@@ -1034,6 +1046,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
       prepareTimeSec: a.prepareTimeSec ?? 0,
       durationSec: a.durationSec ?? null,
       cooldownSec: a.cooldownSec ?? null,
+      slotCost: a.slotCost ?? 1,
     }
   })
 }
@@ -1155,6 +1168,18 @@ export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: numbe
   if (!attack) return
   if (cooldownSec === null || !(cooldownSec > 0)) delete attack.cooldownSec
   else attack.cooldownSec = cooldownSec
+}
+
+/**
+ * Set how many slots of its kind's budget attack `id` takes, rounded to a whole
+ * number; `1` or less is written as absent (the default). Unknown id is a no-op.
+ */
+export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  const value = normalizeSlotCost(slotCost)
+  if (value === undefined) delete attack.slotCost
+  else attack.slotCost = value
 }
 
 /**
@@ -1284,6 +1309,8 @@ export interface PactRow {
   readonly durationSec: number | null
   /** Seconds the pact rests after its window closes, or `null` when unset. */
   readonly cooldownSec: number | null
+  /** Slots of its kind's budget this pact takes while held (1 when unset). */
+  readonly slotCost: number
 }
 
 /** The next free `pN` pact id. */
@@ -1312,6 +1339,7 @@ export function listPacts(tree: TreeFile): PactRow[] {
       })),
       durationSec: p.durationSec ?? null,
       cooldownSec: p.cooldownSec ?? null,
+      slotCost: p.slotCost ?? 1,
     }
   })
 }
@@ -1413,6 +1441,15 @@ export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number 
   if (!pact) return
   if (cooldownSec === null || !(cooldownSec > 0)) delete pact.cooldownSec
   else pact.cooldownSec = cooldownSec
+}
+
+/** Set how many slots of its kind's budget pact `id` takes, as {@link setAttackSlotCost}. */
+export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  const value = normalizeSlotCost(slotCost)
+  if (value === undefined) delete pact.slotCost
+  else pact.slotCost = value
 }
 
 /**

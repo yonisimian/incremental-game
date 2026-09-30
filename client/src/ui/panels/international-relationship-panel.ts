@@ -12,7 +12,9 @@ import {
   getPactName,
   getResourceIcon,
   pactBlockReason,
+  isPactKindCapped,
   pactLimit,
+  pactSlotCost,
   pactSlotsHeld,
   readGameSec,
   unlockedPacts,
@@ -92,6 +94,13 @@ function discountLines(state: Readonly<GameState>, pactId: string): string {
   return lines.join('')
 }
 
+/** `◼ N` beside the name when the pact takes other than one slot of a capped kind. */
+function renderSlotCost(modeDef: ModeDefinition, pact: PactDefinition): string {
+  const cost = pactSlotCost(pact)
+  if (cost === 1 || !isPactKindCapped(modeDef, pact.kind)) return ''
+  return ` <span class="slot-cost" title="Takes ${cost} ${pact.kind} slots">◼ ${cost}</span>`
+}
+
 /**
  * One pact card: flavor, a mutual badge, and what the treaty is worth right
  * now — the resolved bonuses the server sent for it, plus any discount stamped
@@ -124,7 +133,7 @@ function renderCard(
     <li class="pact-item" data-pact="${pact.id}">
       <div class="pact-card">
         <span class="pact-icon">${getPactIcon(flavor, pact.id)}</span>
-        <span class="pact-name">${getPactName(flavor, pact.id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
+        <span class="pact-name">${getPactName(flavor, pact.id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
         ${body}
       </div>
@@ -187,7 +196,7 @@ function renderActiveCard(
     <li class="pact-item" data-pact="${id}">
       <button class="pact-btn${expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
         <span class="pact-icon">${getPactIcon(flavor, id)}</span>
-        <span class="pact-name">${getPactName(flavor, id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
+        <span class="pact-name">${getPactName(flavor, id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
         ${status}
       </button>
