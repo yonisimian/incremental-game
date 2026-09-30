@@ -249,7 +249,8 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // `attackStat` effects scale an attack's numbers, naming the attack by id.
   // Validate the id the same way — a typo would silently buff nothing — and
   // reject a stat aimed at an attack that has no such field:
-  // `prepareCost`/`prepareTime` are forbidden on a passive attack (see below), so
+  // `prepareCost`/`prepareTime`/`duration`/`cooldown` are forbidden on a passive
+  // attack (see below), so
   // a stat pointed at one is authored dead weight.
   //
   // The schema (`guardScaledStatValue`) has already judged each value on its
@@ -291,7 +292,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (!known.includes(ref.stat)) return
     if (!legal.includes(ref.stat))
       throw new Error(
-        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost and delay)`,
+        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost, delay, window or cooldown)`,
       )
 
     // A stat must have something to move. Both fields are optional on an active
@@ -312,6 +313,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] ${where} attackStat moves 'duration' on attack '${target}', which opens no debuff window`,
       )
+    const cooldownSec = attack.cooldownSec ?? 0
+    if (ref.stat === 'cooldown' && cooldownSec <= 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'cooldown' on attack '${target}', which has no cooldown to move`,
+      )
     // A purchase lock has no magnitude, so `power` has nothing to scale on an
     // attack whose effects are all locks — `duration` is that attack's lever.
     // An attack with *any* other effect keeps `power` legal, since a raid that
@@ -329,6 +335,13 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (offsetsDelay && typeof value === 'number' && value <= -delaySec)
       throw new Error(
         `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${delaySec}s delay to 0 at one copy, leaving every later copy inert`,
+      )
+    // The cooldown is improved by *shortening* it, so its offset is negative by
+    // schema and floors exactly like the delay's.
+    const offsetsCooldown = ref.stat === 'cooldown' && ref.op === 'offset'
+    if (offsetsCooldown && typeof value === 'number' && value <= -cooldownSec)
+      throw new Error(
+        `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${cooldownSec}s cooldown to 0 at one copy, leaving every later copy inert`,
       )
     // (`duration` is improved by *increasing* it, so its offset is positive by
     // schema and can never floor the window — no twin check is needed.)
@@ -671,6 +684,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
         throw new Error(
           `[${id}] passive attack '${attack.id}' declares durationSec, but a passive attack is always-on — a window is meaningless`,
         )
+      if (attack.cooldownSec !== undefined)
+        throw new Error(
+          `[${id}] passive attack '${attack.id}' declares cooldownSec, but a passive attack is always-on and never activated — there is nothing to rest from`,
+        )
     } else {
       // active
       if (hasEffects) {
@@ -724,6 +741,12 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
         throw new Error(
           `[${id}] active attack '${attack.id}' has a non-positive durationSec (a window no tick could gather)`,
+        )
+      // No effect requirement, unlike `durationSec`: a rest is meaningful on a
+      // steal too. The schema's `.positive()` covers the file path.
+      if (attack.cooldownSec !== undefined && attack.cooldownSec <= 0)
+        throw new Error(
+          `[${id}] active attack '${attack.id}' has a non-positive cooldownSec (a rest of no length — omit the field)`,
         )
       for (const currency of Object.keys(attack.prepareCost ?? {})) {
         if (!resourceKeys.has(currency))

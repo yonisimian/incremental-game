@@ -470,6 +470,47 @@ describe('game.ts', () => {
       expect(s.player.pendingAttacks).toHaveLength(1)
       expect(s.player.resources.r0).toBe(armedWood - woodCost)
     })
+
+    /** The armed player, with a0 resting until game second `untilSec`. */
+    function restingPlayer(untilSec: number): StateUpdateMessage['player'] {
+      return { ...armedPlayer(), cooldowns: [{ kind: 'attack', id: 'a0', untilSec }] }
+    }
+
+    it('refuses to predict an activation while the attack is cooling down', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(9) }))
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivateAttack('a0')
+
+      expect(game.getState().player.pendingAttacks).toHaveLength(0)
+      expect(game.getState().player.resources.r0).toBe(armedWood)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('predicts the activation once the rest has lifted', () => {
+      enterIdlerPlaying(game)
+      // gameSec 5, rest lifted at 5.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(5) }))
+      game.doActivateAttack('a0')
+      expect(game.getState().player.pendingAttacks).toHaveLength(1)
+    })
+
+    it('drops a replayed activation the snapshot’s cooldown refuses, and keeps the cooldown', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
+      game.doActivateAttack('a0')
+      expect(game.getState().player.pendingAttacks).toHaveLength(1)
+
+      // The server has not seen the activation, but reports a0 resting — the
+      // replay must be refused rather than shown until the next snapshot.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(9) }))
+      const s = game.getState()
+      expect(s.player.pendingAttacks).toHaveLength(0)
+      expect(s.player.resources.r0).toBe(armedWood)
+      expect(s.player.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 9 }])
+    })
   })
 
   describe('STATE_UPDATE', () => {

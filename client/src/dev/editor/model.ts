@@ -986,6 +986,12 @@ export interface AttackRow {
    * zero never is).
    */
   readonly durationSec: number | null
+  /**
+   * Seconds the attack rests after it finishes before it can be activated
+   * again, or `null` when unset (no cooldown). Nullable for the same reason as
+   * `durationSec`: absence is legal, zero never is.
+   */
+  readonly cooldownSec: number | null
 }
 
 /** The next free `aN` attack id. */
@@ -1013,6 +1019,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
       })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
       durationSec: a.durationSec ?? null,
+      cooldownSec: a.cooldownSec ?? null,
     }
   })
 }
@@ -1079,8 +1086,9 @@ export function removeAttack(tree: TreeFile, id: string): MutationResult {
 
 /**
  * Set attack `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
- * any preparation cost/time — the boot-time validator rejects those on passive
- * attacks, so leaving them would make the tree unloadable.
+ * any preparation cost/time, window and cooldown — the boot-time validator
+ * rejects those on passive attacks, so leaving them would make the tree
+ * unloadable.
  */
 export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
   const attack = tree.attacks.find((a) => a.id === id)
@@ -1090,6 +1098,7 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
     delete attack.prepareCost
     delete attack.prepareTimeSec
     delete attack.durationSec
+    delete attack.cooldownSec
   }
 }
 
@@ -1117,6 +1126,21 @@ export function setAttackDuration(tree: TreeFile, id: string, durationSec: numbe
   if (!attack) return
   if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
   else attack.durationSec = durationSec
+}
+
+/**
+ * Set how long attack `id` rests after it finishes (its window closes, or the
+ * strike lands) before it can be activated again, in seconds, or clear it with
+ * `null`. Unknown id is a no-op. Only meaningful on an `active` attack; the
+ * boot-time validator rejects a cooldown on a passive attack and a non-positive
+ * one — so a non-positive value is written as *cleared*, as with
+ * {@link setAttackDuration}.
+ */
+export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (cooldownSec === null || !(cooldownSec > 0)) delete attack.cooldownSec
+  else attack.cooldownSec = cooldownSec
 }
 
 /**

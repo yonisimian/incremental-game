@@ -18,6 +18,7 @@
 import {
   ATTACK_STATS,
   collectAttackParams,
+  getAttackCooldownSec,
   getAttackDurationSec,
   getAttackPrepareCost,
   getAttackPrepareTimeSec,
@@ -45,6 +46,7 @@ const STAT_LABELS: Readonly<Record<AttackStat, string>> = {
   prepareCost: 'prepare cost',
   prepareTime: 'prepare time',
   duration: 'debuff duration',
+  cooldown: 'cooldown',
 }
 
 /** Trim a resolved number to something readable (2 decimals, no trailing zeros). */
@@ -91,6 +93,7 @@ function paramsAt(ref: EffectRef, attackId: string, level: number): AttackParams
 function hasAbsolute(stat: AttackStat, def: AttackDefinition): boolean {
   if (stat === 'prepareTime') return def.prepareTimeSec !== undefined
   if (stat === 'duration') return def.durationSec !== undefined
+  if (stat === 'cooldown') return def.cooldownSec !== undefined
   if (stat === 'prepareCost') return Object.keys(def.prepareCost ?? {}).length > 0
   return false
 }
@@ -100,6 +103,7 @@ function describeLevel(stat: AttackStat, params: AttackParams, def: AttackDefini
   if (hasAbsolute(stat, def)) {
     if (stat === 'prepareTime') return `${num(getAttackPrepareTimeSec(def, params))}s`
     if (stat === 'duration') return `${num(getAttackDurationSec(def, params))}s`
+    if (stat === 'cooldown') return `${num(getAttackCooldownSec(def, params))}s`
     return formatCost(getAttackPrepareCost(def, params))
   }
   if (stat === 'power') return `×${num(params.power)}`
@@ -109,7 +113,9 @@ function describeLevel(stat: AttackStat, params: AttackParams, def: AttackDefini
   const [scale, offsetSec] =
     stat === 'duration'
       ? [params.duration, params.durationOffsetSec]
-      : [params.prepareTime, params.prepareTimeOffsetSec]
+      : stat === 'cooldown'
+        ? [params.cooldown, params.cooldownOffsetSec]
+        : [params.prepareTime, params.prepareTimeOffsetSec]
   const factor = scale === 1 ? '' : `×${num(scale)}`
   const offset = offsetSec === 0 ? '' : `${offsetSec > 0 ? '+' : ''}${num(offsetSec)}s`
   return [factor, offset].filter(Boolean).join(' ') || 'no change'
