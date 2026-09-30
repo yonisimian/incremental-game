@@ -864,11 +864,11 @@ describe('collectPactBonuses', () => {
 
 // ─── Idler authoring ─────────────────────────────────────────────────
 
-describe('the idler authors its four passive pacts', () => {
+describe('the idler’s authored pacts', () => {
   const idler = getModeDefinition('idler')
   const pact = (id: string) => idler.pacts.find((p) => p.id === id)!
 
-  it('boots with every pact passive and carrying effects, p1 and p3 mutual', () => {
+  it('boots with every pact carrying effects, p1 and p3 mutual', () => {
     expect(pact('p2')).toEqual({
       id: 'p2',
       kind: 'passive',
@@ -889,12 +889,37 @@ describe('the idler authors its four passive pacts', () => {
         },
       ],
     })
-    // An authored active pact would sign and do nothing: active pacts have no lifecycle yet.
-    for (const p of idler.pacts) {
-      expect(p.kind).toBe('passive')
-      expect(p.effects?.length ?? 0).toBeGreaterThan(0)
-    }
+    for (const p of idler.pacts) expect(p.effects?.length ?? 0).toBeGreaterThan(0)
+    expect(idler.pacts.filter((p) => p.kind === 'active').map((p) => p.id)).toEqual(['drum-accord'])
     expect(pact('p1').mutual).toBe(true)
+  })
+
+  it('authors Drum Accord: clicks ×2 for 15s, 3 clicks/s to the enemy, resting 45s', () => {
+    const drums = pact('drum-accord')
+    expect(drums).toMatchObject({
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(drums.mutual).toBeUndefined()
+    const signer = createInitialState(idler)
+    signer.meta.gameSec = 0
+    signer.activePacts = [{ pact: 'drum-accord', expiresAtSec: 15 }]
+    expect(
+      collectPactBonuses(signer, { state: createInitialState(idler), rates: {} }, idler),
+    ).toEqual([
+      {
+        pact: 'drum-accord',
+        modifiers: [{ stage: 'multiplicative', field: 'clickIncome', value: 2 }],
+      },
+    ])
+    expect(collectPartnerAutoClicks(signer, idler)).toBe(3)
+    // Its unlock node sits under the relations panel unlock.
+    const node = idler.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === 'drum-accord'),
+    )!
+    expect(node.prerequisites).toEqual({ type: 'upgrade', id: 'ir-unlock' })
   })
 
   it('pays +2 click income per level of sh-mf-hp the partner owns, both ways', () => {
