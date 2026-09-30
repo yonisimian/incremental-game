@@ -1536,6 +1536,16 @@ body {
   opacity: 1;
 }
 
+/* The attack finished and is resting before it can be activated again. */
+.attack-status--cooling {
+  color: var(--info);
+}
+
+.attack-btn.cooling {
+  border-color: var(--info);
+  border-style: dashed;
+}
+
 .attack-status--blocked {
   color: var(--text-muted, var(--text));
 }

@@ -273,3 +273,63 @@ describe('attackPanel — debuff window status', () => {
     }
   })
 })
+
+describe('attackPanel — cooldown status', () => {
+  /** `makeState`, at `gameSec`, with a0 resting until `untilSec`. */
+  function restingState(gameSec: number, untilSec: number): GameState {
+    const state = makeState(a0Cost * 4)
+    state.player.meta.gameSec = gameSec
+    state.player.cooldowns = [{ kind: 'attack', id: 'a0', untilSec }]
+    return state
+  }
+
+  const a0Card = (html: string): string => {
+    const start = html.indexOf('data-attack="a0"')
+    const end = html.indexOf('</li>', start)
+    return html.slice(start, end)
+  }
+
+  it('counts down the rest and disables the button, though the player can pay', () => {
+    const card = a0Card(renderHtml(restingState(10, 22.5)))
+    expect(card).toContain('Ready in 12.5s')
+    expect(card).toContain('attack-status--cooling')
+    expect(card).toContain('attack-btn cooling')
+    expect(card).toContain('disabled')
+    expect(card).not.toContain('attack-cost')
+    expect(card).not.toContain('attack-status--blocked')
+  })
+
+  it('goes back to quoting the price once the rest has lifted', () => {
+    const card = a0Card(renderHtml(restingState(22.5, 22.5)))
+    expect(card).not.toContain('Ready in')
+    expect(card).not.toContain('disabled')
+    expect(card).toContain('attack-cost')
+  })
+
+  it('shows the open window, not the rest queued behind it', () => {
+    const state = restingState(10, 30)
+    state.player.activeDebuffs = [{ attack: 'a0', expiresAtSec: 17.4 }]
+    const card = a0Card(renderHtml(state))
+    expect(card).toContain('Active for 7.4s')
+    expect(card).not.toContain('Ready in')
+  })
+
+  it('reports a shortened cooldown as resolved seconds on the stat line', () => {
+    const patched = {
+      ...modeDef,
+      attacks: modeDef.attacks.map((a) => (a.id === 'a0' ? { ...a, cooldownSec: 20 } : a)),
+      upgrades: [
+        ...modeDef.upgrades,
+        statUpgrade('t-rest', { stat: 'cooldown', op: 'offset', value: -4 }),
+      ],
+    }
+    registerMode('idler', patched)
+    try {
+      expect(renderHtml(makeState(a0Cost))).not.toContain('Cooldown ')
+      expect(renderHtml(makeState(a0Cost, { 't-rest': 1 }))).toContain('Cooldown 16s')
+      expect(renderHtml(makeState(a0Cost, { 't-rest': 2 }))).toContain('Cooldown 12s')
+    } finally {
+      registerMode('idler', modeDef)
+    }
+  })
+})
