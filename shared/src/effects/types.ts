@@ -273,6 +273,17 @@ export interface PactModifierOutput {
 }
 
 /**
+ * Automatic clicks a pact grants its signer's **partner**, per second, while
+ * the pact's window is open. Emitted by the `partnerAutoClick` effect and read
+ * only by `collectPartnerAutoClicks` (see `pacts.ts`); the server credits the
+ * partner each tick. Partner-directed, so no owner-side collector keeps it.
+ */
+export interface PartnerAutoClickOutput {
+  readonly kind: 'partnerAutoClick'
+  readonly clicksPerSec: number
+}
+
+/**
  * An *offensive embargo*: the opponent cannot buy the named scopes while the
  * owning active attack's debuff window is open. Emitted by the
  * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
@@ -492,6 +503,7 @@ export type EffectOutput =
   | MirrorCostOutput
   | MirrorModifierOutput
   | PactModifierOutput
+  | PartnerAutoClickOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -525,7 +537,8 @@ export type EffectOutput =
  *   `collectPactBonuses` in `pacts.ts`).
  * - `activePact` — an active pact's `effects`: the passive-pact outputs, in
  *   force only while the pact's window is open (`pactsInForce` lists open
- *   windows beside the unlocked passive pacts).
+ *   windows beside the unlocked passive pacts), plus the partner-directed
+ *   `partnerAutoClick` (`collectPartnerAutoClicks`).
  */
 export type EffectHost =
   'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'

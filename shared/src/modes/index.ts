@@ -679,6 +679,24 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `partnerAutoClick` credits the partner's clicks, so it needs a mode with
+  // clicks; and it is partner-directed, which `mutual` ("the partner gets the
+  // same buff") would make ambiguous — auto-clicks flowing both ways? Rejected
+  // until a pact wants that. (The effect's hosts already keep it active-only.)
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'partnerAutoClick') continue
+      if (!def.clicksEnabled)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries partnerAutoClick, but the mode has clicks disabled — there is no click income to credit`,
+        )
+      if (pact.mutual === true)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries partnerAutoClick but is mutual — a partner-directed effect cannot also be shared back`,
+        )
+    }
+  }
+
   // Active-pact cost/timing — the attack rules below with the strike removed. An
   // active pact that carries effects is *activated* (pay `activationCost`, stay
   // in force `durationSec`), so both must be present; a passive pact is

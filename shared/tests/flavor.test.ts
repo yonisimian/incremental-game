@@ -1537,6 +1537,35 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/only 'multiplicative' is supported/)
   })
 
+  it('accepts partnerAutoClick on a one-sided active pact, and rejects it elsewhere', () => {
+    const accord = {
+      id: 'p0',
+      kind: 'active' as const,
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      effects: [{ type: 'partnerAutoClick', clicksPerSec: 3 }],
+    }
+    const clicking = (pact: ModeDefinition['pacts'][number]) => ({
+      ...defWithPact(pact),
+      clicksEnabled: true,
+    })
+    expect(() => {
+      validateModeDefinition('test', clicking(accord))
+    }).not.toThrow()
+    expect(() => {
+      validateModeDefinition('test', clicking({ ...accord, mutual: true }))
+    }).toThrow(/partnerAutoClick but is mutual/)
+    expect(() => {
+      validateModeDefinition('test', { ...clicking(accord), clicksEnabled: false })
+    }).toThrow(/partnerAutoClick, but the mode has clicks disabled/)
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        clicking({ id: 'p0', kind: 'passive', effects: accord.effects }),
+      )
+    }).toThrow(/passive pact 'p0' carries a 'partnerAutoClick' effect/)
+  })
+
   it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {
     const def = defWithPact({
       id: 'p0',

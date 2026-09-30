@@ -670,7 +670,15 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     ],
   },
   { label: 'Defense', types: ['attackAlert'] },
-  { label: 'Pacts', types: ['mirrorCostModifier', 'mirrorStatModifier', 'pactProductionModifier'] },
+  {
+    label: 'Pacts',
+    types: [
+      'mirrorCostModifier',
+      'mirrorStatModifier',
+      'pactProductionModifier',
+      'partnerAutoClick',
+    ],
+  },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

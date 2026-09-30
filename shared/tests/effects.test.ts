@@ -18,6 +18,7 @@ import {
   isClickUnlocked,
   isDynamicEffect,
   isEffectAllowedOn,
+  MAX_CPS,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
   isPactUnlocked,
@@ -85,6 +86,7 @@ describe('effect registry', () => {
       'mirrorStatModifier',
       'pactProductionModifier',
       'panelUnlock',
+      'partnerAutoClick',
       'relativeModifier',
       'stealGenerator',
       'stealResource',
@@ -788,6 +790,35 @@ describe('pactProductionModifier params', () => {
     expect(isEffectAllowedOn('pactProductionModifier', 'activePact')).toBe(true)
     expect(isEffectAllowedOn('pactProductionModifier', 'upgrade')).toBe(false)
     expect(isEffectAllowedOn('pactProductionModifier', 'activeAttack')).toBe(false)
+  })
+})
+
+// ─── partnerAutoClick ────────────────────────────────────────────────
+
+describe('partnerAutoClick params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the rate as a partnerAutoClick output', () => {
+    expect(apply({ type: 'partnerAutoClick', clicksPerSec: 3 })).toEqual({
+      kind: 'partnerAutoClick',
+      clicksPerSec: 3,
+    })
+  })
+
+  it('rejects a non-positive rate, and one faster than a human may click', () => {
+    for (const clicksPerSec of [0, -1, MAX_CPS + 1]) {
+      expect(() => apply({ type: 'partnerAutoClick', clicksPerSec })).toThrow()
+    }
+    expect(() => apply({ type: 'partnerAutoClick', clicksPerSec: MAX_CPS })).not.toThrow()
+  })
+
+  it('lives on active pacts only', () => {
+    expect(isEffectAllowedOn('partnerAutoClick', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('partnerAutoClick', 'passivePact')).toBe(false)
+    expect(isEffectAllowedOn('partnerAutoClick', 'upgrade')).toBe(false)
   })
 })
 

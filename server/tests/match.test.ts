@@ -2640,6 +2640,110 @@ describe('Match', () => {
       }
     })
 
+    describe('partnerAutoClick', () => {
+      const GIFT_WINDOW_SEC = 10
+      const CLICKS_PER_SEC = 3
+
+      /** p3 as Drum Accord: one-sided, open 10s, giving the partner 3 clicks/s. */
+      function withDrums(body: () => void) {
+        const base = getModeDefinition('idler')
+        const patched = withActiveTradeRoute()
+        const drums: ModeDefinition = {
+          ...patched,
+          pacts: patched.pacts.map((p) =>
+            p.id === 'p3'
+              ? {
+                  ...p,
+                  mutual: false,
+                  durationSec: GIFT_WINDOW_SEC,
+                  effects: [{ type: 'partnerAutoClick', clicksPerSec: CLICKS_PER_SEC }],
+                }
+              : p,
+          ),
+        }
+        validateModeDefinition('idler', drums)
+        registerMode('idler', drums)
+        try {
+          body()
+        } finally {
+          registerMode('idler', base)
+        }
+      }
+
+      /** p2's gain in `res` over one broadcast interval. */
+      function p2GainOver(res: string): number {
+        const before = latestUpdate(ws2).player.resources[res] ?? 0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return (latestUpdate(ws2).player.resources[res] ?? 0) - before
+      }
+
+      /** What one of p2's clicks on r0 is worth, measured net of passive income. */
+      function p2ClickWorth(m: Match, seq: number): number {
+        const passive = p2GainOver('r0')
+        const before = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p2', clickMsg(seq))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return latestUpdate(ws2).player.resources.r0 - before - passive
+      }
+
+      it('credits the partner 3 clicks/s at their own click income while open, then stops', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const click = p2ClickWorth(m, 2)
+          expect(click).toBeGreaterThan(0)
+          const passive = p2GainOver('r0')
+          const peakCps = latestUpdate(ws2).player.meta.peakCps
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const gift = p2GainOver('r0') - passive
+          expect(gift).toBeCloseTo(click * CLICKS_PER_SEC * (BROADCAST_INTERVAL_MS / 1000), 6)
+          // Not a real click: the partner's peak CPS never moves.
+          expect(latestUpdate(ws2).player.meta.peakCps).toBe(peakCps)
+          // The signer gets nothing from it.
+          expect(incomeOver(ws1)).toBeGreaterThan(0)
+
+          vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+        })
+      })
+
+      it('lands on what the partner last clicked on', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          m.handleMessage('p2', clickMsg(2, 'r1'))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const r0Passive = p2GainOver('r0')
+          const r1Passive = p2GainOver('r1')
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(p2GainOver('r1')).toBeGreaterThan(r1Passive)
+          expect(p2GainOver('r0')).toBeCloseTo(r0Passive, 6)
+        })
+      })
+
+      it('gives nothing to a partner who has not unlocked clicking', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const passive = p2GainOver('r0')
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(latestUpdate(ws1).player.activePacts).toHaveLength(1)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+        })
+      })
+    })
+
     it('freezes the window while paused', () => {
       withActivePactMode(() => {
         const m = enterPlayingVsBot()

@@ -12,6 +12,7 @@ import {
   collectGeneratorCostFactors,
   collectPactBonuses,
   collectPactCostFactors,
+  collectPartnerAutoClicks,
   createInitialState,
   ENEMY_STAT_SCORE_KEY,
   enemyStatKeys,
@@ -530,6 +531,27 @@ describe('active pact activation', () => {
         },
       ])
       expect(collectPactBonuses(open(FRENZY.id, 25, 25), partner, withFrenzy)).toEqual([])
+    })
+
+    it('sums the auto-clicks a signer’s open windows grant the partner, and none once closed', () => {
+      const gift = (id: string, clicksPerSec: number): PactDefinition => ({
+        ...ACCORD,
+        id,
+        effects: [{ type: 'partnerAutoClick', clicksPerSec }],
+      })
+      const withGifts: ModeDefinition = {
+        ...mode,
+        pacts: [...mode.pacts, gift('p-drums', 3), gift('p-horns', 2)],
+      }
+      const signer = (gameSec: number) => open('p-drums', gameSec, 25)
+      const both = signer(10)
+      both.activePacts = [...both.activePacts!, { pact: 'p-horns', expiresAtSec: 20 }]
+      expect(collectPartnerAutoClicks(both, withGifts)).toBe(5)
+      both.meta.gameSec = 20
+      expect(collectPartnerAutoClicks(both, withGifts)).toBe(3)
+      expect(collectPartnerAutoClicks(signer(25), withGifts)).toBe(0)
+      // A window without the effect grants nothing.
+      expect(collectPartnerAutoClicks(open(ACCORD.id, 10, 25), withGifts)).toBe(0)
     })
 
     it('reveals the partner’s open mutual windows, never a one-sided one', () => {

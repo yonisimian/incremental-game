@@ -189,7 +189,8 @@ describe('effect hosts', () => {
   it('offers only the pact effects on pacts, passive and active alike', () => {
     const pactEffects = ['mirrorCostModifier', 'mirrorStatModifier', 'pactProductionModifier']
     expect(typesFor('passivePact')).toEqual(pactEffects)
-    expect(typesFor('activePact')).toEqual(pactEffects)
+    // A gift to the partner only makes sense for a while.
+    expect(typesFor('activePact')).toEqual([...pactEffects, 'partnerAutoClick'])
     expect(typesFor('upgrade')).not.toContain('mirrorCostModifier')
     expect(typesFor('upgrade')).not.toContain('mirrorStatModifier')
     expect(typesFor('passiveAttack')).not.toContain('mirrorCostModifier')

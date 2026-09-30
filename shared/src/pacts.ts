@@ -249,6 +249,30 @@ export function collectPactBonuses(
   return bonuses
 }
 
+/**
+ * Automatic clicks per second `signer`'s open active-pact windows grant their
+ * **partner** — the `partnerAutoClick` outputs, summed across windows (two
+ * such pacts stack). Judged on the signer's clock, as every window is. Resolved
+ * server-side: the partner's click income and click target live there.
+ */
+export function collectPartnerAutoClicks(
+  signer: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): number {
+  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  let clicksPerSec = 0
+  for (const id of openWindowIds(signer)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active') continue
+    for (const ref of pact.effects ?? []) {
+      for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
+        if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
+      }
+    }
+  }
+  return clicksPerSec
+}
+
 /** Flatten resolved bonuses for the pipeline (still unresolved for the virtual target). */
 export function pactModifiers(bonuses: readonly PactBonus[]): Modifier[] {
   return bonuses.flatMap((b) => b.modifiers)
