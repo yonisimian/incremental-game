@@ -632,6 +632,9 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
   for (const a of tree.attacks) {
     if (a.prepareCost && key in a.prepareCost) refs.push(`attack '${a.id}' prepare cost`)
   }
+  for (const p of tree.pacts) {
+    if (p.activationCost && key in p.activationCost) refs.push(`pact '${p.id}' activation cost`)
+  }
   for (const ref of allEffectRefs(tree)) {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
@@ -653,6 +656,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
       if (typeof ref.source === 'string' && enemyDataResourceKey(ref.source) === key)
         refs.push('a mirrorStatModifier source')
       if (ref.field === key) refs.push('a mirrorStatModifier field')
+    } else if (ref.type === 'pactProductionModifier' && ref.field === key) {
+      refs.push('a pactProductionModifier field')
     }
   }
   return refs
@@ -704,6 +709,13 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       )
     }
   }
+  for (const p of tree.pacts) {
+    if (p.activationCost && oldKey in p.activationCost) {
+      p.activationCost = Object.fromEntries(
+        Object.entries(p.activationCost).map(([k, v]) => [k === oldKey ? newKey : k, v]),
+      )
+    }
+  }
   for (const ref of allEffectRefs(tree)) {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
@@ -729,6 +741,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
           ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
           : newKey
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'pactProductionModifier' && ref.field === oldKey) {
+      ref.field = newKey
     }
   }
   for (const f of tree.flavors) {
@@ -1255,7 +1269,7 @@ export function setAttackFlavor(
 /** Default icon for a new pact, before the author picks one. */
 const DEFAULT_PACT_ICON = '🤝'
 
-/** An editable pact row: mechanics (id, kind, mutual) + primary-flavor display. */
+/** An editable pact row: mechanics (id, kind, mutual, activation) + primary-flavor display. */
 export interface PactRow {
   readonly id: string
   readonly kind: 'active' | 'passive'
@@ -1264,6 +1278,12 @@ export interface PactRow {
   readonly name: string
   readonly icon: string
   readonly description: string
+  /** Activation cost, one entry per currency in authoring order (empty when unset). */
+  readonly activationCost: readonly AttackCostRow[]
+  /** Seconds the window stays open, or `null` when unset. */
+  readonly durationSec: number | null
+  /** Seconds the pact rests after its window closes, or `null` when unset. */
+  readonly cooldownSec: number | null
 }
 
 /** The next free `pN` pact id. */
@@ -1286,6 +1306,12 @@ export function listPacts(tree: TreeFile): PactRow[] {
       name: f?.name ?? p.id,
       icon: f?.icon ?? DEFAULT_PACT_ICON,
       description: f?.description ?? '',
+      activationCost: Object.entries(p.activationCost ?? {}).map(([currency, entry]) => ({
+        currency,
+        baseCost: entry.baseCost,
+      })),
+      durationSec: p.durationSec ?? null,
+      cooldownSec: p.cooldownSec ?? null,
     }
   })
 }
@@ -1350,13 +1376,117 @@ export function removePact(tree: TreeFile, id: string): MutationResult {
 }
 
 /**
- * Set pact `id`'s kind. Unknown id is a no-op. Both kinds carry the same
- * fields today; active pacts will add the active-only ones (and clears them here on a
- * switch to passive, as `setAttackKind` does for attacks).
+ * Set pact `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
+ * the activation cost, duration and cooldown — the boot-time validator rejects
+ * them on a passive pact, as `setAttackKind` does for attacks.
  */
 export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
   const pact = tree.pacts.find((p) => p.id === id)
-  if (pact) pact.kind = kind
+  if (!pact) return
+  pact.kind = kind
+  if (kind === 'passive') {
+    delete pact.activationCost
+    delete pact.durationSec
+    delete pact.cooldownSec
+  }
+}
+
+/**
+ * Set how long pact `id`'s window stays open after activation, in seconds, or
+ * clear it with `null`. A non-positive value is written as *cleared* (the
+ * validator rejects it), keeping the tree loadable mid-edit. Unknown id is a
+ * no-op.
+ */
+export function setPactDuration(tree: TreeFile, id: string, durationSec: number | null): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (durationSec === null || !(durationSec > 0)) delete pact.durationSec
+  else pact.durationSec = durationSec
+}
+
+/**
+ * Set how long pact `id` rests after its window closes, in seconds, or clear
+ * it with `null` (and on a non-positive value, as {@link setPactDuration}).
+ */
+export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (cooldownSec === null || !(cooldownSec > 0)) delete pact.cooldownSec
+  else pact.cooldownSec = cooldownSec
+}
+
+/**
+ * Set one currency's flat activation cost on pact `id`, leaving its other
+ * currencies untouched — the pact twin of {@link setAttackPrepareCost}.
+ * Unknown id is a no-op.
+ */
+export function setPactActivationCost(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+  baseCost: number,
+): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  pact.activationCost = { ...pact.activationCost, [currency]: { baseCost } }
+}
+
+/**
+ * Add the first resource not already charged to pact `id`'s activation cost,
+ * at 0. Returns the currency added, or `null` when the id is unknown or every
+ * resource is already charged.
+ */
+export function addPactActivationCurrency(tree: TreeFile, id: string): string | null {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return null
+  const free = tree.resources.find((key) => !(key in (pact.activationCost ?? {})))
+  if (free === undefined) return null
+  setPactActivationCost(tree, id, free, 0)
+  return free
+}
+
+/**
+ * Move one activation-cost entry of pact `id` from currency `from` to `to`,
+ * keeping the other entries in order. `false` — no change — when `from` isn't
+ * charged or `to` already is.
+ */
+export function setPactActivationCurrency(
+  tree: TreeFile,
+  id: string,
+  from: string,
+  to: string,
+): boolean {
+  if (from === to) return true
+  const pact = tree.pacts.find((p) => p.id === id)
+  const cost = pact?.activationCost
+  if (!pact || !cost || !(from in cost) || to in cost) return false
+  pact.activationCost = Object.fromEntries(
+    Object.entries(cost).map(([key, entry]) => [key === from ? to : key, entry]),
+  )
+  return true
+}
+
+/**
+ * Drop `currency` from pact `id`'s activation cost, removing the cost once its
+ * last currency goes. Refuses to strip the last currency of an active pact that
+ * carries effects, which the validator rejects without one.
+ */
+export function removePactActivationCurrency(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+): MutationResult {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return { ok: false, reason: `unknown pact '${id}'` }
+  const cost = pact.activationCost
+  if (!cost || !(currency in cost))
+    return { ok: false, reason: `pact '${id}' has no ${currency} activation cost` }
+  const rest = Object.entries(cost).filter(([key]) => key !== currency)
+  if (rest.length === 0 && pact.kind === 'active' && (pact.effects?.length ?? 0) > 0)
+    return { ok: false, reason: 'an active pact with effects needs an activation cost' }
+  if (rest.length === 0) delete pact.activationCost
+  else pact.activationCost = Object.fromEntries(rest)
+  return { ok: true }
 }
 
 /**

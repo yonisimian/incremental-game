@@ -662,6 +662,80 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `pactProductionModifier` (a flat pact bonus) lands on the same catalog as a
+  // mirrored one, with the same highlight-factor rule; its value's direction is
+  // the schema's `guardModifierValue('bonus')`.
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'pactProductionModifier') continue
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be boosted from a pact)`,
+        )
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+    }
+  }
+
+  // `partnerAutoClick` credits the partner's clicks, so it needs a mode with
+  // clicks; and it is partner-directed, which `mutual` ("the partner gets the
+  // same buff") would make ambiguous — auto-clicks flowing both ways? Rejected
+  // until a pact wants that. (The effect's hosts already keep it active-only.)
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'partnerAutoClick') continue
+      if (!def.clicksEnabled)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries partnerAutoClick, but the mode has clicks disabled — there is no click income to credit`,
+        )
+      if (pact.mutual === true)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries partnerAutoClick but is mutual — a partner-directed effect cannot also be shared back`,
+        )
+    }
+  }
+
+  // Active-pact cost/timing — the attack rules below with the strike removed. An
+  // active pact that carries effects is *activated* (pay `activationCost`, stay
+  // in force `durationSec`), so both must be present; a passive pact is
+  // always-on and never activated, so declaring any timing field is a mistake.
+  // Effect-less active pacts stay legal — they're placeholders.
+  for (const pact of def.pacts) {
+    const timing =
+      pact.activationCost !== undefined ||
+      pact.durationSec !== undefined ||
+      pact.cooldownSec !== undefined
+    if (pact.kind === 'passive') {
+      if (timing)
+        throw new Error(
+          `[${id}] passive pact '${pact.id}' declares activationCost/durationSec/cooldownSec, but a passive pact is always-on and never activated`,
+        )
+      continue
+    }
+    if ((pact.effects?.length ?? 0) > 0) {
+      if (Object.keys(pact.activationCost ?? {}).length === 0)
+        throw new Error(
+          `[${id}] active pact '${pact.id}' carries effects but has no activationCost`,
+        )
+      if (pact.durationSec === undefined)
+        throw new Error(`[${id}] active pact '${pact.id}' carries effects but has no durationSec`)
+    }
+    // The schema's `.positive()` covers the file path; these cover a
+    // programmatically built mode.
+    if (pact.durationSec !== undefined && !(pact.durationSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive durationSec`)
+    if (pact.cooldownSec !== undefined && !(pact.cooldownSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive cooldownSec`)
+    for (const currency of Object.keys(pact.activationCost ?? {})) {
+      if (!resourceKeys.has(currency))
+        throw new Error(
+          `[${id}] active pact '${pact.id}' activationCost references unknown resource '${currency}'`,
+        )
+    }
+  }
+
   // Active-attack cost/timing + `stealResource` integrity. An active attack that
   // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
   // strike), so both fields must be present and well-formed; a passive attack is

@@ -20,14 +20,13 @@ import {
   addGenerator,
   generatorReferences,
   listGenerators,
-  listResources,
   removeGenerator,
   renameGenerator,
   setGeneratorField,
   setGeneratorFlavor,
   type GeneratorRow,
 } from '../model.js'
-import { addButton, numberInput, removeButton, renameInput } from './controls.js'
+import { addButton, numberInput, removeButton, renameInput, resourceSelect } from './controls.js'
 import { el, labeled, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
 
@@ -246,23 +245,4 @@ function buildRow(
   )
   card.append(fields)
   return card
-}
-
-/** A `<select>` over the tree's resources, labelled with icon + name + key. */
-function resourceSelect(
-  tree: EditorContext['tree'],
-  selected: string,
-  onChange: (value: string) => void,
-): HTMLSelectElement {
-  const sel = el('select', 'ed-input')
-  for (const r of listResources(tree)) {
-    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
-    opt.value = r.key
-    if (r.key === selected) opt.selected = true
-    sel.append(opt)
-  }
-  sel.addEventListener('change', () => {
-    onChange(sel.value)
-  })
-  return sel
 }

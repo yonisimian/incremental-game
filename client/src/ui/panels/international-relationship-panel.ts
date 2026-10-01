@@ -1,16 +1,23 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
+import { doActivatePact } from '../../game.js'
 import {
+  activePactExpiresAtSec,
+  cooldownUntilSec,
   getModeDefinition,
   getModeFlavor,
+  getPactActivationCost,
   getPactDescription,
   getPactIcon,
   getPactName,
   getResourceIcon,
+  pactBlockReason,
+  readGameSec,
   unlockedPacts,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor, Modifier, PactBonus, PactDefinition } from '@game/shared'
-import { formatDecimal, formatMultiplier } from '../format-number.js'
+import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
+import { countdownSpan } from '../counters.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -94,12 +101,16 @@ function renderCard(
   const discounts = discountLines(state, pact.id)
   const lines = worth + discounts
   const hasEffects = (pact.effects?.length ?? 0) > 0
+  // An opponent's window reaching this player: its countdown and its gift.
+  const windowLines = sharedWindowLines(state, pact)
   const body =
     lines !== ''
-      ? `<ul class="pact-worth-list">${lines}</ul>`
-      : hasEffects
-        ? `<span class="pact-worth pact-worth--none">no bonus yet</span>`
-        : ''
+      ? `${windowLines}<ul class="pact-worth-list">${lines}</ul>`
+      : windowLines !== ''
+        ? windowLines
+        : hasEffects
+          ? `<span class="pact-worth pact-worth--none">no bonus yet</span>`
+          : ''
   return `
     <li class="pact-item" data-pact="${pact.id}">
       <div class="pact-card">
@@ -113,25 +124,88 @@ function renderCard(
 }
 
 /**
- * The active-pact block — an active pact has no behavior yet, so each
- * is a disabled, no-op button: unlocking one only makes it appear here.
+ * An active pact's activation cost with resource icons; or, when the player
+ * is short, `held/needed` per currency so the shortfall shows — the attack
+ * card's two cost states.
  */
-function renderActiveSection(flavor: ModeFlavor, pacts: readonly string[]): string {
-  const items = pacts
-    .map((id) => {
-      const desc = getPactDescription(flavor, id)
-      return `
-        <li class="pact-item">
-          <button class="pact-btn" type="button" disabled>
-            <span class="pact-icon">${getPactIcon(flavor, id)}</span>
-            <span class="pact-name">${getPactName(flavor, id)}</span>
-            ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
-          </button>
-        </li>
-      `
+function renderPactCost(
+  resources: Readonly<Record<string, number>>,
+  flavor: ModeFlavor,
+  pact: PactDefinition,
+  short: boolean,
+): string {
+  const entries = Object.entries(getPactActivationCost(pact))
+  if (entries.length === 0) return ''
+  const parts = entries
+    .map(([res, amt]) => {
+      const icon = getResourceIcon(flavor, res)
+      return short
+        ? `${formatNumber(resources[res] ?? 0)}/${formatNumber(amt)} ${icon}`
+        : `${formatNumber(amt)} ${icon}`
     })
-    .join('')
-  return renderSection('Active', items)
+    .join(' + ')
+  return `<span class="pact-status${short ? ' pact-status--blocked' : ''}">${parts}</span>`
+}
+
+/**
+ * One active-pact card: a button with the attack card's lifecycle — active
+ * (window open: countdown plus what it is worth now), cooling down (the rest
+ * after it), blocked, short of the cost, or the price. A click activates it.
+ */
+function renderActiveCard(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  pact: PactDefinition,
+  bonus: PactBonus | undefined,
+): string {
+  const id = pact.id
+  const desc = getPactDescription(flavor, id)
+  const gameSec = readGameSec(state.player)
+  const expiresAt = activePactExpiresAtSec(state.player, id)
+  const coolingUntil = expiresAt === null ? cooldownUntilSec(state.player, 'pact', id) : null
+  const reason = pactBlockReason(state.player, id, modeDef)
+  const worth = (bonus?.modifiers ?? []).map((m) => worthLine(m, modeDef, flavor)).join('')
+  const status =
+    expiresAt !== null
+      ? `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>${worth ? `<ul class="pact-worth-list">${worth}</ul>` : ''}`
+      : coolingUntil !== null
+        ? `<span class="pact-status pact-status--cooling">${countdownSpan({ template: 'Ready in {}s', untilSec: coolingUntil }, gameSec)}</span>`
+        : reason === 'no-effects'
+          ? `<span class="pact-status pact-status--blocked">No effect yet</span>`
+          : renderPactCost(state.player.resources, flavor, pact, reason === 'unaffordable')
+  return `
+    <li class="pact-item" data-pact="${id}">
+      <button class="pact-btn${expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
+        <span class="pact-icon">${getPactIcon(flavor, id)}</span>
+        <span class="pact-name">${getPactName(flavor, id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
+        ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
+        ${status}
+      </button>
+    </li>
+  `
+}
+
+/**
+ * What an opponent's active-pact window is doing for this player, shown on its
+ * shared-treaty card: how long it stays open, and — for a pact carrying
+ * `partnerAutoClick` — the clicks it is granting (or why it grants none).
+ */
+function sharedWindowLines(state: Readonly<GameState>, pact: PactDefinition): string {
+  const window = state.opponentPactWindows.find((w) => w.pact === pact.id)
+  if (!window) return ''
+  const gameSec = readGameSec(state.player)
+  const lines = [
+    `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: window.expiresAtSec }, gameSec)}</span>`,
+  ]
+  const gifts = (pact.effects ?? []).some((ref) => ref.type === 'partnerAutoClick')
+  if (gifts)
+    lines.push(
+      state.incomingAutoClicksPerSec > 0
+        ? `<span class="pact-worth">+${formatDecimal(state.incomingAutoClicksPerSec, 1)} clicks/s for you</span>`
+        : `<span class="pact-worth pact-worth--none">free clicks — unlock clicking to use them</span>`,
+    )
+  return lines.join('')
 }
 
 function renderSection(heading: string, items: string): string {
@@ -143,7 +217,7 @@ function renderSection(heading: string, items: string): string {
   `
 }
 
-/** The opponent's mutual treaties that pay this player — styled apart, since they were not this player's choice. */
+/** The opponent's treaties that reach this player — styled apart, since they were not this player's choice. */
 function renderSharedSection(items: string): string {
   return `
     <section class="pact-section pact-shared">
@@ -170,11 +244,15 @@ function renderRelations(state: Readonly<GameState>): string {
     const pact = pactById.get(id)
     return pact ? renderCard(state, modeDef, flavor, pact, bonusById.get(id)) : ''
   }
+  const activeCard = (id: string): string => {
+    const pact = pactById.get(id)
+    return pact ? renderActiveCard(state, modeDef, flavor, pact, bonusById.get(id)) : ''
+  }
   // The opponent's mutual treaties pay this player too, but the ones this
   // player has also signed are already on their own card.
   const sharedOnly = shared.filter((id) => !unlocked.includes(id))
   return `
-    ${active.length > 0 ? renderActiveSection(flavor, active) : ''}
+    ${active.length > 0 ? renderSection('Active', active.map(activeCard).join('')) : ''}
     ${passive.length > 0 ? renderSection('Passive', passive.map(card).join('')) : ''}
     ${sharedOnly.length > 0 ? renderSharedSection(sharedOnly.map(card).join('')) : ''}
   `
@@ -182,8 +260,9 @@ function renderRelations(state: Readonly<GameState>): string {
 
 /**
  * International Relationship panel — lists pacts the viewer has unlocked via
- * `unlockPact` effects, with what each is worth right now, plus the
- * opponent's mutual treaties that pay the viewer too. The panel tab itself is
+ * `unlockPact` effects, with what each is worth right now (active pacts as
+ * buttons that activate them), plus the opponent's treaties that reach the
+ * viewer — mutual ones, and open windows carrying a gift. The panel tab itself is
  * gated by a `panelUnlock` upgrade targeting its id
  * (`'international-relationship'`); see `getModeUI`. Individual pacts are
  * hidden until an owning upgrade unlocks them (`isPactUnlocked`).
@@ -197,6 +276,18 @@ export const internationalRelationshipPanel: Panel = {
     const html = renderRelations(state)
     prevHtml = html
     container.innerHTML = `<div class="pact-content" id="pact-content">${html}</div>`
+  },
+
+  bind() {
+    const content = document.getElementById('pact-content')
+    if (!content || content.dataset.delegated) return
+    content.dataset.delegated = 'true'
+    content.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.pact-btn')
+      if (!btn || btn.disabled) return
+      const id = btn.closest<HTMLElement>('.pact-item[data-pact]')?.dataset.pact
+      if (id) doActivatePact(id)
+    })
   },
 
   update(state) {

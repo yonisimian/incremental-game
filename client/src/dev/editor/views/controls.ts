@@ -6,6 +6,7 @@
  */
 
 import { el, labeledInput } from './dom.js'
+import { listResources } from '../model.js'
 import type { MutationResult } from '../model.js'
 import type { EditorContext } from './types.js'
 
@@ -109,4 +110,29 @@ export function numberInput(
     }
   })
   return input
+}
+
+/**
+ * A `<select>` over the tree's resources, labelled with icon + name + key.
+ * `exclude` drops resources already spoken for elsewhere (the selected one is
+ * always offered, so a row can keep its own currency).
+ */
+export function resourceSelect(
+  tree: EditorContext['tree'],
+  selected: string,
+  onChange: (value: string) => void,
+  exclude: ReadonlySet<string> = new Set(),
+): HTMLSelectElement {
+  const sel = el('select', 'ed-input')
+  for (const r of listResources(tree)) {
+    if (r.key !== selected && exclude.has(r.key)) continue
+    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
+    opt.value = r.key
+    if (r.key === selected) opt.selected = true
+    sel.append(opt)
+  }
+  sel.addEventListener('change', () => {
+    onChange(sel.value)
+  })
+  return sel
 }

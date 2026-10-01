@@ -261,6 +261,29 @@ export interface MirrorModifierOutput {
 }
 
 /**
+ * A *flat pact bonus*: a modifier the pact's beneficiary takes as authored
+ * while the pact is in force. Emitted by the `pactProductionModifier` effect
+ * and kept verbatim by `collectPactBonuses`, beside the resolved
+ * {@link MirrorModifierOutput}s. Same target catalog; the distinct `kind`
+ * keeps it off the production pipeline's own collector.
+ */
+export interface PactModifierOutput {
+  readonly kind: 'pactModifier'
+  readonly modifier: Modifier
+}
+
+/**
+ * Automatic clicks a pact grants its signer's **partner**, per second, while
+ * the pact's window is open. Emitted by the `partnerAutoClick` effect and read
+ * only by `collectPartnerAutoClicks` (see `pacts.ts`); the server credits the
+ * partner each tick. Partner-directed, so no owner-side collector keeps it.
+ */
+export interface PartnerAutoClickOutput {
+  readonly kind: 'partnerAutoClick'
+  readonly clicksPerSec: number
+}
+
+/**
  * An *offensive embargo*: the opponent cannot buy the named scopes while the
  * owning active attack's debuff window is open. Emitted by the
  * `enemyPurchaseLock` effect and consumed by `collectEnemyPurchaseLocks`, the
@@ -479,6 +502,8 @@ export type EffectOutput =
   | EnemyPurchaseLockOutput
   | MirrorCostOutput
   | MirrorModifierOutput
+  | PactModifierOutput
+  | PartnerAutoClickOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -508,10 +533,12 @@ export type EffectOutput =
  *   `durationSec`, during which their collectors gather them.
  * - `passivePact` — a passive pact's `effects`: continuous while unlocked, a
  *   *benefit* drawn from the opponent, and only the pact outputs
- *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
+ *   (`mirrorCost`, `mirrorModifier`, `pactModifier`) survive (`collectPactCostFactors` /
  *   `collectPactBonuses` in `pacts.ts`).
- * - `activePact` — an active pact's `effects`: nothing reads this host yet, so
- *   no effect declares it and boot rejects any effect authored there.
+ * - `activePact` — an active pact's `effects`: the passive-pact outputs, in
+ *   force only while the pact's window is open (`pactsInForce` lists open
+ *   windows beside the unlocked passive pacts), plus the partner-directed
+ *   `partnerAutoClick` (`collectPartnerAutoClicks`).
  */
 export type EffectHost =
   'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'

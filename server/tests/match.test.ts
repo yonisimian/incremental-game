@@ -2445,4 +2445,331 @@ describe('Match', () => {
       }
     })
   })
+
+  describe('active pacts', () => {
+    const mode = getModeDefinition('idler')
+    const relationsUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) =>
+          e.type === 'panelUnlock' &&
+          (e as { panel?: string }).panel === 'international-relationship',
+      ),
+    )!
+    const signP3 = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+    )!
+    const WINDOW_SEC = 3
+    const REST_SEC = 5
+
+    /**
+     * The idler with `p3` (Trade route: +2% 🪵 per enemy woodcutter, mutual)
+     * re-authored as an active pact: 10 🪵, open `WINDOW_SEC`, resting `REST_SEC`.
+     */
+    function withActiveTradeRoute(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        pacts: base.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                kind: 'active' as const,
+                activationCost: { r0: { baseCost: 10 } },
+                durationSec: WINDOW_SEC,
+                cooldownSec: REST_SEC,
+              }
+            : p,
+        ),
+      }
+    }
+
+    function withActivePactMode(body: () => void) {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        body()
+      } finally {
+        registerMode('idler', base)
+      }
+    }
+
+    function activatePactMsg(pactId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'activate_pact', timestamp: Date.now(), pactId }],
+      })
+    }
+
+    /** Unlock the relations panel and p3 for p1, with Wood to activate it. */
+    function armSigner(m: Match) {
+      m.handleMessage('p1', buyMsg(relationsUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(signP3.id, 2))
+      m.grantResourcesForTest('p1', { r0: 100 })
+    }
+
+    function incomeOver(ws: WebSocket): number {
+      const before = latestUpdate(ws).player.resources.r0
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      return latestUpdate(ws).player.resources.r0 - before
+    }
+
+    it('activates on the wire: pays, opens the window, stamps the rest', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const player = latestUpdate(ws1).player
+        const window = player.activePacts![0]
+        expect(window.pact).toBe('p3')
+        expect(player.cooldowns).toEqual([
+          { kind: 'pact', id: 'p3', untilSec: window.expiresAtSec + REST_SEC },
+        ])
+        // Paid 10, then earned a little income.
+        expect(player.resources.r0).toBeLessThan(before)
+      })
+    })
+
+    it('refuses re-activation while open and while resting, however rich; accepts after', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const first = latestUpdate(ws1).player.activePacts![0]
+
+        m.grantResourcesForTest('p1', { r0: 1_000_000 })
+        m.handleMessage('p1', activatePactMsg('p3', 4))
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        // Closed and swept, but still resting: the second activation was dropped.
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 6))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const second = latestUpdate(ws1).player.activePacts![0]
+        expect(second.expiresAtSec).toBeGreaterThan(first.expiresAtSec)
+      })
+    })
+
+    it('pays both sides while the mutual window is open, and only then', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        // p2 holds woodcutters, so p1's window is worth something to p1…
+        m.handleMessage('p2', buyMsg('g1-g2', 1))
+        m.grantResourcesForTest('p2', { r1: 100_000 })
+        for (let i = 0; i < 5; i++) m.handleMessage('p2', buyGenMsg('g0', 2 + i))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const p1Baseline = incomeOver(ws1)
+        expect(p1Baseline).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // +2% × 5 woodcutters.
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1.1, 6)
+        // …and, mutual, p2 sees the treaty p1 signed.
+        expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1, 6)
+        expect(latestUpdate(ws2).opponent.pacts).toBeUndefined()
+      })
+    })
+
+    it('doubles the signer’s clicks while a pactProductionModifier window is open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      const frenzy: ModeDefinition = {
+        ...patched,
+        pacts: patched.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                mutual: false,
+                effects: [
+                  {
+                    type: 'pactProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'clickIncome',
+                    value: 2,
+                  },
+                ],
+              }
+            : p,
+        ),
+      }
+      validateModeDefinition('idler', frenzy)
+      registerMode('idler', frenzy)
+      try {
+        const m = enterPlaying()
+        armSigner(m)
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        /** What one click adds over a broadcast interval, net of passive income. */
+        const clickWorth = (seq: number): number => {
+          const passive = incomeOver(ws1)
+          const before = latestUpdate(ws1).player.resources.r0
+          m.handleMessage('p1', clickMsg(seq))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          return latestUpdate(ws1).player.resources.r0 - before - passive
+        }
+        const plain = clickWorth(4)
+        expect(plain).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activatePactMsg('p3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(clickWorth(6)).toBeCloseTo(plain * 2, 6)
+        // The partner's clicks are untouched: the pact is one-sided.
+        expect(latestUpdate(ws2).pactBonuses ?? []).toEqual([])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(clickWorth(7)).toBeCloseTo(plain, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    describe('partnerAutoClick', () => {
+      const GIFT_WINDOW_SEC = 10
+      const CLICKS_PER_SEC = 3
+
+      /** p3 as Drum Accord: one-sided, open 10s, giving the partner 3 clicks/s. */
+      function withDrums(body: () => void) {
+        const base = getModeDefinition('idler')
+        const patched = withActiveTradeRoute()
+        const drums: ModeDefinition = {
+          ...patched,
+          pacts: patched.pacts.map((p) =>
+            p.id === 'p3'
+              ? {
+                  ...p,
+                  mutual: false,
+                  durationSec: GIFT_WINDOW_SEC,
+                  effects: [{ type: 'partnerAutoClick', clicksPerSec: CLICKS_PER_SEC }],
+                }
+              : p,
+          ),
+        }
+        validateModeDefinition('idler', drums)
+        registerMode('idler', drums)
+        try {
+          body()
+        } finally {
+          registerMode('idler', base)
+        }
+      }
+
+      /** p2's gain in `res` over one broadcast interval. */
+      function p2GainOver(res: string): number {
+        const before = latestUpdate(ws2).player.resources[res] ?? 0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return (latestUpdate(ws2).player.resources[res] ?? 0) - before
+      }
+
+      /** What one of p2's clicks on r0 is worth, measured net of passive income. */
+      function p2ClickWorth(m: Match, seq: number): number {
+        const passive = p2GainOver('r0')
+        const before = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p2', clickMsg(seq))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return latestUpdate(ws2).player.resources.r0 - before - passive
+      }
+
+      it('credits the partner 3 clicks/s at their own click income while open, then stops', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const click = p2ClickWorth(m, 2)
+          expect(click).toBeGreaterThan(0)
+          const passive = p2GainOver('r0')
+          const peakCps = latestUpdate(ws2).player.meta.peakCps
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const gift = p2GainOver('r0') - passive
+          expect(gift).toBeCloseTo(click * CLICKS_PER_SEC * (BROADCAST_INTERVAL_MS / 1000), 6)
+          // Not a real click: the partner's peak CPS never moves.
+          expect(latestUpdate(ws2).player.meta.peakCps).toBe(peakCps)
+          // The partner sees the treaty, when it closes, and the rate it grants.
+          const window = latestUpdate(ws1).player.activePacts![0]
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+          expect(latestUpdate(ws2).opponent.pactWindows).toEqual([window])
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBe(CLICKS_PER_SEC)
+          // The signer receives nothing, and the partner holds nothing to reveal.
+          expect(latestUpdate(ws1).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws1).opponent.pacts).toBeUndefined()
+          // The signer gets nothing from it.
+          expect(incomeOver(ws1)).toBeGreaterThan(0)
+
+          vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pactWindows).toBeUndefined()
+        })
+      })
+
+      it('lands on what the partner last clicked on', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          m.handleMessage('p2', clickMsg(2, 'r1'))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const r0Passive = p2GainOver('r0')
+          const r1Passive = p2GainOver('r1')
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(p2GainOver('r1')).toBeGreaterThan(r1Passive)
+          expect(p2GainOver('r0')).toBeCloseTo(r0Passive, 6)
+        })
+      })
+
+      it('gives nothing to a partner who has not unlocked clicking', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const passive = p2GainOver('r0')
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(latestUpdate(ws1).player.activePacts).toHaveLength(1)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          // No rate is advertised either — though the treaty itself is visible.
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+        })
+      })
+    })
+
+    it('freezes the window while paused', () => {
+      withActivePactMode(() => {
+        const m = enterPlayingVsBot()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const window = latestUpdate(ws1).player.activePacts
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(WINDOW_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toEqual(window)
+      })
+    })
+  })
 })
