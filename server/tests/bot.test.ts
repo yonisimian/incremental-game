@@ -511,6 +511,32 @@ describe('Bot', () => {
         expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p2'))
         expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p3'))
       })
+
+      it('signs no more than the base passive pact budget, mutual pacts first', () => {
+        const mode = stubMode(pactUpgrades)
+        const bot = new IdlerBot({
+          ...mode,
+          effects: [
+            ...(mode.effects ?? []).filter((e) => e.type !== 'pactSlots'),
+            { type: 'pactSlots', pactKind: 'passive', value: 1 },
+          ],
+        })
+        const state: PlayerState = {
+          score: 0,
+          resources: { r0: 100, r1: 0 },
+          generators: {},
+          pendingAttacks: [],
+          meta: { highlight: 'r0', gameSec: 5 },
+          upgrades: Object.fromEntries(pactUpgrades.map((u) => [u.id, 0])),
+        }
+        const buys: string[] = []
+        for (let i = 0; i < 8; i++) {
+          for (const a of bot.decide(state)) if (a.type === 'buy') buys.push(a.upgradeId)
+        }
+        // p3 (Trade route) is mutual, p2 is not: one slot, so only p3.
+        expect(buys).toContain('sign-p3')
+        expect(buys).not.toContain('sign-p2')
+      })
     })
 
     it('does not buy generators that are still locked', () => {

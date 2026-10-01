@@ -1398,6 +1398,41 @@ describe('validateModeDefinition — negative tests', () => {
 
   // ── Active pact cost / timing ─────────────────────────────────────
 
+  it('throws when the starting effects unlock more pacts than the base pact slots', () => {
+    const base = defWithPact({ id: 'p0', kind: 'passive' })
+    const over = {
+      ...base,
+      effects: [
+        { type: 'pactSlots', pactKind: 'passive', value: 1 },
+        { type: 'unlockPact', pact: 'p0' },
+      ],
+    }
+    expect(() => {
+      validateModeDefinition('test', over)
+    }).not.toThrow()
+    const none = { ...over, effects: [...over.effects.slice(1)] }
+    // Capped by an upgrade's grant alone, the base is 0 — and the starting unlock is over it.
+    const cappedByUpgrade = {
+      ...none,
+      upgrades: [
+        ...none.upgrades,
+        {
+          id: 'u-raise',
+          cost: { r0: { baseCost: 1 } },
+          purchaseLimit: 1,
+          effects: [{ type: 'pactSlots', pactKind: 'passive', value: 1 }],
+        },
+      ],
+      flavors: none.flavors.map((f) => ({
+        ...f,
+        upgrades: [...f.upgrades, { id: 'u-raise', name: 'Raise', icon: '🤝', description: '' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('test', cappedByUpgrade)
+    }).toThrow(/unlock 1 passive pact\(s\) but grant only 0 passive pact slot\(s\)/)
+  })
+
   it('accepts the activation fields on an active pact', () => {
     const def = defWithPact({
       id: 'p0',

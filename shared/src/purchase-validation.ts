@@ -18,6 +18,7 @@ import { isPrerequisiteSatisfied } from './prerequisites.js'
 import { getUpgradeNextCost, isCostAffordable, upgradeCostFactors } from './upgrade-costs.js'
 import { canAffordGenerator, isGeneratorUnlocked, resolveGeneratorDef } from './generators.js'
 import { hasAttackSlotsFor } from './attacks.js'
+import { hasPactSlotsFor } from './pacts.js'
 import type { ModeDefinition } from './modes/types.js'
 import type { CostScope, PlayerState, PurchaseLock, UpgradeDefinition } from './types.js'
 
@@ -68,6 +69,7 @@ export type PurchaseBlockReason =
   | 'prerequisite' // prerequisites not satisfied
   | 'choice-group' // a mutually exclusive sibling was already taken
   | 'attack-slots' // would unlock more attacks of a kind than the player has slots for
+  | 'pact-slots' // would unlock more pacts of a kind than the player has slots for
   | 'locked-by-attack' // an opponent's open attack window bars upgrade purchases
   | 'unaffordable' // valid target, cannot pay the next cost yet
 
@@ -98,6 +100,7 @@ export function purchaseBlockReason(
   // Permanent for the current state (only a slot upgrade can lift it), so it
   // sits with the permanent reasons, ahead of the transient `unaffordable`.
   if (!hasAttackSlotsFor(state, def, mode)) return 'attack-slots'
+  if (!hasPactSlotsFor(state, def, mode)) return 'pact-slots'
   // After the structural reasons, before the transient one: a player who is
   // locked *and* broke is told they are locked, since that is the thing no
   // income of theirs can fix right now.

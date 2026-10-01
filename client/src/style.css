@@ -1448,7 +1448,8 @@ body {
 }
 
 /* `held / limit` attack slots beside a section heading. */
-.attack-slots {
+.attack-slots,
+.pact-slots {
   margin-left: 0.4rem;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;

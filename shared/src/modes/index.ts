@@ -8,6 +8,7 @@ import {
 import type {
   AttackDefinition,
   AttackKind,
+  PactKind,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -390,6 +391,42 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] the mode's starting effects unlock ${held} ${kind} attack(s) but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
       )
+  }
+
+  // `pactSlots`: the same rule for pacts — starting effects that unlock more
+  // pacts of a capped kind than the mode's base grant would open the round
+  // over budget.
+  {
+    const pactsById = new Map(def.pacts.map((p) => [p.id, p]))
+    const startingPacts = new Map<PactKind, Set<string>>()
+    for (const ref of def.effects ?? []) {
+      if (ref.type !== 'unlockPact' || typeof ref.pact !== 'string') continue
+      const pact = pactsById.get(ref.pact)
+      if (!pact) continue
+      const ids = startingPacts.get(pact.kind) ?? new Set<string>()
+      ids.add(ref.pact)
+      startingPacts.set(pact.kind, ids)
+    }
+    const cappedPactKinds = new Set<PactKind>()
+    const basePactSlots = new Map<PactKind, number>()
+    const notePactSlotGrant = (ref: EffectRef, fromMode: boolean): void => {
+      if (ref.type !== 'pactSlots') return
+      const kind = ref.pactKind
+      if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
+      cappedPactKinds.add(kind)
+      if (fromMode && typeof ref.value === 'number')
+        basePactSlots.set(kind, (basePactSlots.get(kind) ?? 0) + ref.value)
+    }
+    for (const ref of def.effects ?? []) notePactSlotGrant(ref, true)
+    for (const u of def.upgrades) for (const ref of u.effects ?? []) notePactSlotGrant(ref, false)
+    for (const kind of cappedPactKinds) {
+      const held = startingPacts.get(kind)?.size ?? 0
+      const base = basePactSlots.get(kind) ?? 0
+      if (held > base)
+        throw new Error(
+          `[${id}] the mode's starting effects unlock ${held} ${kind} pact(s) but grant only ${base} ${kind} pact slot(s) — the round would open over budget, which no purchase can repair`,
+        )
+    }
   }
 
   // `attackAlert`: a reveal grant shows the *name* on a warning, so a

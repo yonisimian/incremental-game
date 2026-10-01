@@ -141,6 +141,20 @@ describe('relations panel', () => {
     expect(html).not.toContain("don't do anything yet")
   })
 
+  it('shows held / limit on a capped kind’s heading, and nothing on an uncapped one', () => {
+    const patched = withPactBehavior()
+    registerMode('idler', {
+      ...patched,
+      effects: [
+        ...(patched.effects ?? []).filter((e) => e.type !== 'pactSlots'),
+        { type: 'pactSlots', pactKind: 'passive', value: 3 },
+      ],
+    })
+    const html = render(makeState({ signed: ['highlighted-clicks', 'p2', 'p3'] }))
+    expect(html).toContain('Passive <span class="pact-slots">2 / 3</span>')
+    expect(html).toContain('<h3 class="pact-heading">Active</h3>')
+  })
+
   it('lists what a pact is worth from the resolved bonuses', () => {
     registerMode('idler', withPactBehavior())
     const html = render(makeState({ signed: ['p3'], bonuses: [ROUTE_WORTH] }))

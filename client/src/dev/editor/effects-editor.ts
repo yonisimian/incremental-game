@@ -677,6 +677,7 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
       'mirrorStatModifier',
       'pactProductionModifier',
       'partnerAutoClick',
+      'pactSlots',
     ],
   },
   {
