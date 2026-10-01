@@ -1430,7 +1430,7 @@ describe('validateModeDefinition — negative tests', () => {
     }
     expect(() => {
       validateModeDefinition('test', cappedByUpgrade)
-    }).toThrow(/unlock 1 passive pact\(s\) but grant only 0 passive pact slot\(s\)/)
+    }).toThrow(/unlock 1 slot\(s\) of passive pacts but grant only 0 passive pact slot\(s\)/)
   })
 
   it('accepts the activation fields on an active pact', () => {

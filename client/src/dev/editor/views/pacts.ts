@@ -30,6 +30,7 @@ import {
   setPactFlavor,
   setPactKind,
   setPactMutual,
+  setPactSlotCost,
   type AttackCostRow,
   type PactRow,
 } from '../model.js'
@@ -154,6 +155,18 @@ function buildRow(ctx: EditorContext, row: PactRow, render: () => void): HTMLEle
     labeled('Icon', iconInput),
     labeled('Name', nameInput),
     labeled('Description', descInput),
+    // How much of its kind's slot budget the pact takes (1 = the default).
+    labeled(
+      'Slot cost',
+      numberInput(
+        ctx,
+        row.slotCost,
+        (n) => {
+          setPactSlotCost(tree, row.id, n)
+        },
+        { step: '1' },
+      ),
+    ),
   )
 
   // ── Activation (active pacts only): how long the window stays open, and the rest after ──

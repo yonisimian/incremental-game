@@ -64,6 +64,8 @@ import {
   setPactActivationCurrency,
   setPactCooldown,
   setPactDuration,
+  setPactSlotCost,
+  setAttackSlotCost,
   addPact,
   renamePact,
   removePact,
@@ -1348,6 +1350,22 @@ describe('pacts', () => {
     expect(renameResource(tree, 'r1', 'ale')).toBe(true)
     expect(tree.pacts.at(-1)!.activationCost).toEqual({ ale: { baseCost: 20 } })
     expect(pactEffects(tree, id)[0].field).toBe('ale')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('writes a whole slot cost above 1 on attacks and pacts, and clears the default', () => {
+    const tree = idler()
+    setAttackSlotCost(tree, 'a0', 2.4)
+    expect(tree.attacks.find((a) => a.id === 'a0')!.slotCost).toBe(2)
+    expect(listAttacks(tree).find((a) => a.id === 'a0')!.slotCost).toBe(2)
+    setAttackSlotCost(tree, 'a0', 1)
+    expect(tree.attacks.find((a) => a.id === 'a0')).not.toHaveProperty('slotCost')
+    expect(listAttacks(tree).find((a) => a.id === 'a0')!.slotCost).toBe(1)
+
+    setPactSlotCost(tree, 'p3', 2)
+    expect(listPacts(tree).find((p) => p.id === 'p3')!.slotCost).toBe(2)
+    setPactSlotCost(tree, 'p3', 0)
+    expect(tree.pacts.find((p) => p.id === 'p3')).not.toHaveProperty('slotCost')
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

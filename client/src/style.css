@@ -1448,6 +1448,15 @@ body {
 }
 
 /* `held / limit` attack slots beside a section heading. */
+/* How many slots of its kind's budget an attack or pact takes, when not one. */
+.slot-cost {
+  margin-left: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, var(--text));
+}
+
 .attack-slots,
 .pact-slots {
   margin-left: 0.4rem;

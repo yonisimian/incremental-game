@@ -608,6 +608,11 @@ export function openDebuffWindows(state: Readonly<PlayerState>, gameSec: number)
 // player state is added — the count is the unlocked attacks, the limit is a sum
 // over owned `attackSlots` grants.
 
+/** Slots of its kind's budget `def` takes while held (`slotCost`, default 1). */
+export function attackSlotCost(def: AttackDefinition): number {
+  return def.slotCost ?? 1
+}
+
 /** Whether an effect output is an attack-slot grant. */
 function isAttackSlotsOutput(out: EffectOutput): out is AttackSlotsOutput {
   return 'kind' in out && out.kind === 'attackSlots'
@@ -693,19 +698,25 @@ export function attackLimit(
 }
 
 /**
- * How many attacks of `kind` this player holds — the unlocked attacks, filtered
- * by kind. Counts *attacks*, not unlock upgrades: two upgrades unlocking the
- * same attack fill one slot, and an attack granted by the mode's starting
- * effects fills one too (it is held, and exempting it would make the cap mean
- * different things in different modes).
+ * How many slots of `kind` this player's held attacks fill — the unlocked
+ * attacks of the kind, each weighted by its {@link attackSlotCost}. Counts
+ * *attacks*, not unlock upgrades: two upgrades unlocking the same attack
+ * charge it once, and an attack granted by the mode's starting effects is
+ * charged too (it is held, and exempting it would make the cap mean different
+ * things in different modes).
  */
 export function attackSlotsHeld(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   kind: AttackKind,
 ): number {
-  const kindOf = new Map(mode.attacks.map((a) => [a.id, a.kind]))
-  return unlockedAttacks(state, mode).filter((id) => kindOf.get(id) === kind).length
+  const byId = new Map(mode.attacks.map((a) => [a.id, a]))
+  let held = 0
+  for (const id of unlockedAttacks(state, mode)) {
+    const def = byId.get(id)
+    if (def?.kind === kind) held += attackSlotCost(def)
+  }
+  return held
 }
 
 /**
@@ -713,7 +724,8 @@ export function attackSlotsHeld(
  *
  * Runs the upgrade's `unlockAttack` refs, keeps the attacks *not already*
  * unlocked (no double charge for a second route to the same attack), buckets
- * them by kind, and requires `held + adding <= limit` for each kind — where the
+ * them by kind, and requires `held + adding <= limit` for each kind — `adding`
+ * being the new attacks' summed slot costs — where the
  * limit includes any slots `def` itself would grant, so a node that adds a slot
  * and fills it in one purchase is legal. All-or-nothing for an upgrade unlocking
  * two attacks with one slot free: a partial unlock is not representable, since
@@ -727,13 +739,13 @@ export function hasAttackSlotsFor(
   mode: ModeDefinition,
 ): boolean {
   const adding = new Map<AttackKind, Set<string>>()
-  const kindOf = new Map(mode.attacks.map((a) => [a.id, a.kind]))
+  const byId = new Map(mode.attacks.map((a) => [a.id, a]))
   for (const ref of def.effects ?? []) {
     if (ref.type !== 'unlockAttack') continue
     for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
       if (!('kind' in out) || out.kind !== 'attackUnlock') continue
       if (isAttackUnlocked(state, mode, out.attack)) continue
-      const kind = kindOf.get(out.attack)
+      const kind = byId.get(out.attack)?.kind
       if (!kind) continue // unknown attack — `validateModeDefinition` rejects it at boot
       let ids = adding.get(kind)
       if (!ids) {
@@ -745,7 +757,9 @@ export function hasAttackSlotsFor(
   }
   for (const [kind, ids] of adding) {
     const limit = attackLimit(state, mode, kind) + slotsGranted(def.effects, 1, state, mode, kind)
-    if (attackSlotsHeld(state, mode, kind) + ids.size > limit) return false
+    let cost = 0
+    for (const id of ids) cost += attackSlotCost(byId.get(id)!)
+    if (attackSlotsHeld(state, mode, kind) + cost > limit) return false
   }
   return true
 }

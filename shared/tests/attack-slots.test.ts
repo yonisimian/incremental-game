@@ -308,7 +308,7 @@ describe('validateModeDefinition — attack slots', () => {
     ])
     expect(() => {
       validateModeDefinition('test', mode)
-    }).toThrow(/unlock 2 active attack\(s\) but grant only 1 active attack slot\(s\)/)
+    }).toThrow(/unlock 2 slot\(s\) of active attacks but grant only 1 active attack slot\(s\)/)
   })
 
   it('throws when a kind capped only by an upgrade starts with an attack of that kind', () => {
@@ -341,6 +341,122 @@ describe('validateModeDefinition — attack slots', () => {
 })
 
 // ─── attackSlots params ──────────────────────────────────────────────
+
+describe('slot cost', () => {
+  /** a1 weighs 2; a0 stays at the default 1. Three active slots from the mode. */
+  const HEAVY_B: AttackDefinition = { ...ACTIVE_B, slotCost: 2 }
+  function weighted(
+    effects: EffectRef[] = [{ type: 'attackSlots', attackKind: 'active', value: 2 }],
+  ) {
+    return { ...makeMode(effects), attacks: [ACTIVE_A, HEAVY_B, PASSIVE_A, PASSIVE_B] }
+  }
+  const owning = (...ids: string[]): PlayerState => {
+    const state = createInitialState(weighted())
+    for (const id of ids) state.upgrades[id] = 1
+    return state
+  }
+  const byId = (mode: ModeDefinition, id: string) => mode.upgrades.find((u) => u.id === id)!
+
+  it('counts held slots by weight, a route once', () => {
+    const mode = weighted()
+    expect(attackSlotsHeld(owning('unlock-a1'), mode, 'active')).toBe(2)
+    expect(
+      attackSlotsHeld(owning('unlock-a0', 'unlock-a1', 'unlock-a0-again'), mode, 'active'),
+    ).toBe(3)
+  })
+
+  it('refuses a heavy unlock with too few slots free, and allows it with enough', () => {
+    const mode = weighted()
+    // Two slots, one filled by a0: a1 (weight 2) does not fit.
+    expect(hasAttackSlotsFor(owning('unlock-a0'), byId(mode, 'unlock-a1'), mode)).toBe(false)
+    expect(purchaseBlockReason(owning('unlock-a0'), 'unlock-a1', upgradeMap(mode), mode)).toBe(
+      'attack-slots',
+    )
+    // Nothing held: it fits exactly.
+    expect(hasAttackSlotsFor(owning(), byId(mode, 'unlock-a1'), mode)).toBe(true)
+    // A second route to the held heavy attack charges nothing.
+    const withBoth = {
+      ...mode,
+      upgrades: [...mode.upgrades, upgrade('route-a1', [{ type: 'unlockAttack', attack: 'a1' }])],
+    }
+    expect(hasAttackSlotsFor(owning('unlock-a1'), byId(withBoth, 'route-a1'), withBoth)).toBe(true)
+  })
+
+  it('sums the weights of everything one purchase unlocks', () => {
+    const mode = weighted([{ type: 'attackSlots', attackKind: 'active', value: 2 }])
+    // a0 + a1 = 3 slots > 2.
+    expect(hasAttackSlotsFor(owning(), byId(mode, 'unlock-both'), mode)).toBe(false)
+  })
+
+  it('counts a raise bought in the same purchase', () => {
+    const mode = weighted([{ type: 'attackSlots', attackKind: 'active', value: 2 }])
+    // One held (a0), one free, +1 from the node itself = room for a1's 2.
+    expect(hasAttackSlotsFor(owning('unlock-a0'), byId(mode, 'slot-and-unlock'), mode)).toBe(true)
+  })
+
+  describe('validation', () => {
+    const valid = (mode: ModeDefinition) => () => {
+      validateModeDefinition('test', mode)
+    }
+
+    it('accepts a weight the base alone covers, or one reachable through raises', () => {
+      expect(valid(weighted())).not.toThrow()
+      // Base 1 + three levels of slot-active = 4 ≥ 2.
+      expect(
+        valid(weighted([{ type: 'attackSlots', attackKind: 'active', value: 1 }])),
+      ).not.toThrow()
+    })
+
+    it('throws for a weight beyond every reachable limit', () => {
+      const mode = {
+        ...weighted(),
+        attacks: [ACTIVE_A, { ...ACTIVE_B, slotCost: 14 }, PASSIVE_A, PASSIVE_B],
+      }
+      // Base 2 + slot-active 3 + slot-and-unlock 1 = 6 < 14.
+      expect(valid(mode)).toThrow(
+        /active attack 'a1' takes 14 slot\(s\) but at most 6 active attack slot\(s\) can ever be granted/,
+      )
+    })
+
+    it('never throws when a raise is unlimited', () => {
+      const unlimited = weighted().upgrades.map((u) =>
+        u.id === 'slot-active' ? { ...u, purchaseLimit: Infinity } : u,
+      )
+      const mode = {
+        ...weighted(),
+        upgrades: unlimited,
+        attacks: [ACTIVE_A, { ...ACTIVE_B, slotCost: 14 }, PASSIVE_A, PASSIVE_B],
+      }
+      expect(valid(mode)).not.toThrow()
+    })
+
+    it('ignores a weight on an uncapped kind', () => {
+      const mode = {
+        ...weighted(),
+        attacks: [ACTIVE_A, ACTIVE_B, { ...PASSIVE_A, slotCost: 99 }, PASSIVE_B],
+      }
+      expect(valid(mode)).not.toThrow()
+    })
+
+    it('sums starting unlocks by weight', () => {
+      const mode = weighted([
+        { type: 'attackSlots', attackKind: 'active', value: 1 },
+        { type: 'unlockAttack', attack: 'a1' },
+      ])
+      expect(valid(mode)).toThrow(/unlock 2 slot\(s\) of active attacks but grant only 1/)
+    })
+
+    it('throws for a programmatic weight that is not a positive whole number', () => {
+      for (const slotCost of [0, 1.5]) {
+        const mode = {
+          ...weighted(),
+          attacks: [ACTIVE_A, { ...ACTIVE_B, slotCost }, PASSIVE_A, PASSIVE_B],
+        }
+        expect(valid(mode)).toThrow(/slotCost .* positive whole number/)
+      }
+    })
+  })
+})
 
 describe('attackSlots params', () => {
   const mode = makeMode()

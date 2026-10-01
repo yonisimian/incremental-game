@@ -5,6 +5,7 @@ import {
   activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
+  attackSlotCost,
   attackSlotsHeld,
   collectAttackParams,
   cooldownUntilSec,
@@ -18,6 +19,7 @@ import {
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
+  isAttackKindCapped,
   readGameSec,
   unlockedAttacks,
 } from '@game/shared'
@@ -119,6 +121,16 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
 }
 
+/**
+ * `◼ N` beside the name when the attack takes other than one slot of a capped
+ * kind's budget — why one unlock ate several slots.
+ */
+function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string {
+  const cost = attackSlotCost(def)
+  if (cost === 1 || !isAttackKindCapped(modeDef, def.kind)) return ''
+  return ` <span class="slot-cost" title="Takes ${cost} ${def.kind} slots">◼ ${cost}</span>`
+}
+
 /** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
 function pendingReadyAt(state: Readonly<GameState>, id: string): number | null {
   return state.player.pendingAttacks.find((p) => p.attack === id)?.readyAtSec ?? null
@@ -176,7 +188,7 @@ function renderActiveAttack(
     <li class="attack-item" data-attack="${id}">
       <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${status}
         ${renderStats(def, params)}
@@ -204,7 +216,7 @@ function renderPassiveAttack(
     <li class="attack-item">
       <button class="attack-btn" type="button" disabled>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${renderStats(def, collectAttackParams(state.player, modeDef, id))}
       </button>

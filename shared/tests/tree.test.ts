@@ -509,6 +509,24 @@ describe('tree codec — attack cooldownSec', () => {
     expect(toModeDefinition(treeWithCooldown(12)).attacks[0].cooldownSec).toBe(12)
   })
 
+  it('accepts a positive whole slotCost on an attack and a pact, and rejects the rest', () => {
+    const withSlot = (slotCost: unknown): TreeFile => {
+      const tree = treeWithSteal({ fraction: 0.1 })
+      return { ...tree, attacks: [{ ...tree.attacks[0], slotCost }] } as TreeFile
+    }
+    expect(toModeDefinition(withSlot(2)).attacks[0].slotCost).toBe(2)
+    for (const bad of [0, 1.5, -1]) expect(() => parseTreeFile(withSlot(bad))).toThrow()
+    const tree = minimalTree()
+    const pactTree = {
+      ...tree,
+      pacts: [{ id: 'p0', kind: 'passive', slotCost: 3 }],
+      flavors: [
+        { ...tree.flavors[0], pacts: [{ id: 'p0', name: 'P', icon: '🤝', description: '' }] },
+      ],
+    }
+    expect(parseTreeFile(pactTree).pacts[0].slotCost).toBe(3)
+  })
+
   it('rejects a zero or negative cooldown', () => {
     expect(() => parseTreeFile(treeWithCooldown(0))).toThrow()
     expect(() => parseTreeFile(treeWithCooldown(-3))).toThrow()

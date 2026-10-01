@@ -33,6 +33,7 @@ import {
   setAttackPrepareCost,
   setAttackPrepareCurrency,
   setAttackPrepareTime,
+  setAttackSlotCost,
   type AttackCostRow,
   type AttackRow,
 } from '../model.js'
@@ -140,12 +141,23 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   nameInput.addEventListener('input', commitFlavor)
   descInput.addEventListener('input', commitFlavor)
 
+  // How much of its kind's slot budget the attack takes (1 = the default).
+  const slotCost = numberInput(
+    ctx,
+    row.slotCost,
+    (n) => {
+      setAttackSlotCost(tree, row.id, n)
+    },
+    { step: '1' },
+  )
+
   const fields = el('div', 'ed-gen-card-fields')
   fields.append(
     labeled('Kind', kindSelect),
     labeled('Icon', iconInput),
     labeled('Name', nameInput),
     labeled('Description', descInput),
+    labeled('Slot cost', slotCost),
   )
 
   // ── Preparation (active attacks only): lead time before the strike ──
