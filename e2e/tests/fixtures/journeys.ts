@@ -77,11 +77,7 @@ export async function buyUpgrade(page: Page, upgradeId: string): Promise<void> {
   await openPanel(page, 1)
   const node = page.locator(`[data-upgrade="${upgradeId}"]`)
   await expect(node).toBeVisible()
-  // Look up and click in one page task: the tree swaps its node buttons as
-  // affordability changes, so a handle resolved a round-trip earlier can be detached.
-  await page.evaluate((id) => {
-    document.querySelector<HTMLButtonElement>(`[data-upgrade="${id}"]`)!.click()
-  }, upgradeId)
+  await node.click()
   const buy = page.locator('#upgrade-detail-buy')
   await expect(buy).toBeEnabled()
   await buy.click()
