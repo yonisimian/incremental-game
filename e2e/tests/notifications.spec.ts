@@ -1,16 +1,19 @@
 import { test, expect } from './fixtures/test.js'
-import { buyUpgrade, startRoomMatch } from './fixtures/journeys.js'
+import { buyUpgrade, earn, startRoomMatch, unlockClicking } from './fixtures/journeys.js'
 import { expectUnchanged } from './fixtures/assertions.js'
 
 test('NOTIF-01 wide-screen toasts sit beside the panels, pause on hover, and close on click', async ({
   players,
 }) => {
+  test.slow()
   const signer = await players.create('Notif-A')
   const viewer = await players.create('Notif-B')
   // The narrowest width that gets the gutter layout: the tightest fit.
   await viewer.page.setViewportSize({ width: 1080, height: 800 })
   await Promise.all([signer.open(), viewer.open()])
-  await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 90 })
+  await unlockClicking(signer.page)
+  await earn(signer.page, 130) // ir-unlock + pact-node-2
 
   // A mutual pact the signer unlocks is announced to the viewer as an info toast.
   await buyUpgrade(signer.page, 'ir-unlock')

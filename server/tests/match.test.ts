@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { AttackDefinition, Goal, ModeDefinition } from '@game/shared'
+import type { AttackDefinition, Goal, ModeDefinition, UpgradeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
@@ -49,6 +49,9 @@ function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
   }
   return out
 }
+
+/** Enough of both currencies to walk the idler's unlock chains (attack, pact, espionage). */
+const UNLOCK_FUNDS = { r0: 20_000, r1: 5_000 }
 
 /** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
 const FIXTURE_ATTACK = 'fx-attack'
@@ -322,7 +325,8 @@ describe('Match', () => {
     it('reveals an opponent resource only to a viewer who unlocked it', () => {
       const m = enterPlaying()
       m.grantResourcesForTest('p2', { r0: 42 }) // opponent stockpile to spy on
-      // e-se-mr is free, unprereq'd, and grants `accessEnemyData: r0`.
+      // e-se-mr is unprereq'd and grants `accessEnemyData: r0`.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -341,7 +345,8 @@ describe('Match', () => {
       m.grantResourcesForTest('p2', { r0: 50 })
       m.handleMessage('p2', buyMsg('sc-unlock', 1))
       m.handleMessage('p2', clickMsg(2))
-      // Walk the (free) espionage chain to e-se-cps: e-se-mr → e-se-mr-ps → e-se-cps.
+      // Walk the espionage chain to e-se-cps: e-se-mr → e-se-mr-ps → e-se-cps.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-cps', 3))
@@ -356,6 +361,7 @@ describe('Match', () => {
     it('sends a viewer the debuffs its own passive attacks inflict on the opponent', () => {
       const m = enterPlaying()
       // p1 unlocks the attack panel then the passive attack a2 (−10% enemy r0).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('a-unlock', 1))
       m.handleMessage('p1', buyMsg('node-3', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -393,6 +399,7 @@ describe('Match', () => {
         // production is identical apart from the debuff. Only p1 unlocks the fixture.
         m.handleMessage('p1', buyMsg('sh-unlock', 1))
         m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -447,6 +454,7 @@ describe('Match', () => {
         m.grantResourcesForTest('p2', { r0: 50 })
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -493,6 +501,7 @@ describe('Match', () => {
         m.grantResourcesForTest('p2', { r0: 50 })
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -526,6 +535,7 @@ describe('Match', () => {
       try {
         const m = enterPlaying()
         // Only p1 unlocks the fixture — an attacker never inflates its own prices.
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 1))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -572,7 +582,8 @@ describe('Match', () => {
 
     it('forwards a new opponent purchase (timestamp only) once to a viewer who unlocked `e-se-p`', () => {
       const m = enterPlaying()
-      // p1 unlocks the purchase feed (free chain: e-se-mr → e-se-mr-ps → e-se-p).
+      // p1 unlocks the purchase feed (chain: e-se-mr → e-se-mr-ps → e-se-p).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -582,6 +593,7 @@ describe('Match', () => {
       expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
 
       // p2 now buys → next broadcast forwards exactly that one event.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -607,10 +619,12 @@ describe('Match', () => {
     it('does not retroactively reveal purchases made before the feed was unlocked', () => {
       const m = enterPlaying()
       // p2 buys before p1 has any intel, and the event lands in p2's log.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       // p1 unlocks the purchase feed (e-se-mr → e-se-mr-ps → e-se-p).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -620,6 +634,7 @@ describe('Match', () => {
       expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
 
       // p2 buys again, now after p1's unlock → only this one is forwarded.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr-ps', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const purchases = latestUpdate(ws1).opponent.purchases ?? []
@@ -629,6 +644,7 @@ describe('Match', () => {
     it('reveals purchase kind (but not the id) to a viewer who unlocked `e-p-ug`', () => {
       const m = enterPlaying()
       // p1 walks the chain through e-p-ug: e-se-mr → e-se-mr-ps → e-se-p → e-p-ug.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -636,6 +652,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed the feed watermark
 
       // p2 buys an upgrade → kind is revealed, the specific id is not.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const event = latestUpdate(ws1).opponent.purchases![0]
@@ -645,6 +662,7 @@ describe('Match', () => {
 
     it('reveals the specific upgrade id to a viewer who unlocked `e-p-u`', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -652,6 +670,7 @@ describe('Match', () => {
       m.handleMessage('p1', buyMsg('e-p-u', 5))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed
 
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const event = latestUpdate(ws1).opponent.purchases![0]
@@ -662,6 +681,7 @@ describe('Match', () => {
     it('reveals generator ids only with `e-p-g`, keeping upgrade ids hidden', () => {
       const m = enterPlaying()
       // p1 takes the generator branch: …→ e-p-ug → e-p-g (but NOT e-p-u).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -675,6 +695,7 @@ describe('Match', () => {
 
       // p2 buys a generator and an upgrade.
       m.handleMessage('p2', buyGenMsg('g0', 2))
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -695,6 +716,7 @@ describe('Match', () => {
       m.grantResourcesForTest('p2', { r1: 1e12 })
       // p1 unlocks the purchase feed; the seed broadcast lands past p2's setup buy
       // so only the burst below counts as the delta.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -1419,8 +1441,9 @@ describe('Match', () => {
       })
     }
 
-    /** Unlock the attack panel + a0 for p1 (both free) and grant Wood to raid. */
+    /** Unlock the attack panel + a0 for p1 and grant Wood to raid. */
     function armAttacker(m: Match) {
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       m.grantResourcesForTest('p1', { r0: 2000 })
@@ -1472,6 +1495,7 @@ describe('Match', () => {
     it('tells both sides when a strike steals nothing', () => {
       const m = enterPlaying()
       // Unlock the panel + Poach Sawmill (a5); its prepare cost is 10 r1.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a5Upgrade.id, 2))
       m.grantResourcesForTest('p1', { r1: 100 })
@@ -1521,6 +1545,7 @@ describe('Match', () => {
 
     /** Unlock the fixture attack for p1 with enough Wood to fire it. */
     function armWindowAttacker(m: Match) {
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('a-unlock', 1))
       m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
       m.grantResourcesForTest('p1', { r0: 100 })
@@ -1700,6 +1725,7 @@ describe('Match', () => {
         m.handleMessage('p2', buyMsg('g1-g2', 1))
         m.grantResourcesForTest('p2', { r0: 5000, r1: 100 })
         m.handleMessage('p2', buyGenMsg('g0', 2))
+        m.grantResourcesForTest('p2', UNLOCK_FUNDS)
         m.handleMessage('p2', buyMsg(panelUpgrade.id, 3))
         m.handleMessage('p2', buyMsg(a0Upgrade.id, 4))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -1862,6 +1888,7 @@ describe('Match', () => {
 
     it('rejects an activation the player cannot afford', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       // Drain p1 to one short of the prepare cost, read from the tree — early
@@ -1887,7 +1914,7 @@ describe('Match', () => {
     const panelUpgrade = mode.upgrades.find((u) =>
       u.effects?.some((e) => e.type === 'panelUnlock' && e.panel === 'attack'),
     )!
-    /** The free unlock nodes for the idler's first two active attacks. */
+    /** The unlock nodes for the idler's first two active attacks. */
     const unlockOf = (attack: string) =>
       mode.upgrades.find((u) =>
         u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
@@ -1913,9 +1940,11 @@ describe('Match', () => {
       registerMode('idler', patched)
       try {
         const m = enterPlaying()
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
         m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
-        // The one active slot is now held by a0; a1's free unlock is refused.
+        // The one active slot is now held by a0; a1's unlock is refused.
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -1932,6 +1961,7 @@ describe('Match', () => {
 
     it('accepts both unlocks under the authored idler budget', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
@@ -1979,8 +2009,17 @@ describe('Match', () => {
       }
     }
 
-    /** Sign p2 for `playerId` (both nodes are free). */
+    /** Exactly the authored level-0 price of `upgrades`, summed per currency. */
+    function priceOf(...upgrades: UpgradeDefinition[]): Record<string, number> {
+      const total: Record<string, number> = {}
+      for (const u of upgrades)
+        for (const [r, e] of Object.entries(u.cost)) total[r] = (total[r] ?? 0) + e.baseCost
+      return total
+    }
+
+    /** Sign p2 for `playerId`, granting exactly the two nodes' price so balances stay comparable. */
     function signResearch(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.grantResourcesForTest(playerId, priceOf(relationsUpgrade, signP2))
       m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
       m.handleMessage(playerId, buyMsg(signP2.id, seq + 1))
     }
@@ -2056,6 +2095,7 @@ describe('Match', () => {
       u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
     )!
     function signTrade(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.grantResourcesForTest(playerId, priceOf(relationsUpgrade, signP3))
       m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
       m.handleMessage(playerId, buyMsg(signP3.id, seq + 1))
     }
