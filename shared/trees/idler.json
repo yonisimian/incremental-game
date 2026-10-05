@@ -1098,7 +1098,7 @@
                   "source": "resource:r0",
                   "field": "b0",
                   "stage": "multiplicative",
-                  "factor": 1e-05
+                  "factor": 0.00001
                 }
               ],
               "offset": {
@@ -1193,7 +1193,7 @@
                       "source": "resource:r1",
                       "field": "b1",
                       "stage": "multiplicative",
-                      "factor": 1e-05
+                      "factor": 0.00001
                     }
                   ],
                   "offset": {
@@ -1988,7 +1988,7 @@
           "id": "sc-clicking",
           "cost": {
             "r0": {
-              "baseCost": 300
+              "baseCost": 30
             }
           },
           "purchaseLimit": 1,
@@ -2007,7 +2007,7 @@
           "id": "sc-production",
           "cost": {
             "r0": {
-              "baseCost": 300
+              "baseCost": 30
             }
           },
           "purchaseLimit": 1,
@@ -2267,7 +2267,7 @@
           "id": "sb-unlock",
           "cost": {
             "r0": {
-              "baseCost": 500
+              "baseCost": 50
             }
           },
           "purchaseLimit": 1,
@@ -2309,7 +2309,7 @@
       "id": "a-unlock",
       "cost": {
         "r0": {
-          "baseCost": 500
+          "baseCost": 50
         }
       },
       "purchaseLimit": 1,
@@ -2328,7 +2328,7 @@
           "id": "node",
           "cost": {
             "r0": {
-              "baseCost": 1500
+              "baseCost": 150
             }
           },
           "purchaseLimit": 1,
@@ -2351,10 +2351,10 @@
               "id": "node-2",
               "cost": {
                 "r0": {
-                  "baseCost": 400
+                  "baseCost": 40
                 },
                 "r1": {
-                  "baseCost": 200
+                  "baseCost": 20
                 }
               },
               "purchaseLimit": 1,
@@ -2379,7 +2379,7 @@
           "id": "node-3",
           "cost": {
             "r0": {
-              "baseCost": 800
+              "baseCost": 80
             }
           },
           "purchaseLimit": 1,
@@ -2402,7 +2402,7 @@
           "id": "node-5",
           "cost": {
             "r1": {
-              "baseCost": 300
+              "baseCost": 30
             }
           },
           "purchaseLimit": 1,
@@ -2429,7 +2429,7 @@
           "id": "node-6",
           "cost": {
             "r1": {
-              "baseCost": 500
+              "baseCost": 50
             }
           },
           "purchaseLimit": 1,
@@ -2456,7 +2456,7 @@
           "id": "node-7",
           "cost": {
             "r0": {
-              "baseCost": 1200
+              "baseCost": 120
             }
           },
           "purchaseLimit": 1,
@@ -2483,7 +2483,7 @@
           "id": "node-8",
           "cost": {
             "r0": {
-              "baseCost": 1200
+              "baseCost": 120
             }
           },
           "purchaseLimit": 1,
@@ -2510,7 +2510,7 @@
           "id": "unlock-numb-hands",
           "cost": {
             "r0": {
-              "baseCost": 1000
+              "baseCost": 100
             }
           },
           "purchaseLimit": 1,
@@ -2533,7 +2533,7 @@
           "id": "unlock-fog-of-war",
           "cost": {
             "r0": {
-              "baseCost": 800
+              "baseCost": 80
             }
           },
           "purchaseLimit": 1,
@@ -2556,7 +2556,7 @@
           "id": "unlock-termite-swarm",
           "cost": {
             "r1": {
-              "baseCost": 600
+              "baseCost": 60
             }
           },
           "purchaseLimit": 1,
@@ -2579,7 +2579,7 @@
           "id": "slot-active-1",
           "cost": {
             "r0": {
-              "baseCost": 1500
+              "baseCost": 150
             }
           },
           "purchaseLimit": 1,
@@ -2603,10 +2603,10 @@
           "id": "slot-passive",
           "cost": {
             "r0": {
-              "baseCost": 1500
+              "baseCost": 150
             },
             "r1": {
-              "baseCost": 500
+              "baseCost": 50
             }
           },
           "purchaseLimit": 1,
@@ -2630,7 +2630,7 @@
           "id": "slot-active-2",
           "cost": {
             "r0": {
-              "baseCost": 4000
+              "baseCost": 400
             }
           },
           "purchaseLimit": 1,
@@ -2654,10 +2654,10 @@
           "id": "unlock-embargo",
           "cost": {
             "r0": {
-              "baseCost": 1500
+              "baseCost": 150
             },
             "r1": {
-              "baseCost": 500
+              "baseCost": 50
             }
           },
           "purchaseLimit": 1,
@@ -2682,7 +2682,7 @@
       "id": "ir-unlock",
       "cost": {
         "r0": {
-          "baseCost": 500
+          "baseCost": 50
         }
       },
       "purchaseLimit": 1,
@@ -2701,7 +2701,7 @@
           "id": "pact-node",
           "cost": {
             "r0": {
-              "baseCost": 600
+              "baseCost": 60
             }
           },
           "purchaseLimit": 1,
@@ -2724,7 +2724,7 @@
               "id": "pact-node-2",
               "cost": {
                 "r0": {
-                  "baseCost": 800
+                  "baseCost": 80
                 }
               },
               "purchaseLimit": 1,
@@ -2749,10 +2749,10 @@
           "id": "pact-node-3",
           "cost": {
             "r0": {
-              "baseCost": 1500
+              "baseCost": 150
             },
             "r1": {
-              "baseCost": 500
+              "baseCost": 50
             }
           },
           "purchaseLimit": 1,
@@ -2775,7 +2775,7 @@
           "id": "pact-node-4",
           "cost": {
             "r0": {
-              "baseCost": 1000
+              "baseCost": 100
             }
           },
           "purchaseLimit": 1,
@@ -2800,7 +2800,7 @@
       "id": "e-se-mr",
       "cost": {
         "r0": {
-          "baseCost": 200
+          "baseCost": 20
         }
       },
       "purchaseLimit": 1,
@@ -2823,7 +2823,7 @@
           "id": "e-se-sr",
           "cost": {
             "r0": {
-              "baseCost": 150
+              "baseCost": 15
             }
           },
           "purchaseLimit": 1,
@@ -2846,7 +2846,7 @@
           "id": "e-se-mr-ps",
           "cost": {
             "r0": {
-              "baseCost": 300
+              "baseCost": 30
             }
           },
           "purchaseLimit": 1,
@@ -2869,10 +2869,10 @@
               "id": "e-se-sr-ps",
               "cost": {
                 "r0": {
-                  "baseCost": 300
+                  "baseCost": 30
                 },
                 "r1": {
-                  "baseCost": 100
+                  "baseCost": 10
                 }
               },
               "purchaseLimit": 1,
@@ -2904,7 +2904,7 @@
               "id": "e-se-cps",
               "cost": {
                 "r0": {
-                  "baseCost": 400
+                  "baseCost": 40
                 }
               },
               "purchaseLimit": 1,
@@ -2927,7 +2927,7 @@
               "id": "e-se-p",
               "cost": {
                 "r0": {
-                  "baseCost": 500
+                  "baseCost": 50
                 }
               },
               "purchaseLimit": 1,
@@ -2950,7 +2950,7 @@
                   "id": "e-p-ug",
                   "cost": {
                     "r0": {
-                      "baseCost": 400
+                      "baseCost": 40
                     }
                   },
                   "purchaseLimit": 1,
@@ -2973,7 +2973,7 @@
                       "id": "e-p-u",
                       "cost": {
                         "r0": {
-                          "baseCost": 600
+                          "baseCost": 60
                         }
                       },
                       "purchaseLimit": 1,
@@ -2996,7 +2996,7 @@
                       "id": "e-p-g",
                       "cost": {
                         "r0": {
-                          "baseCost": 600
+                          "baseCost": 60
                         }
                       },
                       "purchaseLimit": 1,
@@ -3025,7 +3025,7 @@
           "id": "d-alert",
           "cost": {
             "r0": {
-              "baseCost": 300
+              "baseCost": 30
             }
           },
           "purchaseLimit": 1,
@@ -3049,7 +3049,7 @@
               "id": "d-as",
               "cost": {
                 "r0": {
-                  "baseCost": 200,
+                  "baseCost": 20,
                   "scaleType": "exponential",
                   "scaleFactor": 1.5
                 }
@@ -3074,7 +3074,7 @@
               "id": "d-aa",
               "cost": {
                 "r0": {
-                  "baseCost": 800
+                  "baseCost": 80
                 }
               },
               "purchaseLimit": 1,

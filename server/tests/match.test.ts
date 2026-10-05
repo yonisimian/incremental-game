@@ -50,10 +50,10 @@ function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
   return out
 }
 
-/** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
 /** Enough of both currencies to walk the idler's unlock chains (attack, pact, espionage). */
 const UNLOCK_FUNDS = { r0: 20_000, r1: 5_000 }
 
+/** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
 const FIXTURE_ATTACK = 'fx-attack'
 const FIXTURE_UNLOCK = 'fx-unlock'
 

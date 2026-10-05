@@ -942,7 +942,7 @@ describe('game.ts', () => {
         ackSeq,
         player: {
           score: 0,
-          resources: { r0: 10000, r1: 10000 },
+          resources: { r0: 1000, r1: 1000 },
           upgrades: { ...defaultUpgrades, 'a-unlock': 1, [A0]: 0, [A1]: 0, ...owned },
           generators: {},
           pendingAttacks: [],

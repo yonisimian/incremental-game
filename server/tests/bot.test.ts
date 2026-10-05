@@ -580,7 +580,7 @@ describe('Bot', () => {
       const m = createBotMatch('idler', undefined, timedGoal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
-      // Fund the plan's paid steps so the free pact nodes are reached quickly.
+      // Fund the plan's steps so the pact nodes are reached quickly.
       m.grantResourcesForTest('bot-1', { r0: 50_000, r1: 50_000 })
       vi.advanceTimersByTime(8000)
       expect(latestUpdate(ws1).opponent.pacts).toEqual(['p1', 'p3'])
