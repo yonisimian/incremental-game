@@ -242,7 +242,10 @@ function checkStartingSlotBudget(
   // player can actually own, bought to its purchase limit (infinite when any
   // is unlimited). A `comingSoon` node is never bought, so it grants nothing;
   // within a choice group only one node is ever owned, so a group contributes
-  // its single most generous member per kind, not the sum.
+  // its single most generous member per kind, not the sum. Prerequisites are
+  // not walked — a raise gated behind a node nobody can own still counts — so
+  // the bound is an upper estimate: it never rejects a valid mode, and may let
+  // a dead entity through a gate this check does not see.
   const reachableSlots = new Map(baseSlots)
   const bestInGroup = new Map<string, Map<string, number>>()
   for (const u of def.upgrades) {
@@ -273,13 +276,16 @@ function checkStartingSlotBudget(
       throw new Error(
         `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} ${system.noun}s but grant only ${base} ${kind} ${system.noun} slot(s) — the round would open over budget, which no purchase can repair`,
       )
+    // Unlocks are monotonic, so the starting unlocks fill their slots for the
+    // whole round: every other entity has to fit beside them.
     const reachable = reachableSlots.get(kind) ?? 0
+    const starting = startingUnlocks.get(kind)
     for (const entity of system.entities.values()) {
-      if (entity.kind !== kind) continue
+      if (entity.kind !== kind || starting?.has(entity.id)) continue
       const cost = entity.slotCost ?? 1
-      if (cost > reachable)
+      if (held + cost > reachable)
         throw new Error(
-          `[${id}] ${kind} ${system.noun} '${entity.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} ${system.noun} slot(s) can ever be granted — it can never be held`,
+          `[${id}] ${kind} ${system.noun} '${entity.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} ${system.noun} slot(s) can ever be granted${held > 0 ? `, ${held} of them filled by the starting unlocks` : ''} — it can never be held`,
         )
     }
   }

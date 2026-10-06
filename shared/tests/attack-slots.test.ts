@@ -418,6 +418,24 @@ describe('slot cost', () => {
       )
     })
 
+    it('fits every other entity beside the slots the starting unlocks fill for good', () => {
+      // Base 2, a1 (weight 2) unlocked from the start, no raise: a0 can never
+      // squeeze in, however cheap.
+      const starting: EffectRef[] = [
+        { type: 'attackSlots', attackKind: 'active', value: 2 },
+        { type: 'unlockAttack', attack: 'a1' },
+      ]
+      const withUpgrades = (upgrades: Parameters<typeof makeMode>[1]) => ({
+        ...makeMode(starting, upgrades),
+        attacks: [ACTIVE_A, HEAVY_B, PASSIVE_A, PASSIVE_B],
+      })
+      expect(valid(withUpgrades([UNLOCK_A0]))).toThrow(
+        /active attack 'a0' takes 1 slot\(s\) but at most 2 active attack slot\(s\) can ever be granted, 2 of them filled by the starting unlocks/,
+      )
+      // One raise makes room.
+      expect(valid(withUpgrades([UNLOCK_A0, SLOT_ACTIVE]))).not.toThrow()
+    })
+
     it('counts only the most generous raise of a choice group', () => {
       // Base 1; two exclusive raises of +2 — a player ends at 3, never 5.
       const raise = (id: string, value: number) =>
