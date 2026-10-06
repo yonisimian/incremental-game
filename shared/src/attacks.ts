@@ -574,7 +574,7 @@ export function resolveAttackStrike(
       }
     }
   }
-  const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  const gameSec = readGameSec(attacker)
   let finishesAtSec = gameSec
   if (opensWindow) {
     const durationSec = getAttackDurationSec(def, params)
