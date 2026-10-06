@@ -43,7 +43,7 @@ A new **`cooldown` attack stat** lets upgrades shorten it (`mult` / `add` /
 | Starts at window close or strike?               | **Window close** (strike when there is no window).           | As asked: "after an attack is finished".                                                                                                      |
 | State shape                                     | One generic `PlayerState.cooldowns: {kind, id, untilSec}[]`. | 44 reuses it for pacts; `kind` keeps the id namespaces apart.                                                                                 |
 | Frozen or live stat?                            | **Frozen at the strike** into `untilSec`.                    | Same rule as `prepareTime` (frozen at activation) and `duration` (frozen at the strike). An upgrade bought mid-rest shortens the _next_ rest. |
-| `cooldownSec: 0` legal?                         | No — `.positive()`.                                          | `0` is dead weight, same as `durationSec`. The editor clears the field on `≤ 0`.                                                              |
+| `cooldownSec: 0` legal?                         | No — `.positive()`.                                          | `0` is dead weight, same as `durationSec`. The editor clears the field on `0` and keeps a negative so export reports it.                      |
 | Card: merge "active" and "cooling"?             | Two states.                                                  | The player learns the rhythm; they are one enum member apart.                                                                                 |
 | Allowed on an effect-less (placeholder) active? | Yes.                                                         | Consistent with `prepareTimeSec`.                                                                                                             |
 
@@ -216,7 +216,7 @@ steal-only attack.
 
 - [model.ts](../../client/src/dev/editor/model.ts): `AttackRow.cooldownSec`
   (L972-989), surfaced in `listAttacks` (L1015), stripped in `setAttackKind`
-  (L1092) on a switch to passive, new `setAttackCooldown` (clears on `≤ 0`)
+  (L1092) on a switch to passive, new `setAttackCooldown` (clears on `0`, keeps a negative)
   copied from `setAttackDuration`.
 - [views/attacks.ts](../../client/src/dev/editor/views/attacks.ts) (L150-172):
   a `Cooldown /s` input beside the duration input.
@@ -282,8 +282,8 @@ attack-stats branch. Can ship separately so gameplay is unchanged until tuned.
 - `game.test.ts`: `doActivateAttack` refused while cooling; replayed activation
   dropped when the snapshot carries a cooldown; `cooldowns` survives
   reconciliation.
-- `editor-model.test.ts`: `listAttacks` / `setAttackCooldown` (set, clear on
-  `≤ 0`) / passive switch strips it / result validates.
+- `editor-model.test.ts`: `listAttacks` / `setAttackCooldown` (set, clear on `0`,
+  negative kept and rejected on load) / passive switch strips it / result validates.
 - `editor-effect-preview.test.ts`: cooldown resolved for `mult` and `offset`;
   factor/offset fallback without `cooldownSec`.
 - `editor-effect-fields.test.ts`: passive picker still `['power']`; `cooldown`
