@@ -1,12 +1,15 @@
 # 47 — Attack cooldown: a rest after an active attack finishes
 
-## Status: Implemented (steps 1–5; step 6, content, not done)
+## Status: Implemented (steps 1–5; step 6, content, started)
 
 As built, with two departures from the order below: steps 1–3 landed as one
 commit (knip rejects the cooldowns module's exports until something uses
 them), and the round-end clear in `endRound` is untested, like the
-debuff-window clear beside it. No idler attack authors a `cooldownSec` yet, so
-gameplay is unchanged until §10 is tuned.
+debuff-window clear beside it. Of §10, only `idler.json`'s `a0` (Steal Wood,
+10% `r0`, 6s prepare) carries a cooldown so far — `cooldownSec: 10`, a first
+pass with no simulation behind it. `a1` (flat 500 `r1`, 3s prepare), the
+`idler-alternative.json` actives, and the `cooldown` stat upgrade are still
+untouched.
 
 The attack half of [43 — activation cooldowns](43-activation-cooldowns.md), with
 43's open questions settled and every touch point verified against the current
@@ -43,7 +46,7 @@ A new **`cooldown` attack stat** lets upgrades shorten it (`mult` / `add` /
 | Starts at window close or strike?               | **Window close** (strike when there is no window).           | As asked: "after an attack is finished".                                                                                                      |
 | State shape                                     | One generic `PlayerState.cooldowns: {kind, id, untilSec}[]`. | 44 reuses it for pacts; `kind` keeps the id namespaces apart.                                                                                 |
 | Frozen or live stat?                            | **Frozen at the strike** into `untilSec`.                    | Same rule as `prepareTime` (frozen at activation) and `duration` (frozen at the strike). An upgrade bought mid-rest shortens the _next_ rest. |
-| `cooldownSec: 0` legal?                         | No — `.positive()`.                                          | `0` is dead weight, same as `durationSec`. The editor clears the field on `≤ 0`.                                                              |
+| `cooldownSec: 0` legal?                         | No — `.positive()`.                                          | `0` is dead weight, same as `durationSec`. The editor clears the field on `0` and keeps a negative so export reports it.                      |
 | Card: merge "active" and "cooling"?             | Two states.                                                  | The player learns the rhythm; they are one enum member apart.                                                                                 |
 | Allowed on an effect-less (placeholder) active? | Yes.                                                         | Consistent with `prepareTimeSec`.                                                                                                             |
 
@@ -216,7 +219,7 @@ steal-only attack.
 
 - [model.ts](../../client/src/dev/editor/model.ts): `AttackRow.cooldownSec`
   (L972-989), surfaced in `listAttacks` (L1015), stripped in `setAttackKind`
-  (L1092) on a switch to passive, new `setAttackCooldown` (clears on `≤ 0`)
+  (L1092) on a switch to passive, new `setAttackCooldown` (clears on `0`, keeps a negative)
   copied from `setAttackDuration`.
 - [views/attacks.ts](../../client/src/dev/editor/views/attacks.ts) (L150-172):
   a `Cooldown /s` input beside the duration input.
@@ -232,6 +235,7 @@ steal-only attack.
 `cooldownSec` on the strong actives in `idler.json` / `idler-alternative.json`
 (`termite-swarm`, `numb-hands` first), plus a `cooldown` stat upgrade in the
 attack-stats branch. Can ship separately so gameplay is unchanged until tuned.
+Shipped so far: `idler.json` `a0` at `cooldownSec: 10` (see Status).
 
 ---
 
@@ -282,8 +286,8 @@ attack-stats branch. Can ship separately so gameplay is unchanged until tuned.
 - `game.test.ts`: `doActivateAttack` refused while cooling; replayed activation
   dropped when the snapshot carries a cooldown; `cooldowns` survives
   reconciliation.
-- `editor-model.test.ts`: `listAttacks` / `setAttackCooldown` (set, clear on
-  `≤ 0`) / passive switch strips it / result validates.
+- `editor-model.test.ts`: `listAttacks` / `setAttackCooldown` (set, clear on `0`,
+  negative kept and rejected on load) / passive switch strips it / result validates.
 - `editor-effect-preview.test.ts`: cooldown resolved for `mult` and `offset`;
   factor/offset fallback without `cooldownSec`.
 - `editor-effect-fields.test.ts`: passive picker still `['power']`; `cooldown`

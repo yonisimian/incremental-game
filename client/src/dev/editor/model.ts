@@ -1132,13 +1132,14 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
  * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
  * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
  * the boot-time validator rejects a window on a passive attack, on an all-steal
- * attack, and a non-positive one — so a non-positive value is written as
- * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ * attack, and a non-positive one. `0` is the field's "unset" display, so it
+ * clears like `null`; any other value is written as typed — a negative stays in
+ * the tree so export reports it, as with {@link setAttackPrepareTime}.
  */
 export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  if (durationSec === null || durationSec === 0) delete attack.durationSec
   else attack.durationSec = durationSec
 }
 
@@ -1147,13 +1148,13 @@ export function setAttackDuration(tree: TreeFile, id: string, durationSec: numbe
  * strike lands) before it can be activated again, in seconds, or clear it with
  * `null`. Unknown id is a no-op. Only meaningful on an `active` attack; the
  * boot-time validator rejects a cooldown on a passive attack and a non-positive
- * one — so a non-positive value is written as *cleared*, as with
- * {@link setAttackDuration}.
+ * one. `0` clears like `null`; anything else is written as typed so a negative
+ * surfaces on export, as with {@link setAttackDuration}.
  */
 export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (cooldownSec === null || !(cooldownSec > 0)) delete attack.cooldownSec
+  if (cooldownSec === null || cooldownSec === 0) delete attack.cooldownSec
   else attack.cooldownSec = cooldownSec
 }
 

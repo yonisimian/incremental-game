@@ -363,12 +363,15 @@ export function getAttackPrepareCost(
 /**
  * The reason an attack cannot be activated right now, or `null` if it can.
  * Checked in cheapest-permanent-first order so the returned reason is the most
- * fundamental one.
+ * fundamental one. A caller that has already collected the attack's `params`
+ * (the card render does, for the cost line) can pass them to skip the
+ * held-effects walk behind the affordability check.
  */
 export function attackBlockReason(
   state: Readonly<PlayerState>,
   attackId: string,
   mode: ModeDefinition,
+  params?: AttackParams,
 ): AttackBlockReason | null {
   const def = mode.attacks.find((a) => a.id === attackId)
   if (!def) return 'unknown'
@@ -385,8 +388,8 @@ export function attackBlockReason(
   // behind the open window reads as the window; before `unaffordable`, so a
   // player who can pay is still refused.
   if (cooldownUntilSec(state, 'attack', attackId) !== null) return 'cooling-down'
-  const params = collectAttackParams(state, mode, attackId)
-  if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
+  const resolved = params ?? collectAttackParams(state, mode, attackId)
+  if (!isCostAffordable(state.resources, getAttackPrepareCost(def, resolved))) return 'unaffordable'
   return null
 }
 
@@ -574,7 +577,7 @@ export function resolveAttackStrike(
       }
     }
   }
-  const gameSec = (attacker.meta.gameSec as number | undefined) ?? 0
+  const gameSec = readGameSec(attacker)
   let finishesAtSec = gameSec
   if (opensWindow) {
     const durationSec = getAttackDurationSec(def, params)
@@ -598,6 +601,20 @@ export function resolveAttackStrike(
  */
 export function openDebuffWindows(state: Readonly<PlayerState>, gameSec: number): ActiveDebuff[] {
   return (state.activeDebuffs ?? []).filter((w) => w.expiresAtSec > gameSec)
+}
+
+/**
+ * Drop the debuff windows that have closed by `gameSec`; delete the field once
+ * empty — absent rather than `[]`, the same convention as `incomingCostFactors`
+ * and `cooldowns`, so a quiet round carries nothing. The twin of
+ * `sweepCooldowns`: the server's tick runs both; the collectors already ignore
+ * a closed window at read time, so this only bounds the array.
+ */
+export function sweepDebuffWindows(state: PlayerState, gameSec: number): void {
+  if (!state.activeDebuffs) return
+  const open = openDebuffWindows(state, gameSec)
+  if (open.length === 0) delete state.activeDebuffs
+  else if (open.length !== state.activeDebuffs.length) state.activeDebuffs = open
 }
 
 // ─── Attack slots ────────────────────────────────────────────────────

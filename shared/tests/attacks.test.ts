@@ -15,6 +15,7 @@ import {
   MAX_ATTACK_PARAM,
   NEUTRAL_ATTACK_PARAMS,
   openDebuffWindows,
+  sweepDebuffWindows,
   resolveAttackStrike,
 } from '../src/attacks.js'
 import type { AttackParams } from '../src/attacks.js'
@@ -984,6 +985,38 @@ describe('openDebuffWindows', () => {
 
   it('is empty when the field is absent', () => {
     expect(openDebuffWindows(makeState(), 0)).toEqual([])
+  })
+})
+
+describe('sweepDebuffWindows', () => {
+  it('drops the closed windows and keeps the open ones', () => {
+    const state = makeState({
+      activeDebuffs: [
+        { attack: 'a3', expiresAtSec: 10 },
+        { attack: 'a4', expiresAtSec: 20 },
+      ],
+    })
+    sweepDebuffWindows(state, 10)
+    expect(state.activeDebuffs).toEqual([{ attack: 'a4', expiresAtSec: 20 }])
+  })
+
+  it('deletes the field once nothing is left', () => {
+    const state = makeState({ activeDebuffs: [{ attack: 'a3', expiresAtSec: 10 }] })
+    sweepDebuffWindows(state, 11)
+    expect(state).not.toHaveProperty('activeDebuffs')
+  })
+
+  it('keeps the same array when nothing closed', () => {
+    const windows = [{ attack: 'a3', expiresAtSec: 10 }]
+    const state = makeState({ activeDebuffs: windows })
+    sweepDebuffWindows(state, 5)
+    expect(state.activeDebuffs).toBe(windows)
+  })
+
+  it('leaves a state with no windows untouched', () => {
+    const state = makeState()
+    sweepDebuffWindows(state, 5)
+    expect(state).not.toHaveProperty('activeDebuffs')
   })
 })
 

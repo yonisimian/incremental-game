@@ -106,6 +106,7 @@
         }
       },
       "prepareTimeSec": 6,
+      "cooldownSec": 10,
       "effects": [
         {
           "type": "stealResource",

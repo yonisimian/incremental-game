@@ -30,10 +30,10 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
-  openDebuffWindows,
   openPactWindows,
   applyPactActivation,
   isValidPactActivation,
+  sweepDebuffWindows,
   resolveAttackStrike,
   sweepCooldowns,
   collectPartnerAutoClicks,
@@ -721,14 +721,7 @@ export class Match {
       const victim = this.players[1 - i]
       const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
 
-      if (attacker.state.activeDebuffs !== undefined) {
-        const open = openDebuffWindows(attacker.state, gameSec)
-        // Absent rather than empty once the last window closes — the same
-        // convention as `incomingCostFactors`, so a quiet round carries nothing.
-        if (open.length === 0) delete attacker.state.activeDebuffs
-        else if (open.length !== attacker.state.activeDebuffs.length)
-          attacker.state.activeDebuffs = open
-      }
+      sweepDebuffWindows(attacker.state, gameSec)
       sweepCooldowns(attacker.state, gameSec)
       if (attacker.state.activePacts !== undefined) {
         const open = openPactWindows(attacker.state, gameSec)
