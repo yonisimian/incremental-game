@@ -2,6 +2,7 @@ import { test, expect } from './fixtures/test.js'
 import {
   buyUpgrade,
   createRoom,
+  earn,
   openPanel,
   startBotMatch,
   startRoomMatch,
@@ -11,10 +12,13 @@ import { expectUnchanged } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
 
 test('INPUT-01 Ctrl panel navigation skips locks and maintains ARIA', async ({ players }) => {
+  test.slow()
   const actor = await players.create('Panel-A')
   const observer = await players.create('Panel-B')
   await Promise.all([actor.open(), observer.open()])
-  await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(actor, observer, { type: 'timed', durationSec: 90 })
+  await unlockClicking(actor.page)
+  await earn(actor.page, 120) // a-unlock + ir-unlock + e-se-mr
   await buyUpgrade(actor.page, 'a-unlock')
   await buyUpgrade(actor.page, 'ir-unlock')
   await buyUpgrade(actor.page, 'e-se-mr')
@@ -69,7 +73,8 @@ test('INPUT-03 C, P, F6, and Escape execute their context-specific behavior', as
 
   await player.page.keyboard.press('c')
   await openPanel(player.page, 1)
-  await expect(player.page.locator('[data-upgrade="a-unlock"]')).toHaveClass(/owned/u)
+  // Cheapest first: be-af-mr (10), then e-se-mr (20); the starting 50 Wood stops short of the next tier.
+  await expect(player.page.locator('[data-upgrade="e-se-mr"]')).toHaveClass(/owned/u)
 
   await player.page.keyboard.press('F6')
   await expect(player.page.locator('#perf-overlay')).toBeVisible()

@@ -3,6 +3,7 @@
 // against the partner. Logic tier throughout: every assertion is on a value.
 
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   activePactExpiresAtSec,
   applyGeneratorPurchase,
@@ -35,10 +36,12 @@ import {
   pactsInForce,
   purchaseBlockReason,
   readEnemyStat,
+  registerEffect,
   resolveEnemyDebuffs,
   resolveGeneratorDef,
   sharedPacts,
   sharedPactWindows,
+  sweepPactWindows,
   upgradeCostFactors,
   validateModeDefinition,
 } from '../src/index.js'
@@ -472,6 +475,31 @@ describe('active pact activation', () => {
     expect(openPactWindows(state, 25)).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
   })
 
+  describe('sweepPactWindows', () => {
+    it('drops the closed windows and keeps the open ones', () => {
+      const state = signer(0, {
+        activePacts: [
+          { pact: ACCORD.id, expiresAtSec: 25 },
+          { pact: QUICK.id, expiresAtSec: 30 },
+        ],
+      })
+      sweepPactWindows(state, 25)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+    })
+
+    it('deletes the field once nothing is left', () => {
+      const state = signer(0, { activePacts: [{ pact: ACCORD.id, expiresAtSec: 25 }] })
+      sweepPactWindows(state, 26)
+      expect(state).not.toHaveProperty('activePacts')
+    })
+
+    it('leaves a state with no windows untouched', () => {
+      const state = signer(0)
+      sweepPactWindows(state, 5)
+      expect(state).not.toHaveProperty('activePacts')
+    })
+  })
+
   describe('open windows are in force', () => {
     /** The mutual twin of ACCORD. */
     const CEASEFIRE: PactDefinition = { ...ACCORD, id: 'p-ceasefire', mutual: true }
@@ -575,6 +603,49 @@ describe('active pact activation', () => {
       expect(sharedPactWindows(open(DRUMS.id, 25, 25), withDrums)).toEqual([])
     })
 
+    it('judges "reaches the partner" by the registry trait, not the effect name', () => {
+      // A gift that is not partnerAutoClick: flagged partner-directed, nothing else.
+      registerEffect('testGift', {
+        schema: z.strictObject({}),
+        apply: () => null,
+        hosts: ['activePact'],
+        partnerDirected: true,
+      })
+      const GIFT: PactDefinition = { ...ACCORD, id: 'p-gift', effects: [{ type: 'testGift' }] }
+      const withGift: ModeDefinition = {
+        ...mode,
+        upgrades: [...mode.upgrades, sign(GIFT.id)],
+        pacts: [...mode.pacts, GIFT],
+      }
+      expect(sharedPactWindows(open(GIFT.id, 10, 25), withGift)).toEqual([
+        { pact: GIFT.id, expiresAtSec: 25 },
+      ])
+      expect(sharedPacts(open(GIFT.id, 10, 25), withGift)).toEqual([GIFT.id])
+
+      const flavored = (def: ModeDefinition): ModeDefinition => ({
+        ...def,
+        flavors: def.flavors.map((f) => ({
+          ...f,
+          upgrades: def.upgrades.map((u) => ({
+            id: u.id,
+            name: u.id,
+            icon: '🔧',
+            description: '',
+          })),
+          pacts: def.pacts.map((p) => ({ id: p.id, name: p.id, icon: '🤝', description: '' })),
+        })),
+      })
+      expect(() => {
+        validateModeDefinition('test', flavored(withGift))
+      }).not.toThrow()
+      expect(() => {
+        validateModeDefinition(
+          'test',
+          flavored({ ...withGift, pacts: [...mode.pacts, { ...GIFT, mutual: true }] }),
+        )
+      }).toThrow(/partner-directed effect 'testGift' but is mutual/)
+    })
+
     it('reveals the partner’s open mutual windows, never a one-sided one', () => {
       expect(sharedPacts(open(CEASEFIRE.id, 10, 25), withMutual)).toEqual([CEASEFIRE.id])
       expect(sharedPacts(open(ACCORD.id, 10, 25), withMutual)).toEqual([])
@@ -631,12 +702,27 @@ describe('pact slots', () => {
       { type: 'pactSlots', pactKind: 'passive', value: 1 },
     ],
   }
+  /** One node signing two passive pacts at once. */
+  const TWO_AT_ONCE: UpgradeDefinition = {
+    id: 'sign-two',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [
+      { type: 'unlockPact', pact: EXTRA.id },
+      { type: 'unlockPact', pact: TAPS.id },
+    ],
+  }
   /** MODE, capped at two passive pacts by its own grant; actives left uncapped. */
   const capped: ModeDefinition = {
     ...MODE,
     effects: [{ type: 'pactSlots', pactKind: 'passive', value: 2 }],
-    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE],
+    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE, TWO_AT_ONCE],
     pacts: [...MODE.pacts, EXTRA],
+  }
+  /** `capped`, with one passive pact unlocked by the mode's starting effects. */
+  const startingGlow: ModeDefinition = {
+    ...capped,
+    effects: [...(capped.effects ?? []), { type: 'unlockPact', pact: GLOW.id }],
   }
   const byId = (id: string) => capped.upgrades.find((u) => u.id === id)!
 
@@ -659,6 +745,25 @@ describe('pact slots', () => {
     state.upgrades['route-research'] = 1
     expect(pactSlotsHeld(state, capped, 'passive')).toBe(2)
     expect(pactSlotsHeld(state, capped, 'active')).toBe(1)
+  })
+
+  it('counts a pact the mode’s starting effects unlock as held', () => {
+    const state = player()
+    expect(pactSlotsHeld(state, capped, 'passive')).toBe(0)
+    expect(pactSlotsHeld(state, startingGlow, 'passive')).toBe(1)
+    // The starting pact fills one of the two slots: one sign fits, the next does not.
+    expect(hasPactSlotsFor(state, byId('sign-p-research'), startingGlow)).toBe(true)
+    const one = player({ signed: ['p-research'] })
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), capped)).toBe(true)
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), startingGlow)).toBe(false)
+  })
+
+  it('is all-or-nothing for a node signing two pacts with one slot free', () => {
+    // Two free: both fit. One free: neither — a partial unlock is not representable.
+    expect(hasPactSlotsFor(player(), byId('sign-two'), capped)).toBe(true)
+    expect(hasPactSlotsFor(player({ signed: ['p-research'] }), byId('sign-two'), capped)).toBe(
+      false,
+    )
   })
 
   it('refuses the unlock that would exceed the budget, all the way to purchaseBlockReason', () => {

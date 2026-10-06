@@ -2,9 +2,13 @@
 
 ## Status: Implemented
 
-As built. One addition to §7: the bot's plan signed every live passive pact,
-and past the budget a refused sign would stall it for good, so it now signs
-mutual pacts first and no more than the mode's base passive budget.
+As built. One addition to §7: the bot's plan signed every live passive pact.
+Past the budget a sign is refused by the slot gate; the plan advances on
+emitting a buy, so a refused sign does not stall it, but the emit is wasted.
+The bot now plans mutual pacts first and judges every step by
+`purchaseBlockReason` before emitting it: a step an earlier buy has made a
+dead end (a full slot budget, a closed choice group) is skipped in place, so
+the budget needs no bookkeeping of its own in the bot.
 
 The pact twin of [38 — attack limit](38-attack-limit.md). Builds on
 [48 — active pacts](48-active-pacts.md) (both kinds now do something, so

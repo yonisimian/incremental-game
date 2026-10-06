@@ -102,6 +102,7 @@ export {
   effectHosts,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'
@@ -141,6 +142,7 @@ export type { AttackStatParams } from './seed/attack-stat.js'
 export type { AttackSlotsParams } from './seed/attack-slots.js'
 export type { AttackAlertParams } from './seed/attack-alert.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
+export type { PactSlotsParams } from './seed/pact-slots.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { EnemyPurchaseLockParams } from './seed/enemy-purchase-lock.js'

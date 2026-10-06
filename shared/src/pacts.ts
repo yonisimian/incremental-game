@@ -12,21 +12,16 @@ import { scaledCost } from './cost.js'
 import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { readEnemyStat } from './effects/enemy-stats.js'
 import type { PartnerSnapshot } from './effects/enemy-stats.js'
-import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
-import type {
-  EffectOutput,
-  MirrorCostOutput,
-  MirrorModifierOutput,
-  PactSlotsOutput,
-} from './effects/types.js'
+import { applyEffect, isPartnerDirectedEffect, normalizeEffectOutputs } from './effects/registry.js'
+import type { MirrorCostOutput, MirrorModifierOutput } from './effects/types.js'
 import type { Modifier } from './modifiers/types.js'
 import { readGameSec } from './game-clock.js'
-import { createInitialState, isPactUnlocked, unlockedPacts } from './modes/index.js'
+import { isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
+import { makeSlotBudget, slotCostOf } from './slots.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import type {
   ActivePact,
-  EffectRef,
   PactCostFactor,
   PactDefinition,
   PactKind,
@@ -35,6 +30,25 @@ import type {
 } from './types.js'
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
+
+// ─── Lookup ──────────────────────────────────────────────────────────
+
+/**
+ * `mode.pacts` by id, built once per mode definition and reused by every
+ * resolver here — the `flavor.ts` pattern. The collectors run several times a
+ * tick and a broadcast, so a map per call would dominate their cost. Keyed by
+ * identity: a re-registered (patched) mode is a new key.
+ */
+const pactIndexCache = new WeakMap<ModeDefinition, ReadonlyMap<string, PactDefinition>>()
+
+function pactIndex(mode: ModeDefinition): ReadonlyMap<string, PactDefinition> {
+  let index = pactIndexCache.get(mode)
+  if (!index) {
+    index = new Map(mode.pacts.map((p) => [p.id, p]))
+    pactIndexCache.set(mode, index)
+  }
+  return index
+}
 
 // ─── In force ────────────────────────────────────────────────────────
 
@@ -58,7 +72,7 @@ export function pactsInForce(
   partner: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): PactDefinition[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   const inForce: PactDefinition[] = []
   const seen = new Set<string>()
   for (const id of unlockedPacts(owner, mode)) {
@@ -93,17 +107,15 @@ function openWindowIds(state: Readonly<PlayerState>): string[] {
   return openPactWindows(state, readGameSec(state)).map((w) => w.pact)
 }
 
-/** The effect types that act on the signer's *partner* rather than the signer. */
-const PARTNER_DIRECTED_EFFECTS: ReadonlySet<string> = new Set(['partnerAutoClick'])
-
 /**
  * Whether `pact` reaches the other player while in force: it is `mutual` (they
  * get the same buffs), or it carries a partner-directed effect (a gift such as
- * `partnerAutoClick`). Judged by ref type, as the validator does.
+ * `partnerAutoClick`, flagged `partnerDirected` in the registry — the same
+ * trait the validator reads).
  */
 function reachesPartner(pact: PactDefinition): boolean {
   if (pact.mutual === true) return true
-  return (pact.effects ?? []).some((ref) => PARTNER_DIRECTED_EFFECTS.has(ref.type))
+  return (pact.effects ?? []).some((ref) => isPartnerDirectedEffect(ref.type))
 }
 
 /**
@@ -115,7 +127,7 @@ export function sharedPactWindows(
   partner: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): ActivePact[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   return openPactWindows(partner, readGameSec(partner)).filter((w) => {
     const pact = pactById.get(w.pact)
     return pact?.kind === 'active' && reachesPartner(pact)
@@ -127,15 +139,20 @@ export function sharedPactWindows(
  * mutual passive ones in mode declaration order, then open active-pact windows
  * that are mutual or carry a gift. What the server reveals of a partner's
  * pacts (`OpponentView.pacts`): only these already affect the viewer, so a
- * one-sided pact stays hidden.
+ * one-sided pact stays hidden. A caller that has already computed the
+ * `sharedPactWindows` (the server ships both) passes them as `windows`.
  */
-export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition): string[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+export function sharedPacts(
+  partner: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  windows: readonly ActivePact[] = sharedPactWindows(partner, mode),
+): string[] {
+  const pactById = pactIndex(mode)
   const passive = unlockedPacts(partner, mode).filter((id) => {
     const pact = pactById.get(id)
     return pact?.kind === 'passive' && pact.mutual === true
   })
-  return [...passive, ...sharedPactWindows(partner, mode).map((w) => w.pact)]
+  return [...passive, ...windows.map((w) => w.pact)]
 }
 
 // ─── Cost factors ────────────────────────────────────────────────────
@@ -288,25 +305,42 @@ export function collectPactBonuses(
 }
 
 /**
+ * The automatic clicks per second `pact` grants the signer's **partner** while
+ * in force — its `partnerAutoClick` outputs, summed. Judged by output kind, as
+ * every consumer judges an effect, so the relations panel ("does this treaty
+ * gift me clicks?") and the server read one figure. `0` for a pact carrying
+ * none.
+ */
+export function pactAutoClicksPerSec(
+  pact: PactDefinition,
+  signer: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): number {
+  let clicksPerSec = 0
+  for (const ref of pact.effects ?? []) {
+    for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
+      if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
+    }
+  }
+  return clicksPerSec
+}
+
+/**
  * Automatic clicks per second `signer`'s open active-pact windows grant their
- * **partner** — the `partnerAutoClick` outputs, summed across windows (two
- * such pacts stack). Judged on the signer's clock, as every window is. Resolved
- * server-side: the partner's click income and click target live there.
+ * **partner**, summed across windows (two such pacts stack). Judged on the
+ * signer's clock, as every window is. Resolved server-side: the partner's click
+ * income and click target live there.
  */
 export function collectPartnerAutoClicks(
   signer: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): number {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   let clicksPerSec = 0
   for (const id of openWindowIds(signer)) {
     const pact = pactById.get(id)
     if (pact?.kind !== 'active') continue
-    for (const ref of pact.effects ?? []) {
-      for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
-        if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
-      }
-    }
+    clicksPerSec += pactAutoClicksPerSec(pact, signer, mode)
   }
   return clicksPerSec
 }
@@ -371,13 +405,28 @@ export function openPactWindows(state: Readonly<PlayerState>, gameSec: number): 
   return (state.activePacts ?? []).filter((w) => w.expiresAtSec > gameSec)
 }
 
+/**
+ * Drop the pact windows that have closed by `gameSec`; delete the field once
+ * empty — absent rather than `[]`, the convention `activeDebuffs` and
+ * `cooldowns` follow, so a quiet round carries nothing. The third of the
+ * server tick's sweeps, beside `sweepDebuffWindows` and `sweepCooldowns`; the
+ * readers already ignore a closed window at read time, so this only bounds the
+ * array.
+ */
+export function sweepPactWindows(state: PlayerState, gameSec: number): void {
+  if (!state.activePacts) return
+  const open = openPactWindows(state, gameSec)
+  if (open.length === 0) delete state.activePacts
+  else if (open.length !== state.activePacts.length) state.activePacts = open
+}
+
 /** The reason pact `pactId` cannot be activated right now, or `null` if it can. */
 export function pactBlockReason(
   state: Readonly<PlayerState>,
   pactId: string,
   mode: ModeDefinition,
 ): PactBlockReason | null {
-  const def = mode.pacts.find((p) => p.id === pactId)
+  const def = pactIndex(mode).get(pactId)
   if (!def) return 'unknown'
   if (def.kind !== 'active') return 'not-active'
   if (!isPactUnlocked(state, mode, pactId)) return 'locked'
@@ -408,7 +457,7 @@ export function applyPactActivation(
   pactId: string,
   mode: ModeDefinition,
 ): void {
-  const def = mode.pacts.find((p) => p.id === pactId)
+  const def = pactIndex(mode).get(pactId)
   if (!def) return
   for (const [currency, amount] of Object.entries(getPactActivationCost(def))) {
     state.resources[currency] = (state.resources[currency] ?? 0) - amount
@@ -422,68 +471,31 @@ export function applyPactActivation(
 
 // ─── Pact slots ──────────────────────────────────────────────────────
 //
-// The pact twin of the attack budget (`attacks.ts § Attack slots`): how many
-// pacts of each kind a player can *hold*. Unlocking stays derived and
-// monotonic; the cap refuses the *purchase* that would exceed it. No player
-// state — the count is the unlocked pacts, the limit a sum over owned grants.
+// The pact twin of the attack budget: how many pacts of each kind a player
+// can *hold*. Unlocking stays derived and monotonic; the cap refuses the
+// *purchase* that would exceed it. The algorithm lives in `slots.ts`, shared
+// with `attacks.ts`; this is the pact system's description of itself, and the
+// rules under their own names.
 
 /** Slots of its kind's budget `def` takes while held (`slotCost`, default 1). */
 export function pactSlotCost(def: PactDefinition): number {
-  return def.slotCost ?? 1
+  return slotCostOf(def)
 }
 
-/** Whether an effect output is a pact-slot grant. */
-function isPactSlotsOutput(out: EffectOutput): out is PactSlotsOutput {
-  return 'kind' in out && out.kind === 'pactSlots'
-}
-
-/**
- * The pact kinds a mode caps: those any `pactSlots` effect names, on the mode
- * or on any upgrade, owned or not. Derived topology, cached per mode.
- */
-const cappedPactKindsCache = new WeakMap<ModeDefinition, ReadonlySet<PactKind>>()
-
-function cappedPactKinds(mode: ModeDefinition): ReadonlySet<PactKind> {
-  const cached = cappedPactKindsCache.get(mode)
-  if (cached) return cached
-  const kinds = new Set<PactKind>()
-  // State-independent effect, so a fresh initial state is probe enough.
-  const probe = createInitialState(mode)
-  const scan = (refs: readonly EffectRef[] | undefined): void => {
-    for (const ref of refs ?? []) {
-      if (ref.type !== 'pactSlots') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
-        if (isPactSlotsOutput(out)) kinds.add(out.pactKind)
-      }
-    }
-  }
-  scan(mode.effects)
-  for (const upgrade of mode.upgrades) scan(upgrade.effects)
-  cappedPactKindsCache.set(mode, kinds)
-  return kinds
-}
+const pactSlots = makeSlotBudget<PactKind>({
+  grantType: 'pactSlots',
+  readGrant: (out) =>
+    'kind' in out && out.kind === 'pactSlots' ? { kind: out.pactKind, value: out.value } : null,
+  unlockType: 'unlockPact',
+  readUnlock: (out) => ('kind' in out && out.kind === 'pactUnlock' ? out.pact : null),
+  entities: (mode) => mode.pacts,
+  isUnlocked: (state, mode, id) => isPactUnlocked(state, mode, id),
+  unlocked: (state, mode) => unlockedPacts(state, mode),
+})
 
 /** Whether the mode caps how many pacts of `kind` a player may hold. */
 export function isPactKindCapped(mode: ModeDefinition, kind: PactKind): boolean {
-  return cappedPactKinds(mode).has(kind)
-}
-
-/** The pact slots one host's refs grant for `kind`, at `owned` levels. */
-function pactSlotsGranted(
-  refs: readonly EffectRef[] | undefined,
-  owned: number,
-  state: Readonly<PlayerState>,
-  mode: ModeDefinition,
-  kind: PactKind,
-): number {
-  let total = 0
-  for (const ref of refs ?? []) {
-    if (ref.type !== 'pactSlots') continue
-    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-      if (isPactSlotsOutput(out) && out.pactKind === kind) total += out.value * owned
-    }
-  }
-  return total
+  return pactSlots.isCapped(mode, kind)
 }
 
 /**
@@ -496,69 +508,32 @@ export function pactLimit(
   mode: ModeDefinition,
   kind: PactKind,
 ): number {
-  if (!isPactKindCapped(mode, kind)) return Infinity
-  let limit = pactSlotsGranted(mode.effects, 1, state, mode, kind)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) limit += pactSlotsGranted(upgrade.effects, owned, state, mode, kind)
-  }
-  return limit
+  return pactSlots.limit(state, mode, kind)
 }
 
 /**
  * How many slots of `kind` this player's held pacts fill — the unlocked pacts
  * of the kind, each weighted by its {@link pactSlotCost}. Counts *pacts*, not
- * unlock routes, as `attackSlotsHeld` does.
+ * unlock routes (see `SlotBudget.held`).
  */
 export function pactSlotsHeld(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   kind: PactKind,
 ): number {
-  const byId = new Map(mode.pacts.map((p) => [p.id, p]))
-  let held = 0
-  for (const id of unlockedPacts(state, mode)) {
-    const def = byId.get(id)
-    if (def?.kind === kind) held += pactSlotCost(def)
-  }
-  return held
+  return pactSlots.held(state, mode, kind)
 }
 
 /**
- * Whether buying one more level of `def` fits the player's pact budget: the
- * pacts its `unlockPact` refs would newly unlock, bucketed by kind, must fit
- * `held + adding <= limit` — `adding` their summed slot costs, the limit
- * including any slots `def` itself grants.
- * All-or-nothing, and an upgrade unlocking no pact is never blocked here —
- * `hasAttackSlotsFor`'s rules.
+ * Whether buying one more level of `def` fits the player's pact budget —
+ * all-or-nothing over the pacts it would newly unlock, counting any slots it
+ * grants itself (see `SlotBudget.hasSlotsFor`). An upgrade with no `unlockPact`
+ * effect is never blocked here.
  */
 export function hasPactSlotsFor(
   state: Readonly<PlayerState>,
   def: UpgradeDefinition,
   mode: ModeDefinition,
 ): boolean {
-  const adding = new Map<PactKind, Set<string>>()
-  const byId = new Map(mode.pacts.map((p) => [p.id, p]))
-  for (const ref of def.effects ?? []) {
-    if (ref.type !== 'unlockPact') continue
-    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-      if (!('kind' in out) || out.kind !== 'pactUnlock') continue
-      if (isPactUnlocked(state, mode, out.pact)) continue
-      const kind = byId.get(out.pact)?.kind
-      if (!kind) continue // unknown pact — rejected at boot
-      let ids = adding.get(kind)
-      if (!ids) {
-        ids = new Set()
-        adding.set(kind, ids)
-      }
-      ids.add(out.pact)
-    }
-  }
-  for (const [kind, ids] of adding) {
-    const limit = pactLimit(state, mode, kind) + pactSlotsGranted(def.effects, 1, state, mode, kind)
-    let cost = 0
-    for (const id of ids) cost += pactSlotCost(byId.get(id)!)
-    if (pactSlotsHeld(state, mode, kind) + cost > limit) return false
-  }
-  return true
+  return pactSlots.hasSlotsFor(state, def, mode)
 }

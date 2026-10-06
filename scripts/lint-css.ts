@@ -33,6 +33,9 @@ const IGNORED_UNUSED = new Set([
   'toast--success',
   'toast--warning',
   'toast--danger',
+  // Slot badge classes passed by name to `renderSlotsBadge` in ui/components.ts
+  'attack-slots',
+  'pact-slots',
 ])
 
 const IGNORED_PHANTOM = new Set([

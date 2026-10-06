@@ -7,8 +7,6 @@ import {
 } from '../modifiers/types.js'
 import type {
   AttackDefinition,
-  AttackKind,
-  PactKind,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -46,6 +44,7 @@ import {
   forEachHeldEffectOutput,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
   normalizeEffectOutputs,
   prepareEffect,
 } from '../effects/index.js'
@@ -159,7 +158,105 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   }
 }
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+/** One slot-budgeted system, as `checkStartingSlotBudget` reads it from refs. */
+interface SlotBudgetedSystem {
+  /** For the error message: `attack`, `pact`. */
+  readonly noun: string
+  /** The unlock effect's ref type and the param naming the entity. */
+  readonly unlockType: string
+  readonly idField: string
+  /** The grant effect's ref type and the param naming the kind. */
+  readonly grantType: string
+  readonly kindField: string
+  /** The mode's entities by id — only their `kind` and `slotCost` are read. */
+  readonly entities: ReadonlyMap<
+    string,
+    { readonly id: string; readonly kind: string; readonly slotCost?: number }
+  >
+}
+
+/**
+ * The slot-budget rules a mode must satisfy at boot, for one system:
+ *
+ * - `slotCost` is a positive whole number of slots (the schema covers the
+ *   file path; this covers a programmatically built mode);
+ * - the mode's starting effects must not unlock more slots of a capped kind
+ *   than its base grant has — the round would open over budget, which no
+ *   purchase can repair;
+ * - every entity of a capped kind must fit the greatest limit a player could
+ *   ever reach (the base plus every grant bought to its purchase limit), or
+ *   it can never be held.
+ *
+ * A kind no grant names (on the mode or on any upgrade, owned or not) is
+ * uncapped and needs no check.
+ */
+function checkStartingSlotBudget(
+  id: string,
+  def: ModeDefinition,
+  system: SlotBudgetedSystem,
+): void {
+  for (const entity of system.entities.values()) {
+    const cost = entity.slotCost
+    if (cost !== undefined && !(Number.isInteger(cost) && cost > 0))
+      throw new Error(
+        `[${id}] ${system.noun} '${entity.id}' has slotCost ${cost} — it must be a positive whole number of slots`,
+      )
+  }
+  // Slots the starting unlocks of each kind fill, each entity charged once
+  // however many refs name it.
+  const startingUnlocks = new Map<string, Set<string>>()
+  for (const ref of def.effects ?? []) {
+    if (ref.type !== system.unlockType) continue
+    const target = ref[system.idField]
+    if (typeof target !== 'string') continue
+    const entity = system.entities.get(target)
+    if (!entity) continue // an unknown entity fills no slot; the reference check reports it
+    let ids = startingUnlocks.get(entity.kind)
+    if (!ids) {
+      ids = new Set()
+      startingUnlocks.set(entity.kind, ids)
+    }
+    ids.add(target)
+  }
+  const cappedKinds = new Set<string>()
+  const baseSlots = new Map<string, number>()
+  // The greatest limit a player could ever reach: the base plus every grant
+  // bought to its purchase limit (infinite when any grant is unlimited).
+  const reachableSlots = new Map<string, number>()
+  const noteGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
+    if (ref.type !== system.grantType) return
+    const kind = ref[system.kindField]
+    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
+    cappedKinds.add(kind)
+    if (typeof ref.value !== 'number') return
+    if (fromMode) baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
+    reachableSlots.set(kind, (reachableSlots.get(kind) ?? 0) + ref.value * levels)
+  }
+  for (const ref of def.effects ?? []) noteGrant(ref, 1, true)
+  for (const u of def.upgrades)
+    for (const ref of u.effects ?? []) noteGrant(ref, u.purchaseLimit, false)
+  for (const kind of cappedKinds) {
+    let held = 0
+    for (const target of startingUnlocks.get(kind) ?? [])
+      held += system.entities.get(target)?.slotCost ?? 1
+    const base = baseSlots.get(kind) ?? 0
+    if (held > base)
+      throw new Error(
+        `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} ${system.noun}s but grant only ${base} ${kind} ${system.noun} slot(s) — the round would open over budget, which no purchase can repair`,
+      )
+    const reachable = reachableSlots.get(kind) ?? 0
+    for (const entity of system.entities.values()) {
+      if (entity.kind !== kind) continue
+      const cost = entity.slotCost ?? 1
+      if (cost > reachable)
+        throw new Error(
+          `[${id}] ${kind} ${system.noun} '${entity.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} ${system.noun} slot(s) can ever be granted — it can never be held`,
+        )
+    }
+  }
+}
+
+/** Validate a mode's mechanics and flavor. Called once per mode at startup. */
 export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // At least one flavor (also enforced by the schema), with unique ids so a
   // selector can address them and `getModeFlavor` resolves deterministically.
@@ -260,19 +357,6 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // asks one question in that context: does this ref still do something at every
   // level a player can buy?
   const attacksById = new Map(def.attacks.map((a) => [a.id, a]))
-  // `slotCost` is a whole number of slots; the schema covers the file path,
-  // this a programmatically built mode.
-  const checkSlotCosts = (
-    what: 'attack' | 'pact',
-    defs: readonly { id: string; slotCost?: number }[],
-  ): void => {
-    for (const d of defs) {
-      if (d.slotCost !== undefined && !(Number.isInteger(d.slotCost) && d.slotCost > 0))
-        throw new Error(
-          `[${id}] ${what} '${d.id}' has slotCost ${d.slotCost} — it must be a positive whole number of slots`,
-        )
-    }
-  }
   const checkAttackStat = (where: string, ref: EffectRef, purchaseLimit: number): void => {
     if (ref.type !== 'attackStat') return
     // A negative `add` resolves as `1 + value × owned`, so it reaches `0` at
@@ -365,116 +449,32 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
-  // `attackSlots`: a kind is capped once any grant names it, and the
-  // base budget is whatever the mode's own starting effects grant. Starting
-  // effects can also *unlock* attacks, each of which fills a slot — so a mode
-  // whose starting unlocks of a kind outnumber its base cap would open the round
-  // already over budget, in a state the purchase gate can never repair. Judged
-  // by ref fields, as every check here is: the validator sees refs, not outputs.
-  // A kind no grant names is uncapped and needs no check; capping one kind but
-  // not the other is legal.
-  const startingUnlocks = new Map<AttackKind, Set<string>>()
-  for (const ref of def.effects ?? []) {
-    if (ref.type !== 'unlockAttack' || typeof ref.attack !== 'string') continue
-    const attack = attacksById.get(ref.attack)
-    if (!attack) continue // an unknown attack fills no slot
-    let ids = startingUnlocks.get(attack.kind)
-    if (!ids) {
-      ids = new Set()
-      startingUnlocks.set(attack.kind, ids)
-    }
-    ids.add(ref.attack)
-  }
-  const cappedKinds = new Set<AttackKind>()
-  const baseSlots = new Map<AttackKind, number>()
-  // The greatest limit a player could ever reach: the base plus every grant
-  // bought to its purchase limit (infinite when any grant is unlimited).
-  const reachableSlots = new Map<AttackKind, number>()
-  const noteSlotGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
-    if (ref.type !== 'attackSlots') return
-    const kind = ref.attackKind
-    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
-    cappedKinds.add(kind)
-    if (typeof ref.value !== 'number') return
-    if (fromMode) baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
-    reachableSlots.set(kind, (reachableSlots.get(kind) ?? 0) + ref.value * levels)
-  }
-  for (const ref of def.effects ?? []) noteSlotGrant(ref, 1, true)
-  for (const u of def.upgrades)
-    for (const ref of u.effects ?? []) noteSlotGrant(ref, u.purchaseLimit, false)
-  checkSlotCosts('attack', def.attacks)
-  for (const kind of cappedKinds) {
-    let held = 0
-    for (const attackId of startingUnlocks.get(kind) ?? []) {
-      held += attacksById.get(attackId)?.slotCost ?? 1
-    }
-    const base = baseSlots.get(kind) ?? 0
-    if (held > base)
-      throw new Error(
-        `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} attacks but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
-      )
-    const reachable = reachableSlots.get(kind) ?? 0
-    for (const attack of def.attacks) {
-      if (attack.kind !== kind) continue
-      const cost = attack.slotCost ?? 1
-      if (cost > reachable)
-        throw new Error(
-          `[${id}] ${kind} attack '${attack.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} attack slot(s) can ever be granted — it can never be held`,
-        )
-    }
-  }
-
-  // `pactSlots`: the same rules for pacts — starting effects that unlock more
-  // slots of a capped kind than the mode's base grant would open the round
-  // over budget, and a pact heavier than any reachable limit is never held.
-  {
-    const pactsById = new Map(def.pacts.map((p) => [p.id, p]))
-    const startingPacts = new Map<PactKind, Set<string>>()
-    for (const ref of def.effects ?? []) {
-      if (ref.type !== 'unlockPact' || typeof ref.pact !== 'string') continue
-      const pact = pactsById.get(ref.pact)
-      if (!pact) continue
-      const ids = startingPacts.get(pact.kind) ?? new Set<string>()
-      ids.add(ref.pact)
-      startingPacts.set(pact.kind, ids)
-    }
-    const cappedPactKinds = new Set<PactKind>()
-    const basePactSlots = new Map<PactKind, number>()
-    const reachablePactSlots = new Map<PactKind, number>()
-    const notePactSlotGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
-      if (ref.type !== 'pactSlots') return
-      const kind = ref.pactKind
-      if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
-      cappedPactKinds.add(kind)
-      if (typeof ref.value !== 'number') return
-      if (fromMode) basePactSlots.set(kind, (basePactSlots.get(kind) ?? 0) + ref.value)
-      reachablePactSlots.set(kind, (reachablePactSlots.get(kind) ?? 0) + ref.value * levels)
-    }
-    for (const ref of def.effects ?? []) notePactSlotGrant(ref, 1, true)
-    for (const u of def.upgrades)
-      for (const ref of u.effects ?? []) notePactSlotGrant(ref, u.purchaseLimit, false)
-    checkSlotCosts('pact', def.pacts)
-    for (const kind of cappedPactKinds) {
-      let held = 0
-      for (const pactId of startingPacts.get(kind) ?? []) {
-        held += pactsById.get(pactId)?.slotCost ?? 1
-      }
-      const base = basePactSlots.get(kind) ?? 0
-      if (held > base)
-        throw new Error(
-          `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} pacts but grant only ${base} ${kind} pact slot(s) — the round would open over budget, which no purchase can repair`,
-        )
-      const reachable = reachablePactSlots.get(kind) ?? 0
-      for (const pact of def.pacts) {
-        if (pact.kind !== kind) continue
-        const cost = pact.slotCost ?? 1
-        if (cost > reachable)
-          throw new Error(
-            `[${id}] ${kind} pact '${pact.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} pact slot(s) can ever be granted — it can never be held`,
-          )
-      }
-    }
-  }
+  // `attackSlots` / `pactSlots`: a kind is capped once any grant names it,
+  // and the base budget is whatever the mode's own starting effects grant.
+  // Starting effects can also *unlock* attacks or pacts, each of which fills
+  // its `slotCost` in slots — so a mode whose starting unlocks of a kind
+  // outweigh its base cap would open the round already over budget, in a
+  // state the purchase gate can never repair; and an entity heavier than any
+  // limit a player could ever reach is never held. Judged by ref fields, as
+  // every check here is: the validator sees refs, not outputs. A kind no grant
+  // names is uncapped and needs no check; capping one kind but not the other
+  // is legal.
+  checkStartingSlotBudget(id, def, {
+    noun: 'attack',
+    unlockType: 'unlockAttack',
+    idField: 'attack',
+    grantType: 'attackSlots',
+    kindField: 'attackKind',
+    entities: attacksById,
+  })
+  checkStartingSlotBudget(id, def, {
+    noun: 'pact',
+    unlockType: 'unlockPact',
+    idField: 'pact',
+    grantType: 'pactSlots',
+    kindField: 'pactKind',
+    entities: new Map(def.pacts.map((p) => [p.id, p])),
+  })
 
   // `attackAlert`: a reveal grant shows the *name* on a warning, so a
   // mode whose grants reveal but never grant a lead has a node that is bought
@@ -763,20 +763,21 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `partnerAutoClick` credits the partner's clicks, so it needs a mode with
-  // clicks; and it is partner-directed, which `mutual` ("the partner gets the
-  // same buff") would make ambiguous — auto-clicks flowing both ways? Rejected
-  // until a pact wants that. (The effect's hosts already keep it active-only.)
+  // A partner-directed effect (a gift such as `partnerAutoClick`, flagged
+  // `partnerDirected` in the registry) acts on the signer's partner, which
+  // `mutual` ("the partner gets the same buff") would make ambiguous — the gift
+  // flowing both ways? Rejected until a pact wants that. `partnerAutoClick`
+  // itself also credits the partner's clicks, so it needs a mode with clicks.
+  // (The effect's hosts already keep it active-only.)
   for (const pact of def.pacts) {
     for (const ref of pact.effects ?? []) {
-      if (ref.type !== 'partnerAutoClick') continue
-      if (!def.clicksEnabled)
+      if (isPartnerDirectedEffect(ref.type) && pact.mutual === true)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries the partner-directed effect '${ref.type}' but is mutual — a gift to the partner cannot also be shared back`,
+        )
+      if (ref.type === 'partnerAutoClick' && !def.clicksEnabled)
         throw new Error(
           `[${id}] pact '${pact.id}' carries partnerAutoClick, but the mode has clicks disabled — there is no click income to credit`,
-        )
-      if (pact.mutual === true)
-        throw new Error(
-          `[${id}] pact '${pact.id}' carries partnerAutoClick but is mutual — a partner-directed effect cannot also be shared back`,
         )
     }
   }

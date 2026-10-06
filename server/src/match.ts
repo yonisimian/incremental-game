@@ -30,10 +30,10 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
-  openDebuffWindows,
-  openPactWindows,
   applyPactActivation,
   isValidPactActivation,
+  sweepDebuffWindows,
+  sweepPactWindows,
   resolveAttackStrike,
   sweepCooldowns,
   collectPartnerAutoClicks,
@@ -127,6 +127,15 @@ interface MatchPlayer {
    * force.
    */
   pactBonuses: PactBonus[]
+  /**
+   * The automatic clicks per second the opponent's open `partnerAutoClick`
+   * windows grant this player, resolved beside {@link pactBonuses} once per
+   * tick by {@link Match.syncPactBonuses} — before either clock moves, so both
+   * players' gifts are judged on the same instant and a window pays the same
+   * number of ticks whichever side signed it. Read by the income tick and the
+   * broadcast (`STATE_UPDATE.incomingAutoClicksPerSec`). `0` when none.
+   */
+  incomingAutoClicksPerSec: number
   /**
    * The resource this player's most recent click credited — "what they click
    * on", where a `partnerAutoClick` pact's automatic clicks land. Unset until
@@ -370,6 +379,7 @@ export class Match {
       purchaseFeedSeq: null,
       attackEvents: [],
       pactBonuses: [],
+      incomingAutoClicksPerSec: 0,
     }
   }
 
@@ -593,8 +603,22 @@ export class Match {
       pactsInForce(a.state, b.state, mode).length === 0 &&
       pactsInForce(b.state, a.state, mode).length === 0
     ) {
-      for (const player of this.players) player.pactBonuses = []
+      // A player's own open windows are always in force, so no open window
+      // anywhere means no gift anywhere either.
+      for (const player of this.players) {
+        player.pactBonuses = []
+        player.incomingAutoClicksPerSec = 0
+      }
       return
+    }
+    // The gift each side is receiving, judged on the giver's clock at the same
+    // instant for both — reading it mid-tick, after one clock had advanced,
+    // paid the two sides a different number of ticks for identical windows.
+    for (let i = 0; i < this.players.length; i++) {
+      this.players[i].incomingAutoClicksPerSec = collectPartnerAutoClicks(
+        this.players[1 - i].state,
+        mode,
+      )
     }
     const snapshots = this.players.map((player, i): PartnerSnapshot => {
       const opponent = this.players[1 - i]
@@ -643,7 +667,7 @@ export class Match {
       modifiers,
       tickSec,
     )
-    this.applyAutoClicks(player, opponent, modifiers, tickSec)
+    this.applyAutoClicks(player, modifiers, tickSec)
   }
 
   /**
@@ -668,31 +692,32 @@ export class Match {
   }
 
   /**
-   * The automatic clicks per second `player` is receiving from `opponent`'s
-   * pacts, for the wire — `undefined` when none, or when `player` cannot click
-   * (the same gate {@link applyAutoClicks} applies to the credit itself).
+   * The automatic clicks per second `player` is receiving from the opponent's
+   * pacts (cached by {@link syncPactBonuses}), for the wire — `undefined` when
+   * none, or when `player` cannot click (the same gate {@link applyAutoClicks}
+   * applies to the credit itself).
    */
-  private incomingAutoClicks(player: MatchPlayer, opponent: MatchPlayer): number | undefined {
+  private incomingAutoClicks(player: MatchPlayer): number | undefined {
     if (!isClickUnlocked(player.state, this.modeDef)) return undefined
-    const clicksPerSec = collectPartnerAutoClicks(opponent.state, this.modeDef)
-    return clicksPerSec > 0 ? clicksPerSec : undefined
+    const { incomingAutoClicksPerSec } = player
+    return incomingAutoClicksPerSec > 0 ? incomingAutoClicksPerSec : undefined
   }
 
   /**
-   * Credit the automatic clicks `opponent`'s open `partnerAutoClick` pacts
-   * grant `player` this tick: `clicksPerSec × tickSec` clicks, each worth
-   * `player`'s own click income, onto what they last clicked on (the score
-   * resource before their first click). Nothing while `player` has not
-   * unlocked clicking — the gift has no one to click for. Not a real click:
-   * `peakCps`, `totalClicks` and the rate limit never see it.
+   * Credit the automatic clicks the opponent's open `partnerAutoClick` pacts
+   * grant `player` this tick (the rate cached by {@link syncPactBonuses}):
+   * `clicksPerSec × tickSec` clicks, each worth `player`'s own click income,
+   * onto what they last clicked on (the score resource before their first
+   * click). Nothing while `player` has not unlocked clicking — the gift has no
+   * one to click for. Not a real click: `peakCps`, `totalClicks` and the rate
+   * limit never see it.
    */
   private applyAutoClicks(
     player: MatchPlayer,
-    opponent: MatchPlayer,
     modifiers: readonly Modifier[],
     tickSec: number,
   ): void {
-    const clicksPerSec = collectPartnerAutoClicks(opponent.state, this.modeDef)
+    const clicksPerSec = player.incomingAutoClicksPerSec
     if (clicksPerSec <= 0 || !isClickUnlocked(player.state, this.modeDef)) return
     const income = computeClickIncome(modifiers) * clicksPerSec * tickSec
     const target = player.lastClickResource ?? this.modeDef.scoreResource
@@ -721,21 +746,9 @@ export class Match {
       const victim = this.players[1 - i]
       const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
 
-      if (attacker.state.activeDebuffs !== undefined) {
-        const open = openDebuffWindows(attacker.state, gameSec)
-        // Absent rather than empty once the last window closes — the same
-        // convention as `incomingCostFactors`, so a quiet round carries nothing.
-        if (open.length === 0) delete attacker.state.activeDebuffs
-        else if (open.length !== attacker.state.activeDebuffs.length)
-          attacker.state.activeDebuffs = open
-      }
+      sweepDebuffWindows(attacker.state, gameSec)
       sweepCooldowns(attacker.state, gameSec)
-      if (attacker.state.activePacts !== undefined) {
-        const open = openPactWindows(attacker.state, gameSec)
-        if (open.length === 0) delete attacker.state.activePacts
-        else if (open.length !== attacker.state.activePacts.length)
-          attacker.state.activePacts = open
-      }
+      sweepPactWindows(attacker.state, gameSec)
 
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
@@ -917,8 +930,8 @@ export class Match {
     // enemy stats they read. Absent when nothing is in force.
     const p1Pacts = p1.pactBonuses.length ? p1.pactBonuses : undefined
     const p2Pacts = p2.pactBonuses.length ? p2.pactBonuses : undefined
-    const p1AutoClicks = this.incomingAutoClicks(p1, p2)
-    const p2AutoClicks = this.incomingAutoClicks(p2, p1)
+    const p1AutoClicks = this.incomingAutoClicks(p1)
+    const p2AutoClicks = this.incomingAutoClicks(p2)
 
     this.send(p1, {
       type: 'STATE_UPDATE',
@@ -1012,9 +1025,9 @@ export class Match {
     // carrying a gift) already show in the viewer's own income, so naming them
     // — and when an open window closes — reveals nothing new; their one-sided
     // pacts stay hidden.
-    const shared = sharedPacts(opponent.state, mode)
-    if (shared.length > 0) view.pacts = shared
     const windows = sharedPactWindows(opponent.state, mode)
+    const shared = sharedPacts(opponent.state, mode, windows)
+    if (shared.length > 0) view.pacts = shared
     if (windows.length > 0) view.pactWindows = windows
 
     return view

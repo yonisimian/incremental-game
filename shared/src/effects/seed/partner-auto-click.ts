@@ -13,10 +13,10 @@ import type { EffectDef, PartnerAutoClickOutput } from '../types.js'
  *
  *  - `clicksPerSec: 3` — the enemy clicks three extra times a second, for free.
  *
- * Partner-directed, so it is *not* shared through `mutual` (which means "the
- * partner gets the same buff") and boot rejects it on a mutual pact. Bounded
- * by the human click-rate limit (`MAX_CPS`): a gift faster than anyone can
- * click is an authoring slip.
+ * Partner-directed (`partnerDirected: true`), so it is *not* shared through
+ * `mutual` (which means "the partner gets the same buff") and boot rejects it
+ * on a mutual pact. Bounded by the human click-rate limit (`MAX_CPS`): a gift
+ * faster than anyone can click is an authoring slip.
  */
 const schema = z.strictObject({
   clicksPerSec: z.number().positive().max(MAX_CPS),
@@ -38,4 +38,6 @@ export const partnerAutoClick: EffectDef<PartnerAutoClickParams> = {
   apply,
   // A permanent auto-clicker for the enemy is not a pact anyone would sign.
   hosts: ['activePact'],
+  // The gift goes to the partner: never on a mutual pact, always revealed to them.
+  partnerDirected: true,
 }

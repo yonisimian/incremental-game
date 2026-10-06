@@ -33,6 +33,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
+import { renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -165,14 +166,16 @@ function renderActiveAttack(
   if (!def) return ''
   const params = collectAttackParams(state.player, modeDef, id)
   const gameSec = readGameSec(state.player)
-  const readyAt = pendingReadyAt(state, id)
+  // `attackBlockReason` already ranks the lifecycle states (preparing, then the
+  // open window, then the rest stamped behind it), so branch on it and look up
+  // only the one countdown the state needs rather than re-testing each list.
+  const reason = attackBlockReason(state.player, id, modeDef, params)
+  const readyAt = reason === 'already-preparing' ? pendingReadyAt(state, id) : null
   const preparing = readyAt !== null
-  const expiresAt = activeDebuffExpiresAtSec(state.player, id)
-  // Behind an open window the rest is already stamped but not yet running, so
-  // the window's countdown is the one to show.
-  const coolingUntil = expiresAt === null ? cooldownUntilSec(state.player, 'attack', id) : null
-  const reason = attackBlockReason(state.player, id, modeDef)
-  const disabled = preparing || reason !== null
+  const expiresAt = reason === 'already-active' ? activeDebuffExpiresAtSec(state.player, id) : null
+  const coolingUntil =
+    reason === 'cooling-down' ? cooldownUntilSec(state.player, 'attack', id) : null
+  const disabled = reason !== null
   const status = preparing
     ? `<span class="attack-status attack-status--preparing">${countdownSpan({ template: 'Striking in {}s', untilSec: readyAt }, gameSec)}</span>`
     : expiresAt !== null
@@ -224,19 +227,17 @@ function renderPassiveAttack(
   `
 }
 
-/**
- * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
- * nothing when the mode never caps that kind. Reads as a loadout
- * rather than an inventory: the player can see how many commitments remain.
- */
+/** The `held / limit` badge for one kind's heading, or nothing for an uncapped kind. */
 function renderSlots(
   state: Readonly<GameState>,
   modeDef: ModeDefinition,
   kind: AttackKind,
 ): string {
-  const limit = attackLimit(state.player, modeDef, kind)
-  if (!Number.isFinite(limit)) return ''
-  return ` <span class="attack-slots">${attackSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+  return renderSlotsBadge(
+    attackSlotsHeld(state.player, modeDef, kind),
+    attackLimit(state.player, modeDef, kind),
+    'attack-slots',
+  )
 }
 
 function renderSection(heading: string, slots: string, items: string): string {

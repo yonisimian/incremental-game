@@ -20,6 +20,20 @@ import {
   type PurchaseBlockReason,
 } from '@game/shared'
 
+// ─── Slot budgets ───────────────────────────────────────────────────
+
+/**
+ * The `held / limit` badge for a kind's section heading — `Active 2 / 3` in
+ * the attack panel, `Passive 2 / 3` in the relations panel — or nothing when
+ * the mode never caps that kind (`limit` is `Infinity`). Reads as a loadout
+ * rather than an inventory: the player can see how many commitments remain.
+ * `className` is the panel's own badge class, so each keeps its styling.
+ */
+export function renderSlotsBadge(held: number, limit: number, className: string): string {
+  if (!Number.isFinite(limit)) return ''
+  return ` <span class="${className}">${held} / ${limit}</span>`
+}
+
 // ─── Goal Header Components ─────────────────────────────────────────
 
 /** The timer element — styled as a safety-cap timer for non-timed goals. */

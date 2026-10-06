@@ -77,7 +77,11 @@ export async function buyUpgrade(page: Page, upgradeId: string): Promise<void> {
   await openPanel(page, 1)
   const node = page.locator(`[data-upgrade="${upgradeId}"]`)
   await expect(node).toBeVisible()
-  await node.click()
+  // Look up and click in one page task: the tree swaps its node buttons as
+  // affordability changes, so a handle resolved a round-trip earlier can be detached.
+  await page.evaluate((id) => {
+    document.querySelector<HTMLButtonElement>(`[data-upgrade="${id}"]`)!.click()
+  }, upgradeId)
   const buy = page.locator('#upgrade-detail-buy')
   await expect(buy).toBeEnabled()
   await buy.click()
@@ -97,6 +101,26 @@ export async function unlockClicking(page: Page): Promise<void> {
   await buyUpgrade(page, 'sc-unlock')
   await openPanel(page, 0)
   await expect(page.locator('#click-btn-r0')).toBeVisible()
+}
+
+/**
+ * Click Wood until the header shows more than `amount` (keep it under 1000, where
+ * the header prints plain digits). Clicking must already be unlocked. The clicks
+ * run in-page, three per 200 ms, so they stay under the server's 20 clicks/s cap
+ * however slow the browser round-trip is.
+ */
+export async function earn(page: Page, amount: number): Promise<void> {
+  await openPanel(page, 0)
+  await page.waitForFunction(
+    (target) => {
+      if (Number(document.getElementById('header-r0')?.textContent) > target) return true
+      const button = document.getElementById('click-btn-r0') as HTMLButtonElement
+      for (let i = 0; i < 3; i += 1) button.click()
+      return false
+    },
+    amount,
+    { polling: 200, timeout: 60_000 },
+  )
 }
 
 export async function finishTargetMatch(player: GamePlayer): Promise<void> {

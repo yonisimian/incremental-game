@@ -49,11 +49,14 @@ limit.
 
 ### 2. Rules
 
-- `attacks.ts`: `attackSlotCost(def) = def.slotCost ?? 1`.
-  - `attackSlotsHeld` sums slot costs of unlocked attacks of the kind.
-  - `hasAttackSlotsFor` sums the slot costs of the attacks it would newly
-    unlock (still de-duplicated by id).
-- `pacts.ts`: the same for `pactSlotsHeld` / `hasPactSlotsFor`.
+- `slots.ts` (the one budget algorithm attacks and pacts share):
+  `slotCostOf(def) = def.slotCost ?? 1`.
+  - `held` sums slot costs of the unlocked entities of the kind.
+  - `hasSlotsFor` sums the slot costs of the entities it would newly unlock
+    (still de-duplicated by id).
+- `attacks.ts` / `pacts.ts`: `attackSlotCost` / `pactSlotCost` for the client
+  badge; `attackSlotsHeld`, `hasAttackSlotsFor` and their pact twins inherit
+  the weighting from `slots.ts`.
 
 ### 3. Boot validation (`validateModeDefinition`)
 
