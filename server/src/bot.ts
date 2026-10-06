@@ -113,9 +113,11 @@ function botAttackTarget(
  * first**, and no more than the mode's base passive pact budget (`pactSlots`).
  * A solo player then meets a live pact from the bot's side: a mutual one pays
  * the human too and fills their "Shared treaties" list without a second human,
- * a one-sided one discounts the bot. Past the budget a sign would be refused
- * forever and stall the plan, so the list stops there. Active pacts and
- * placeholders are skipped — the bot does not activate pacts.
+ * a one-sided one discounts the bot. Past the budget a sign is refused by the
+ * slot gate — the plan advances on *emitting* a buy, so a refused step is not
+ * a stall but a wasted one (and its prerequisites were bought for nothing),
+ * which is why the list stops at the budget. Active pacts and placeholders are
+ * skipped — the bot does not activate pacts.
  */
 function botPactUnlocks(
   modeDef: ModeDefinition,
