@@ -23,6 +23,25 @@ import type { ActivePact, PactCostFactor, PactDefinition, PlayerState } from './
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
 
+// ─── Lookup ──────────────────────────────────────────────────────────
+
+/**
+ * `mode.pacts` by id, built once per mode definition and reused by every
+ * resolver here — the `flavor.ts` pattern. The collectors run several times a
+ * tick and a broadcast, so a map per call would dominate their cost. Keyed by
+ * identity: a re-registered (patched) mode is a new key.
+ */
+const pactIndexCache = new WeakMap<ModeDefinition, ReadonlyMap<string, PactDefinition>>()
+
+function pactIndex(mode: ModeDefinition): ReadonlyMap<string, PactDefinition> {
+  let index = pactIndexCache.get(mode)
+  if (!index) {
+    index = new Map(mode.pacts.map((p) => [p.id, p]))
+    pactIndexCache.set(mode, index)
+  }
+  return index
+}
+
 // ─── In force ────────────────────────────────────────────────────────
 
 /**
@@ -45,7 +64,7 @@ export function pactsInForce(
   partner: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): PactDefinition[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   const inForce: PactDefinition[] = []
   const seen = new Set<string>()
   for (const id of unlockedPacts(owner, mode)) {
@@ -102,7 +121,7 @@ export function sharedPactWindows(
   partner: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): ActivePact[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   return openPactWindows(partner, readGameSec(partner)).filter((w) => {
     const pact = pactById.get(w.pact)
     return pact?.kind === 'active' && reachesPartner(pact)
@@ -114,15 +133,20 @@ export function sharedPactWindows(
  * mutual passive ones in mode declaration order, then open active-pact windows
  * that are mutual or carry a gift. What the server reveals of a partner's
  * pacts (`OpponentView.pacts`): only these already affect the viewer, so a
- * one-sided pact stays hidden.
+ * one-sided pact stays hidden. A caller that has already computed the
+ * `sharedPactWindows` (the server ships both) passes them as `windows`.
  */
-export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition): string[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+export function sharedPacts(
+  partner: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  windows: readonly ActivePact[] = sharedPactWindows(partner, mode),
+): string[] {
+  const pactById = pactIndex(mode)
   const passive = unlockedPacts(partner, mode).filter((id) => {
     const pact = pactById.get(id)
     return pact?.kind === 'passive' && pact.mutual === true
   })
-  return [...passive, ...sharedPactWindows(partner, mode).map((w) => w.pact)]
+  return [...passive, ...windows.map((w) => w.pact)]
 }
 
 // ─── Cost factors ────────────────────────────────────────────────────
@@ -284,7 +308,7 @@ export function collectPartnerAutoClicks(
   signer: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): number {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   let clicksPerSec = 0
   for (const id of openWindowIds(signer)) {
     const pact = pactById.get(id)
@@ -379,7 +403,7 @@ export function pactBlockReason(
   pactId: string,
   mode: ModeDefinition,
 ): PactBlockReason | null {
-  const def = mode.pacts.find((p) => p.id === pactId)
+  const def = pactIndex(mode).get(pactId)
   if (!def) return 'unknown'
   if (def.kind !== 'active') return 'not-active'
   if (!isPactUnlocked(state, mode, pactId)) return 'locked'
@@ -410,7 +434,7 @@ export function applyPactActivation(
   pactId: string,
   mode: ModeDefinition,
 ): void {
-  const def = mode.pacts.find((p) => p.id === pactId)
+  const def = pactIndex(mode).get(pactId)
   if (!def) return
   for (const [currency, amount] of Object.entries(getPactActivationCost(def))) {
     state.resources[currency] = (state.resources[currency] ?? 0) - amount

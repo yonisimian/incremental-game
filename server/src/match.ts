@@ -1025,9 +1025,9 @@ export class Match {
     // carrying a gift) already show in the viewer's own income, so naming them
     // — and when an open window closes — reveals nothing new; their one-sided
     // pacts stay hidden.
-    const shared = sharedPacts(opponent.state, mode)
-    if (shared.length > 0) view.pacts = shared
     const windows = sharedPactWindows(opponent.state, mode)
+    const shared = sharedPacts(opponent.state, mode, windows)
+    if (shared.length > 0) view.pacts = shared
     if (windows.length > 0) view.pactWindows = windows
 
     return view
