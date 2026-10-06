@@ -1,12 +1,15 @@
 # 47 — Attack cooldown: a rest after an active attack finishes
 
-## Status: Implemented (steps 1–5; step 6, content, not done)
+## Status: Implemented (steps 1–5; step 6, content, started)
 
 As built, with two departures from the order below: steps 1–3 landed as one
 commit (knip rejects the cooldowns module's exports until something uses
 them), and the round-end clear in `endRound` is untested, like the
-debuff-window clear beside it. No idler attack authors a `cooldownSec` yet, so
-gameplay is unchanged until §10 is tuned.
+debuff-window clear beside it. Of §10, only `idler.json`'s `a0` (Steal Wood,
+10% `r0`, 6s prepare) carries a cooldown so far — `cooldownSec: 10`, a first
+pass with no simulation behind it. `a1` (flat 500 `r1`, 3s prepare), the
+`idler-alternative.json` actives, and the `cooldown` stat upgrade are still
+untouched.
 
 The attack half of [43 — activation cooldowns](43-activation-cooldowns.md), with
 43's open questions settled and every touch point verified against the current
@@ -232,6 +235,7 @@ steal-only attack.
 `cooldownSec` on the strong actives in `idler.json` / `idler-alternative.json`
 (`termite-swarm`, `numb-hands` first), plus a `cooldown` stat upgrade in the
 attack-stats branch. Can ship separately so gameplay is unchanged until tuned.
+Shipped so far: `idler.json` `a0` at `cooldownSec: 10` (see Status).
 
 ---
 
