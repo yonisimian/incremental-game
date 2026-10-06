@@ -600,6 +600,20 @@ export function openDebuffWindows(state: Readonly<PlayerState>, gameSec: number)
   return (state.activeDebuffs ?? []).filter((w) => w.expiresAtSec > gameSec)
 }
 
+/**
+ * Drop the debuff windows that have closed by `gameSec`; delete the field once
+ * empty — absent rather than `[]`, the same convention as `incomingCostFactors`
+ * and `cooldowns`, so a quiet round carries nothing. The twin of
+ * `sweepCooldowns`: the server's tick runs both; the collectors already ignore
+ * a closed window at read time, so this only bounds the array.
+ */
+export function sweepDebuffWindows(state: PlayerState, gameSec: number): void {
+  if (!state.activeDebuffs) return
+  const open = openDebuffWindows(state, gameSec)
+  if (open.length === 0) delete state.activeDebuffs
+  else if (open.length !== state.activeDebuffs.length) state.activeDebuffs = open
+}
+
 // ─── Attack slots ────────────────────────────────────────────────────
 //
 // A budget on how many attacks of each kind a player can *hold*. Unlocking stays
