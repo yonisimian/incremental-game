@@ -17,7 +17,7 @@ import { applyEffect, forEachHeldEffectOutput, normalizeEffectOutputs } from './
 import { ATTACK_STATS } from './effects/seed/attack-stat.js'
 import type { AttackStat } from './effects/seed/attack-stat.js'
 import type { AttackAlertOutput, AttackStatOutput, EffectOutput } from './effects/types.js'
-import { makeSlotBudget, slotCostOf } from './slots.js'
+import { makeSlotBudget } from './slots.js'
 import type { ModeDefinition } from './modes/types.js'
 import type {
   ActiveDebuff,
@@ -620,11 +620,6 @@ export function sweepDebuffWindows(state: PlayerState, gameSec: number): void {
 // algorithm lives in `slots.ts`, shared with the pact budget; this is the
 // attack system's description of itself, and the rules under their own names.
 
-/** Slots of its kind's budget `def` takes while held (`slotCost`, default 1). */
-export function attackSlotCost(def: AttackDefinition): number {
-  return slotCostOf(def)
-}
-
 const attackSlots = makeSlotBudget<AttackKind>({
   grantType: 'attackSlots',
   readGrant: (out) =>
@@ -656,7 +651,7 @@ export function attackLimit(
 
 /**
  * How many slots of `kind` this player's held attacks fill — the unlocked
- * attacks of the kind, each weighted by its {@link attackSlotCost}. Counts
+ * attacks of the kind, each weighted by its `slotCostOf`. Counts
  * *attacks*, not unlock upgrades (see `SlotBudget.held`).
  */
 export function attackSlotsHeld(

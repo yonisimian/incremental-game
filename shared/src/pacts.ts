@@ -18,7 +18,7 @@ import type { Modifier } from './modifiers/types.js'
 import { readGameSec } from './game-clock.js'
 import { isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
-import { makeSlotBudget, slotCostOf } from './slots.js'
+import { makeSlotBudget } from './slots.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import type {
   ActivePact,
@@ -477,11 +477,6 @@ export function applyPactActivation(
 // with `attacks.ts`; this is the pact system's description of itself, and the
 // rules under their own names.
 
-/** Slots of its kind's budget `def` takes while held (`slotCost`, default 1). */
-export function pactSlotCost(def: PactDefinition): number {
-  return slotCostOf(def)
-}
-
 const pactSlots = makeSlotBudget<PactKind>({
   grantType: 'pactSlots',
   readGrant: (out) =>
@@ -513,7 +508,7 @@ export function pactLimit(
 
 /**
  * How many slots of `kind` this player's held pacts fill — the unlocked pacts
- * of the kind, each weighted by its {@link pactSlotCost}. Counts *pacts*, not
+ * of the kind, each weighted by its `slotCostOf`. Counts *pacts*, not
  * unlock routes (see `SlotBudget.held`).
  */
 export function pactSlotsHeld(

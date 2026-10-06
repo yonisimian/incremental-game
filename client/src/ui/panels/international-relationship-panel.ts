@@ -15,7 +15,7 @@ import {
   pactBlockReason,
   isPactKindCapped,
   pactLimit,
-  pactSlotCost,
+  slotCostOf,
   pactSlotsHeld,
   readGameSec,
   unlockedPacts,
@@ -98,7 +98,7 @@ function discountLines(state: Readonly<GameState>, pactId: string): string {
 
 /** The pact's slot-cost badge (see `renderSlotCostBadge`). */
 function renderSlotCost(modeDef: ModeDefinition, pact: PactDefinition): string {
-  return renderSlotCostBadge(pactSlotCost(pact), pact.kind, isPactKindCapped(modeDef, pact.kind))
+  return renderSlotCostBadge(slotCostOf(pact), pact.kind, isPactKindCapped(modeDef, pact.kind))
 }
 
 /**

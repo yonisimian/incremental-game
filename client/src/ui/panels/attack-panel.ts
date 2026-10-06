@@ -5,7 +5,7 @@ import {
   activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
-  attackSlotCost,
+  slotCostOf,
   attackSlotsHeld,
   collectAttackParams,
   cooldownUntilSec,
@@ -124,7 +124,7 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
 
 /** The attack's slot-cost badge (see `renderSlotCostBadge`). */
 function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string {
-  return renderSlotCostBadge(attackSlotCost(def), def.kind, isAttackKindCapped(modeDef, def.kind))
+  return renderSlotCostBadge(slotCostOf(def), def.kind, isAttackKindCapped(modeDef, def.kind))
 }
 
 /** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
