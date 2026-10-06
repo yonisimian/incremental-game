@@ -702,12 +702,27 @@ describe('pact slots', () => {
       { type: 'pactSlots', pactKind: 'passive', value: 1 },
     ],
   }
+  /** One node signing two passive pacts at once. */
+  const TWO_AT_ONCE: UpgradeDefinition = {
+    id: 'sign-two',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [
+      { type: 'unlockPact', pact: EXTRA.id },
+      { type: 'unlockPact', pact: TAPS.id },
+    ],
+  }
   /** MODE, capped at two passive pacts by its own grant; actives left uncapped. */
   const capped: ModeDefinition = {
     ...MODE,
     effects: [{ type: 'pactSlots', pactKind: 'passive', value: 2 }],
-    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE],
+    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE, TWO_AT_ONCE],
     pacts: [...MODE.pacts, EXTRA],
+  }
+  /** `capped`, with one passive pact unlocked by the mode's starting effects. */
+  const startingGlow: ModeDefinition = {
+    ...capped,
+    effects: [...(capped.effects ?? []), { type: 'unlockPact', pact: GLOW.id }],
   }
   const byId = (id: string) => capped.upgrades.find((u) => u.id === id)!
 
@@ -730,6 +745,25 @@ describe('pact slots', () => {
     state.upgrades['route-research'] = 1
     expect(pactSlotsHeld(state, capped, 'passive')).toBe(2)
     expect(pactSlotsHeld(state, capped, 'active')).toBe(1)
+  })
+
+  it('counts a pact the mode’s starting effects unlock as held', () => {
+    const state = player()
+    expect(pactSlotsHeld(state, capped, 'passive')).toBe(0)
+    expect(pactSlotsHeld(state, startingGlow, 'passive')).toBe(1)
+    // The starting pact fills one of the two slots: one sign fits, the next does not.
+    expect(hasPactSlotsFor(state, byId('sign-p-research'), startingGlow)).toBe(true)
+    const one = player({ signed: ['p-research'] })
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), capped)).toBe(true)
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), startingGlow)).toBe(false)
+  })
+
+  it('is all-or-nothing for a node signing two pacts with one slot free', () => {
+    // Two free: both fit. One free: neither — a partial unlock is not representable.
+    expect(hasPactSlotsFor(player(), byId('sign-two'), capped)).toBe(true)
+    expect(hasPactSlotsFor(player({ signed: ['p-research'] }), byId('sign-two'), capped)).toBe(
+      false,
+    )
   })
 
   it('refuses the unlock that would exceed the budget, all the way to purchaseBlockReason', () => {
