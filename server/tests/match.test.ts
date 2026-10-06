@@ -53,6 +53,14 @@ function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
 /** Enough of both currencies to walk the idler's unlock chains (attack, pact, espionage). */
 const UNLOCK_FUNDS = { r0: 20_000, r1: 5_000 }
 
+/** Exactly the authored level-0 price of `upgrades`, summed per currency. */
+function priceOf(...upgrades: UpgradeDefinition[]): Record<string, number> {
+  const total: Record<string, number> = {}
+  for (const u of upgrades)
+    for (const [r, e] of Object.entries(u.cost)) total[r] = (total[r] ?? 0) + e.baseCost
+  return total
+}
+
 /** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
 const FIXTURE_ATTACK = 'fx-attack'
 const FIXTURE_UNLOCK = 'fx-unlock'
@@ -2187,14 +2195,6 @@ describe('Match', () => {
       }
     }
 
-    /** Exactly the authored level-0 price of `upgrades`, summed per currency. */
-    function priceOf(...upgrades: UpgradeDefinition[]): Record<string, number> {
-      const total: Record<string, number> = {}
-      for (const u of upgrades)
-        for (const [r, e] of Object.entries(u.cost)) total[r] = (total[r] ?? 0) + e.baseCost
-      return total
-    }
-
     /** Sign p2 for `playerId`, granting exactly the two nodes' price so balances stay comparable. */
     function signResearch(m: Match, playerId: 'p1' | 'p2', seq: number) {
       m.grantResourcesForTest(playerId, priceOf(relationsUpgrade, signP2))
@@ -2543,8 +2543,9 @@ describe('Match', () => {
       })
     }
 
-    /** Unlock the relations panel and p3 for p1, with Wood to activate it. */
+    /** Unlock the relations panel and p3 for p1 (granting exactly their price), with Wood to activate it. */
     function armSigner(m: Match) {
+      m.grantResourcesForTest('p1', priceOf(relationsUpgrade, signP3))
       m.handleMessage('p1', buyMsg(relationsUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(signP3.id, 2))
       m.grantResourcesForTest('p1', { r0: 100 })
