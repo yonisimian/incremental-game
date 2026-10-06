@@ -119,20 +119,23 @@ function botPactUnlocks(
   modeDef: ModeDefinition,
   availableUpgrades: readonly UpgradeDefinition[],
 ): UpgradeDefinition[] {
-  const unlockOf = (pactId: string): UpgradeDefinition | undefined =>
-    availableUpgrades.find((u) =>
-      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === pactId),
-    )
+  // One sweep over the tree: the first node that signs each pact. A node that
+  // signs two pacts is listed once.
+  const unlockByPact = new Map<string, UpgradeDefinition>()
+  for (const u of availableUpgrades) {
+    for (const e of u.effects ?? []) {
+      if (e.type !== 'unlockPact' || typeof e.pact !== 'string' || unlockByPact.has(e.pact))
+        continue
+      unlockByPact.set(e.pact, u)
+    }
+  }
   const signable = modeDef.pacts.filter(
-    (p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0 && unlockOf(p.id) !== undefined,
+    (p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0 && unlockByPact.has(p.id),
   )
   const chosen = signable.sort((a, b) => Number(b.mutual === true) - Number(a.mutual === true))
-  const unlocks: UpgradeDefinition[] = []
-  for (const pact of chosen) {
-    const unlock = unlockOf(pact.id)
-    if (unlock && !unlocks.includes(unlock)) unlocks.push(unlock)
-  }
-  return unlocks
+  const unlocks = new Set<UpgradeDefinition>()
+  for (const pact of chosen) unlocks.add(unlockByPact.get(pact.id)!)
+  return [...unlocks]
 }
 
 /** Does owning this upgrade unlock the named player-action system? */
