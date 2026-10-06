@@ -219,22 +219,51 @@ function checkStartingSlotBudget(
     ids.add(target)
   }
   const cappedKinds = new Set<string>()
-  const baseSlots = new Map<string, number>()
-  // The greatest limit a player could ever reach: the base plus every grant
-  // bought to its purchase limit (infinite when any grant is unlimited).
-  const reachableSlots = new Map<string, number>()
-  const noteGrant = (ref: EffectRef, levels: number, fromMode: boolean): void => {
-    if (ref.type !== system.grantType) return
-    const kind = ref[system.kindField]
-    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
-    cappedKinds.add(kind)
-    if (typeof ref.value !== 'number') return
-    if (fromMode) baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
-    reachableSlots.set(kind, (reachableSlots.get(kind) ?? 0) + ref.value * levels)
+  const add = (into: Map<string, number>, kind: string, value: number): void => {
+    into.set(kind, (into.get(kind) ?? 0) + value)
   }
-  for (const ref of def.effects ?? []) noteGrant(ref, 1, true)
-  for (const u of def.upgrades)
-    for (const ref of u.effects ?? []) noteGrant(ref, u.purchaseLimit, false)
+  /** Slots `refs` grant per kind at `levels` levels; notes every kind they name as capped. */
+  const grantsOf = (
+    refs: readonly EffectRef[] | undefined,
+    levels: number,
+  ): Map<string, number> => {
+    const grants = new Map<string, number>()
+    for (const ref of refs ?? []) {
+      if (ref.type !== system.grantType) continue
+      const kind = ref[system.kindField]
+      if (kind !== 'active' && kind !== 'passive') continue // the schema's to reject
+      cappedKinds.add(kind)
+      if (typeof ref.value === 'number') add(grants, kind, ref.value * levels)
+    }
+    return grants
+  }
+  const baseSlots = grantsOf(def.effects, 1)
+  // The greatest limit a player could ever reach: the base plus every grant a
+  // player can actually own, bought to its purchase limit (infinite when any
+  // is unlimited). A `comingSoon` node is never bought, so it grants nothing;
+  // within a choice group only one node is ever owned, so a group contributes
+  // its single most generous member per kind, not the sum.
+  const reachableSlots = new Map(baseSlots)
+  const bestInGroup = new Map<string, Map<string, number>>()
+  for (const u of def.upgrades) {
+    if (u.comingSoon) {
+      grantsOf(u.effects, 0) // still caps the kinds it names
+      continue
+    }
+    const grants = grantsOf(u.effects, u.purchaseLimit)
+    if (u.choiceGroup === undefined) {
+      for (const [kind, value] of grants) add(reachableSlots, kind, value)
+      continue
+    }
+    let best = bestInGroup.get(u.choiceGroup)
+    if (!best) {
+      best = new Map()
+      bestInGroup.set(u.choiceGroup, best)
+    }
+    for (const [kind, value] of grants) best.set(kind, Math.max(best.get(kind) ?? 0, value))
+  }
+  for (const best of bestInGroup.values())
+    for (const [kind, value] of best) add(reachableSlots, kind, value)
   for (const kind of cappedKinds) {
     let held = 0
     for (const target of startingUnlocks.get(kind) ?? [])

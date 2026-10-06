@@ -418,6 +418,37 @@ describe('slot cost', () => {
       )
     })
 
+    it('counts only the most generous raise of a choice group', () => {
+      // Base 1; two exclusive raises of +2 — a player ends at 3, never 5.
+      const raise = (id: string, value: number) =>
+        upgrade(id, [{ type: 'attackSlots', attackKind: 'active', value }], {
+          choiceGroup: 'branch',
+        })
+      const base: EffectRef[] = [{ type: 'attackSlots', attackKind: 'active', value: 1 }]
+      const withBranch = (slotCost: number) => ({
+        ...makeMode(base, [UNLOCK_A0, raise('raise-left', 2), raise('raise-right', 2)]),
+        attacks: [ACTIVE_A, { ...ACTIVE_B, slotCost }, PASSIVE_A, PASSIVE_B],
+      })
+      expect(valid(withBranch(3))).not.toThrow()
+      expect(valid(withBranch(4))).toThrow(
+        /active attack 'a1' takes 4 slot\(s\) but at most 3 active attack slot\(s\) can ever be granted/,
+      )
+    })
+
+    it('grants nothing through a coming-soon raise, which still caps its kind', () => {
+      const soon = upgrade('soon', [{ type: 'attackSlots', attackKind: 'passive', value: 5 }], {
+        comingSoon: true,
+      })
+      const mode = {
+        ...makeMode([{ type: 'attackSlots', attackKind: 'active', value: 2 }], [UNLOCK_P0, soon]),
+        attacks: [ACTIVE_A, ACTIVE_B, { ...PASSIVE_A, slotCost: 2 }, PASSIVE_B],
+      }
+      // Passive is capped (the node names it) at a reachable 0, so p0 can never be held.
+      expect(valid(mode)).toThrow(
+        /passive attack 'p0' takes 2 slot\(s\) but at most 0 passive attack slot\(s\) can ever be granted/,
+      )
+    })
+
     it('never throws when a raise is unlimited', () => {
       const unlimited = weighted().upgrades.map((u) =>
         u.id === 'slot-active' ? { ...u, purchaseLimit: Infinity } : u,
