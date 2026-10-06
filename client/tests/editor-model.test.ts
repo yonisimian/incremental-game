@@ -1398,7 +1398,7 @@ describe('pacts', () => {
 
   it('writes a whole slot cost above 1 on attacks and pacts, and clears the default', () => {
     const tree = idler()
-    expect(setAttackSlotCost(tree, 'a0', 2.4)).toEqual({ ok: true })
+    expect(setAttackSlotCost(tree, 'a0', 2)).toEqual({ ok: true })
     expect(tree.attacks.find((a) => a.id === 'a0')!.slotCost).toBe(2)
     expect(listAttacks(tree).find((a) => a.id === 'a0')!.slotCost).toBe(2)
     expect(setAttackSlotCost(tree, 'a0', 1)).toEqual({ ok: true })
@@ -1407,19 +1407,19 @@ describe('pacts', () => {
 
     expect(setPactSlotCost(tree, 'p3', 2)).toEqual({ ok: true })
     expect(listPacts(tree).find((p) => p.id === 'p3')!.slotCost).toBe(2)
-    expect(setPactSlotCost(tree, 'p3', 1.2)).toEqual({ ok: true })
+    expect(setPactSlotCost(tree, 'p3', 1)).toEqual({ ok: true })
     expect(tree.pacts.find((p) => p.id === 'p3')).not.toHaveProperty('slotCost')
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
-  it('refuses a slot cost below 1 and leaves the attack or pact as it was', () => {
+  it('refuses a slot cost below 1 or fractional, leaving the attack or pact as it was', () => {
     const tree = idler()
     setAttackSlotCost(tree, 'a0', 2)
     setPactSlotCost(tree, 'p3', 2)
     const before = structuredClone({ attacks: tree.attacks, pacts: tree.pacts })
 
-    // The schema requires a positive count, so writing the default in its
-    // place would hide the slip: the editor refuses instead.
+    // The schema requires a positive whole count, so writing a nearby value
+    // in its place would hide the slip: the editor refuses instead.
     expect(setAttackSlotCost(tree, 'a0', -1)).toEqual({
       ok: false,
       reason: 'slot cost must be a positive whole number (got -1)',
@@ -1435,6 +1435,10 @@ describe('pacts', () => {
     expect(setPactSlotCost(tree, 'p3', 0.4)).toEqual({
       ok: false,
       reason: 'slot cost must be a positive whole number (got 0.4)',
+    })
+    expect(setAttackSlotCost(tree, 'a0', 2.4)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got 2.4)',
     })
     expect({ attacks: tree.attacks, pacts: tree.pacts }).toEqual(before)
     expect(() => toModeDefinition(tree)).not.toThrow()

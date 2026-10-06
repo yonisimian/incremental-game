@@ -1012,18 +1012,17 @@ export interface AttackRow {
 }
 
 /**
- * The value written for an authored slot cost, rounded to a whole number: a
- * number above 1, or `undefined` (absent) for the default of 1 so the file
- * stays minimal. Below 1 is refused — the schema requires a positive count,
- * and silently writing the default would hide the slip.
+ * The value written for an authored slot cost: a whole number above 1, or
+ * `undefined` (absent) for the default of 1 so the file stays minimal.
+ * Anything else — below 1, or fractional — is refused: the schema requires a
+ * positive count, and silently writing a nearby value would hide the slip.
  */
 function normalizeSlotCost(
   slotCost: number,
 ): { ok: true; value: number | undefined } | { ok: false; reason: string } {
-  const whole = Math.round(slotCost)
-  if (!(whole >= 1))
+  if (!Number.isInteger(slotCost) || slotCost < 1)
     return { ok: false, reason: `slot cost must be a positive whole number (got ${slotCost})` }
-  return { ok: true, value: whole > 1 ? whole : undefined }
+  return { ok: true, value: slotCost > 1 ? slotCost : undefined }
 }
 
 /** The next free `aN` attack id. */
@@ -1178,9 +1177,9 @@ export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: numbe
 }
 
 /**
- * Set how many slots of its kind's budget attack `id` takes, rounded to a whole
- * number; `1` is written as absent (the default). Refuses a value below 1,
- * leaving the attack as it was. Unknown id is a no-op.
+ * Set how many slots of its kind's budget attack `id` takes, a whole number;
+ * `1` is written as absent (the default). Refuses a value below 1 or a
+ * fraction, leaving the attack as it was. Unknown id is a no-op.
  */
 export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
   const attack = tree.attacks.find((a) => a.id === id)
@@ -1472,7 +1471,7 @@ export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number 
 
 /**
  * Set how many slots of its kind's budget pact `id` takes — the rules of
- * {@link setAttackSlotCost}: rounded, `1` written as absent, below 1 refused.
+ * {@link setAttackSlotCost}: whole, `1` written as absent, the rest refused.
  */
 export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
   const pact = tree.pacts.find((p) => p.id === id)
