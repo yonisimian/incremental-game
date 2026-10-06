@@ -156,8 +156,8 @@ function unlocksSystem(upgrade: UpgradeDefinition, system: 'click' | 'highlight'
  * currency, advances its upgrade plan, and reinvests spare currency into
  * unlocked generators.
  *
- * The plan is: be-af-mr → the generator-unlock upgrades (free, so they fire
- * early and start passive income) → one active attack → the passive pacts
+ * The plan is: be-af-mr → the generator-unlock upgrades (early, to start
+ * passive income) → one active attack → the passive pacts
  * that do something → under the buy-upgrade goal, the Royal Throne (trophy)
  * via its prerequisite chain.
  */
@@ -216,8 +216,8 @@ export class IdlerBot implements BotStrategy {
     }
     const includedIds = new Set(basePlan.map((s) => s.id))
 
-    // Generator-unlock upgrades next: they're free, so buying them early opens
-    // up passive income (and the generators panel) as soon as possible.
+    // Generator-unlock upgrades next: buying them early opens up passive
+    // income (and the generators panel) as soon as possible.
     for (const upgrade of availableUpgrades) {
       if (!unlocksGenerator(upgrade)) continue
       const path = this.resolvePath(upgrade, includedIds)
@@ -227,7 +227,7 @@ export class IdlerBot implements BotStrategy {
 
     // One active attack, so a bot match exercises the offence — and the
     // victim's early warning. Its unlock chain (the attack panel,
-    // then the free unlock node) rides the plan like the generator unlocks.
+    // then its unlock node) rides the plan like the generator unlocks.
     const target = botAttackTarget(modeDef, availableUpgrades)
     if (target) {
       const path = this.resolvePath(target.unlock, includedIds)
@@ -235,7 +235,7 @@ export class IdlerBot implements BotStrategy {
       basePlan.push(...path)
     }
 
-    // The free pact nodes: sign every passive pact that does
+    // The pact nodes: sign every passive pact that does
     // something, so a bot match shows a treaty from the other side. Their
     // unlock chain (the relations panel, then the node) rides the plan like the
     // attack unlock does.

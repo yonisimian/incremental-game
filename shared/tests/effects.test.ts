@@ -18,6 +18,7 @@ import {
   isClickUnlocked,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
   MAX_CPS,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
@@ -114,6 +115,14 @@ describe('effect registry', () => {
       'relativeModifier',
       'timeScaledModifier',
     ])
+  })
+
+  // Pins the partner-directed set the same way: a new gift effect that forgets
+  // the flag boots on a mutual pact and stays hidden from the partner it
+  // reaches, with no other signal.
+  it('pins which effects are partner-directed', () => {
+    expect(listEffectTypes().filter(isPartnerDirectedEffect)).toEqual(['partnerAutoClick'])
+    expect(isPartnerDirectedEffect('nope')).toBe(false)
   })
 })
 
@@ -816,10 +825,11 @@ describe('partnerAutoClick params', () => {
     expect(() => apply({ type: 'partnerAutoClick', clicksPerSec: MAX_CPS })).not.toThrow()
   })
 
-  it('lives on active pacts only', () => {
+  it('lives on active pacts only, and is directed at the partner', () => {
     expect(isEffectAllowedOn('partnerAutoClick', 'activePact')).toBe(true)
     expect(isEffectAllowedOn('partnerAutoClick', 'passivePact')).toBe(false)
     expect(isEffectAllowedOn('partnerAutoClick', 'upgrade')).toBe(false)
+    expect(isPartnerDirectedEffect('partnerAutoClick')).toBe(true)
   })
 })
 

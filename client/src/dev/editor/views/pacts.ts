@@ -116,8 +116,12 @@ function buildRow(ctx: EditorContext, row: PactRow, render: () => void): HTMLEle
     kindSelect.append(opt)
   }
   kindSelect.addEventListener('change', () => {
-    setPactKind(tree, row.id, kindSelect.value === 'active' ? 'active' : 'passive')
-    ctx.markDirty()
+    const kind = kindSelect.value === 'active' ? 'active' : 'passive'
+    const result = setPactKind(tree, row.id, kind)
+    // A refusal (an effect the new kind cannot host) leaves the tree as it
+    // was; the re-render puts the select back.
+    if (result.ok) ctx.markDirty()
+    else ctx.setStatus(`Can't make ${row.id} ${kind}: ${result.reason}`, true)
     render()
   })
 

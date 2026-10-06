@@ -11,6 +11,7 @@ import {
   getPactIcon,
   getPactName,
   getResourceIcon,
+  pactAutoClicksPerSec,
   pactBlockReason,
   pactLimit,
   pactSlotsHeld,
@@ -111,7 +112,7 @@ function renderCard(
   const lines = worth + discounts
   const hasEffects = (pact.effects?.length ?? 0) > 0
   // An opponent's window reaching this player: its countdown and its gift.
-  const windowLines = sharedWindowLines(state, pact)
+  const windowLines = sharedWindowLines(state, modeDef, pact)
   const body =
     lines !== ''
       ? `${windowLines}<ul class="pact-worth-list">${lines}</ul>`
@@ -190,24 +191,34 @@ function renderActiveCard(
         <span class="pact-name">${getPactName(flavor, id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
         ${status}
+        ${sharedWindowLines(state, modeDef, pact, 'Enemy’s treaty active for {}s')}
       </button>
     </li>
   `
 }
 
 /**
- * What an opponent's active-pact window is doing for this player, shown on its
- * shared-treaty card: how long it stays open, and — for a pact carrying
- * `partnerAutoClick` — the clicks it is granting (or why it grants none).
+ * What an opponent's active-pact window is doing for this player: how long it
+ * stays open, and — for a pact carrying `partnerAutoClick` — the clicks it is
+ * granting (or why it grants none). Shown on the shared-treaty card of a pact
+ * this player has not signed, and under the status of their own active card
+ * when they have (the two windows are independent, so the `template` names
+ * whose this is). Empty when no window of `pact` is open on the other side.
  */
-function sharedWindowLines(state: Readonly<GameState>, pact: PactDefinition): string {
+function sharedWindowLines(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  pact: PactDefinition,
+  template = 'Active for {}s',
+): string {
   const window = state.opponentPactWindows.find((w) => w.pact === pact.id)
   if (!window) return ''
   const gameSec = readGameSec(state.player)
   const lines = [
-    `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: window.expiresAtSec }, gameSec)}</span>`,
+    `<span class="pact-status pact-status--active">${countdownSpan({ template, untilSec: window.expiresAtSec }, gameSec)}</span>`,
   ]
-  const gifts = (pact.effects ?? []).some((ref) => ref.type === 'partnerAutoClick')
+  // Judged by what the treaty's effects output, not by their names.
+  const gifts = pactAutoClicksPerSec(pact, state.player, modeDef) > 0
   if (gifts)
     lines.push(
       state.incomingAutoClicksPerSec > 0
@@ -267,8 +278,9 @@ function renderRelations(state: Readonly<GameState>): string {
     const pact = pactById.get(id)
     return pact ? renderActiveCard(state, modeDef, flavor, pact, bonusById.get(id)) : ''
   }
-  // The opponent's mutual treaties pay this player too, but the ones this
-  // player has also signed are already on their own card.
+  // The opponent's treaties that reach this player get a shared card — unless
+  // this player has also signed the pact, whose own card then carries the
+  // worth (passive) or the enemy's open window (active) instead.
   const sharedOnly = shared.filter((id) => !unlocked.includes(id))
   return `
     ${active.length > 0 ? renderSection('Active', active.map(activeCard).join(''), renderSlots(state, modeDef, 'active')) : ''}

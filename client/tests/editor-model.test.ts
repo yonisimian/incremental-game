@@ -895,7 +895,7 @@ describe('attacks', () => {
     expect(def.durationSec).toBe(8)
   })
 
-  it('setAttackDuration clears on null or a non-positive value, keeping the tree loadable', () => {
+  it('setAttackDuration clears on null or zero, keeping the tree loadable', () => {
     const tree = idler()
     setAttackDuration(tree, ACTIVE_ATTACK, 8)
     setAttackDuration(tree, ACTIVE_ATTACK, null)
@@ -904,6 +904,13 @@ describe('attacks', () => {
     expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBeUndefined()
     // The seed steal is all-steal, so with the window cleared it loads as before.
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('setAttackDuration keeps a negative value so export reports it', () => {
+    const tree = idler()
+    setAttackDuration(tree, ACTIVE_ATTACK, -3)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBe(-3)
+    expect(() => toModeDefinition(tree)).toThrow()
   })
 
   it('switching to passive strips the duration along with the prepare data', () => {
@@ -915,23 +922,33 @@ describe('attacks', () => {
     expect(attack.prepareTimeSec).toBeUndefined()
   })
 
-  it('surfaces no cooldown until one is set, then carries it into a loadable mode', () => {
+  it('surfaces the authored cooldown (null without one) and carries an edit into a loadable mode', () => {
     const tree = idler()
-    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeNull()
+    const authored = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec ?? null
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(authored)
+    const bare = tree.attacks.find((a) => a.kind === 'active' && a.cooldownSec === undefined)!
+    expect(listAttacks(tree).find((a) => a.id === bare.id)!.cooldownSec).toBeNull()
     setAttackCooldown(tree, ACTIVE_ATTACK, 12)
     expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(12)
     const def = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
     expect(def.cooldownSec).toBe(12)
   })
 
-  it('setAttackCooldown clears on null or a non-positive value, keeping the tree loadable', () => {
+  it('setAttackCooldown clears on null or zero, keeping the tree loadable', () => {
     const tree = idler()
-    for (const cleared of [null, 0, -3]) {
+    for (const cleared of [null, 0]) {
       setAttackCooldown(tree, ACTIVE_ATTACK, 12)
       setAttackCooldown(tree, ACTIVE_ATTACK, cleared)
       expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeUndefined()
     }
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('setAttackCooldown keeps a negative value so export reports it', () => {
+    const tree = idler()
+    setAttackCooldown(tree, ACTIVE_ATTACK, -3)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(-3)
+    expect(() => toModeDefinition(tree)).toThrow()
   })
 
   it('switching to passive strips the cooldown', () => {
@@ -1331,9 +1348,35 @@ describe('pacts', () => {
     setPactActivationCost(tree, id, 'r0', 300)
     setPactDuration(tree, id, 15)
     setPactCooldown(tree, id, 45)
-    setPactKind(tree, id, 'passive')
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
     expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('refuses a switch to passive while the pact carries an active-only effect', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactEffects(tree, id, [{ type: 'partnerAutoClick', clicksPerSec: 3 }])
+    const before = structuredClone(tree.pacts.at(-1))
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // The validator would refuse the saved tree, so the editor refuses the switch.
+    expect(setPactKind(tree, id, 'passive')).toEqual({
+      ok: false,
+      reason: 'partnerAutoClick only applies on an active pact — remove it first',
+    })
+    expect(tree.pacts.at(-1)).toEqual(before)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Without the stranded effect the switch goes through.
+    setPactEffects(tree, id, [])
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(setPactKind(tree, 'nope', 'active')).toMatchObject({ ok: false })
   })
 
   it('a resource rename rewrites activation costs and pact bonus fields', () => {

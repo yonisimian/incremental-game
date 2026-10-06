@@ -1087,7 +1087,7 @@ describe('game.ts', () => {
   // ── Idler: attack slots ────────────────────────────────────────────
 
   describe('idler attack slots', () => {
-    /** The idler's free unlock node for `attack`. */
+    /** The idler's unlock node for `attack`. */
     const unlockOf = (attack: string): string =>
       idlerDef.upgrades.find((u) =>
         u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),

@@ -18,6 +18,7 @@ import {
   ENEMY_DATA_RATE_SUFFIX,
   enemyDataResourceKey,
   entityCostTargetKey,
+  isEffectAllowedOn,
   isTimeEffectType,
   parsePurchaseTarget,
 } from '@game/shared'
@@ -1132,13 +1133,14 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
  * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
  * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
  * the boot-time validator rejects a window on a passive attack, on an all-steal
- * attack, and a non-positive one — so a non-positive value is written as
- * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ * attack, and a non-positive one. `0` is the field's "unset" display, so it
+ * clears like `null`; any other value is written as typed — a negative stays in
+ * the tree so export reports it, as with {@link setAttackPrepareTime}.
  */
 export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  if (durationSec === null || durationSec === 0) delete attack.durationSec
   else attack.durationSec = durationSec
 }
 
@@ -1147,13 +1149,13 @@ export function setAttackDuration(tree: TreeFile, id: string, durationSec: numbe
  * strike lands) before it can be activated again, in seconds, or clear it with
  * `null`. Unknown id is a no-op. Only meaningful on an `active` attack; the
  * boot-time validator rejects a cooldown on a passive attack and a non-positive
- * one — so a non-positive value is written as *cleared*, as with
- * {@link setAttackDuration}.
+ * one. `0` clears like `null`; anything else is written as typed so a negative
+ * surfaces on export, as with {@link setAttackDuration}.
  */
 export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (cooldownSec === null || !(cooldownSec > 0)) delete attack.cooldownSec
+  if (cooldownSec === null || cooldownSec === 0) delete attack.cooldownSec
   else attack.cooldownSec = cooldownSec
 }
 
@@ -1376,19 +1378,36 @@ export function removePact(tree: TreeFile, id: string): MutationResult {
 }
 
 /**
- * Set pact `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
- * the activation cost, duration and cooldown — the boot-time validator rejects
- * them on a passive pact, as `setAttackKind` does for attacks.
+ * Set pact `id`'s kind. Switching to `passive` strips the activation cost,
+ * duration and cooldown — the boot-time validator rejects them on a passive
+ * pact, as `setAttackKind` does for attacks. Refuses while the pact carries an
+ * effect the new kind cannot host (`partnerAutoClick` lives on active pacts
+ * only): the validator would reject the saved tree, and silently dropping the
+ * effect would lose authored work. Clear or move those effects first.
  */
-export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+export function setPactKind(
+  tree: TreeFile,
+  id: string,
+  kind: 'active' | 'passive',
+): MutationResult {
   const pact = tree.pacts.find((p) => p.id === id)
-  if (!pact) return
+  if (!pact) return { ok: false, reason: `unknown pact '${id}'` }
+  const host = kind === 'active' ? 'activePact' : 'passivePact'
+  const stranded = (pact.effects ?? [])
+    .map((ref) => ref.type)
+    .filter((type) => !isEffectAllowedOn(type, host))
+  if (stranded.length > 0)
+    return {
+      ok: false,
+      reason: `${stranded.join(', ')} only ${stranded.length === 1 ? 'applies' : 'apply'} on ${kind === 'active' ? 'a passive' : 'an active'} pact — remove ${stranded.length === 1 ? 'it' : 'them'} first`,
+    }
   pact.kind = kind
   if (kind === 'passive') {
     delete pact.activationCost
     delete pact.durationSec
     delete pact.cooldownSec
   }
+  return { ok: true }
 }
 
 /**

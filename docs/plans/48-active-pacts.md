@@ -16,6 +16,35 @@ As built, with these departures from the text below:
 - Steps 1–8 landed one commit each, the editor step also moving
   `resourceSelect` into the shared editor controls.
 
+Review follow-ups (PR #167), one commit each:
+
+- **"Partner-directed" is a registry trait.** `EffectDef.partnerDirected`
+  (set on `partnerAutoClick`), queried through `isPartnerDirectedEffect`,
+  replaces the effect-name checks the validator, `sharedPactWindows` and the
+  relations panel each carried. The panel's gift line reads the effects'
+  output kind through `pactAutoClicksPerSec`, which
+  `collectPartnerAutoClicks` shares. The set is pinned in `effects.test.ts`
+  like the dynamic set.
+- **The sweep is `sweepPactWindows`** in `pacts.ts`, beside `openPactWindows`
+  and called by the tick after `sweepDebuffWindows` / `sweepCooldowns`.
+- **The gift rate is resolved once per tick, before either clock moves**, in
+  `syncPactBonuses`, and cached as `MatchPlayer.incomingAutoClicksPerSec`.
+  Read mid-tick, after one player's income had advanced their clock, the
+  closing tick paid the two sides a different number of ticks for identical
+  windows.
+- **The enemy's open window also shows on the viewer's own active card**
+  (labelled "Enemy's treaty active for Ns", with the gift line) when both
+  players have signed the pact; the shared section still skips pacts the
+  viewer signed, so there is no duplicate card.
+- **The editor refuses a kind switch that strands an effect**: `setPactKind`
+  returns a `MutationResult` and declines while the pact carries an effect
+  the new kind cannot host (`partnerAutoClick` on a switch to passive),
+  instead of writing a tree the boot validator rejects.
+- The pact-by-id map is cached per mode definition (WeakMap, as `flavor.ts`
+  does), and the opponent view computes `sharedPactWindows` once per viewer.
+- The prediction gap in §4 (clicks between the activation and the next
+  snapshot predicted without the ×2) stands as accepted.
+
 The buildable cut of [44 — active pacts](44-active-pacts.md), on top of
 [47 — attack cooldown](47-attack-cooldown.md) (whose `PlayerState.cooldowns`
 was shaped for this) and [42 — passive pacts](42-passive-pacts.md) (the
@@ -139,7 +168,8 @@ export function pactBlockReason(state, pactId, mode): PactBlockReason | null
 export function isValidPactActivation(state, pactId, mode): boolean
 export function getPactActivationCost(def): Record<string, number> // scaledCost(entry, 0)
 export function activePactExpiresAtSec(state, pactId): number | null // read-time, like activeDebuffExpiresAtSec
-export function openPactWindows(state, gameSec): ActivePact[] // for the sweep
+export function openPactWindows(state, gameSec): ActivePact[] // read-time filter
+export function sweepPactWindows(state, gameSec): void // the tick's sweep, beside sweepDebuffWindows / sweepCooldowns
 export function applyPactActivation(state, pactId, mode): void
 // deduct cost, push { pact, expiresAtSec: gameSec + durationSec },
 // startCooldown(state, 'pact', id, expiresAtSec + cooldownSec) when cooldownSec is set
@@ -194,8 +224,9 @@ hosts: ['activePact'] // a permanent auto-clicker for the enemy is not a pact an
 apply: (p) => ({ kind: 'partnerAutoClick', clicksPerSec: p.clicksPerSec })
 ```
 
-Partner-directed, so it is **not** in `pactsInForce`'s owner walk. A new
-resolver:
+Partner-directed (`partnerDirected: true` on the `EffectDef`, the trait the
+validator and `sharedPactWindows` read), so it is **not** in `pactsInForce`'s
+owner walk. A new resolver:
 
 ```ts
 /**
@@ -207,8 +238,10 @@ export function collectPartnerAutoClicks(signer: Readonly<PlayerState>, mode): n
 
 **Server tick** ([match.ts `applyPassiveIncome`](../../server/src/match.ts#L618)
 or a sibling called beside it): for each player,
-`rate = collectPartnerAutoClicks(opponent.state, mode)`; when `rate > 0` **and
-`isClickUnlocked(player.state, mode)`**, credit `rate × tickSec × clickIncome`
+`rate = collectPartnerAutoClicks(opponent.state, mode)` — resolved in
+`syncPactBonuses` before either player's income moves and cached on
+`MatchPlayer`, so both sides are judged on the same instant; when `rate > 0`
+**and `isClickUnlocked(player.state, mode)`**, credit `rate × tickSec × clickIncome`
 to the player's **click target** via `creditResource`, where `clickIncome` is computed from exactly the modifier
 list `applyClick` builds (own + resolved enemy debuffs + pact modifiers).
 Extract that list into one private helper so the two paths can't drift. No
@@ -227,8 +260,9 @@ where it clicks.
 
 - `processActions` / `processBotActions`: an `activate_pact` branch →
   `isValidPactActivation` → `applyPactActivation`, beside the attack branch.
-- `resolveDueAttacks`' sweep block (or a `sweepPacts` beside it): drop closed
-  `activePacts`; `sweepCooldowns` already covers pact cooldowns.
+- `resolveDueAttacks` calls `sweepPactWindows` after `sweepDebuffWindows`
+  and `sweepCooldowns` (which already covers pact cooldowns): drop closed
+  `activePacts`, deleting the field once empty.
 - `endRound`: `delete state.activePacts` beside `activeDebuffs`.
 - Pact bonuses are recomputed per tick (`refreshPactBonuses`), so a window
   opening mid-tick is worth whole ticks — the same granularity as attack
@@ -263,7 +297,9 @@ where it clicks.
   worth lines from `pactBonuses`, "Ready in Ns", blocked — and a click calls
   `doActivatePact`. The shared section lists the opponent's windows reaching
   the viewer, with their countdown and, for auto-clicks, the
-  `incomingAutoClicksPerSec` line.
+  `incomingAutoClicksPerSec` line. A pact the viewer has also signed gets no
+  shared card; the enemy's open window shows under the status of the viewer's
+  own card instead, labelled as theirs.
 - **Toasts:** own — `🥁 Drum Accord signed — clicks ×2 for 15s`; partner —
   `🥁 Enemy signed Drum Accord — you get 3 clicks/s for 15s`. `success` /
   `info` variants.
@@ -280,7 +316,9 @@ Drum Accord would need the bot to model its own clicking against the gift.
 
 - Pact row: activation cost (currency rows, as the attack prepare cost),
   duration and cooldown inputs behind the kind select; cleared on a switch to
-  passive.
+  passive. The switch is refused (status line, select put back) while the
+  pact carries an effect the new kind cannot host, e.g. `partnerAutoClick`
+  going passive — the validator would reject the saved tree.
 - Both new effects join the "Pacts" picker group; the pact target catalog
   feeds `pactProductionModifier.field`.
 
@@ -325,9 +363,13 @@ gets 3 automatic clicks per second for as long." An unlock node
   - `pactsInForce` includes own open windows and partner open mutual windows,
     excludes closed windows and partner one-sided windows, lists a pact once;
   - `collectPactBonuses` keeps a `pactModifier` verbatim, alongside mirrors;
-  - `collectPartnerAutoClicks` sums open windows, ignores closed ones.
+  - `collectPartnerAutoClicks` sums open windows, ignores closed ones;
+  - `sweepPactWindows` drops closed windows, deletes the field once empty;
+  - a test-registered gift effect flagged `partnerDirected` is revealed by
+    `sharedPactWindows` and rejected on a mutual pact — the trait, not the
+    name, decides.
 - `effects.test.ts`: both schemas (positive `clicksPerSec`, bonus-direction
-  guard on the modifier).
+  guard on the modifier); the partner-directed set is pinned.
 - `flavor.test.ts` (validation): active pact without cost / duration throws;
   passive pact with any timing field throws; unknown activation currency
   throws; `partnerAutoClick` on a mutual pact, on a passive pact, and in a
@@ -344,7 +386,8 @@ gets 3 automatic clicks per second for as long." An unlock node
   the window, to the resource of their last click (score resource before any
   click), and nothing after; nothing at all while they have not unlocked
   clicking; the partner's `peakCps` / `totalClicks` do
-  not move; the window freezes with a pause; `endRound` clears it.
+  not move; the window freezes with a pause; `endRound` clears it; two
+  identical windows opened in the same instant pay both sides the same.
 - Events: `own` to the signer, `partner` to the partner, once each.
 - Opponent view: the partner sees the window with its expiry; a one-sided,
   own-only window never reaches the partner.
@@ -356,9 +399,10 @@ gets 3 automatic clicks per second for as long." An unlock node
   action queued), refuses while cooling; the replay keeps / drops it against
   the snapshot.
 - Relations panel: the five card states; the shared section's countdown and
-  clicks/s line.
+  clicks/s line; the enemy's window on the viewer's own card when both signed.
 - Toasts once per event.
-- Editor model: pact fields set / clear / stripped on passive.
+- Editor model: pact fields set / clear / stripped on passive; a switch that
+  would strand an active-only effect is refused and leaves the tree as it was.
 
 ---
 
