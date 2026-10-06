@@ -3,6 +3,7 @@
 // against the partner. Logic tier throughout: every assertion is on a value.
 
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   activePactExpiresAtSec,
   applyGeneratorPurchase,
@@ -31,6 +32,7 @@ import {
   pactsInForce,
   purchaseBlockReason,
   readEnemyStat,
+  registerEffect,
   resolveEnemyDebuffs,
   resolveGeneratorDef,
   sharedPacts,
@@ -595,6 +597,49 @@ describe('active pact activation', () => {
       expect(sharedPactWindows(open(ACCORD.id, 10, 25), withDrums)).toEqual([])
       // And a closed one is gone.
       expect(sharedPactWindows(open(DRUMS.id, 25, 25), withDrums)).toEqual([])
+    })
+
+    it('judges "reaches the partner" by the registry trait, not the effect name', () => {
+      // A gift that is not partnerAutoClick: flagged partner-directed, nothing else.
+      registerEffect('testGift', {
+        schema: z.strictObject({}),
+        apply: () => null,
+        hosts: ['activePact'],
+        partnerDirected: true,
+      })
+      const GIFT: PactDefinition = { ...ACCORD, id: 'p-gift', effects: [{ type: 'testGift' }] }
+      const withGift: ModeDefinition = {
+        ...mode,
+        upgrades: [...mode.upgrades, sign(GIFT.id)],
+        pacts: [...mode.pacts, GIFT],
+      }
+      expect(sharedPactWindows(open(GIFT.id, 10, 25), withGift)).toEqual([
+        { pact: GIFT.id, expiresAtSec: 25 },
+      ])
+      expect(sharedPacts(open(GIFT.id, 10, 25), withGift)).toEqual([GIFT.id])
+
+      const flavored = (def: ModeDefinition): ModeDefinition => ({
+        ...def,
+        flavors: def.flavors.map((f) => ({
+          ...f,
+          upgrades: def.upgrades.map((u) => ({
+            id: u.id,
+            name: u.id,
+            icon: '🔧',
+            description: '',
+          })),
+          pacts: def.pacts.map((p) => ({ id: p.id, name: p.id, icon: '🤝', description: '' })),
+        })),
+      })
+      expect(() => {
+        validateModeDefinition('test', flavored(withGift))
+      }).not.toThrow()
+      expect(() => {
+        validateModeDefinition(
+          'test',
+          flavored({ ...withGift, pacts: [...mode.pacts, { ...GIFT, mutual: true }] }),
+        )
+      }).toThrow(/partner-directed effect 'testGift' but is mutual/)
     })
 
     it('reveals the partner’s open mutual windows, never a one-sided one', () => {

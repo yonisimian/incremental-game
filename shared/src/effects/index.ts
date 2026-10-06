@@ -100,6 +100,7 @@ export {
   effectHosts,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'

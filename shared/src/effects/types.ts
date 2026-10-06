@@ -579,6 +579,15 @@ export interface EffectDef<P> {
    */
   readonly dynamic?: boolean
   /**
+   * Marks a pact effect that acts on the signer's *partner* rather than the
+   * signer — a gift such as `partnerAutoClick`. The pact rules read it in two
+   * places: `validateModeDefinition` rejects such an effect on a `mutual` pact
+   * (sharing "the same buff" back is ambiguous for a gift), and a one-sided
+   * window carrying one is revealed to the partner (`sharedPactWindows`), since
+   * it already reaches them. Defaults to `false`.
+   */
+  readonly partnerDirected?: boolean
+  /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.
    */

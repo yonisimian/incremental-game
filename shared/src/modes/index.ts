@@ -45,6 +45,7 @@ import {
   forEachHeldEffectOutput,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
   normalizeEffectOutputs,
   prepareEffect,
 } from '../effects/index.js'
@@ -679,20 +680,21 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
-  // `partnerAutoClick` credits the partner's clicks, so it needs a mode with
-  // clicks; and it is partner-directed, which `mutual` ("the partner gets the
-  // same buff") would make ambiguous — auto-clicks flowing both ways? Rejected
-  // until a pact wants that. (The effect's hosts already keep it active-only.)
+  // A partner-directed effect (a gift such as `partnerAutoClick`, flagged
+  // `partnerDirected` in the registry) acts on the signer's partner, which
+  // `mutual` ("the partner gets the same buff") would make ambiguous — the gift
+  // flowing both ways? Rejected until a pact wants that. `partnerAutoClick`
+  // itself also credits the partner's clicks, so it needs a mode with clicks.
+  // (The effect's hosts already keep it active-only.)
   for (const pact of def.pacts) {
     for (const ref of pact.effects ?? []) {
-      if (ref.type !== 'partnerAutoClick') continue
-      if (!def.clicksEnabled)
+      if (isPartnerDirectedEffect(ref.type) && pact.mutual === true)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries the partner-directed effect '${ref.type}' but is mutual — a gift to the partner cannot also be shared back`,
+        )
+      if (ref.type === 'partnerAutoClick' && !def.clicksEnabled)
         throw new Error(
           `[${id}] pact '${pact.id}' carries partnerAutoClick, but the mode has clicks disabled — there is no click income to credit`,
-        )
-      if (pact.mutual === true)
-        throw new Error(
-          `[${id}] pact '${pact.id}' carries partnerAutoClick but is mutual — a partner-directed effect cannot also be shared back`,
         )
     }
   }

@@ -1554,7 +1554,7 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
     expect(() => {
       validateModeDefinition('test', clicking({ ...accord, mutual: true }))
-    }).toThrow(/partnerAutoClick but is mutual/)
+    }).toThrow(/partner-directed effect 'partnerAutoClick' but is mutual/)
     expect(() => {
       validateModeDefinition('test', { ...clicking(accord), clicksEnabled: false })
     }).toThrow(/partnerAutoClick, but the mode has clicks disabled/)

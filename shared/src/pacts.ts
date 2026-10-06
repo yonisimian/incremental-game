@@ -12,7 +12,7 @@ import { scaledCost } from './cost.js'
 import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { readEnemyStat } from './effects/enemy-stats.js'
 import type { PartnerSnapshot } from './effects/enemy-stats.js'
-import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
+import { applyEffect, isPartnerDirectedEffect, normalizeEffectOutputs } from './effects/registry.js'
 import type { MirrorCostOutput, MirrorModifierOutput } from './effects/types.js'
 import type { Modifier } from './modifiers/types.js'
 import { readGameSec } from './game-clock.js'
@@ -99,17 +99,15 @@ function openWindowIds(state: Readonly<PlayerState>): string[] {
   return openPactWindows(state, readGameSec(state)).map((w) => w.pact)
 }
 
-/** The effect types that act on the signer's *partner* rather than the signer. */
-const PARTNER_DIRECTED_EFFECTS: ReadonlySet<string> = new Set(['partnerAutoClick'])
-
 /**
  * Whether `pact` reaches the other player while in force: it is `mutual` (they
  * get the same buffs), or it carries a partner-directed effect (a gift such as
- * `partnerAutoClick`). Judged by ref type, as the validator does.
+ * `partnerAutoClick`, flagged `partnerDirected` in the registry — the same
+ * trait the validator reads).
  */
 function reachesPartner(pact: PactDefinition): boolean {
   if (pact.mutual === true) return true
-  return (pact.effects ?? []).some((ref) => PARTNER_DIRECTED_EFFECTS.has(ref.type))
+  return (pact.effects ?? []).some((ref) => isPartnerDirectedEffect(ref.type))
 }
 
 /**
@@ -299,10 +297,31 @@ export function collectPactBonuses(
 }
 
 /**
+ * The automatic clicks per second `pact` grants the signer's **partner** while
+ * in force — its `partnerAutoClick` outputs, summed. Judged by output kind, as
+ * every consumer judges an effect, so the relations panel ("does this treaty
+ * gift me clicks?") and the server read one figure. `0` for a pact carrying
+ * none.
+ */
+export function pactAutoClicksPerSec(
+  pact: PactDefinition,
+  signer: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): number {
+  let clicksPerSec = 0
+  for (const ref of pact.effects ?? []) {
+    for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
+      if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
+    }
+  }
+  return clicksPerSec
+}
+
+/**
  * Automatic clicks per second `signer`'s open active-pact windows grant their
- * **partner** — the `partnerAutoClick` outputs, summed across windows (two
- * such pacts stack). Judged on the signer's clock, as every window is. Resolved
- * server-side: the partner's click income and click target live there.
+ * **partner**, summed across windows (two such pacts stack). Judged on the
+ * signer's clock, as every window is. Resolved server-side: the partner's click
+ * income and click target live there.
  */
 export function collectPartnerAutoClicks(
   signer: Readonly<PlayerState>,
@@ -313,11 +332,7 @@ export function collectPartnerAutoClicks(
   for (const id of openWindowIds(signer)) {
     const pact = pactById.get(id)
     if (pact?.kind !== 'active') continue
-    for (const ref of pact.effects ?? []) {
-      for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
-        if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
-      }
-    }
+    clicksPerSec += pactAutoClicksPerSec(pact, signer, mode)
   }
   return clicksPerSec
 }

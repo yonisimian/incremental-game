@@ -11,6 +11,7 @@ import {
   getPactIcon,
   getPactName,
   getResourceIcon,
+  pactAutoClicksPerSec,
   pactBlockReason,
   readGameSec,
   unlockedPacts,
@@ -102,7 +103,7 @@ function renderCard(
   const lines = worth + discounts
   const hasEffects = (pact.effects?.length ?? 0) > 0
   // An opponent's window reaching this player: its countdown and its gift.
-  const windowLines = sharedWindowLines(state, pact)
+  const windowLines = sharedWindowLines(state, modeDef, pact)
   const body =
     lines !== ''
       ? `${windowLines}<ul class="pact-worth-list">${lines}</ul>`
@@ -191,14 +192,19 @@ function renderActiveCard(
  * shared-treaty card: how long it stays open, and — for a pact carrying
  * `partnerAutoClick` — the clicks it is granting (or why it grants none).
  */
-function sharedWindowLines(state: Readonly<GameState>, pact: PactDefinition): string {
+function sharedWindowLines(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  pact: PactDefinition,
+): string {
   const window = state.opponentPactWindows.find((w) => w.pact === pact.id)
   if (!window) return ''
   const gameSec = readGameSec(state.player)
   const lines = [
     `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: window.expiresAtSec }, gameSec)}</span>`,
   ]
-  const gifts = (pact.effects ?? []).some((ref) => ref.type === 'partnerAutoClick')
+  // Judged by what the treaty's effects output, not by their names.
+  const gifts = pactAutoClicksPerSec(pact, state.player, modeDef) > 0
   if (gifts)
     lines.push(
       state.incomingAutoClicksPerSec > 0
