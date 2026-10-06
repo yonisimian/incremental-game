@@ -916,9 +916,12 @@ describe('attacks', () => {
     expect(attack.prepareTimeSec).toBeUndefined()
   })
 
-  it('surfaces no cooldown until one is set, then carries it into a loadable mode', () => {
+  it('surfaces the authored cooldown (null without one) and carries an edit into a loadable mode', () => {
     const tree = idler()
-    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeNull()
+    const authored = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec ?? null
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(authored)
+    const bare = tree.attacks.find((a) => a.kind === 'active' && a.cooldownSec === undefined)!
+    expect(listAttacks(tree).find((a) => a.id === bare.id)!.cooldownSec).toBeNull()
     setAttackCooldown(tree, ACTIVE_ATTACK, 12)
     expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(12)
     const def = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
