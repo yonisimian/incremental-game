@@ -33,7 +33,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
-import { renderSlotsBadge } from '../components.js'
+import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -122,14 +122,9 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
 }
 
-/**
- * `◼ N` beside the name when the attack takes other than one slot of a capped
- * kind's budget — why one unlock ate several slots.
- */
+/** The attack's slot-cost badge (see `renderSlotCostBadge`). */
 function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string {
-  const cost = attackSlotCost(def)
-  if (cost === 1 || !isAttackKindCapped(modeDef, def.kind)) return ''
-  return ` <span class="slot-cost" title="Takes ${cost} ${def.kind} slots">◼ ${cost}</span>`
+  return renderSlotCostBadge(attackSlotCost(def), def.kind, isAttackKindCapped(modeDef, def.kind))
 }
 
 /** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */

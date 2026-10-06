@@ -34,6 +34,16 @@ export function renderSlotsBadge(held: number, limit: number, className: string)
   return ` <span class="${className}">${held} / ${limit}</span>`
 }
 
+/**
+ * `◼ N` beside an attack's or pact's name when it takes other than one slot
+ * of a capped kind's budget — why one unlock ate several slots. Nothing for
+ * the common weight of 1, or for a kind the mode never caps.
+ */
+export function renderSlotCostBadge(cost: number, kind: string, capped: boolean): string {
+  if (cost === 1 || !capped) return ''
+  return ` <span class="slot-cost" title="Takes ${cost} ${kind} slots">◼ ${cost}</span>`
+}
+
 // ─── Goal Header Components ─────────────────────────────────────────
 
 /** The timer element — styled as a safety-cap timer for non-timed goals. */

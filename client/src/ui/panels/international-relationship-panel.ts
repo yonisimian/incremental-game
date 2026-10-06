@@ -30,7 +30,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
-import { renderSlotsBadge } from '../components.js'
+import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -96,11 +96,9 @@ function discountLines(state: Readonly<GameState>, pactId: string): string {
   return lines.join('')
 }
 
-/** `◼ N` beside the name when the pact takes other than one slot of a capped kind. */
+/** The pact's slot-cost badge (see `renderSlotCostBadge`). */
 function renderSlotCost(modeDef: ModeDefinition, pact: PactDefinition): string {
-  const cost = pactSlotCost(pact)
-  if (cost === 1 || !isPactKindCapped(modeDef, pact.kind)) return ''
-  return ` <span class="slot-cost" title="Takes ${cost} ${pact.kind} slots">◼ ${cost}</span>`
+  return renderSlotCostBadge(pactSlotCost(pact), pact.kind, isPactKindCapped(modeDef, pact.kind))
 }
 
 /**
