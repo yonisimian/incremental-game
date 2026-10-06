@@ -1,5 +1,12 @@
 import { test, expect } from './fixtures/test.js'
-import { buyUpgrade, openPanel, startRoomMatch, waitForEnded } from './fixtures/journeys.js'
+import {
+  buyUpgrade,
+  earn,
+  openPanel,
+  startRoomMatch,
+  unlockClicking,
+  waitForEnded,
+} from './fixtures/journeys.js'
 import { expectUnchanged } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
 
@@ -34,13 +41,14 @@ async function waitForTickAfter(wire: WireObserver, tick: number): Promise<void>
   await expect.poll(() => latestState(wire)?.tick ?? -1).toBeGreaterThan(tick)
 }
 
-test('SYS-01 free Attack and Relations branches unlock their rendered cards', async ({
-  players,
-}) => {
+test('SYS-01 Attack and Relations branches unlock their rendered cards', async ({ players }) => {
+  test.slow()
   const actor = await players.create('Systems-A')
   const observer = await players.create('Systems-B')
   await Promise.all([actor.open(), observer.open()])
-  await startRoomMatch(actor, observer, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(actor, observer, { type: 'timed', durationSec: 90 })
+  await unlockClicking(actor.page)
+  await earn(actor.page, 310) // a-unlock + node + ir-unlock + pact-node
 
   await buyUpgrade(actor.page, 'a-unlock')
   await buyUpgrade(actor.page, 'node')
@@ -60,12 +68,15 @@ test('SYS-01 free Attack and Relations branches unlock their rendered cards', as
 test('SYS-02 espionage reveals only purchased resource, rate, and CPS tiers', async ({
   players,
 }) => {
+  test.slow()
   const spy = await players.create('Spy-A')
   const target = await players.create('Spy-B')
   const spyWire = new WireObserver(spy.page)
   const targetWire = new WireObserver(target.page)
   await Promise.all([spy.open(), target.open()])
-  await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(spy, target, { type: 'timed', durationSec: 90 })
+  await unlockClicking(spy.page)
+  await earn(spy.page, 90) // e-se-mr + e-se-mr-ps + e-se-cps
 
   await buyUpgrade(spy.page, 'e-se-mr')
   await waitForOwnedUpgrade(spyWire, 'e-se-mr')
@@ -93,11 +104,15 @@ test('SYS-02 espionage reveals only purchased resource, rate, and CPS tiers', as
 test('SYS-03 purchase feed is non-retroactive and sends each later purchase once', async ({
   players,
 }) => {
+  test.slow()
   const spy = await players.create('Feed-A')
   const target = await players.create('Feed-B')
   const spyWire = new WireObserver(spy.page)
   await Promise.all([spy.open(), target.open()])
-  await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(spy, target, { type: 'timed', durationSec: 90 })
+  // Earn up front: the target's clicking unlock must land before the feed opens.
+  await Promise.all([unlockClicking(spy.page), unlockClicking(target.page)])
+  await Promise.all([earn(spy.page, 100), earn(target.page, 100)])
 
   await buyUpgrade(target.page, 'a-unlock')
   await buyUpgrade(spy.page, 'e-se-mr')
@@ -118,12 +133,16 @@ test('SYS-03 purchase feed is non-retroactive and sends each later purchase once
 test('SYS-04 wire redaction progresses from generic to kind and concrete ID', async ({
   players,
 }) => {
+  test.slow()
   const spy = await players.create('WireSpy-A')
   const target = await players.create('WireSpy-B')
   const spyWire = new WireObserver(spy.page)
   const targetWire = new WireObserver(target.page)
   await Promise.all([spy.open(), target.open()])
-  await startRoomMatch(spy, target, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(spy, target, { type: 'timed', durationSec: 90 })
+  // Earn up front: the target's clicking unlock must land before the feed opens.
+  await Promise.all([unlockClicking(spy.page), unlockClicking(target.page)])
+  await Promise.all([earn(spy.page, 200), earn(target.page, 270)])
   await buyUpgrade(spy.page, 'e-se-mr')
   await buyUpgrade(spy.page, 'e-se-mr-ps')
   await buyUpgrade(target.page, 'a-unlock')
@@ -170,10 +189,13 @@ test('SYS-04 wire redaction progresses from generic to kind and concrete ID', as
 })
 
 test('SYS-05 passive attack debuff reaches victim header and Data panel', async ({ players }) => {
+  test.slow()
   const attacker = await players.create('Debuff-A')
   const victim = await players.create('Debuff-B')
   await Promise.all([attacker.open(), victim.open()])
-  await startRoomMatch(attacker, victim, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(attacker, victim, { type: 'timed', durationSec: 90 })
+  await unlockClicking(attacker.page)
+  await earn(attacker.page, 130) // a-unlock + node-3
 
   await buyUpgrade(attacker.page, 'a-unlock')
   await buyUpgrade(attacker.page, 'node-3')
