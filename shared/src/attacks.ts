@@ -363,12 +363,15 @@ export function getAttackPrepareCost(
 /**
  * The reason an attack cannot be activated right now, or `null` if it can.
  * Checked in cheapest-permanent-first order so the returned reason is the most
- * fundamental one.
+ * fundamental one. A caller that has already collected the attack's `params`
+ * (the card render does, for the cost line) can pass them to skip the
+ * held-effects walk behind the affordability check.
  */
 export function attackBlockReason(
   state: Readonly<PlayerState>,
   attackId: string,
   mode: ModeDefinition,
+  params?: AttackParams,
 ): AttackBlockReason | null {
   const def = mode.attacks.find((a) => a.id === attackId)
   if (!def) return 'unknown'
@@ -385,8 +388,8 @@ export function attackBlockReason(
   // behind the open window reads as the window; before `unaffordable`, so a
   // player who can pay is still refused.
   if (cooldownUntilSec(state, 'attack', attackId) !== null) return 'cooling-down'
-  const params = collectAttackParams(state, mode, attackId)
-  if (!isCostAffordable(state.resources, getAttackPrepareCost(def, params))) return 'unaffordable'
+  const resolved = params ?? collectAttackParams(state, mode, attackId)
+  if (!isCostAffordable(state.resources, getAttackPrepareCost(def, resolved))) return 'unaffordable'
   return null
 }
 
