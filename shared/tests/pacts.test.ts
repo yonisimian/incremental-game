@@ -35,6 +35,7 @@ import {
   resolveGeneratorDef,
   sharedPacts,
   sharedPactWindows,
+  sweepPactWindows,
   upgradeCostFactors,
   validateModeDefinition,
 } from '../src/index.js'
@@ -466,6 +467,31 @@ describe('active pact activation', () => {
     expect(activePactExpiresAtSec(state, ACCORD.id)).toBeNull()
     expect(activePactExpiresAtSec(state, QUICK.id)).toBe(30)
     expect(openPactWindows(state, 25)).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+  })
+
+  describe('sweepPactWindows', () => {
+    it('drops the closed windows and keeps the open ones', () => {
+      const state = signer(0, {
+        activePacts: [
+          { pact: ACCORD.id, expiresAtSec: 25 },
+          { pact: QUICK.id, expiresAtSec: 30 },
+        ],
+      })
+      sweepPactWindows(state, 25)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+    })
+
+    it('deletes the field once nothing is left', () => {
+      const state = signer(0, { activePacts: [{ pact: ACCORD.id, expiresAtSec: 25 }] })
+      sweepPactWindows(state, 26)
+      expect(state).not.toHaveProperty('activePacts')
+    })
+
+    it('leaves a state with no windows untouched', () => {
+      const state = signer(0)
+      sweepPactWindows(state, 5)
+      expect(state).not.toHaveProperty('activePacts')
+    })
   })
 
   describe('open windows are in force', () => {

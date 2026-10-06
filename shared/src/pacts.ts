@@ -358,6 +358,21 @@ export function openPactWindows(state: Readonly<PlayerState>, gameSec: number): 
   return (state.activePacts ?? []).filter((w) => w.expiresAtSec > gameSec)
 }
 
+/**
+ * Drop the pact windows that have closed by `gameSec`; delete the field once
+ * empty — absent rather than `[]`, the convention `activeDebuffs` and
+ * `cooldowns` follow, so a quiet round carries nothing. The third of the
+ * server tick's sweeps, beside `sweepDebuffWindows` and `sweepCooldowns`; the
+ * readers already ignore a closed window at read time, so this only bounds the
+ * array.
+ */
+export function sweepPactWindows(state: PlayerState, gameSec: number): void {
+  if (!state.activePacts) return
+  const open = openPactWindows(state, gameSec)
+  if (open.length === 0) delete state.activePacts
+  else if (open.length !== state.activePacts.length) state.activePacts = open
+}
+
 /** The reason pact `pactId` cannot be activated right now, or `null` if it can. */
 export function pactBlockReason(
   state: Readonly<PlayerState>,

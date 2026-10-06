@@ -30,10 +30,10 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
-  openPactWindows,
   applyPactActivation,
   isValidPactActivation,
   sweepDebuffWindows,
+  sweepPactWindows,
   resolveAttackStrike,
   sweepCooldowns,
   collectPartnerAutoClicks,
@@ -723,12 +723,7 @@ export class Match {
 
       sweepDebuffWindows(attacker.state, gameSec)
       sweepCooldowns(attacker.state, gameSec)
-      if (attacker.state.activePacts !== undefined) {
-        const open = openPactWindows(attacker.state, gameSec)
-        if (open.length === 0) delete attacker.state.activePacts
-        else if (open.length !== attacker.state.activePacts.length)
-          attacker.state.activePacts = open
-      }
+      sweepPactWindows(attacker.state, gameSec)
 
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
