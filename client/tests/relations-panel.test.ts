@@ -303,5 +303,28 @@ describe('relations panel', () => {
       cannotClick.player.meta.gameSec = 10
       expect(render(cannotClick)).toContain('unlock clicking to use them')
     })
+
+    it('shows the enemy’s open window on the viewer’s own card when both have signed', () => {
+      registerMode('idler', withDrums())
+      // Both signed Drum Accord; only the enemy's window is open, gifting 3 clicks/s.
+      const state = signerState(1000)
+      state.opponentPacts = [DRUMS]
+      state.opponentPactWindows = [{ pact: DRUMS, expiresAtSec: 17.4 }]
+      state.incomingAutoClicksPerSec = 3
+      const html = render(state)
+      // No duplicate shared card: the viewer's own card carries the window.
+      expect(html).not.toContain('Shared treaties')
+      const card = drumsCard(html)
+      expect(card).toContain('Enemy’s treaty active for 7.4s')
+      expect(card).toContain('+3 clicks/s for you')
+      // The viewer's own window is closed, so the card still sells the activation.
+      expect(card).toContain('300 🪵')
+      expect(card).not.toContain('disabled')
+
+      // With no enemy window open, nothing of theirs shows on the card.
+      state.opponentPactWindows = []
+      state.incomingAutoClicksPerSec = 0
+      expect(drumsCard(render(state))).not.toContain('Enemy’s treaty')
+    })
   })
 })
