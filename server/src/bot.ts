@@ -28,6 +28,7 @@ import {
   unlockedAttacks,
   createInitialState,
   pactLimit,
+  pactSlotsHeld,
 } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -127,10 +128,13 @@ function botPactUnlocks(
   const signable = modeDef.pacts.filter(
     (p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0 && unlockOf(p.id) !== undefined,
   )
-  const budget = pactLimit(createInitialState(modeDef), modeDef, 'passive')
+  // The room left at the start of the round: a pact the mode's starting effects
+  // unlock already fills a slot, so the base grant alone overstates the budget.
+  const initial = createInitialState(modeDef)
+  const budget = pactLimit(initial, modeDef, 'passive') - pactSlotsHeld(initial, modeDef, 'passive')
   const chosen = signable
     .sort((a, b) => Number(b.mutual === true) - Number(a.mutual === true))
-    .slice(0, Number.isFinite(budget) ? budget : undefined)
+    .slice(0, Number.isFinite(budget) ? Math.max(0, budget) : undefined)
   const unlocks: UpgradeDefinition[] = []
   for (const pact of chosen) {
     const unlock = unlockOf(pact.id)

@@ -537,6 +537,34 @@ describe('Bot', () => {
         expect(buys).toContain('sign-p3')
         expect(buys).not.toContain('sign-p2')
       })
+
+      it('counts a pact the mode’s starting effects unlock against the budget', () => {
+        const mode = stubMode(pactUpgrades)
+        // Two passive slots, one already filled at the opening bell by p1 (which
+        // no node here signs) — so one sign is left, and it goes to the mutual p3.
+        const bot = new IdlerBot({
+          ...mode,
+          effects: [
+            ...(mode.effects ?? []).filter((e) => e.type !== 'pactSlots'),
+            { type: 'pactSlots', pactKind: 'passive', value: 2 },
+            { type: 'unlockPact', pact: 'p1' },
+          ],
+        })
+        const state: PlayerState = {
+          score: 0,
+          resources: { r0: 100, r1: 0 },
+          generators: {},
+          pendingAttacks: [],
+          meta: { highlight: 'r0', gameSec: 5 },
+          upgrades: Object.fromEntries(pactUpgrades.map((u) => [u.id, 0])),
+        }
+        const buys: string[] = []
+        for (let i = 0; i < 8; i++) {
+          for (const a of bot.decide(state)) if (a.type === 'buy') buys.push(a.upgradeId)
+        }
+        expect(buys).toContain('sign-p3')
+        expect(buys).not.toContain('sign-p2')
+      })
     })
 
     it('does not buy generators that are still locked', () => {
