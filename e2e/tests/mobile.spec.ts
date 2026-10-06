@@ -1,5 +1,12 @@
 import { test, expect } from './fixtures/test.js'
-import { buyUpgrade, openPanel, startBotMatch, startRoomMatch } from './fixtures/journeys.js'
+import {
+  buyUpgrade,
+  earn,
+  openPanel,
+  startBotMatch,
+  startRoomMatch,
+  unlockClicking,
+} from './fixtures/journeys.js'
 
 test('MOB-01 touch controls operate a real bot match', async ({ players }) => {
   const player = await players.create('Mobile')
@@ -84,11 +91,14 @@ test('MOB-04 desktop hotkeys are disabled on coarse pointer', async ({ players }
 })
 
 test('MOB-05 taps pass through a toast to the panel beneath', async ({ players }) => {
+  test.slow()
   const signer = await players.create('MobNotif-A')
   const viewer = await players.create('MobNotif-B')
   await Promise.all([signer.open(), viewer.open()])
-  await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 35 })
+  await startRoomMatch(signer, viewer, { type: 'timed', durationSec: 90 })
 
+  await unlockClicking(signer.page)
+  await earn(signer.page, 130) // ir-unlock + pact-node-2
   await buyUpgrade(signer.page, 'ir-unlock')
   await buyUpgrade(signer.page, 'pact-node-2')
 
