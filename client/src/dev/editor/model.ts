@@ -1012,13 +1012,18 @@ export interface AttackRow {
 }
 
 /**
- * The value written for an authored slot cost: a positive whole number, or
- * `undefined` (absent) for the default of 1 and anything below it, so the file
- * stays minimal and loadable mid-edit.
+ * The value written for an authored slot cost, rounded to a whole number: a
+ * number above 1, or `undefined` (absent) for the default of 1 so the file
+ * stays minimal. Below 1 is refused — the schema requires a positive count,
+ * and silently writing the default would hide the slip.
  */
-function normalizeSlotCost(slotCost: number): number | undefined {
+function normalizeSlotCost(
+  slotCost: number,
+): { ok: true; value: number | undefined } | { ok: false; reason: string } {
   const whole = Math.round(slotCost)
-  return whole > 1 ? whole : undefined
+  if (!(whole >= 1))
+    return { ok: false, reason: `slot cost must be a positive whole number (got ${slotCost})` }
+  return { ok: true, value: whole > 1 ? whole : undefined }
 }
 
 /** The next free `aN` attack id. */
@@ -1174,14 +1179,17 @@ export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: numbe
 
 /**
  * Set how many slots of its kind's budget attack `id` takes, rounded to a whole
- * number; `1` or less is written as absent (the default). Unknown id is a no-op.
+ * number; `1` is written as absent (the default). Refuses a value below 1,
+ * leaving the attack as it was. Unknown id is a no-op.
  */
-export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): void {
+export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
   const attack = tree.attacks.find((a) => a.id === id)
-  if (!attack) return
-  const value = normalizeSlotCost(slotCost)
-  if (value === undefined) delete attack.slotCost
-  else attack.slotCost = value
+  if (!attack) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete attack.slotCost
+  else attack.slotCost = result.value
+  return { ok: true }
 }
 
 /**
@@ -1462,13 +1470,18 @@ export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number 
   else pact.cooldownSec = cooldownSec
 }
 
-/** Set how many slots of its kind's budget pact `id` takes, as {@link setAttackSlotCost}. */
-export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): void {
+/**
+ * Set how many slots of its kind's budget pact `id` takes — the rules of
+ * {@link setAttackSlotCost}: rounded, `1` written as absent, below 1 refused.
+ */
+export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
   const pact = tree.pacts.find((p) => p.id === id)
-  if (!pact) return
-  const value = normalizeSlotCost(slotCost)
-  if (value === undefined) delete pact.slotCost
-  else pact.slotCost = value
+  if (!pact) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete pact.slotCost
+  else pact.slotCost = result.value
+  return { ok: true }
 }
 
 /**

@@ -1010,6 +1010,12 @@ body {
   border-color: var(--dev-accent);
 }
 
+/* A value the model refused; the field error beneath says why. */
+.ed-input.invalid,
+.ed-input.invalid:focus {
+  border-color: #ff6b6b;
+}
+
 .ed-json {
   font-family: monospace;
   width: 100%;
@@ -1093,6 +1099,10 @@ body {
   font-size: 0.8rem;
   color: #ff6b6b;
   min-height: 1em;
+}
+
+.ed-field-error {
+  display: block;
 }
 
 .ed-field-error:empty {
