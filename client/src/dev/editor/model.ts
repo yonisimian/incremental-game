@@ -18,6 +18,7 @@ import {
   ENEMY_DATA_RATE_SUFFIX,
   enemyDataResourceKey,
   entityCostTargetKey,
+  isEffectAllowedOn,
   isTimeEffectType,
   parsePurchaseTarget,
 } from '@game/shared'
@@ -1377,19 +1378,36 @@ export function removePact(tree: TreeFile, id: string): MutationResult {
 }
 
 /**
- * Set pact `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
- * the activation cost, duration and cooldown — the boot-time validator rejects
- * them on a passive pact, as `setAttackKind` does for attacks.
+ * Set pact `id`'s kind. Switching to `passive` strips the activation cost,
+ * duration and cooldown — the boot-time validator rejects them on a passive
+ * pact, as `setAttackKind` does for attacks. Refuses while the pact carries an
+ * effect the new kind cannot host (`partnerAutoClick` lives on active pacts
+ * only): the validator would reject the saved tree, and silently dropping the
+ * effect would lose authored work. Clear or move those effects first.
  */
-export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+export function setPactKind(
+  tree: TreeFile,
+  id: string,
+  kind: 'active' | 'passive',
+): MutationResult {
   const pact = tree.pacts.find((p) => p.id === id)
-  if (!pact) return
+  if (!pact) return { ok: false, reason: `unknown pact '${id}'` }
+  const host = kind === 'active' ? 'activePact' : 'passivePact'
+  const stranded = (pact.effects ?? [])
+    .map((ref) => ref.type)
+    .filter((type) => !isEffectAllowedOn(type, host))
+  if (stranded.length > 0)
+    return {
+      ok: false,
+      reason: `${stranded.join(', ')} only ${stranded.length === 1 ? 'applies' : 'apply'} on ${kind === 'active' ? 'a passive' : 'an active'} pact — remove ${stranded.length === 1 ? 'it' : 'them'} first`,
+    }
   pact.kind = kind
   if (kind === 'passive') {
     delete pact.activationCost
     delete pact.durationSec
     delete pact.cooldownSec
   }
+  return { ok: true }
 }
 
 /**

@@ -1348,9 +1348,35 @@ describe('pacts', () => {
     setPactActivationCost(tree, id, 'r0', 300)
     setPactDuration(tree, id, 15)
     setPactCooldown(tree, id, 45)
-    setPactKind(tree, id, 'passive')
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
     expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('refuses a switch to passive while the pact carries an active-only effect', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactEffects(tree, id, [{ type: 'partnerAutoClick', clicksPerSec: 3 }])
+    const before = structuredClone(tree.pacts.at(-1))
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // The validator would refuse the saved tree, so the editor refuses the switch.
+    expect(setPactKind(tree, id, 'passive')).toEqual({
+      ok: false,
+      reason: 'partnerAutoClick only applies on an active pact — remove it first',
+    })
+    expect(tree.pacts.at(-1)).toEqual(before)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Without the stranded effect the switch goes through.
+    setPactEffects(tree, id, [])
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(setPactKind(tree, 'nope', 'active')).toMatchObject({ ok: false })
   })
 
   it('a resource rename rewrites activation costs and pact bonus fields', () => {
