@@ -12,22 +12,17 @@ import { readGameSec } from './game-clock.js'
 import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { isCostAffordable } from './upgrade-costs.js'
 import { creditResource } from './modifiers/pipeline.js'
-import { createInitialState, isAttackUnlocked, unlockedAttacks } from './modes/index.js'
+import { isAttackUnlocked, unlockedAttacks } from './modes/index.js'
 import { applyEffect, forEachHeldEffectOutput, normalizeEffectOutputs } from './effects/registry.js'
 import { ATTACK_STATS } from './effects/seed/attack-stat.js'
 import type { AttackStat } from './effects/seed/attack-stat.js'
-import type {
-  AttackAlertOutput,
-  AttackSlotsOutput,
-  AttackStatOutput,
-  EffectOutput,
-} from './effects/types.js'
+import type { AttackAlertOutput, AttackStatOutput, EffectOutput } from './effects/types.js'
+import { makeSlotBudget } from './slots.js'
 import type { ModeDefinition } from './modes/types.js'
 import type {
   ActiveDebuff,
   AttackDefinition,
   AttackKind,
-  EffectRef,
   PendingAttack,
   PlayerState,
   UpgradeDefinition,
@@ -621,150 +616,63 @@ export function sweepDebuffWindows(state: PlayerState, gameSec: number): void {
 //
 // A budget on how many attacks of each kind a player can *hold*. Unlocking stays
 // derived and monotonic (`isAttackUnlocked`); the cap turns each unlock into an
-// irreversible commitment by refusing the *purchase* that would exceed it. No
-// player state is added — the count is the unlocked attacks, the limit is a sum
-// over owned `attackSlots` grants.
+// irreversible commitment by refusing the *purchase* that would exceed it. The
+// algorithm lives in `slots.ts`, shared with the pact budget; this is the
+// attack system's description of itself, and the rules under their own names.
 
-/** Whether an effect output is an attack-slot grant. */
-function isAttackSlotsOutput(out: EffectOutput): out is AttackSlotsOutput {
-  return 'kind' in out && out.kind === 'attackSlots'
-}
-
-/**
- * The attack kinds a mode caps: those any `attackSlots` effect names, on the
- * mode itself or on any upgrade, owned or not. Derived topology, so it is built
- * once per mode and cached — like the unlock-gate index.
- *
- * Naming a kind *anywhere* is what caps it, so a mode whose only slot grant
- * sits on an upgrade caps the kind at `0` until that upgrade is bought (see
- * the `attackSlots` seed for why that is authorable).
- */
-const cappedKindsCache = new WeakMap<ModeDefinition, ReadonlySet<AttackKind>>()
-
-function cappedAttackKinds(mode: ModeDefinition): ReadonlySet<AttackKind> {
-  const cached = cappedKindsCache.get(mode)
-  if (cached) return cached
-  const kinds = new Set<AttackKind>()
-  // The effect is state-independent (it echoes its authored params), so a fresh
-  // initial state is probe enough.
-  const probe = createInitialState(mode)
-  const scan = (refs: readonly EffectRef[] | undefined): void => {
-    for (const ref of refs ?? []) {
-      if (ref.type !== 'attackSlots') continue
-      for (const out of normalizeEffectOutputs(applyEffect(ref, probe, mode))) {
-        if (isAttackSlotsOutput(out)) kinds.add(out.attackKind)
-      }
-    }
-  }
-  scan(mode.effects)
-  for (const upgrade of mode.upgrades) scan(upgrade.effects)
-  cappedKindsCache.set(mode, kinds)
-  return kinds
-}
+const attackSlots = makeSlotBudget<AttackKind>({
+  grantType: 'attackSlots',
+  readGrant: (out) =>
+    'kind' in out && out.kind === 'attackSlots' ? { kind: out.attackKind, value: out.value } : null,
+  unlockType: 'unlockAttack',
+  readUnlock: (out) => ('kind' in out && out.kind === 'attackUnlock' ? out.attack : null),
+  entities: (mode) => mode.attacks,
+  isUnlocked: (state, mode, id) => isAttackUnlocked(state, mode, id),
+  unlocked: (state, mode) => unlockedAttacks(state, mode),
+})
 
 /** Whether the mode caps how many attacks of `kind` a player may hold. */
 export function isAttackKindCapped(mode: ModeDefinition, kind: AttackKind): boolean {
-  return cappedAttackKinds(mode).has(kind)
-}
-
-/**
- * The slots one host's refs grant for `kind`, at `owned` levels — the additive
- * fold `attackLimit` applies to every grant.
- */
-function slotsGranted(
-  refs: readonly EffectRef[] | undefined,
-  owned: number,
-  state: Readonly<PlayerState>,
-  mode: ModeDefinition,
-  kind: AttackKind,
-): number {
-  let total = 0
-  for (const ref of refs ?? []) {
-    // Skip non-slot effects without running them, matching `collectAttackParams`.
-    if (ref.type !== 'attackSlots') continue
-    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-      if (isAttackSlotsOutput(out) && out.attackKind === kind) total += out.value * owned
-    }
-  }
-  return total
+  return attackSlots.isCapped(mode, kind)
 }
 
 /**
  * How many attacks of `kind` this player may hold: the mode's base grant plus
  * `value × owned` for every owned `attackSlots` upgrade naming the kind.
- * `Infinity` for a kind the mode never caps (see {@link isAttackKindCapped}), so
- * a mode that authors no slots keeps its attack tree as pure breadth.
+ * `Infinity` for a kind the mode never caps (see {@link isAttackKindCapped}).
  */
 export function attackLimit(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   kind: AttackKind,
 ): number {
-  if (!isAttackKindCapped(mode, kind)) return Infinity
-  let limit = slotsGranted(mode.effects, 1, state, mode, kind)
-  for (const upgrade of mode.upgrades) {
-    const owned = state.upgrades[upgrade.id] ?? 0
-    if (owned > 0) limit += slotsGranted(upgrade.effects, owned, state, mode, kind)
-  }
-  return limit
+  return attackSlots.limit(state, mode, kind)
 }
 
 /**
  * How many attacks of `kind` this player holds — the unlocked attacks, filtered
- * by kind. Counts *attacks*, not unlock upgrades: two upgrades unlocking the
- * same attack fill one slot, and an attack granted by the mode's starting
- * effects fills one too (it is held, and exempting it would make the cap mean
- * different things in different modes).
+ * by kind. Counts *attacks*, not unlock upgrades (see `SlotBudget.held`).
  */
 export function attackSlotsHeld(
   state: Readonly<PlayerState>,
   mode: ModeDefinition,
   kind: AttackKind,
 ): number {
-  const kindOf = new Map(mode.attacks.map((a) => [a.id, a.kind]))
-  return unlockedAttacks(state, mode).filter((id) => kindOf.get(id) === kind).length
+  return attackSlots.held(state, mode, kind)
 }
 
 /**
- * Whether buying one more level of `def` fits the player's attack budget.
- *
- * Runs the upgrade's `unlockAttack` refs, keeps the attacks *not already*
- * unlocked (no double charge for a second route to the same attack), buckets
- * them by kind, and requires `held + adding <= limit` for each kind — where the
- * limit includes any slots `def` itself would grant, so a node that adds a slot
- * and fills it in one purchase is legal. All-or-nothing for an upgrade unlocking
- * two attacks with one slot free: a partial unlock is not representable, since
- * the gate is derived from the upgrade being owned.
- *
- * An upgrade with no `unlockAttack` effect is never blocked here.
+ * Whether buying one more level of `def` fits the player's attack budget —
+ * all-or-nothing over the attacks it would newly unlock, counting any slots it
+ * grants itself (see `SlotBudget.hasSlotsFor`). An upgrade with no
+ * `unlockAttack` effect is never blocked here.
  */
 export function hasAttackSlotsFor(
   state: Readonly<PlayerState>,
   def: UpgradeDefinition,
   mode: ModeDefinition,
 ): boolean {
-  const adding = new Map<AttackKind, Set<string>>()
-  const kindOf = new Map(mode.attacks.map((a) => [a.id, a.kind]))
-  for (const ref of def.effects ?? []) {
-    if (ref.type !== 'unlockAttack') continue
-    for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
-      if (!('kind' in out) || out.kind !== 'attackUnlock') continue
-      if (isAttackUnlocked(state, mode, out.attack)) continue
-      const kind = kindOf.get(out.attack)
-      if (!kind) continue // unknown attack — `validateModeDefinition` rejects it at boot
-      let ids = adding.get(kind)
-      if (!ids) {
-        ids = new Set()
-        adding.set(kind, ids)
-      }
-      ids.add(out.attack)
-    }
-  }
-  for (const [kind, ids] of adding) {
-    const limit = attackLimit(state, mode, kind) + slotsGranted(def.effects, 1, state, mode, kind)
-    if (attackSlotsHeld(state, mode, kind) + ids.size > limit) return false
-  }
-  return true
+  return attackSlots.hasSlotsFor(state, def, mode)
 }
 
 // ─── Attack alert ────────────────────────────────────────────────────
