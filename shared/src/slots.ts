@@ -129,6 +129,23 @@ export function makeSlotBudget<Kind extends string>(system: SlotSystem<Kind>): S
     return total
   }
 
+  /**
+   * Entity id → kind, built once per mode and reused — `held` and `hasSlotsFor`
+   * sit under `purchaseBlockReason`, which the client runs for every tree node
+   * on every render, so a map per call would be the render's dominant
+   * allocation. Keyed by identity: a re-registered (patched) mode is a new key.
+   */
+  const kindByIdCache = new WeakMap<ModeDefinition, ReadonlyMap<string, Kind>>()
+
+  function kindById(mode: ModeDefinition): ReadonlyMap<string, Kind> {
+    let index = kindByIdCache.get(mode)
+    if (!index) {
+      index = new Map(system.entities(mode).map((e) => [e.id, e.kind]))
+      kindByIdCache.set(mode, index)
+    }
+    return index
+  }
+
   function isCapped(mode: ModeDefinition, kind: Kind): boolean {
     return cappedKinds(mode).has(kind)
   }
@@ -144,8 +161,10 @@ export function makeSlotBudget<Kind extends string>(system: SlotSystem<Kind>): S
   }
 
   function held(state: Readonly<PlayerState>, mode: ModeDefinition, kind: Kind): number {
-    const kindOf = new Map(system.entities(mode).map((e) => [e.id, e.kind]))
-    return system.unlocked(state, mode).filter((id) => kindOf.get(id) === kind).length
+    const kindOf = kindById(mode)
+    let count = 0
+    for (const id of system.unlocked(state, mode)) if (kindOf.get(id) === kind) count += 1
+    return count
   }
 
   function hasSlotsFor(
@@ -153,9 +172,11 @@ export function makeSlotBudget<Kind extends string>(system: SlotSystem<Kind>): S
     def: UpgradeDefinition,
     mode: ModeDefinition,
   ): boolean {
+    // Most nodes unlock nothing of this system: answer before allocating.
+    if (!def.effects?.some((ref) => ref.type === system.unlockType)) return true
     const adding = new Map<Kind, Set<string>>()
-    const kindOf = new Map(system.entities(mode).map((e) => [e.id, e.kind]))
-    for (const ref of def.effects ?? []) {
+    const kindOf = kindById(mode)
+    for (const ref of def.effects) {
       if (ref.type !== system.unlockType) continue
       for (const out of normalizeEffectOutputs(applyEffect(ref, state, mode))) {
         const id = system.readUnlock(out)
