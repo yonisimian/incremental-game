@@ -26,9 +26,7 @@ import {
   collectAttackParams,
   getAttackPrepareCost,
   unlockedAttacks,
-  createInitialState,
-  pactLimit,
-  pactSlotsHeld,
+  purchaseBlockReason,
 } from '@game/shared'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -110,14 +108,12 @@ function botAttackTarget(
 /**
  * The pact-signing upgrades the bot picks up: the unlock node of *passive*
  * pacts that carry effects — the treaties that do something — **mutual ones
- * first**, and no more than the mode's base passive pact budget (`pactSlots`).
- * A solo player then meets a live pact from the bot's side: a mutual one pays
- * the human too and fills their "Shared treaties" list without a second human,
- * a one-sided one discounts the bot. Past the budget a sign is refused by the
- * slot gate — the plan advances on *emitting* a buy, so a refused step is not
- * a stall but a wasted one (and its prerequisites were bought for nothing),
- * which is why the list stops at the budget. Active pacts and placeholders are
- * skipped — the bot does not activate pacts.
+ * first**. A solo player then meets a live pact from the bot's side: a mutual
+ * one pays the human too and fills their "Shared treaties" list without a
+ * second human, a one-sided one discounts the bot. The order is the whole
+ * budgeting: once the mode's pact slots (`pactSlots`) are full, `advancePlan`
+ * skips the signs the purchase gate refuses, so the mutual ones get the room.
+ * Active pacts and placeholders are skipped — the bot does not activate pacts.
  */
 function botPactUnlocks(
   modeDef: ModeDefinition,
@@ -130,13 +126,7 @@ function botPactUnlocks(
   const signable = modeDef.pacts.filter(
     (p) => p.kind === 'passive' && (p.effects?.length ?? 0) > 0 && unlockOf(p.id) !== undefined,
   )
-  // The room left at the start of the round: a pact the mode's starting effects
-  // unlock already fills a slot, so the base grant alone overstates the budget.
-  const initial = createInitialState(modeDef)
-  const budget = pactLimit(initial, modeDef, 'passive') - pactSlotsHeld(initial, modeDef, 'passive')
-  const chosen = signable
-    .sort((a, b) => Number(b.mutual === true) - Number(a.mutual === true))
-    .slice(0, Number.isFinite(budget) ? Math.max(0, budget) : undefined)
+  const chosen = signable.sort((a, b) => Number(b.mutual === true) - Number(a.mutual === true))
   const unlocks: UpgradeDefinition[] = []
   for (const pact of chosen) {
     const unlock = unlockOf(pact.id)
@@ -320,30 +310,42 @@ export class IdlerBot implements BotStrategy {
    * Buy the current plan target when affordable, advancing the plan. The price
    * is taken out of `wallet` so the rest of this tick's decisions see the money
    * as spent.
+   *
+   * The plan advances on *emitting* a buy, not on it landing, so what the
+   * server would drop is judged here first, by the same `purchaseBlockReason`
+   * it uses. A step an earlier buy has made a dead end — a filled slot budget,
+   * a closed choice group — is skipped without the doomed emit, and the next
+   * step is tried in the same tick. An enemy purchase lock is *held* instead
+   * (the window closes on its own; the stamp is refreshed before every bot
+   * turn, so this reads the windows open right now). Every other reason is the
+   * server's to judge, as it always was.
    */
   private advancePlan(
     state: Readonly<PlayerState>,
     wallet: Record<string, number>,
     actions: BotAction[],
   ): void {
-    if (this.planIndex >= this.plan.length) return
-    // The plan advances on *emitting* a buy, not on it landing — so a buy the
-    // server drops for an enemy purchase lock would be skipped for good. Hold
-    // the step until the window closes (the stamp is refreshed before every
-    // bot turn, so this reads the windows open right now).
-    const next = this.plan[this.planIndex]
-    if (isPurchaseLocked(state, 'upgrade', next.id)) return
-    const def = this.upgradeMap.get(next.id)
-    if (!def) return
-    const owned = state.upgrades[next.id] ?? 0
-    // Priced with any enemy cost inflation folded in (`upgradeCostFactors`), the
-    // same way the server will price it — otherwise the bot emits buys that
-    // validation rejects, and its plan stalls on an unaffordable target.
-    const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, next.id))
-    if (isCostAffordable(wallet, cost)) {
-      actions.push({ type: 'buy', upgradeId: next.id })
-      for (const [currency, amount] of Object.entries(cost)) wallet[currency] -= amount
-      this.planIndex++
+    while (this.planIndex < this.plan.length) {
+      const next = this.plan[this.planIndex]
+      const def = this.upgradeMap.get(next.id)
+      if (!def) return
+      const reason = purchaseBlockReason(state, next.id, this.upgradeMap, this.modeDef)
+      if (reason === 'locked-by-attack') return
+      if (reason === 'attack-slots' || reason === 'pact-slots' || reason === 'choice-group') {
+        this.planIndex++
+        continue
+      }
+      const owned = state.upgrades[next.id] ?? 0
+      // Priced with any enemy cost inflation folded in (`upgradeCostFactors`), the
+      // same way the server will price it — otherwise the bot emits buys that
+      // validation rejects, and its plan stalls on an unaffordable target.
+      const cost = getUpgradeNextCost(def, owned, upgradeCostFactors(state, next.id))
+      if (isCostAffordable(wallet, cost)) {
+        actions.push({ type: 'buy', upgradeId: next.id })
+        for (const [currency, amount] of Object.entries(cost)) wallet[currency] -= amount
+        this.planIndex++
+      }
+      return
     }
   }
 
