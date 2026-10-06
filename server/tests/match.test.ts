@@ -1432,6 +1432,9 @@ describe('Match', () => {
     /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
     const prepareMs = (attackId: string): number =>
       mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+    /** The authored rest after an idler attack finishes, in ms (`0` when it has none). */
+    const cooldownMs = (attackId: string): number =>
+      (mode.attacks.find((a) => a.id === attackId)!.cooldownSec ?? 0) * 1000
 
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
@@ -1486,6 +1489,8 @@ describe('Match', () => {
 
       m.handleMessage('p1', activateMsg('a0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      // a0 opens no window, so its cooldown starts at the strike; wait it out.
+      vi.advanceTimersByTime(cooldownMs('a0'))
       m.handleMessage('p1', activateMsg('a0', 4))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
 
