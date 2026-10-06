@@ -2768,6 +2768,33 @@ describe('Match', () => {
         })
       })
 
+      it('judges both gifts on the same instant, so simultaneous windows pay the same', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          // Two identical players: both sign, unlock clicking, and open their
+          // windows in the same instant. Each is the other's giver.
+          for (const p of ['p1', 'p2'] as const) {
+            m.grantResourcesForTest(p, priceOf(relationsUpgrade, signP3))
+            m.handleMessage(p, buyMsg(relationsUpgrade.id, 1))
+            m.handleMessage(p, buyMsg(signP3.id, 2))
+            m.grantResourcesForTest(p, { r0: 50 })
+            m.handleMessage(p, buyMsg('sc-unlock', 3))
+            m.grantResourcesForTest(p, { r0: 100 })
+          }
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const before = [ws1, ws2].map((ws) => latestUpdate(ws).player.resources.r0)
+          m.handleMessage('p1', activatePactMsg('p3', 4))
+          m.handleMessage('p2', activatePactMsg('p3', 4))
+          vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000 + BROADCAST_INTERVAL_MS)
+          const [p1Gain, p2Gain] = [ws1, ws2].map(
+            (ws, i) => latestUpdate(ws).player.resources.r0 - before[i],
+          )
+          // Judged mid-tick, after one clock had moved, the window paid one
+          // side a tick more than the other.
+          expect(p1Gain).toBeCloseTo(p2Gain, 6)
+        })
+      })
+
       it('lands on what the partner last clicked on', () => {
         withDrums(() => {
           const m = enterPlaying()
