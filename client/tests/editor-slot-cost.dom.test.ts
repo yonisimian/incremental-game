@@ -65,6 +65,17 @@ describe.each([
     expect(view.status).toEqual([])
   })
 
+  it('treats a blanked field as nothing typed: value restored, no report, no write', () => {
+    const view = mount(make)
+    const before = structuredClone(first(view.tree))
+    expect(view.input.min).toBe('1')
+
+    view.type('')
+    expect(view.input.value).toBe(String(before.slotCost ?? 1))
+    expect(view.error()).toBe('')
+    expect(first(view.tree)).toEqual(before)
+  })
+
   it('clears the report once a valid value is written', () => {
     const view = mount(make)
     view.type('0')

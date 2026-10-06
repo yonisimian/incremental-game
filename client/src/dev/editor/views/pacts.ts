@@ -164,7 +164,7 @@ function buildRow(ctx: EditorContext, row: PactRow, render: () => void): HTMLEle
       slotCostError.textContent = result.ok ? '' : result.reason
       slotCost.classList.toggle('invalid', !result.ok)
     },
-    { step: '1' },
+    { step: '1', min: '1', allowBlank: false },
   )
   const slotCostField = labeled('Slot cost', slotCost)
   slotCostField.append(slotCostError)

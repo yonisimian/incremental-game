@@ -95,13 +95,17 @@ export function numberInput(
   ctx: EditorContext,
   value: number,
   commit: (n: number) => void,
-  options: { step?: string; onDone?: () => void } = {},
+  options: { step?: string; min?: string; allowBlank?: boolean; onDone?: () => void } = {},
 ): HTMLInputElement {
   const input = labeledInput('number', String(value), 'ed-input ed-input-num')
   if (options.step !== undefined) input.step = options.step
+  if (options.min !== undefined) input.min = options.min
   input.addEventListener('change', () => {
+    // A blank field reads as 0, which most fields mean as "none"; a field that
+    // has no "none" (`allowBlank: false`) treats it as nothing typed instead.
+    const blank = input.value.trim() === ''
     const n = Number(input.value)
-    if (Number.isFinite(n)) {
+    if (Number.isFinite(n) && !(blank && options.allowBlank === false)) {
       commit(n)
       ctx.markDirty()
       options.onDone?.()
