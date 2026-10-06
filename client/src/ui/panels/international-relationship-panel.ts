@@ -28,6 +28,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
+import { renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -228,17 +229,17 @@ function sharedWindowLines(
   return lines.join('')
 }
 
-/**
- * The `held / limit` slots line for one kind's heading — `Passive 2 / 3` — or
- * nothing when the mode never caps that kind, as the attack panel does.
- */
+/** The `held / limit` badge for one kind's heading, or nothing for an uncapped kind. */
 function renderSlots(state: Readonly<GameState>, modeDef: ModeDefinition, kind: PactKind): string {
-  const limit = pactLimit(state.player, modeDef, kind)
-  if (!Number.isFinite(limit)) return ''
-  return ` <span class="pact-slots">${pactSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+  return renderSlotsBadge(
+    pactSlotsHeld(state.player, modeDef, kind),
+    pactLimit(state.player, modeDef, kind),
+    'pact-slots',
+  )
 }
 
-function renderSection(heading: string, items: string, slots = ''): string {
+/** `(heading, slots, items)` — the attack panel's order, so the two never drift. */
+function renderSection(heading: string, slots: string, items: string): string {
   return `
     <section class="pact-section">
       <h3 class="pact-heading">${heading}${slots}</h3>
@@ -283,8 +284,8 @@ function renderRelations(state: Readonly<GameState>): string {
   // worth (passive) or the enemy's open window (active) instead.
   const sharedOnly = shared.filter((id) => !unlocked.includes(id))
   return `
-    ${active.length > 0 ? renderSection('Active', active.map(activeCard).join(''), renderSlots(state, modeDef, 'active')) : ''}
-    ${passive.length > 0 ? renderSection('Passive', passive.map(card).join(''), renderSlots(state, modeDef, 'passive')) : ''}
+    ${active.length > 0 ? renderSection('Active', renderSlots(state, modeDef, 'active'), active.map(activeCard).join('')) : ''}
+    ${passive.length > 0 ? renderSection('Passive', renderSlots(state, modeDef, 'passive'), passive.map(card).join('')) : ''}
     ${sharedOnly.length > 0 ? renderSharedSection(sharedOnly.map(card).join('')) : ''}
   `
 }
