@@ -17,6 +17,9 @@ import { highlightMultiplier } from './seed/highlight-multiplier.js'
 import { lowerTierBoost } from './seed/lower-tier-boost.js'
 import { mirrorCostModifier } from './seed/mirror-cost-modifier.js'
 import { mirrorStatModifier } from './seed/mirror-stat-modifier.js'
+import { pactProductionModifier } from './seed/pact-production-modifier.js'
+import { pactSlots } from './seed/pact-slots.js'
+import { partnerAutoClick } from './seed/partner-auto-click.js'
 import { panelUnlock } from './seed/panel-unlock.js'
 import { relativeModifier } from './seed/relative-modifier.js'
 import { stealGenerator } from './seed/steal-generator.js'
@@ -52,6 +55,9 @@ registerEffect('enemyCostModifier', enemyCostModifier)
 registerEffect('enemyPurchaseLock', enemyPurchaseLock)
 registerEffect('mirrorCostModifier', mirrorCostModifier)
 registerEffect('mirrorStatModifier', mirrorStatModifier)
+registerEffect('pactProductionModifier', pactProductionModifier)
+registerEffect('pactSlots', pactSlots)
+registerEffect('partnerAutoClick', partnerAutoClick)
 registerEffect('stealResource', stealResource)
 registerEffect('stealGenerator', stealGenerator)
 registerEffect('timeScaledModifier', timeScaledModifier)
@@ -96,6 +102,7 @@ export {
   effectHosts,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
 } from './registry.js'
 export type { BaseModifierParams } from './seed/base-modifier.js'
 export type { HighlightMultiplierParams } from './seed/highlight-multiplier.js'
@@ -135,6 +142,7 @@ export type { AttackStatParams } from './seed/attack-stat.js'
 export type { AttackSlotsParams } from './seed/attack-slots.js'
 export type { AttackAlertParams } from './seed/attack-alert.js'
 export type { UnlockPactParams } from './seed/unlock-pact.js'
+export type { PactSlotsParams } from './seed/pact-slots.js'
 export type { EnemyProductionModifierParams } from './seed/enemy-production-modifier.js'
 export type { EnemyCostModifierParams } from './seed/enemy-cost-modifier.js'
 export type { EnemyPurchaseLockParams } from './seed/enemy-purchase-lock.js'

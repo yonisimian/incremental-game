@@ -11,9 +11,11 @@ import {
   getAttackPrepareTimeSec,
   applyAttackActivation,
   dueAttacks,
+  getAttackCooldownSec,
   MAX_ATTACK_PARAM,
   NEUTRAL_ATTACK_PARAMS,
   openDebuffWindows,
+  sweepDebuffWindows,
   resolveAttackStrike,
 } from '../src/attacks.js'
 import type { AttackParams } from '../src/attacks.js'
@@ -359,6 +361,8 @@ describe('collectAttackParams', () => {
       prepareTimeOffsetSec: 0,
       duration: 1,
       durationOffsetSec: 0,
+      cooldown: 1,
+      cooldownOffsetSec: 0,
     })
   })
 
@@ -981,5 +985,201 @@ describe('openDebuffWindows', () => {
 
   it('is empty when the field is absent', () => {
     expect(openDebuffWindows(makeState(), 0)).toEqual([])
+  })
+})
+
+describe('sweepDebuffWindows', () => {
+  it('drops the closed windows and keeps the open ones', () => {
+    const state = makeState({
+      activeDebuffs: [
+        { attack: 'a3', expiresAtSec: 10 },
+        { attack: 'a4', expiresAtSec: 20 },
+      ],
+    })
+    sweepDebuffWindows(state, 10)
+    expect(state.activeDebuffs).toEqual([{ attack: 'a4', expiresAtSec: 20 }])
+  })
+
+  it('deletes the field once nothing is left', () => {
+    const state = makeState({ activeDebuffs: [{ attack: 'a3', expiresAtSec: 10 }] })
+    sweepDebuffWindows(state, 11)
+    expect(state).not.toHaveProperty('activeDebuffs')
+  })
+
+  it('keeps the same array when nothing closed', () => {
+    const windows = [{ attack: 'a3', expiresAtSec: 10 }]
+    const state = makeState({ activeDebuffs: windows })
+    sweepDebuffWindows(state, 5)
+    expect(state.activeDebuffs).toBe(windows)
+  })
+
+  it('leaves a state with no windows untouched', () => {
+    const state = makeState()
+    sweepDebuffWindows(state, 5)
+    expect(state).not.toHaveProperty('activeDebuffs')
+  })
+})
+
+// ─── Cooldowns ───────────────────────────────────────────────────────
+
+describe('attack cooldown', () => {
+  /** The steal (no window) and the debuff (10s window), each resting 20s. */
+  const RESTING_STEAL: AttackDefinition = { ...STEAL_ATTACK, cooldownSec: 20 }
+  const RESTING_DEBUFF: AttackDefinition = { ...DEBUFF_ATTACK, cooldownSec: 20 }
+  const A0_REST_HALF = statUpgrade('a0-rest-half', {
+    attack: 'a0',
+    stat: 'cooldown',
+    op: 'mult',
+    value: 0.5,
+  })
+  const A0_REST_LESS = statUpgrade('a0-rest-less', {
+    attack: 'a0',
+    stat: 'cooldown',
+    op: 'offset',
+    value: -3,
+  })
+
+  function restingMode(): ModeDefinition {
+    const base = makeMode()
+    return {
+      ...base,
+      upgrades: [...base.upgrades, A0_REST_HALF, A0_REST_LESS],
+      attacks: base.attacks.map((a) =>
+        a.id === 'a0' ? RESTING_STEAL : a.id === 'a3' ? RESTING_DEBUFF : a,
+      ),
+    }
+  }
+
+  describe('getAttackCooldownSec', () => {
+    const at = (cooldown: number, cooldownOffsetSec: number): AttackParams => ({
+      ...NEUTRAL_ATTACK_PARAMS,
+      cooldown,
+      cooldownOffsetSec,
+    })
+
+    it('scales, then shifts, then floors at zero', () => {
+      expect(getAttackCooldownSec(RESTING_STEAL, NEUTRAL_ATTACK_PARAMS)).toBe(20)
+      expect(getAttackCooldownSec(RESTING_STEAL, at(0.5, 0))).toBe(10)
+      expect(getAttackCooldownSec(RESTING_STEAL, at(1, -3))).toBe(17)
+      // 20 × 0.5 − 3, not (20 − 3) × 0.5.
+      expect(getAttackCooldownSec(RESTING_STEAL, at(0.5, -3))).toBe(7)
+      expect(getAttackCooldownSec(RESTING_STEAL, at(1, -50))).toBe(0)
+    })
+
+    it('is 0 for an attack with no authored cooldown, whatever the stats say', () => {
+      expect(getAttackCooldownSec(STEAL_ATTACK, at(3, 5))).toBe(0)
+    })
+  })
+
+  it('collects the cooldown stat, factor and offset apart', () => {
+    const state = makeState({ upgrades: { 'unlock-a0': 1, 'a0-rest-half': 2, 'a0-rest-less': 2 } })
+    const params = collectAttackParams(state, restingMode(), 'a0')
+    expect(params.cooldown).toBe(0.25) // 0.5 ** 2
+    expect(params.cooldownOffsetSec).toBe(-6) // −3s × 2
+    expect(params.prepareTime).toBe(1)
+    expect(params.prepareTimeOffsetSec).toBe(0)
+  })
+
+  describe('attackBlockReason', () => {
+    const cooling = (gameSec: number, overrides?: Partial<PlayerState>): PlayerState =>
+      makeState({
+        meta: { gameSec },
+        cooldowns: [{ kind: 'attack', id: 'a0', untilSec: 30 }],
+        ...overrides,
+      })
+
+    it('returns cooling-down during the rest, and null once it lifts', () => {
+      const mode = restingMode()
+      expect(attackBlockReason(cooling(29), 'a0', mode)).toBe('cooling-down')
+      expect(isValidAttackActivation(cooling(29), 'a0', mode)).toBe(false)
+      // Lifts at 30 exactly.
+      expect(attackBlockReason(cooling(30), 'a0', mode)).toBeNull()
+    })
+
+    it('refuses even a player who can easily pay', () => {
+      const state = cooling(10, { resources: { r0: 1_000_000 } })
+      expect(attackBlockReason(state, 'a0', restingMode())).toBe('cooling-down')
+    })
+
+    it('outranks unaffordable', () => {
+      const state = cooling(10, { resources: { r0: 0 } })
+      expect(attackBlockReason(state, 'a0', restingMode())).toBe('cooling-down')
+    })
+
+    it('yields to an open window — a rest queued behind the window reads as the window', () => {
+      const state = makeState({
+        meta: { gameSec: 12 },
+        activeDebuffs: [{ attack: 'a3', expiresAtSec: 15 }],
+        cooldowns: [{ kind: 'attack', id: 'a3', untilSec: 35 }],
+      })
+      expect(attackBlockReason(state, 'a3', restingMode())).toBe('already-active')
+      expect(attackBlockReason({ ...state, meta: { gameSec: 15 } }, 'a3', restingMode())).toBe(
+        'cooling-down',
+      )
+    })
+
+    it('ignores a pact cooldown that shares the id', () => {
+      const state = makeState({
+        meta: { gameSec: 10 },
+        cooldowns: [{ kind: 'pact', id: 'a0', untilSec: 30 }],
+      })
+      expect(attackBlockReason(state, 'a0', restingMode())).toBeNull()
+    })
+
+    it('does not let one attack’s rest block another', () => {
+      const state = makeState({
+        meta: { gameSec: 10 },
+        cooldowns: [{ kind: 'attack', id: 'a3', untilSec: 30 }],
+      })
+      expect(attackBlockReason(state, 'a0', restingMode())).toBeNull()
+    })
+  })
+
+  describe('resolveAttackStrike', () => {
+    it('starts the rest at the strike for an attack with no window', () => {
+      const attacker = makeState({ meta: { gameSec: 8 } })
+      const victim = makeState({ resources: { r0: 1000 } })
+      resolveAttackStrike(attacker, victim, RESTING_STEAL, restingMode())
+      expect(attacker.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 28 }])
+    })
+
+    it('starts the rest when the window closes for a debuff attack', () => {
+      const attacker = makeState({ meta: { gameSec: 8 } })
+      resolveAttackStrike(attacker, makeState(), RESTING_DEBUFF, restingMode())
+      // Window 8 → 18, then 20s of rest.
+      expect(attacker.cooldowns).toEqual([{ kind: 'attack', id: 'a3', untilSec: 38 }])
+    })
+
+    it('still rests after a strike that moved nothing', () => {
+      const attacker = makeState({ meta: { gameSec: 0 } })
+      const victim = makeState({ resources: { r0: 0 } })
+      expect(resolveAttackStrike(attacker, victim, RESTING_STEAL, restingMode())).toEqual([])
+      expect(attacker.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 20 }])
+    })
+
+    it('stamps nothing for an attack with no cooldown', () => {
+      const attacker = makeState({ meta: { gameSec: 0 } })
+      resolveAttackStrike(attacker, makeState({ resources: { r0: 10 } }), STEAL_ATTACK, makeMode())
+      expect(attacker).not.toHaveProperty('cooldowns')
+    })
+
+    it('applies the attacker’s cooldown stat at the strike', () => {
+      const attacker = makeState({
+        upgrades: { 'unlock-a0': 1, 'a0-rest-half': 1, 'a0-rest-less': 1 },
+        meta: { gameSec: 0 },
+      })
+      resolveAttackStrike(attacker, makeState(), RESTING_STEAL, restingMode())
+      // 20 × 0.5 − 3
+      expect(attacker.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 7 }])
+    })
+
+    it('replaces the previous rest instead of listing the attack twice', () => {
+      const attacker = makeState({
+        meta: { gameSec: 50 },
+        cooldowns: [{ kind: 'attack', id: 'a0', untilSec: 20 }],
+      })
+      resolveAttackStrike(attacker, makeState(), RESTING_STEAL, restingMode())
+      expect(attacker.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 70 }])
+    })
   })
 })

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import type { AttackDefinition, Goal, ModeDefinition } from '@game/shared'
+import type { AttackDefinition, Goal, ModeDefinition, UpgradeDefinition } from '@game/shared'
 import {
   BROADCAST_INTERVAL_MS,
   COUNTDOWN_SEC,
@@ -48,6 +48,17 @@ function wireHazards(node: unknown, path = '$', out: string[] = []): string[] {
     for (const [k, v] of Object.entries(node)) wireHazards(v, `${path}.${k}`, out)
   }
   return out
+}
+
+/** Enough of both currencies to walk the idler's unlock chains (attack, pact, espionage). */
+const UNLOCK_FUNDS = { r0: 20_000, r1: 5_000 }
+
+/** Exactly the authored level-0 price of `upgrades`, summed per currency. */
+function priceOf(...upgrades: UpgradeDefinition[]): Record<string, number> {
+  const total: Record<string, number> = {}
+  for (const u of upgrades)
+    for (const [r, e] of Object.entries(u.cost)) total[r] = (total[r] ?? 0) + e.baseCost
+  return total
 }
 
 /** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
@@ -322,7 +333,8 @@ describe('Match', () => {
     it('reveals an opponent resource only to a viewer who unlocked it', () => {
       const m = enterPlaying()
       m.grantResourcesForTest('p2', { r0: 42 }) // opponent stockpile to spy on
-      // e-se-mr is free, unprereq'd, and grants `accessEnemyData: r0`.
+      // e-se-mr is unprereq'd and grants `accessEnemyData: r0`.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -341,7 +353,8 @@ describe('Match', () => {
       m.grantResourcesForTest('p2', { r0: 50 })
       m.handleMessage('p2', buyMsg('sc-unlock', 1))
       m.handleMessage('p2', clickMsg(2))
-      // Walk the (free) espionage chain to e-se-cps: e-se-mr → e-se-mr-ps → e-se-cps.
+      // Walk the espionage chain to e-se-cps: e-se-mr → e-se-mr-ps → e-se-cps.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-cps', 3))
@@ -356,6 +369,7 @@ describe('Match', () => {
     it('sends a viewer the debuffs its own passive attacks inflict on the opponent', () => {
       const m = enterPlaying()
       // p1 unlocks the attack panel then the passive attack a2 (−10% enemy r0).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('a-unlock', 1))
       m.handleMessage('p1', buyMsg('node-3', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -393,6 +407,7 @@ describe('Match', () => {
         // production is identical apart from the debuff. Only p1 unlocks the fixture.
         m.handleMessage('p1', buyMsg('sh-unlock', 1))
         m.handleMessage('p2', buyMsg('sh-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -447,6 +462,7 @@ describe('Match', () => {
         m.grantResourcesForTest('p2', { r0: 50 })
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -493,6 +509,7 @@ describe('Match', () => {
         m.grantResourcesForTest('p2', { r0: 50 })
         m.handleMessage('p1', buyMsg('sc-unlock', 1))
         m.handleMessage('p2', buyMsg('sc-unlock', 1))
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 2))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -526,6 +543,7 @@ describe('Match', () => {
       try {
         const m = enterPlaying()
         // Only p1 unlocks the fixture — an attacker never inflates its own prices.
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg('a-unlock', 1))
         m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -572,7 +590,8 @@ describe('Match', () => {
 
     it('forwards a new opponent purchase (timestamp only) once to a viewer who unlocked `e-se-p`', () => {
       const m = enterPlaying()
-      // p1 unlocks the purchase feed (free chain: e-se-mr → e-se-mr-ps → e-se-p).
+      // p1 unlocks the purchase feed (chain: e-se-mr → e-se-mr-ps → e-se-p).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -582,6 +601,7 @@ describe('Match', () => {
       expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
 
       // p2 now buys → next broadcast forwards exactly that one event.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -607,10 +627,12 @@ describe('Match', () => {
     it('does not retroactively reveal purchases made before the feed was unlocked', () => {
       const m = enterPlaying()
       // p2 buys before p1 has any intel, and the event lands in p2's log.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
       // p1 unlocks the purchase feed (e-se-mr → e-se-mr-ps → e-se-p).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -620,6 +642,7 @@ describe('Match', () => {
       expect(latestUpdate(ws1).opponent.purchases).toBeUndefined()
 
       // p2 buys again, now after p1's unlock → only this one is forwarded.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr-ps', 2))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const purchases = latestUpdate(ws1).opponent.purchases ?? []
@@ -629,6 +652,7 @@ describe('Match', () => {
     it('reveals purchase kind (but not the id) to a viewer who unlocked `e-p-ug`', () => {
       const m = enterPlaying()
       // p1 walks the chain through e-p-ug: e-se-mr → e-se-mr-ps → e-se-p → e-p-ug.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -636,6 +660,7 @@ describe('Match', () => {
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed the feed watermark
 
       // p2 buys an upgrade → kind is revealed, the specific id is not.
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const event = latestUpdate(ws1).opponent.purchases![0]
@@ -645,6 +670,7 @@ describe('Match', () => {
 
     it('reveals the specific upgrade id to a viewer who unlocked `e-p-u`', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -652,6 +678,7 @@ describe('Match', () => {
       m.handleMessage('p1', buyMsg('e-p-u', 5))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS) // seed
 
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 1))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
       const event = latestUpdate(ws1).opponent.purchases![0]
@@ -662,6 +689,7 @@ describe('Match', () => {
     it('reveals generator ids only with `e-p-g`, keeping upgrade ids hidden', () => {
       const m = enterPlaying()
       // p1 takes the generator branch: …→ e-p-ug → e-p-g (but NOT e-p-u).
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -675,6 +703,7 @@ describe('Match', () => {
 
       // p2 buys a generator and an upgrade.
       m.handleMessage('p2', buyGenMsg('g0', 2))
+      m.grantResourcesForTest('p2', UNLOCK_FUNDS)
       m.handleMessage('p2', buyMsg('e-se-mr', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -695,6 +724,7 @@ describe('Match', () => {
       m.grantResourcesForTest('p2', { r1: 1e12 })
       // p1 unlocks the purchase feed; the seed broadcast lands past p2's setup buy
       // so only the burst below counts as the delta.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('e-se-mr', 1))
       m.handleMessage('p1', buyMsg('e-se-mr-ps', 2))
       m.handleMessage('p1', buyMsg('e-se-p', 3))
@@ -1410,6 +1440,9 @@ describe('Match', () => {
     /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
     const prepareMs = (attackId: string): number =>
       mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+    /** The authored rest after an idler attack finishes, in ms (`0` when it has none). */
+    const cooldownMs = (attackId: string): number =>
+      (mode.attacks.find((a) => a.id === attackId)!.cooldownSec ?? 0) * 1000
 
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
@@ -1419,8 +1452,9 @@ describe('Match', () => {
       })
     }
 
-    /** Unlock the attack panel + a0 for p1 (both free) and grant Wood to raid. */
+    /** Unlock the attack panel + a0 for p1 and grant Wood to raid. */
     function armAttacker(m: Match) {
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       m.grantResourcesForTest('p1', { r0: 2000 })
@@ -1463,6 +1497,8 @@ describe('Match', () => {
 
       m.handleMessage('p1', activateMsg('a0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      // a0 opens no window, so its cooldown starts at the strike; wait it out.
+      vi.advanceTimersByTime(cooldownMs('a0'))
       m.handleMessage('p1', activateMsg('a0', 4))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
 
@@ -1472,6 +1508,7 @@ describe('Match', () => {
     it('tells both sides when a strike steals nothing', () => {
       const m = enterPlaying()
       // Unlock the panel + Poach Sawmill (a5); its prepare cost is 10 r1.
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a5Upgrade.id, 2))
       m.grantResourcesForTest('p1', { r1: 100 })
@@ -1521,6 +1558,7 @@ describe('Match', () => {
 
     /** Unlock the fixture attack for p1 with enough Wood to fire it. */
     function armWindowAttacker(m: Match) {
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg('a-unlock', 1))
       m.handleMessage('p1', buyMsg(FIXTURE_UNLOCK, 2))
       m.grantResourcesForTest('p1', { r0: 100 })
@@ -1665,6 +1703,184 @@ describe('Match', () => {
       }
     })
 
+    // ── Cooldown ───────────────────────────────────────────────────
+
+    const REST_SEC = 5
+    const FIXTURE_REST = 'fx-rest'
+
+    /**
+     * The window attack with a `REST_SEC` cooldown after its window closes, plus
+     * an upgrade that halves that cooldown.
+     */
+    function withCooldownAttack(): ModeDefinition {
+      const def = withDurationAttack()
+      return {
+        ...def,
+        attacks: def.attacks.map((a) =>
+          a.id === FIXTURE_ATTACK ? { ...a, cooldownSec: REST_SEC } : a,
+        ),
+        upgrades: [
+          ...def.upgrades,
+          {
+            id: FIXTURE_REST,
+            cost: {},
+            purchaseLimit: 1,
+            prerequisites: { type: 'upgrade', id: 'a-unlock' },
+            effects: [
+              {
+                type: 'attackStat',
+                attack: FIXTURE_ATTACK,
+                stat: 'cooldown',
+                op: 'mult',
+                value: 0.5,
+              },
+            ],
+          },
+        ],
+        flavors: def.flavors.map((f) => ({
+          ...f,
+          upgrades: [
+            ...f.upgrades,
+            { id: FIXTURE_REST, name: 'Rest', icon: '🧪', description: '' },
+          ],
+        })),
+      }
+    }
+
+    /** Run `body` with the cooldown fixture registered as the idler. */
+    function withCooldownMode(body: () => void) {
+      const base = getModeDefinition('idler')
+      const patched = withCooldownAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        body()
+      } finally {
+        registerMode('idler', base)
+      }
+    }
+
+    /** Fire the fixture and advance past the 1s preparation, so the strike has landed. */
+    function strike(m: Match, seq: number) {
+      m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, seq))
+      vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+    }
+
+    it('stamps the cooldown at the strike, lifting REST_SEC after the window closes', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        const player = latestUpdate(ws1).player
+        const window = player.activeDebuffs![0]
+        expect(player.cooldowns).toEqual([
+          { kind: 'attack', id: FIXTURE_ATTACK, untilSec: window.expiresAtSec + REST_SEC },
+        ])
+        // The victim carries nothing: the rest is the attacker's.
+        expect(latestUpdate(ws2).player.cooldowns).toBeUndefined()
+      })
+    })
+
+    it('refuses re-activation during the rest however rich the attacker is, then accepts it', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        // Past the window, inside the rest.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        m.grantResourcesForTest('p1', { r0: 1_000_000 })
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const refused = latestUpdate(ws1)
+        expect(refused.player.pendingAttacks).toHaveLength(0)
+        // Nothing was paid (income only goes up).
+        expect(refused.player.resources.r0).toBeGreaterThanOrEqual(before)
+
+        // Past the rest: swept off the wire, and the attack fires again.
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+      })
+    })
+
+    it('freezes the rest while the round is paused', () => {
+      withCooldownMode(() => {
+        const m = enterPlayingVsBot()
+        armWindowAttacker(m)
+        strike(m, 3)
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        const rest = latestUpdate(ws1).player.cooldowns
+        expect(rest).toHaveLength(1)
+
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(REST_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.cooldowns).toEqual(rest)
+
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+      })
+    })
+
+    it('freezes the rest against a cooldown upgrade bought mid-rest; the next rest is shorter', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        const first = latestUpdate(ws1).player.cooldowns![0].untilSec
+        m.handleMessage('p1', buyMsg(FIXTURE_REST, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.upgrades[FIXTURE_REST]).toBe(1)
+        expect(latestUpdate(ws1).player.cooldowns![0].untilSec).toBe(first)
+
+        // Wait out window + rest, fire again: the new rest is half as long.
+        vi.advanceTimersByTime((WINDOW_SEC + REST_SEC) * 1000)
+        m.grantResourcesForTest('p1', { r0: 100 })
+        strike(m, 5)
+        const player = latestUpdate(ws1).player
+        expect(player.cooldowns![0].untilSec).toBeCloseTo(
+          player.activeDebuffs![0].expiresAtSec + REST_SEC / 2,
+          6,
+        )
+      })
+    })
+
+    it('starts a steal-only attack’s rest at the strike', () => {
+      const base = getModeDefinition('idler')
+      const patched = withFixtureAttack({
+        kind: 'active',
+        prepareCost: { r0: { baseCost: 10 } },
+        prepareTimeSec: 1,
+        cooldownSec: REST_SEC,
+        effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+      })
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const readyAt = latestUpdate(ws1).player.pendingAttacks[0].readyAtSec
+        vi.advanceTimersByTime(1000)
+        const player = latestUpdate(ws1).player
+        expect(player.activeDebuffs).toBeUndefined()
+        expect(player.cooldowns).toHaveLength(1)
+        // Stamped on the tick the strike landed: no earlier than the ready time,
+        // within one tick of it.
+        const until = player.cooldowns![0].untilSec
+        expect(until - REST_SEC).toBeGreaterThanOrEqual(readyAt)
+        expect(until - REST_SEC).toBeLessThan(readyAt + TICK_INTERVAL_MS / 1000 + 1e-9)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
     // ── Purchase lock ──────────────────────────────────────────────
 
     /** The fixture attack as an embargo: p2 can buy nothing for `WINDOW_SEC`. */
@@ -1700,6 +1916,7 @@ describe('Match', () => {
         m.handleMessage('p2', buyMsg('g1-g2', 1))
         m.grantResourcesForTest('p2', { r0: 5000, r1: 100 })
         m.handleMessage('p2', buyGenMsg('g0', 2))
+        m.grantResourcesForTest('p2', UNLOCK_FUNDS)
         m.handleMessage('p2', buyMsg(panelUpgrade.id, 3))
         m.handleMessage('p2', buyMsg(a0Upgrade.id, 4))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
@@ -1851,8 +2068,9 @@ describe('Match', () => {
 
           // ~5.5s remain: still outside even the extended lead.
           expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
-          // One more broadcast: ~5.0s remain, inside a 5s lead but not a 4s one.
-          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          // A second on: inside a 5s lead but not a 4s one. Not the exact 5.0s edge —
+          // a tick and a broadcast due together fire in no guaranteed order.
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS * 2)
           expect(latestUpdate(ws2).opponent.incomingAttacks).toEqual([{ readyAtSec, attack: 'a0' }])
         } finally {
           registerMode('idler', base)
@@ -1862,6 +2080,7 @@ describe('Match', () => {
 
     it('rejects an activation the player cannot afford', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       // Drain p1 to one short of the prepare cost, read from the tree — early
@@ -1887,7 +2106,7 @@ describe('Match', () => {
     const panelUpgrade = mode.upgrades.find((u) =>
       u.effects?.some((e) => e.type === 'panelUnlock' && e.panel === 'attack'),
     )!
-    /** The free unlock nodes for the idler's first two active attacks. */
+    /** The unlock nodes for the idler's first two active attacks. */
     const unlockOf = (attack: string) =>
       mode.upgrades.find((u) =>
         u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
@@ -1913,9 +2132,11 @@ describe('Match', () => {
       registerMode('idler', patched)
       try {
         const m = enterPlaying()
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
         m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
-        // The one active slot is now held by a0; a1's free unlock is refused.
+        // The one active slot is now held by a0; a1's unlock is refused.
+        m.grantResourcesForTest('p1', UNLOCK_FUNDS)
         m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
 
@@ -1932,6 +2153,7 @@ describe('Match', () => {
 
     it('accepts both unlocks under the authored idler budget', () => {
       const m = enterPlaying()
+      m.grantResourcesForTest('p1', UNLOCK_FUNDS)
       m.handleMessage('p1', buyMsg(panelUpgrade.id, 1))
       m.handleMessage('p1', buyMsg(a0Upgrade.id, 2))
       m.handleMessage('p1', buyMsg(a1Upgrade.id, 3))
@@ -1979,11 +2201,38 @@ describe('Match', () => {
       }
     }
 
-    /** Sign p2 for `playerId` (both nodes are free). */
+    /** Sign p2 for `playerId`, granting exactly the two nodes' price so balances stay comparable. */
     function signResearch(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.grantResourcesForTest(playerId, priceOf(relationsUpgrade, signP2))
       m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
       m.handleMessage(playerId, buyMsg(signP2.id, seq + 1))
     }
+
+    it('refuses a sign past the passive pact budget', () => {
+      const base = getModeDefinition('idler')
+      const signP3 = mode.upgrades.find((u) =>
+        u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+      )!
+      const capped: ModeDefinition = {
+        ...base,
+        effects: [
+          ...(base.effects ?? []).filter((e) => e.type !== 'pactSlots'),
+          { type: 'pactSlots', pactKind: 'passive', value: 1 },
+        ],
+      }
+      validateModeDefinition('idler', capped)
+      registerMode('idler', capped)
+      try {
+        const m = enterPlaying()
+        signResearch(m, 'p1', 1)
+        m.handleMessage('p1', buyMsg(signP3.id, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.upgrades[signP2.id]).toBe(1)
+        expect(latestUpdate(ws1).player.upgrades[signP3.id] ?? 0).toBe(0)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
 
     it('stamps the discount on the signatory while the partner is ahead, and only then', () => {
       const base = getModeDefinition('idler')
@@ -2056,6 +2305,7 @@ describe('Match', () => {
       u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
     )!
     function signTrade(m: Match, playerId: 'p1' | 'p2', seq: number) {
+      m.grantResourcesForTest(playerId, priceOf(relationsUpgrade, signP3))
       m.handleMessage(playerId, buyMsg(relationsUpgrade.id, seq))
       m.handleMessage(playerId, buyMsg(signP3.id, seq + 1))
     }
@@ -2265,6 +2515,377 @@ describe('Match', () => {
       } finally {
         registerMode('idler', base)
       }
+    })
+  })
+
+  describe('active pacts', () => {
+    const mode = getModeDefinition('idler')
+    const relationsUpgrade = mode.upgrades.find((u) =>
+      u.effects?.some(
+        (e) =>
+          e.type === 'panelUnlock' &&
+          (e as { panel?: string }).panel === 'international-relationship',
+      ),
+    )!
+    const signP3 = mode.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && (e as { pact?: string }).pact === 'p3'),
+    )!
+    const WINDOW_SEC = 3
+    const REST_SEC = 5
+
+    /**
+     * The idler with `p3` (Trade route: +2% 🪵 per enemy woodcutter, mutual)
+     * re-authored as an active pact: 10 🪵, open `WINDOW_SEC`, resting `REST_SEC`.
+     */
+    function withActiveTradeRoute(): ModeDefinition {
+      const base = getModeDefinition('idler')
+      return {
+        ...base,
+        pacts: base.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                kind: 'active' as const,
+                activationCost: { r0: { baseCost: 10 } },
+                durationSec: WINDOW_SEC,
+                cooldownSec: REST_SEC,
+              }
+            : p,
+        ),
+      }
+    }
+
+    function withActivePactMode(body: () => void) {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        body()
+      } finally {
+        registerMode('idler', base)
+      }
+    }
+
+    function activatePactMsg(pactId: string, seq: number) {
+      return JSON.stringify({
+        type: 'ACTION_BATCH',
+        seq,
+        actions: [{ type: 'activate_pact', timestamp: Date.now(), pactId }],
+      })
+    }
+
+    /** Unlock the relations panel and p3 for p1 (granting exactly their price), with Wood to activate it. */
+    function armSigner(m: Match) {
+      m.grantResourcesForTest('p1', priceOf(relationsUpgrade, signP3))
+      m.handleMessage('p1', buyMsg(relationsUpgrade.id, 1))
+      m.handleMessage('p1', buyMsg(signP3.id, 2))
+      m.grantResourcesForTest('p1', { r0: 100 })
+    }
+
+    function incomeOver(ws: WebSocket): number {
+      const before = latestUpdate(ws).player.resources.r0
+      vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+      return latestUpdate(ws).player.resources.r0 - before
+    }
+
+    it('activates on the wire: pays, opens the window, stamps the rest', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const player = latestUpdate(ws1).player
+        const window = player.activePacts![0]
+        expect(window.pact).toBe('p3')
+        expect(player.cooldowns).toEqual([
+          { kind: 'pact', id: 'p3', untilSec: window.expiresAtSec + REST_SEC },
+        ])
+        // Paid 10, then earned a little income.
+        expect(player.resources.r0).toBeLessThan(before)
+      })
+    })
+
+    it('refuses re-activation while open and while resting, however rich; accepts after', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const first = latestUpdate(ws1).player.activePacts![0]
+
+        m.grantResourcesForTest('p1', { r0: 1_000_000 })
+        m.handleMessage('p1', activatePactMsg('p3', 4))
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        // Closed and swept, but still resting: the second activation was dropped.
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toBeUndefined()
+
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+        m.handleMessage('p1', activatePactMsg('p3', 6))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const second = latestUpdate(ws1).player.activePacts![0]
+        expect(second.expiresAtSec).toBeGreaterThan(first.expiresAtSec)
+      })
+    })
+
+    it('pays both sides while the mutual window is open, and only then', () => {
+      withActivePactMode(() => {
+        const m = enterPlaying()
+        armSigner(m)
+        // p2 holds woodcutters, so p1's window is worth something to p1…
+        m.handleMessage('p2', buyMsg('g1-g2', 1))
+        m.grantResourcesForTest('p2', { r1: 100_000 })
+        for (let i = 0; i < 5; i++) m.handleMessage('p2', buyGenMsg('g0', 2 + i))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const p1Baseline = incomeOver(ws1)
+        expect(p1Baseline).toBeGreaterThan(0)
+
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        // +2% × 5 woodcutters.
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1.1, 6)
+        // …and, mutual, p2 sees the treaty p1 signed.
+        expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(incomeOver(ws1) / p1Baseline).toBeCloseTo(1, 6)
+        expect(latestUpdate(ws2).opponent.pacts).toBeUndefined()
+      })
+    })
+
+    it('doubles the signer’s clicks while a pactProductionModifier window is open', () => {
+      const base = getModeDefinition('idler')
+      const patched = withActiveTradeRoute()
+      const frenzy: ModeDefinition = {
+        ...patched,
+        pacts: patched.pacts.map((p) =>
+          p.id === 'p3'
+            ? {
+                ...p,
+                mutual: false,
+                effects: [
+                  {
+                    type: 'pactProductionModifier',
+                    stage: 'multiplicative',
+                    field: 'clickIncome',
+                    value: 2,
+                  },
+                ],
+              }
+            : p,
+        ),
+      }
+      validateModeDefinition('idler', frenzy)
+      registerMode('idler', frenzy)
+      try {
+        const m = enterPlaying()
+        armSigner(m)
+        m.grantResourcesForTest('p1', { r0: 50 })
+        m.handleMessage('p1', buyMsg('sc-unlock', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        /** What one click adds over a broadcast interval, net of passive income. */
+        const clickWorth = (seq: number): number => {
+          const passive = incomeOver(ws1)
+          const before = latestUpdate(ws1).player.resources.r0
+          m.handleMessage('p1', clickMsg(seq))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          return latestUpdate(ws1).player.resources.r0 - before - passive
+        }
+        const plain = clickWorth(4)
+        expect(plain).toBeGreaterThan(0)
+
+        // A click in the activation's own batch is already doubled.
+        const passive = incomeOver(ws1)
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage(
+          'p1',
+          JSON.stringify({
+            type: 'ACTION_BATCH',
+            seq: 5,
+            actions: [
+              { type: 'activate_pact', timestamp: Date.now(), pactId: 'p3' },
+              { type: 'click', timestamp: Date.now() },
+            ],
+          }),
+        )
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const activationCost = 10
+        const sameBatch = latestUpdate(ws1).player.resources.r0 - before - passive + activationCost
+        expect(sameBatch).toBeCloseTo(plain * 2, 6)
+        expect(clickWorth(6)).toBeCloseTo(plain * 2, 6)
+        // The partner's clicks are untouched: the pact is one-sided.
+        expect(latestUpdate(ws2).pactBonuses ?? []).toEqual([])
+
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(clickWorth(7)).toBeCloseTo(plain, 6)
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    describe('partnerAutoClick', () => {
+      const GIFT_WINDOW_SEC = 10
+      const CLICKS_PER_SEC = 3
+
+      /** p3 as Drum Accord: one-sided, open 10s, giving the partner 3 clicks/s. */
+      function withDrums(body: () => void) {
+        const base = getModeDefinition('idler')
+        const patched = withActiveTradeRoute()
+        const drums: ModeDefinition = {
+          ...patched,
+          pacts: patched.pacts.map((p) =>
+            p.id === 'p3'
+              ? {
+                  ...p,
+                  mutual: false,
+                  durationSec: GIFT_WINDOW_SEC,
+                  effects: [{ type: 'partnerAutoClick', clicksPerSec: CLICKS_PER_SEC }],
+                }
+              : p,
+          ),
+        }
+        validateModeDefinition('idler', drums)
+        registerMode('idler', drums)
+        try {
+          body()
+        } finally {
+          registerMode('idler', base)
+        }
+      }
+
+      /** p2's gain in `res` over one broadcast interval. */
+      function p2GainOver(res: string): number {
+        const before = latestUpdate(ws2).player.resources[res] ?? 0
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return (latestUpdate(ws2).player.resources[res] ?? 0) - before
+      }
+
+      /** What one of p2's clicks on r0 is worth, measured net of passive income. */
+      function p2ClickWorth(m: Match, seq: number): number {
+        const passive = p2GainOver('r0')
+        const before = latestUpdate(ws2).player.resources.r0
+        m.handleMessage('p2', clickMsg(seq))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        return latestUpdate(ws2).player.resources.r0 - before - passive
+      }
+
+      it('credits the partner 3 clicks/s at their own click income while open, then stops', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const click = p2ClickWorth(m, 2)
+          expect(click).toBeGreaterThan(0)
+          const passive = p2GainOver('r0')
+          const peakCps = latestUpdate(ws2).player.meta.peakCps
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const gift = p2GainOver('r0') - passive
+          expect(gift).toBeCloseTo(click * CLICKS_PER_SEC * (BROADCAST_INTERVAL_MS / 1000), 6)
+          // Not a real click: the partner's peak CPS never moves.
+          expect(latestUpdate(ws2).player.meta.peakCps).toBe(peakCps)
+          // The partner sees the treaty, when it closes, and the rate it grants.
+          const window = latestUpdate(ws1).player.activePacts![0]
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+          expect(latestUpdate(ws2).opponent.pactWindows).toEqual([window])
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBe(CLICKS_PER_SEC)
+          // The signer receives nothing, and the partner holds nothing to reveal.
+          expect(latestUpdate(ws1).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws1).opponent.pacts).toBeUndefined()
+          // The signer gets nothing from it.
+          expect(incomeOver(ws1)).toBeGreaterThan(0)
+
+          vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pactWindows).toBeUndefined()
+        })
+      })
+
+      it('judges both gifts on the same instant, so simultaneous windows pay the same', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          // Two identical players: both sign, unlock clicking, and open their
+          // windows in the same instant. Each is the other's giver.
+          for (const p of ['p1', 'p2'] as const) {
+            m.grantResourcesForTest(p, priceOf(relationsUpgrade, signP3))
+            m.handleMessage(p, buyMsg(relationsUpgrade.id, 1))
+            m.handleMessage(p, buyMsg(signP3.id, 2))
+            m.grantResourcesForTest(p, { r0: 50 })
+            m.handleMessage(p, buyMsg('sc-unlock', 3))
+            m.grantResourcesForTest(p, { r0: 100 })
+          }
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const before = [ws1, ws2].map((ws) => latestUpdate(ws).player.resources.r0)
+          m.handleMessage('p1', activatePactMsg('p3', 4))
+          m.handleMessage('p2', activatePactMsg('p3', 4))
+          vi.advanceTimersByTime(GIFT_WINDOW_SEC * 1000 + BROADCAST_INTERVAL_MS)
+          const [p1Gain, p2Gain] = [ws1, ws2].map(
+            (ws, i) => latestUpdate(ws).player.resources.r0 - before[i],
+          )
+          // Judged mid-tick, after one clock had moved, the window paid one
+          // side a tick more than the other.
+          expect(p1Gain).toBeCloseTo(p2Gain, 6)
+        })
+      })
+
+      it('lands on what the partner last clicked on', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          m.grantResourcesForTest('p2', { r0: 50 })
+          m.handleMessage('p2', buyMsg('sc-unlock', 1))
+          m.handleMessage('p2', clickMsg(2, 'r1'))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const r0Passive = p2GainOver('r0')
+          const r1Passive = p2GainOver('r1')
+
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(p2GainOver('r1')).toBeGreaterThan(r1Passive)
+          expect(p2GainOver('r0')).toBeCloseTo(r0Passive, 6)
+        })
+      })
+
+      it('gives nothing to a partner who has not unlocked clicking', () => {
+        withDrums(() => {
+          const m = enterPlaying()
+          armSigner(m)
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          const passive = p2GainOver('r0')
+          m.handleMessage('p1', activatePactMsg('p3', 3))
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          expect(latestUpdate(ws1).player.activePacts).toHaveLength(1)
+          expect(p2GainOver('r0')).toBeCloseTo(passive, 6)
+          // No rate is advertised either — though the treaty itself is visible.
+          expect(latestUpdate(ws2).incomingAutoClicksPerSec).toBeUndefined()
+          expect(latestUpdate(ws2).opponent.pacts).toEqual(['p3'])
+        })
+      })
+    })
+
+    it('freezes the window while paused', () => {
+      withActivePactMode(() => {
+        const m = enterPlayingVsBot()
+        armSigner(m)
+        m.handleMessage('p1', activatePactMsg('p3', 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const window = latestUpdate(ws1).player.activePacts
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(WINDOW_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.activePacts).toEqual(window)
+      })
     })
   })
 })

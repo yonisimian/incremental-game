@@ -422,6 +422,22 @@ describe('Bot', () => {
         ).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
       })
 
+      it('holds while the attack is cooling down, and fires once the rest lifts', () => {
+        const bot = botAtTrophy()
+        bot.decide(stateWith(1500)) // buys the trophy → plan exhausted
+        const resting = {
+          upgrades: { ...armed, trophy: 1 },
+          cooldowns: [{ kind: 'attack' as const, id: 'a0', untilSec: 8 }],
+        }
+        // gameSec 5 < 8: rich enough, still refused.
+        expect(attacksOf(bot.decide(stateWith(5000, resting)))).toEqual([])
+        expect(
+          attacksOf(
+            bot.decide(stateWith(5000, { ...resting, meta: { highlight: 'r0', gameSec: 8 } })),
+          ),
+        ).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
+      })
+
       it('holds while the attack is preparing, unaffordable, or not unlocked', () => {
         const bot = botAtTrophy()
         bot.decide(stateWith(1500)) // buys the trophy → plan exhausted
@@ -475,25 +491,69 @@ describe('Bot', () => {
         },
       ]
 
-      it('signs every effect-bearing passive pact, panel first, and leaves the active placeholder alone', () => {
-        const bot = new IdlerBot(stubMode(pactUpgrades))
-        const state: PlayerState = {
-          score: 0,
-          resources: { r0: 100, r1: 0 },
-          generators: {},
-          pendingAttacks: [],
-          meta: { highlight: 'r0', gameSec: 5 },
-          upgrades: Object.fromEntries(pactUpgrades.map((u) => [u.id, 0])),
-        }
+      /** Nothing bought yet, 100 r0 in hand. */
+      const fresh = (): PlayerState => ({
+        score: 0,
+        resources: { r0: 100, r1: 0 },
+        generators: {},
+        pendingAttacks: [],
+        meta: { highlight: 'r0', gameSec: 5 },
+        upgrades: Object.fromEntries(pactUpgrades.map((u) => [u.id, 0])),
+      })
+      /**
+       * The bot's buys over `ticks` turns, each landed on `state` as the match
+       * would land it — the slot gate reads what the bot already holds.
+       */
+      function buysOf(bot: IdlerBot, state: PlayerState, ticks = 8): string[] {
         const buys: string[] = []
-        for (let i = 0; i < 8; i++) {
-          for (const a of bot.decide(state)) if (a.type === 'buy') buys.push(a.upgradeId)
+        for (let i = 0; i < ticks; i++) {
+          for (const a of bot.decide(state)) {
+            if (a.type !== 'buy') continue
+            buys.push(a.upgradeId)
+            state.upgrades[a.upgradeId] = (state.upgrades[a.upgradeId] ?? 0) + 1
+          }
         }
+        return buys
+      }
+      /** The stub with its passive pact budget replaced by `effects`. */
+      function budgeted(effects: NonNullable<UpgradeDefinition['effects']>): ModeDefinition {
+        const mode = stubMode(pactUpgrades)
+        return {
+          ...mode,
+          effects: [...(mode.effects ?? []).filter((e) => e.type !== 'pactSlots'), ...effects],
+        }
+      }
+
+      it('signs every effect-bearing passive pact, panel first, and leaves the active placeholder alone', () => {
+        const buys = buysOf(new IdlerBot(stubMode(pactUpgrades)), fresh())
         expect(buys).toContain('sign-p2')
         expect(buys).toContain('sign-p3')
         expect(buys).not.toContain('sign-p0')
         expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p2'))
         expect(buys.indexOf('ir-unlock')).toBeLessThan(buys.indexOf('sign-p3'))
+      })
+
+      it('signs no more than the passive pact budget, mutual pacts first', () => {
+        const bot = new IdlerBot(budgeted([{ type: 'pactSlots', pactKind: 'passive', value: 1 }]))
+        // p3 (Trade route) is mutual, p2 is not: one slot, so only p3 — the
+        // refused sign is skipped, never emitted.
+        const buys = buysOf(bot, fresh())
+        expect(buys).toContain('sign-p3')
+        expect(buys).not.toContain('sign-p2')
+      })
+
+      it('counts a pact the mode’s starting effects unlock against the budget', () => {
+        // Two passive slots, one already filled at the opening bell by p1 (which
+        // no node here signs) — so one sign is left, and it goes to the mutual p3.
+        const bot = new IdlerBot(
+          budgeted([
+            { type: 'pactSlots', pactKind: 'passive', value: 2 },
+            { type: 'unlockPact', pact: 'p1' },
+          ]),
+        )
+        const buys = buysOf(bot, fresh())
+        expect(buys).toContain('sign-p3')
+        expect(buys).not.toContain('sign-p2')
       })
     })
 
@@ -580,7 +640,7 @@ describe('Bot', () => {
       const m = createBotMatch('idler', undefined, timedGoal)
       m.start()
       vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
-      // Fund the plan's paid steps so the free pact nodes are reached quickly.
+      // Fund the plan's steps so the pact nodes are reached quickly.
       m.grantResourcesForTest('bot-1', { r0: 50_000, r1: 50_000 })
       vi.advanceTimersByTime(8000)
       expect(latestUpdate(ws1).opponent.pacts).toEqual(['p1', 'p3'])

@@ -470,6 +470,182 @@ describe('game.ts', () => {
       expect(s.player.pendingAttacks).toHaveLength(1)
       expect(s.player.resources.r0).toBe(armedWood - woodCost)
     })
+
+    /** The armed player, with a0 resting until game second `untilSec`. */
+    function restingPlayer(untilSec: number): StateUpdateMessage['player'] {
+      return { ...armedPlayer(), cooldowns: [{ kind: 'attack', id: 'a0', untilSec }] }
+    }
+
+    it('refuses to predict an activation while the attack is cooling down', async () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(9) }))
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivateAttack('a0')
+
+      expect(game.getState().player.pendingAttacks).toHaveLength(0)
+      expect(game.getState().player.resources.r0).toBe(armedWood)
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('predicts the activation once the rest has lifted', () => {
+      enterIdlerPlaying(game)
+      // gameSec 5, rest lifted at 5.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(5) }))
+      game.doActivateAttack('a0')
+      expect(game.getState().player.pendingAttacks).toHaveLength(1)
+    })
+
+    it('drops a replayed activation the snapshot’s cooldown refuses, and keeps the cooldown', () => {
+      enterIdlerPlaying(game)
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: armedPlayer() }))
+      game.doActivateAttack('a0')
+      expect(game.getState().player.pendingAttacks).toHaveLength(1)
+
+      // The server has not seen the activation, but reports a0 resting — the
+      // replay must be refused rather than shown until the next snapshot.
+      game.handleServerMessage(makeStateUpdate({ ackSeq: 0, player: restingPlayer(9) }))
+      const s = game.getState()
+      expect(s.player.pendingAttacks).toHaveLength(0)
+      expect(s.player.resources.r0).toBe(armedWood)
+      expect(s.player.cooldowns).toEqual([{ kind: 'attack', id: 'a0', untilSec: 9 }])
+    })
+  })
+
+  describe('doActivatePact', () => {
+    const PACT = 'p-accord'
+    const SIGN = 'sign-p-accord'
+
+    /**
+     * Re-register the idler with one active pact (300 r0, 15s, 45s rest) and the
+     * upgrade that signs it, on the module instance `game.ts` reads from.
+     */
+    async function withActivePact(): Promise<void> {
+      const shared = await import('@game/shared')
+      const base = shared.getModeDefinition('idler')
+      shared.registerMode('idler', {
+        ...base,
+        pacts: [
+          ...base.pacts,
+          {
+            id: PACT,
+            kind: 'active',
+            activationCost: { r0: { baseCost: 300 } },
+            durationSec: 15,
+            cooldownSec: 45,
+            effects: [
+              {
+                type: 'mirrorStatModifier',
+                source: 'r0',
+                field: 'r0',
+                stage: 'additive',
+                perUnit: 1,
+              },
+            ],
+          },
+        ],
+        upgrades: [
+          ...base.upgrades,
+          { id: SIGN, cost: {}, purchaseLimit: 1, effects: [{ type: 'unlockPact', pact: PACT }] },
+        ],
+      })
+    }
+
+    /** A snapshot of a signer at game second 5 holding 1000 r0. */
+    function signerSnapshot(
+      patch: Partial<StateUpdateMessage['player']> = {},
+      ackSeq = 0,
+    ): StateUpdateMessage {
+      return makeStateUpdate({
+        ackSeq,
+        player: {
+          score: 0,
+          resources: { r0: 1000 },
+          upgrades: { ...defaultUpgrades, [SIGN]: 1 },
+          generators: {},
+          pendingAttacks: [],
+          meta: { gameSec: 5 },
+          ...patch,
+        },
+      })
+    }
+
+    it('predicts the activation: pays, opens the window, stamps the rest, queues the action', async () => {
+      await withActivePact()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(signerSnapshot())
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivatePact(PACT)
+
+      const p = game.getState().player
+      expect(p.resources.r0).toBe(700)
+      expect(p.activePacts).toEqual([{ pact: PACT, expiresAtSec: 20 }])
+      expect(p.cooldowns).toEqual([{ kind: 'pact', id: PACT, untilSec: 65 }])
+      expect(vi.mocked(queueAction)).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'activate_pact', pactId: PACT }),
+      )
+    })
+
+    it('refuses while the pact is cooling down, however rich the signer is', async () => {
+      await withActivePact()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(
+        signerSnapshot({
+          resources: { r0: 1e9 },
+          cooldowns: [{ kind: 'pact', id: PACT, untilSec: 30 }],
+        }),
+      )
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+
+      game.doActivatePact(PACT)
+
+      expect(game.getState().player.activePacts).toBeUndefined()
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+    })
+
+    it('keeps the enemy’s gift windows and the incoming click rate from each snapshot', () => {
+      enterIdlerPlaying(game)
+      const window = { pact: 'p-accord', expiresAtSec: 20 }
+      game.handleServerMessage(
+        makeStateUpdate({
+          opponent: {
+            score: 0,
+            resources: {},
+            rates: {},
+            pacts: ['p-accord'],
+            pactWindows: [window],
+          },
+          incomingAutoClicksPerSec: 3,
+        }),
+      )
+      expect(game.getState().opponentPactWindows).toEqual([window])
+      expect(game.getState().incomingAutoClicksPerSec).toBe(3)
+      // Replaced, not accumulated: a quiet snapshot clears both.
+      game.handleServerMessage(makeStateUpdate())
+      expect(game.getState().opponentPactWindows).toEqual([])
+      expect(game.getState().incomingAutoClicksPerSec).toBe(0)
+    })
+
+    it('replays an unacked activation on the next snapshot, and drops one it refuses', async () => {
+      await withActivePact()
+      enterIdlerPlaying(game)
+      game.handleServerMessage(signerSnapshot())
+      game.doActivatePact(PACT)
+
+      // Not yet acked: the window must survive reconciliation, paid once.
+      game.handleServerMessage(signerSnapshot())
+      expect(game.getState().player.activePacts).toEqual([{ pact: PACT, expiresAtSec: 20 }])
+      expect(game.getState().player.resources.r0).toBe(700)
+
+      // A snapshot that can no longer afford it: the replay is refused.
+      game.handleServerMessage(signerSnapshot({ resources: { r0: 100 } }))
+      expect(game.getState().player.activePacts).toBeUndefined()
+      expect(game.getState().player.resources.r0).toBe(100)
+    })
   })
 
   describe('STATE_UPDATE', () => {
@@ -911,7 +1087,7 @@ describe('game.ts', () => {
   // ── Idler: attack slots ────────────────────────────────────────────
 
   describe('idler attack slots', () => {
-    /** The idler's free unlock node for `attack`. */
+    /** The idler's unlock node for `attack`. */
     const unlockOf = (attack: string): string =>
       idlerDef.upgrades.find((u) =>
         u.effects?.some((e) => e.type === 'unlockAttack' && e.attack === attack),
@@ -1182,6 +1358,55 @@ describe('game.ts', () => {
       game.doClick()
       // sc-unlock's +1 plus the mirrored 4.
       expect(game.getState().player.resources.r0).toBe(5)
+    })
+
+    it('stops predicting a window’s bonus just before the window closes', () => {
+      const now = vi.spyOn(performance, 'now').mockReturnValue(1000)
+      try {
+        enterIdlerPlaying(game)
+        const snapshot = (opponentWindowSec?: number) =>
+          makeStateUpdate({
+            ackSeq: 999,
+            player: {
+              score: 0,
+              resources: { r0: 0, r1: 0 },
+              upgrades: { 'sc-unlock': 1 },
+              generators: {},
+              pendingAttacks: [],
+              activePacts: [{ pact: 'p3', expiresAtSec: 12 }],
+              meta: { highlight: 'r0', gameSec: 10 },
+            },
+            pactBonuses: [
+              { pact: 'p3', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 4 }] },
+            ],
+            opponent: {
+              resources: {},
+              rates: {},
+              ...(opponentWindowSec === undefined
+                ? {}
+                : {
+                    pacts: ['p3'],
+                    pactWindows: [{ pact: 'p3', expiresAtSec: opponentWindowSec }],
+                  }),
+            },
+          })
+        game.handleServerMessage(snapshot())
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(5)
+
+        // 1.6s on, a click would reach the server after the window at 12 closes.
+        now.mockReturnValue(2600)
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(6)
+
+        // Unless the opponent's window of the same pact is still open.
+        game.handleServerMessage(snapshot(20))
+        now.mockReturnValue(4200)
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(5)
+      } finally {
+        now.mockRestore()
+      }
     })
   })
 

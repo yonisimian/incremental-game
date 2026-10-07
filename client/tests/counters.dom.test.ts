@@ -29,6 +29,8 @@ function makeState(): GameState {
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     debuffs: [],
     timeLeft: 30,
     paused: true,

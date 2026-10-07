@@ -50,6 +50,7 @@ import {
   setAttackKind,
   setAttackEffects,
   setAttackPrepareTime,
+  setAttackCooldown,
   setAttackDuration,
   setAttackPrepareCost,
   setAttackPrepareCurrency,
@@ -57,6 +58,14 @@ import {
   removeAttackPrepareCurrency,
   type AttackCostRow,
   listPacts,
+  addPactActivationCurrency,
+  removePactActivationCurrency,
+  setPactActivationCost,
+  setPactActivationCurrency,
+  setPactCooldown,
+  setPactDuration,
+  setPactSlotCost,
+  setAttackSlotCost,
   addPact,
   renamePact,
   removePact,
@@ -888,7 +897,7 @@ describe('attacks', () => {
     expect(def.durationSec).toBe(8)
   })
 
-  it('setAttackDuration clears on null or a non-positive value, keeping the tree loadable', () => {
+  it('setAttackDuration clears on null or zero, keeping the tree loadable', () => {
     const tree = idler()
     setAttackDuration(tree, ACTIVE_ATTACK, 8)
     setAttackDuration(tree, ACTIVE_ATTACK, null)
@@ -899,6 +908,13 @@ describe('attacks', () => {
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
+  it('setAttackDuration keeps a negative value so export reports it', () => {
+    const tree = idler()
+    setAttackDuration(tree, ACTIVE_ATTACK, -3)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.durationSec).toBe(-3)
+    expect(() => toModeDefinition(tree)).toThrow()
+  })
+
   it('switching to passive strips the duration along with the prepare data', () => {
     const tree = idler()
     setAttackDuration(tree, ACTIVE_ATTACK, 8)
@@ -906,6 +922,42 @@ describe('attacks', () => {
     const attack = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!
     expect(attack.durationSec).toBeUndefined()
     expect(attack.prepareTimeSec).toBeUndefined()
+  })
+
+  it('surfaces the authored cooldown (null without one) and carries an edit into a loadable mode', () => {
+    const tree = idler()
+    const authored = tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec ?? null
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(authored)
+    const bare = tree.attacks.find((a) => a.kind === 'active' && a.cooldownSec === undefined)!
+    expect(listAttacks(tree).find((a) => a.id === bare.id)!.cooldownSec).toBeNull()
+    setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+    expect(listAttacks(tree).find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(12)
+    const def = toModeDefinition(tree).attacks.find((a) => a.id === ACTIVE_ATTACK)!
+    expect(def.cooldownSec).toBe(12)
+  })
+
+  it('setAttackCooldown clears on null or zero, keeping the tree loadable', () => {
+    const tree = idler()
+    for (const cleared of [null, 0]) {
+      setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+      setAttackCooldown(tree, ACTIVE_ATTACK, cleared)
+      expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeUndefined()
+    }
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('setAttackCooldown keeps a negative value so export reports it', () => {
+    const tree = idler()
+    setAttackCooldown(tree, ACTIVE_ATTACK, -3)
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBe(-3)
+    expect(() => toModeDefinition(tree)).toThrow()
+  })
+
+  it('switching to passive strips the cooldown', () => {
+    const tree = idler()
+    setAttackCooldown(tree, ACTIVE_ATTACK, 12)
+    setAttackKind(tree, ACTIVE_ATTACK, 'passive')
+    expect(tree.attacks.find((a) => a.id === ACTIVE_ATTACK)!.cooldownSec).toBeUndefined()
   })
 
   it('charges several currencies at once and keeps the tree loadable', () => {
@@ -1180,7 +1232,7 @@ describe('pact effect references', () => {
 describe('pacts', () => {
   it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {
     const rows = listPacts(idler())
-    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3'])
+    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3', 'drum-accord'])
     const route = rows.find((r) => r.id === 'p3')!
     expect(route.mutual).toBe(true)
     expect(route.kind).toBe('passive')
@@ -1244,6 +1296,151 @@ describe('pacts', () => {
     setPactEffects(tree, id, [])
     expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
     expect(pactEffects(tree, id)).toEqual([])
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('authors an active pact’s activation cost, duration and cooldown into a loadable mode', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactEffects(tree, id, [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }])
+    // Effects with no cost or duration is the validator's complaint…
+    expect(() => toModeDefinition(tree)).toThrow(/no activationCost/)
+    expect(addPactActivationCurrency(tree, id)).toBe('r0')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactCooldown(tree, id, 45)
+    // …and these answer it.
+    const def = toModeDefinition(tree).pacts.find((p) => p.id === id)!
+    expect(def).toMatchObject({
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(listPacts(tree).at(-1)).toMatchObject({
+      activationCost: [{ currency: 'r0', baseCost: 300 }],
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+  })
+
+  it('moves and removes activation currencies, keeping the last one on an active pact with effects', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    expect(setPactActivationCurrency(tree, id, 'r0', 'r1')).toBe(true)
+    expect(tree.pacts.at(-1)!.activationCost).toEqual({ r1: { baseCost: 300 } })
+    setPactEffects(tree, id, [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }])
+    expect(removePactActivationCurrency(tree, id, 'r1')).toMatchObject({ ok: false })
+    setPactEffects(tree, id, [])
+    expect(removePactActivationCurrency(tree, id, 'r1')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).not.toHaveProperty('activationCost')
+  })
+
+  it('clears a non-positive duration or cooldown, and strips all three on a switch to passive', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactDuration(tree, id, 15)
+    setPactDuration(tree, id, 0)
+    setPactCooldown(tree, id, -1)
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
+
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactCooldown(tree, id, 45)
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('refuses a switch to passive while the pact carries an active-only effect', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactEffects(tree, id, [{ type: 'partnerAutoClick', clicksPerSec: 3 }])
+    const before = structuredClone(tree.pacts.at(-1))
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // The validator would refuse the saved tree, so the editor refuses the switch.
+    expect(setPactKind(tree, id, 'passive')).toEqual({
+      ok: false,
+      reason: 'partnerAutoClick only applies on an active pact — remove it first',
+    })
+    expect(tree.pacts.at(-1)).toEqual(before)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Without the stranded effect the switch goes through.
+    setPactEffects(tree, id, [])
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(setPactKind(tree, 'nope', 'active')).toMatchObject({ ok: false })
+  })
+
+  it('a resource rename rewrites activation costs and pact bonus fields', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r1', 20)
+    setPactDuration(tree, id, 10)
+    setPactEffects(tree, id, [
+      { type: 'pactProductionModifier', stage: 'multiplicative', field: 'r1', value: 1.5 },
+    ])
+    expect(renameResource(tree, 'r1', 'ale')).toBe(true)
+    expect(tree.pacts.at(-1)!.activationCost).toEqual({ ale: { baseCost: 20 } })
+    expect(pactEffects(tree, id)[0].field).toBe('ale')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('writes a whole slot cost above 1 on attacks and pacts, and clears the default', () => {
+    const tree = idler()
+    expect(setAttackSlotCost(tree, 'a0', 2)).toEqual({ ok: true })
+    expect(tree.attacks.find((a) => a.id === 'a0')!.slotCost).toBe(2)
+    expect(listAttacks(tree).find((a) => a.id === 'a0')!.slotCost).toBe(2)
+    expect(setAttackSlotCost(tree, 'a0', 1)).toEqual({ ok: true })
+    expect(tree.attacks.find((a) => a.id === 'a0')).not.toHaveProperty('slotCost')
+    expect(listAttacks(tree).find((a) => a.id === 'a0')!.slotCost).toBe(1)
+
+    expect(setPactSlotCost(tree, 'p3', 2)).toEqual({ ok: true })
+    expect(listPacts(tree).find((p) => p.id === 'p3')!.slotCost).toBe(2)
+    expect(setPactSlotCost(tree, 'p3', 1)).toEqual({ ok: true })
+    expect(tree.pacts.find((p) => p.id === 'p3')).not.toHaveProperty('slotCost')
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('refuses a slot cost below 1 or fractional, leaving the attack or pact as it was', () => {
+    const tree = idler()
+    setAttackSlotCost(tree, 'a0', 2)
+    setPactSlotCost(tree, 'p3', 2)
+    const before = structuredClone({ attacks: tree.attacks, pacts: tree.pacts })
+
+    // The schema requires a positive whole count, so writing a nearby value
+    // in its place would hide the slip: the editor refuses instead.
+    expect(setAttackSlotCost(tree, 'a0', -1)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got -1)',
+    })
+    expect(setAttackSlotCost(tree, 'a0', 0)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got 0)',
+    })
+    expect(setPactSlotCost(tree, 'p3', -2)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got -2)',
+    })
+    expect(setPactSlotCost(tree, 'p3', 0.4)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got 0.4)',
+    })
+    expect(setAttackSlotCost(tree, 'a0', 2.4)).toEqual({
+      ok: false,
+      reason: 'slot cost must be a positive whole number (got 2.4)',
+    })
+    expect({ attacks: tree.attacks, pacts: tree.pacts }).toEqual(before)
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

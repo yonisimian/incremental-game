@@ -622,6 +622,56 @@ describe('validateModeDefinition — negative tests', () => {
     }).toThrow(/passive attack 'a0' declares durationSec/)
   })
 
+  // ── Cooldowns: the rest after an active attack finishes ──
+
+  it('accepts a cooldownSec on a debuff attack, a steal-only attack and a placeholder', () => {
+    const steal = { type: 'stealResource', resource: 'r0', fraction: 0.1 } as const
+    for (const patch of [
+      { cooldownSec: 20 },
+      { cooldownSec: 20, durationSec: undefined, effects: [steal] },
+      {
+        cooldownSec: 20,
+        durationSec: undefined,
+        prepareCost: undefined,
+        prepareTimeSec: undefined,
+        effects: undefined,
+      },
+    ]) {
+      expect(() => {
+        validateModeDefinition('test', debuffAttackDef(patch))
+      }).not.toThrow()
+    }
+  })
+
+  it('throws for a non-positive cooldownSec', () => {
+    for (const cooldownSec of [0, -5]) {
+      expect(() => {
+        validateModeDefinition('test', debuffAttackDef({ cooldownSec }))
+      }).toThrow(/non-positive cooldownSec/)
+    }
+  })
+
+  it('throws for a cooldownSec on a passive attack', () => {
+    const base = makeValidDef({
+      attacks: [
+        {
+          id: 'a0',
+          kind: 'passive',
+          cooldownSec: 20,
+          effects: [
+            { type: 'enemyProductionModifier', stage: 'multiplicative', field: 'r0', value: 0.9 },
+          ],
+        },
+      ],
+    })
+    const def = withFlavor(base, {
+      attacks: [{ id: 'a0', name: 'Jam', icon: '🔇', description: '' }],
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/passive attack 'a0' declares cooldownSec/)
+  })
+
   it('still requires the prepare cost and delay on a duration attack', () => {
     expect(() => {
       validateModeDefinition('test', debuffAttackDef({ prepareCost: undefined }))
@@ -1199,6 +1249,74 @@ describe('validateModeDefinition — negative tests', () => {
     }).not.toThrow()
   })
 
+  /** Active, resting 4s after each strike — something for a `cooldown` stat to move. */
+  const RESTING_A0: ModeDefinition['attacks'] = [{ ...ACTIVE_A0[0], cooldownSec: 4 }]
+
+  it('throws for a cooldown stat aimed at a passive attack', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'cooldown', op: 'mult', value: 0.5 },
+      PASSIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'cooldown' on passive attack 'a0'/)
+  })
+
+  it('throws for a cooldown stat aimed at an attack with no cooldown', () => {
+    const def = withAttackStat(
+      { type: 'attackStat', attack: 'a0', stat: 'cooldown', op: 'mult', value: 0.5 },
+      ACTIVE_A0,
+    )
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/moves 'cooldown' on attack 'a0', which has no cooldown to move/)
+  })
+
+  it('accepts a cooldown stat aimed at a resting attack, factor and offset alike', () => {
+    for (const ref of [
+      { op: 'mult', value: 0.5 },
+      { op: 'add', value: -0.2 },
+      { op: 'offset', value: -1 },
+    ]) {
+      expect(() => {
+        validateModeDefinition(
+          'test',
+          withAttackStat(
+            { type: 'attackStat', attack: 'a0', stat: 'cooldown', ...ref },
+            RESTING_A0,
+            3,
+          ),
+        )
+      }).not.toThrow()
+    }
+  })
+
+  it('throws when an offset already floors the cooldown at one copy', () => {
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'cooldown', op: 'offset', value: -4 },
+          RESTING_A0,
+          3,
+        ),
+      )
+    }).toThrow(/already floors attack 'a0's 4s cooldown to 0 at one copy/)
+  })
+
+  it('throws when a reducing cooldown add dies inside its own purchase limit', () => {
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        withAttackStat(
+          { type: 'attackStat', attack: 'a0', stat: 'cooldown', op: 'add', value: -0.25 },
+          RESTING_A0,
+          4,
+        ),
+      )
+    }).toThrow(/reaches a zero multiplier at 4 copies/)
+  })
+
   it('throws when an attackStat is carried by an attack rather than an upgrade', () => {
     const base = makeValidDef({
       attacks: [
@@ -1278,6 +1396,110 @@ describe('validateModeDefinition — negative tests', () => {
     })
   }
 
+  // ── Active pact cost / timing ─────────────────────────────────────
+
+  it('throws when the starting effects unlock more pacts than the base pact slots', () => {
+    const base = defWithPact({ id: 'p0', kind: 'passive' })
+    const over = {
+      ...base,
+      effects: [
+        { type: 'pactSlots', pactKind: 'passive', value: 1 },
+        { type: 'unlockPact', pact: 'p0' },
+      ],
+    }
+    expect(() => {
+      validateModeDefinition('test', over)
+    }).not.toThrow()
+    const none = { ...over, effects: [...over.effects.slice(1)] }
+    // Capped by an upgrade's grant alone, the base is 0 — and the starting unlock is over it.
+    const cappedByUpgrade = {
+      ...none,
+      upgrades: [
+        ...none.upgrades,
+        {
+          id: 'u-raise',
+          cost: { r0: { baseCost: 1 } },
+          purchaseLimit: 1,
+          effects: [{ type: 'pactSlots', pactKind: 'passive', value: 1 }],
+        },
+      ],
+      flavors: none.flavors.map((f) => ({
+        ...f,
+        upgrades: [...f.upgrades, { id: 'u-raise', name: 'Raise', icon: '🤝', description: '' }],
+      })),
+    }
+    expect(() => {
+      validateModeDefinition('test', cappedByUpgrade)
+    }).toThrow(/unlock 1 slot\(s\) of passive pacts but grant only 0 passive pact slot\(s\)/)
+  })
+
+  it('accepts the activation fields on an active pact', () => {
+    const def = defWithPact({
+      id: 'p0',
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).not.toThrow()
+  })
+
+  it('throws for any activation field on a passive pact', () => {
+    for (const patch of [
+      { activationCost: { r0: { baseCost: 1 } } },
+      { durationSec: 5 },
+      { cooldownSec: 5 },
+    ]) {
+      expect(() => {
+        validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'passive', ...patch }))
+      }).toThrow(/passive pact 'p0' declares activationCost\/durationSec\/cooldownSec/)
+    }
+  })
+
+  it('throws for a non-positive duration or cooldown on an active pact', () => {
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'active', durationSec: 0 }))
+    }).toThrow(/non-positive durationSec/)
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ id: 'p0', kind: 'active', cooldownSec: -1 }))
+    }).toThrow(/non-positive cooldownSec/)
+  })
+
+  it('requires an activation cost and a duration on an active pact with effects', () => {
+    const effects = [
+      {
+        type: 'mirrorCostModifier',
+        target: 'upgrades',
+        costFactor: 0.75,
+      },
+    ]
+    const full = {
+      id: 'p0',
+      kind: 'active' as const,
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      effects,
+    }
+    expect(() => {
+      validateModeDefinition('test', defWithPact(full))
+    }).not.toThrow()
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ ...full, activationCost: undefined }))
+    }).toThrow(/active pact 'p0' carries effects but has no activationCost/)
+    expect(() => {
+      validateModeDefinition('test', defWithPact({ ...full, durationSec: undefined }))
+    }).toThrow(/active pact 'p0' carries effects but has no durationSec/)
+  })
+
+  it('throws for an activation cost in an unknown resource', () => {
+    const def = defWithPact({ id: 'p0', kind: 'active', activationCost: { rX: { baseCost: 1 } } })
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/activationCost references unknown resource 'rX'/)
+  })
+
   it('rejects a baseModifier on a pact — a pact that ignores the enemy is an upgrade', () => {
     const def = defWithPact({
       id: 'p0',
@@ -1306,7 +1528,7 @@ describe('validateModeDefinition — negative tests', () => {
     )
   })
 
-  it('rejects a pact effect on an active pact — nothing resolves one yet', () => {
+  it('accepts the pact effects on an active pact, which resolves them while its window is open', () => {
     for (const effect of [
       { type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 },
       {
@@ -1317,15 +1539,66 @@ describe('validateModeDefinition — negative tests', () => {
         perUnit: 1,
       },
     ]) {
-      const def = defWithPact({ id: 'p0', kind: 'active', effects: [effect] })
+      const def = defWithPact({
+        id: 'p0',
+        kind: 'active',
+        activationCost: { r0: { baseCost: 10 } },
+        durationSec: 10,
+        effects: [effect],
+      })
       expect(() => {
         validateModeDefinition('test', def)
-      }).toThrow(
-        new RegExp(
-          `active pact 'p0' carries a '${effect.type}' effect, which only applies on a passive pact`,
-        ),
-      )
+      }).not.toThrow()
     }
+  })
+
+  it('validates a pactProductionModifier field against the pact target catalog', () => {
+    const withBonus = (field: string, stage = 'multiplicative') =>
+      defWithPact({
+        id: 'p0',
+        kind: 'passive',
+        effects: [{ type: 'pactProductionModifier', stage, field, value: 2 }],
+      })
+    for (const field of ['clickIncome', 'r0', 'highlightFactor']) {
+      expect(() => {
+        validateModeDefinition('test', withBonus(field))
+      }).not.toThrow()
+    }
+    expect(() => {
+      validateModeDefinition('test', withBonus('g0'))
+    }).toThrow(/pactProductionModifier effect references unknown or unsupported field 'g0'/)
+    expect(() => {
+      validateModeDefinition('test', withBonus('highlightFactor', 'additive'))
+    }).toThrow(/only 'multiplicative' is supported/)
+  })
+
+  it('accepts partnerAutoClick on a one-sided active pact, and rejects it elsewhere', () => {
+    const accord = {
+      id: 'p0',
+      kind: 'active' as const,
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      effects: [{ type: 'partnerAutoClick', clicksPerSec: 3 }],
+    }
+    const clicking = (pact: ModeDefinition['pacts'][number]) => ({
+      ...defWithPact(pact),
+      clicksEnabled: true,
+    })
+    expect(() => {
+      validateModeDefinition('test', clicking(accord))
+    }).not.toThrow()
+    expect(() => {
+      validateModeDefinition('test', clicking({ ...accord, mutual: true }))
+    }).toThrow(/partner-directed effect 'partnerAutoClick' but is mutual/)
+    expect(() => {
+      validateModeDefinition('test', { ...clicking(accord), clicksEnabled: false })
+    }).toThrow(/partnerAutoClick, but the mode has clicks disabled/)
+    expect(() => {
+      validateModeDefinition(
+        'test',
+        clicking({ id: 'p0', kind: 'passive', effects: accord.effects }),
+      )
+    }).toThrow(/passive pact 'p0' carries a 'partnerAutoClick' effect/)
   })
 
   it('rejects a mirrorCostModifier whose target is not in the purchase catalog', () => {

@@ -496,6 +496,43 @@ describe('tree codec — stealResource take', () => {
   })
 })
 
+// ─── Attack cooldown ─────────────────────────────────────────────────
+
+describe('tree codec — attack cooldownSec', () => {
+  /** The steal tree with `cooldownSec` set on its attack. */
+  function treeWithCooldown(cooldownSec: unknown): TreeFile {
+    const tree = treeWithSteal({ fraction: 0.1 })
+    return { ...tree, attacks: [{ ...tree.attacks[0], cooldownSec }] } as TreeFile
+  }
+
+  it('accepts a positive cooldown and carries it into the mode', () => {
+    expect(toModeDefinition(treeWithCooldown(12)).attacks[0].cooldownSec).toBe(12)
+  })
+
+  it('accepts a positive whole slotCost on an attack and a pact, and rejects the rest', () => {
+    const withSlot = (slotCost: unknown): TreeFile => {
+      const tree = treeWithSteal({ fraction: 0.1 })
+      return { ...tree, attacks: [{ ...tree.attacks[0], slotCost }] } as TreeFile
+    }
+    expect(toModeDefinition(withSlot(2)).attacks[0].slotCost).toBe(2)
+    for (const bad of [0, 1.5, -1]) expect(() => parseTreeFile(withSlot(bad))).toThrow()
+    const tree = minimalTree()
+    const pactTree = {
+      ...tree,
+      pacts: [{ id: 'p0', kind: 'passive', slotCost: 3 }],
+      flavors: [
+        { ...tree.flavors[0], pacts: [{ id: 'p0', name: 'P', icon: '🤝', description: '' }] },
+      ],
+    }
+    expect(parseTreeFile(pactTree).pacts[0].slotCost).toBe(3)
+  })
+
+  it('rejects a zero or negative cooldown', () => {
+    expect(() => parseTreeFile(treeWithCooldown(0))).toThrow()
+    expect(() => parseTreeFile(treeWithCooldown(-3))).toThrow()
+  })
+})
+
 // ─── stealGenerator: share vs flat copy count ────────────────────────
 
 /** A tree with one generator whose lone active attack steals it with `params`. */
@@ -613,12 +650,17 @@ describe('tree codec — pacts', () => {
     })
   })
 
-  // The active-only fields are not authored yet (plans 43/44), so declaring one
-  // is a schema error — the strict object catches it as an unknown key.
-  it('rejects the active-only fields until they exist', () => {
-    expect(() => parseTreeFile(treeWithPact({ durationSec: 10 }))).toThrow()
-    expect(() => parseTreeFile(treeWithPact({ activationCost: { r0: { baseCost: 1 } } }))).toThrow()
-    expect(() => parseTreeFile(treeWithPact({ cooldownSec: 5 }))).toThrow()
+  it('parses the active fields, rejecting non-positive timings', () => {
+    const active = {
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    }
+    expect(parseTreeFile(treeWithPact(active)).pacts[0]).toEqual({ id: 'p0', ...active })
+    for (const bad of [{ durationSec: 0 }, { durationSec: -1 }, { cooldownSec: 0 }]) {
+      expect(() => parseTreeFile(treeWithPact({ ...active, ...bad }))).toThrow()
+    }
   })
 
   it('rejects a non-boolean mutual', () => {

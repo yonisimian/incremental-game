@@ -18,6 +18,7 @@ import {
   ENEMY_DATA_RATE_SUFFIX,
   enemyDataResourceKey,
   entityCostTargetKey,
+  isEffectAllowedOn,
   isTimeEffectType,
   parsePurchaseTarget,
 } from '@game/shared'
@@ -632,6 +633,9 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
   for (const a of tree.attacks) {
     if (a.prepareCost && key in a.prepareCost) refs.push(`attack '${a.id}' prepare cost`)
   }
+  for (const p of tree.pacts) {
+    if (p.activationCost && key in p.activationCost) refs.push(`pact '${p.id}' activation cost`)
+  }
   for (const ref of allEffectRefs(tree)) {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${key}`) refs.push('a relativeModifier source')
@@ -653,6 +657,8 @@ export function resourceReferences(tree: TreeFile, key: string): string[] {
       if (typeof ref.source === 'string' && enemyDataResourceKey(ref.source) === key)
         refs.push('a mirrorStatModifier source')
       if (ref.field === key) refs.push('a mirrorStatModifier field')
+    } else if (ref.type === 'pactProductionModifier' && ref.field === key) {
+      refs.push('a pactProductionModifier field')
     }
   }
   return refs
@@ -704,6 +710,13 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
       )
     }
   }
+  for (const p of tree.pacts) {
+    if (p.activationCost && oldKey in p.activationCost) {
+      p.activationCost = Object.fromEntries(
+        Object.entries(p.activationCost).map(([k, v]) => [k === oldKey ? newKey : k, v]),
+      )
+    }
+  }
   for (const ref of allEffectRefs(tree)) {
     if (ref.type === 'relativeModifier') {
       if (ref.source === `${RESOURCE_SOURCE_PREFIX}${oldKey}`)
@@ -729,6 +742,8 @@ export function renameResource(tree: TreeFile, oldKey: string, newKey: string): 
           ? `${newKey}${ENEMY_DATA_RATE_SUFFIX}`
           : newKey
       if (ref.field === oldKey) ref.field = newKey
+    } else if (ref.type === 'pactProductionModifier' && ref.field === oldKey) {
+      ref.field = newKey
     }
   }
   for (const f of tree.flavors) {
@@ -986,6 +1001,28 @@ export interface AttackRow {
    * zero never is).
    */
   readonly durationSec: number | null
+  /**
+   * Seconds the attack rests after it finishes before it can be activated
+   * again, or `null` when unset (no cooldown). Nullable for the same reason as
+   * `durationSec`: absence is legal, zero never is.
+   */
+  readonly cooldownSec: number | null
+  /** Slots of its kind's budget this attack takes while held (1 when unset). */
+  readonly slotCost: number
+}
+
+/**
+ * The value written for an authored slot cost: a whole number above 1, or
+ * `undefined` (absent) for the default of 1 so the file stays minimal.
+ * Anything else — below 1, or fractional — is refused: the schema requires a
+ * positive count, and silently writing a nearby value would hide the slip.
+ */
+function normalizeSlotCost(
+  slotCost: number,
+): { ok: true; value: number | undefined } | { ok: false; reason: string } {
+  if (!Number.isInteger(slotCost) || slotCost < 1)
+    return { ok: false, reason: `slot cost must be a positive whole number (got ${slotCost})` }
+  return { ok: true, value: slotCost > 1 ? slotCost : undefined }
 }
 
 /** The next free `aN` attack id. */
@@ -1013,6 +1050,8 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
       })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
       durationSec: a.durationSec ?? null,
+      cooldownSec: a.cooldownSec ?? null,
+      slotCost: a.slotCost ?? 1,
     }
   })
 }
@@ -1079,8 +1118,9 @@ export function removeAttack(tree: TreeFile, id: string): MutationResult {
 
 /**
  * Set attack `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
- * any preparation cost/time — the boot-time validator rejects those on passive
- * attacks, so leaving them would make the tree unloadable.
+ * any preparation cost/time, window and cooldown — the boot-time validator
+ * rejects those on passive attacks, so leaving them would make the tree
+ * unloadable.
  */
 export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
   const attack = tree.attacks.find((a) => a.id === id)
@@ -1090,6 +1130,7 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
     delete attack.prepareCost
     delete attack.prepareTimeSec
     delete attack.durationSec
+    delete attack.cooldownSec
   }
 }
 
@@ -1109,14 +1150,45 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
  * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
  * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
  * the boot-time validator rejects a window on a passive attack, on an all-steal
- * attack, and a non-positive one — so a non-positive value is written as
- * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ * attack, and a non-positive one. `0` is the field's "unset" display, so it
+ * clears like `null`; any other value is written as typed — a negative stays in
+ * the tree so export reports it, as with {@link setAttackPrepareTime}.
  */
 export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  if (durationSec === null || durationSec === 0) delete attack.durationSec
   else attack.durationSec = durationSec
+}
+
+/**
+ * Set how long attack `id` rests after it finishes (its window closes, or the
+ * strike lands) before it can be activated again, in seconds, or clear it with
+ * `null`. Unknown id is a no-op. Only meaningful on an `active` attack; the
+ * boot-time validator rejects a cooldown on a passive attack and a non-positive
+ * one. `0` clears like `null`; anything else is written as typed so a negative
+ * surfaces on export, as with {@link setAttackDuration}.
+ */
+export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (cooldownSec === null || cooldownSec === 0) delete attack.cooldownSec
+  else attack.cooldownSec = cooldownSec
+}
+
+/**
+ * Set how many slots of its kind's budget attack `id` takes, a whole number;
+ * `1` is written as absent (the default). Refuses a value below 1 or a
+ * fraction, leaving the attack as it was. Unknown id is a no-op.
+ */
+export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete attack.slotCost
+  else attack.slotCost = result.value
+  return { ok: true }
 }
 
 /**
@@ -1231,7 +1303,7 @@ export function setAttackFlavor(
 /** Default icon for a new pact, before the author picks one. */
 const DEFAULT_PACT_ICON = '🤝'
 
-/** An editable pact row: mechanics (id, kind, mutual) + primary-flavor display. */
+/** An editable pact row: mechanics (id, kind, mutual, activation) + primary-flavor display. */
 export interface PactRow {
   readonly id: string
   readonly kind: 'active' | 'passive'
@@ -1240,6 +1312,14 @@ export interface PactRow {
   readonly name: string
   readonly icon: string
   readonly description: string
+  /** Activation cost, one entry per currency in authoring order (empty when unset). */
+  readonly activationCost: readonly AttackCostRow[]
+  /** Seconds the window stays open, or `null` when unset. */
+  readonly durationSec: number | null
+  /** Seconds the pact rests after its window closes, or `null` when unset. */
+  readonly cooldownSec: number | null
+  /** Slots of its kind's budget this pact takes while held (1 when unset). */
+  readonly slotCost: number
 }
 
 /** The next free `pN` pact id. */
@@ -1262,6 +1342,13 @@ export function listPacts(tree: TreeFile): PactRow[] {
       name: f?.name ?? p.id,
       icon: f?.icon ?? DEFAULT_PACT_ICON,
       description: f?.description ?? '',
+      activationCost: Object.entries(p.activationCost ?? {}).map(([currency, entry]) => ({
+        currency,
+        baseCost: entry.baseCost,
+      })),
+      durationSec: p.durationSec ?? null,
+      cooldownSec: p.cooldownSec ?? null,
+      slotCost: p.slotCost ?? 1,
     }
   })
 }
@@ -1326,13 +1413,148 @@ export function removePact(tree: TreeFile, id: string): MutationResult {
 }
 
 /**
- * Set pact `id`'s kind. Unknown id is a no-op. Both kinds carry the same
- * fields today; active pacts will add the active-only ones (and clears them here on a
- * switch to passive, as `setAttackKind` does for attacks).
+ * Set pact `id`'s kind. Switching to `passive` strips the activation cost,
+ * duration and cooldown — the boot-time validator rejects them on a passive
+ * pact, as `setAttackKind` does for attacks. Refuses while the pact carries an
+ * effect the new kind cannot host (`partnerAutoClick` lives on active pacts
+ * only): the validator would reject the saved tree, and silently dropping the
+ * effect would lose authored work. Clear or move those effects first.
  */
-export function setPactKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
+export function setPactKind(
+  tree: TreeFile,
+  id: string,
+  kind: 'active' | 'passive',
+): MutationResult {
   const pact = tree.pacts.find((p) => p.id === id)
-  if (pact) pact.kind = kind
+  if (!pact) return { ok: false, reason: `unknown pact '${id}'` }
+  const host = kind === 'active' ? 'activePact' : 'passivePact'
+  const stranded = (pact.effects ?? [])
+    .map((ref) => ref.type)
+    .filter((type) => !isEffectAllowedOn(type, host))
+  if (stranded.length > 0)
+    return {
+      ok: false,
+      reason: `${stranded.join(', ')} only ${stranded.length === 1 ? 'applies' : 'apply'} on ${kind === 'active' ? 'a passive' : 'an active'} pact — remove ${stranded.length === 1 ? 'it' : 'them'} first`,
+    }
+  pact.kind = kind
+  if (kind === 'passive') {
+    delete pact.activationCost
+    delete pact.durationSec
+    delete pact.cooldownSec
+  }
+  return { ok: true }
+}
+
+/**
+ * Set how long pact `id`'s window stays open after activation, in seconds, or
+ * clear it with `null`. A non-positive value is written as *cleared* (the
+ * validator rejects it), keeping the tree loadable mid-edit. Unknown id is a
+ * no-op.
+ */
+export function setPactDuration(tree: TreeFile, id: string, durationSec: number | null): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (durationSec === null || !(durationSec > 0)) delete pact.durationSec
+  else pact.durationSec = durationSec
+}
+
+/**
+ * Set how long pact `id` rests after its window closes, in seconds, or clear
+ * it with `null` (and on a non-positive value, as {@link setPactDuration}).
+ */
+export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  if (cooldownSec === null || !(cooldownSec > 0)) delete pact.cooldownSec
+  else pact.cooldownSec = cooldownSec
+}
+
+/**
+ * Set how many slots of its kind's budget pact `id` takes — the rules of
+ * {@link setAttackSlotCost}: whole, `1` written as absent, the rest refused.
+ */
+export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete pact.slotCost
+  else pact.slotCost = result.value
+  return { ok: true }
+}
+
+/**
+ * Set one currency's flat activation cost on pact `id`, leaving its other
+ * currencies untouched — the pact twin of {@link setAttackPrepareCost}.
+ * Unknown id is a no-op.
+ */
+export function setPactActivationCost(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+  baseCost: number,
+): void {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return
+  pact.activationCost = { ...pact.activationCost, [currency]: { baseCost } }
+}
+
+/**
+ * Add the first resource not already charged to pact `id`'s activation cost,
+ * at 0. Returns the currency added, or `null` when the id is unknown or every
+ * resource is already charged.
+ */
+export function addPactActivationCurrency(tree: TreeFile, id: string): string | null {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return null
+  const free = tree.resources.find((key) => !(key in (pact.activationCost ?? {})))
+  if (free === undefined) return null
+  setPactActivationCost(tree, id, free, 0)
+  return free
+}
+
+/**
+ * Move one activation-cost entry of pact `id` from currency `from` to `to`,
+ * keeping the other entries in order. `false` — no change — when `from` isn't
+ * charged or `to` already is.
+ */
+export function setPactActivationCurrency(
+  tree: TreeFile,
+  id: string,
+  from: string,
+  to: string,
+): boolean {
+  if (from === to) return true
+  const pact = tree.pacts.find((p) => p.id === id)
+  const cost = pact?.activationCost
+  if (!pact || !cost || !(from in cost) || to in cost) return false
+  pact.activationCost = Object.fromEntries(
+    Object.entries(cost).map(([key, entry]) => [key === from ? to : key, entry]),
+  )
+  return true
+}
+
+/**
+ * Drop `currency` from pact `id`'s activation cost, removing the cost once its
+ * last currency goes. Refuses to strip the last currency of an active pact that
+ * carries effects, which the validator rejects without one.
+ */
+export function removePactActivationCurrency(
+  tree: TreeFile,
+  id: string,
+  currency: string,
+): MutationResult {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return { ok: false, reason: `unknown pact '${id}'` }
+  const cost = pact.activationCost
+  if (!cost || !(currency in cost))
+    return { ok: false, reason: `pact '${id}' has no ${currency} activation cost` }
+  const rest = Object.entries(cost).filter(([key]) => key !== currency)
+  if (rest.length === 0 && pact.kind === 'active' && (pact.effects?.length ?? 0) > 0)
+    return { ok: false, reason: 'an active pact with effects needs an activation cost' }
+  if (rest.length === 0) delete pact.activationCost
+  else pact.activationCost = Object.fromEntries(rest)
+  return { ok: true }
 }
 
 /**

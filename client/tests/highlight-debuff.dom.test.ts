@@ -43,6 +43,8 @@ function makeState(highlight: string | null, debuffs: Modifier[]): GameState {
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     debuffs,
     timeLeft: 60,
     paused: false,

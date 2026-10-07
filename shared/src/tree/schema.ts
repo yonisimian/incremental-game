@@ -86,7 +86,8 @@ const GeneratorSchema = z.strictObject({
  * An attack — a stable id, its kind, and the offensive effects it carries.
  * Active attacks also carry a `prepareCost` (paid on activation) and a
  * `prepareTimeSec` (delay before the strike lands), plus a `durationSec` when
- * the strike opens a debuff window. Effects are validated
+ * the strike opens a debuff window and an optional `cooldownSec` (the rest
+ * after the attack finishes before it can be activated again). Effects are validated
  * per-effect by the registry once assembled into a `ModeDefinition` (see
  * `validateModeDefinition`), which also enforces the cost/timing rules. Display
  * data is its flavor.
@@ -97,21 +98,27 @@ const AttackSchema = z.strictObject({
   prepareCost: CostSchema.optional(),
   prepareTimeSec: z.number().min(0).optional(),
   durationSec: z.number().positive().optional(),
+  cooldownSec: z.number().positive().optional(),
+  slotCost: z.number().int().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 
 /**
  * A pact — a stable id, its kind, whether it is `mutual` (the partner benefits
- * too), and the buff effects it carries. Effects are validated per-effect by the
- * registry once assembled into a `ModeDefinition` (see `validateModeDefinition`).
- * The active-only fields (activation cost, duration, cooldown) are not authored
- * yet — plans 43/44 — so a passive pact declaring one is a schema error here.
- * Display data is its flavor.
+ * too), and the buff effects it carries. Active pacts also carry an
+ * `activationCost` and a `durationSec` (the window), plus an optional
+ * `cooldownSec`. Effects are validated per-effect by the registry once
+ * assembled into a `ModeDefinition` (see `validateModeDefinition`), which also
+ * enforces the active/passive field rules. Display data is its flavor.
  */
 const PactSchema = z.strictObject({
   id: z.string(),
   kind: z.enum(['active', 'passive']),
   mutual: z.boolean().optional(),
+  activationCost: CostSchema.optional(),
+  durationSec: z.number().positive().optional(),
+  cooldownSec: z.number().positive().optional(),
+  slotCost: z.number().int().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 

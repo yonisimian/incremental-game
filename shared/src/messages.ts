@@ -1,6 +1,6 @@
 import type { Modifier } from './modifiers/types.js'
 import type { PactBonus } from './pacts.js'
-import type { GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
+import type { ActivePact, GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
@@ -231,13 +231,21 @@ export interface OpponentView {
    */
   incomingAttacks?: IncomingAttack[]
   /**
-   * The opponent's unlocked *mutual* passive pacts — the treaties the viewer
-   * also benefits from. Absent when none. Only ids of pacts that
-   * already affect the viewer are sent; a one-sided pact the opponent holds is
-   * never revealed. The client resolves an id to its flavor and pairs it with
-   * the matching `pactBonuses` entry for the relations panel.
+   * The opponent's pacts that reach the viewer — unlocked *mutual* passive
+   * pacts, and open active-pact windows that are mutual or carry a gift (e.g.
+   * `partnerAutoClick`). Absent when none. Only ids of pacts that already
+   * affect the viewer are sent; a one-sided pact the opponent holds is never
+   * revealed. The client resolves an id to its flavor and pairs it with the
+   * matching `pactBonuses` entry for the relations panel; a new id is the
+   * "signed by the enemy" toast.
    */
   pacts?: string[]
+  /**
+   * Closing times of the active-pact windows among {@link pacts}, on the
+   * shared round clock (`meta.gameSec`), so the viewer can count down a treaty
+   * they did not sign. Absent when none is open.
+   */
+  pactWindows?: ActivePact[]
 }
 
 /** Periodic authoritative state snapshot. */
@@ -276,6 +284,13 @@ export interface StateUpdateMessage {
    * trade route shows you how much timber crosses it.
    */
   pactBonuses?: PactBonus[]
+  /**
+   * Automatic clicks per second the opponent's open `partnerAutoClick` pacts
+   * are granting the receiving player (see `collectPartnerAutoClicks`). Absent
+   * when none, and when the receiver has not unlocked clicking (the gift has
+   * no one to click for). The income itself arrives in `player.resources`.
+   */
+  incomingAutoClicksPerSec?: number
   /** Seconds remaining in the round. */
   timeLeft: number
   /** Whether the server has paused the current match. */

@@ -5,8 +5,11 @@ import {
   activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
+  slotCostOf,
   attackSlotsHeld,
   collectAttackParams,
+  cooldownUntilSec,
+  getAttackCooldownSec,
   getAttackDescription,
   getAttackDurationSec,
   getAttackIcon,
@@ -16,6 +19,7 @@ import {
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
+  isAttackKindCapped,
   readGameSec,
   unlockedAttacks,
 } from '@game/shared'
@@ -29,6 +33,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
+import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -89,8 +94,8 @@ function renderShortfall(
  *
  * The delay is reported as **resolved seconds**, not as a factor: an `offset`
  * stat shifts it in seconds, which no multiplier can express, and the number a
- * player acts on is the wait itself. The debuff window (`durationSec`) is
- * reported the same way, for the same reason.
+ * player acts on is the wait itself. The debuff window (`durationSec`) and the
+ * cooldown (`cooldownSec`) are reported the same way, for the same reason.
  *
  * Only `power` is shown for a **passive** attack. A passive attack is never
  * activated, so it has neither a prepare cost nor a prepare delay
@@ -108,9 +113,18 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
       const window = getAttackDurationSec(def, params)
       if (window !== def.durationSec) parts.push(`Lasts ${formatDecimal(window, 1)}s`)
     }
+    if (def.cooldownSec !== undefined) {
+      const rest = getAttackCooldownSec(def, params)
+      if (rest !== def.cooldownSec) parts.push(`Cooldown ${formatDecimal(rest, 1)}s`)
+    }
   }
   if (parts.length === 0) return ''
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
+}
+
+/** The attack's slot-cost badge (see `renderSlotCostBadge`). */
+function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string {
+  return renderSlotCostBadge(slotCostOf(def), def.kind, isAttackKindCapped(modeDef, def.kind))
 }
 
 /** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
@@ -123,8 +137,8 @@ function blockLabel(reason: AttackBlockReason): string {
   switch (reason) {
     case 'no-effects':
       return 'No effect yet'
-    // `unaffordable` is rendered as a shortfall, and `already-active` (and
-    // `already-preparing`) as countdowns, by the caller.
+    // `unaffordable` is rendered as a shortfall, and `already-active`,
+    // `already-preparing` and `cooling-down` as countdowns, by the caller.
     default:
       return ''
   }
@@ -132,8 +146,9 @@ function blockLabel(reason: AttackBlockReason): string {
 
 /**
  * One active-attack card: a clickable button showing cost, state, or countdown.
- * The status line has four states, checked in lifecycle order — preparing
- * (strike pending), active (debuff window open), blocked, or the price.
+ * The status line has five states, checked in lifecycle order — preparing
+ * (strike pending), active (debuff window open), cooling down (the rest after
+ * the attack finished), blocked, or the price.
  */
 function renderActiveAttack(
   state: Readonly<GameState>,
@@ -146,25 +161,32 @@ function renderActiveAttack(
   if (!def) return ''
   const params = collectAttackParams(state.player, modeDef, id)
   const gameSec = readGameSec(state.player)
-  const readyAt = pendingReadyAt(state, id)
+  // `attackBlockReason` already ranks the lifecycle states (preparing, then the
+  // open window, then the rest stamped behind it), so branch on it and look up
+  // only the one countdown the state needs rather than re-testing each list.
+  const reason = attackBlockReason(state.player, id, modeDef, params)
+  const readyAt = reason === 'already-preparing' ? pendingReadyAt(state, id) : null
   const preparing = readyAt !== null
-  const expiresAt = activeDebuffExpiresAtSec(state.player, id)
-  const reason = attackBlockReason(state.player, id, modeDef)
-  const disabled = preparing || reason !== null
+  const expiresAt = reason === 'already-active' ? activeDebuffExpiresAtSec(state.player, id) : null
+  const coolingUntil =
+    reason === 'cooling-down' ? cooldownUntilSec(state.player, 'attack', id) : null
+  const disabled = reason !== null
   const status = preparing
     ? `<span class="attack-status attack-status--preparing">${countdownSpan({ template: 'Striking in {}s', untilSec: readyAt }, gameSec)}</span>`
     : expiresAt !== null
       ? `<span class="attack-status attack-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>`
-      : reason === 'unaffordable'
-        ? renderShortfall(state.player.resources, flavor, def, params)
-        : reason
-          ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
-          : renderCost(flavor, def, params)
+      : coolingUntil !== null
+        ? `<span class="attack-status attack-status--cooling">${countdownSpan({ template: 'Ready in {}s', untilSec: coolingUntil }, gameSec)}</span>`
+        : reason === 'unaffordable'
+          ? renderShortfall(state.player.resources, flavor, def, params)
+          : reason
+            ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
+            : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${status}
         ${renderStats(def, params)}
@@ -192,7 +214,7 @@ function renderPassiveAttack(
     <li class="attack-item">
       <button class="attack-btn" type="button" disabled>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${renderStats(def, collectAttackParams(state.player, modeDef, id))}
       </button>
@@ -200,19 +222,17 @@ function renderPassiveAttack(
   `
 }
 
-/**
- * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
- * nothing when the mode never caps that kind. Reads as a loadout
- * rather than an inventory: the player can see how many commitments remain.
- */
+/** The `held / limit` badge for one kind's heading, or nothing for an uncapped kind. */
 function renderSlots(
   state: Readonly<GameState>,
   modeDef: ModeDefinition,
   kind: AttackKind,
 ): string {
-  const limit = attackLimit(state.player, modeDef, kind)
-  if (!Number.isFinite(limit)) return ''
-  return ` <span class="attack-slots">${attackSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+  return renderSlotsBadge(
+    attackSlotsHeld(state.player, modeDef, kind),
+    attackLimit(state.player, modeDef, kind),
+    'attack-slots',
+  )
 }
 
 function renderSection(heading: string, slots: string, items: string): string {

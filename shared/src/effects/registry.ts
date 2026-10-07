@@ -39,6 +39,15 @@ export function isDynamicEffect(type: string): boolean {
 }
 
 /**
+ * Whether effect `type` acts on a pact signer's partner rather than the signer
+ * (see {@link EffectDef.partnerDirected}). Unknown types are not —
+ * `prepareEffect` owns that failure.
+ */
+export function isPartnerDirectedEffect(type: string): boolean {
+  return registry.get(type)?.partnerDirected === true
+}
+
+/**
  * Hosts an effect may be authored on when it declares none: the two
  * production-pipeline hosts, which fit every effect whose output
  * `collectModifiers` (or a gate it feeds) consumes. Offensive effects — the ones

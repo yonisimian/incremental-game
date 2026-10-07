@@ -7,7 +7,6 @@ import {
 } from '../modifiers/types.js'
 import type {
   AttackDefinition,
-  AttackKind,
   EffectRef,
   EnemyCostFactor,
   GameMode,
@@ -45,6 +44,7 @@ import {
   forEachHeldEffectOutput,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
   normalizeEffectOutputs,
   prepareEffect,
 } from '../effects/index.js'
@@ -158,7 +158,140 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   }
 }
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+/** One slot-budgeted system, as `checkStartingSlotBudget` reads it from refs. */
+interface SlotBudgetedSystem {
+  /** For the error message: `attack`, `pact`. */
+  readonly noun: string
+  /** The unlock effect's ref type and the param naming the entity. */
+  readonly unlockType: string
+  readonly idField: string
+  /** The grant effect's ref type and the param naming the kind. */
+  readonly grantType: string
+  readonly kindField: string
+  /** The mode's entities by id — only their `kind` and `slotCost` are read. */
+  readonly entities: ReadonlyMap<
+    string,
+    { readonly id: string; readonly kind: string; readonly slotCost?: number }
+  >
+}
+
+/**
+ * The slot-budget rules a mode must satisfy at boot, for one system:
+ *
+ * - `slotCost` is a positive whole number of slots (the schema covers the
+ *   file path; this covers a programmatically built mode);
+ * - the mode's starting effects must not unlock more slots of a capped kind
+ *   than its base grant has — the round would open over budget, which no
+ *   purchase can repair;
+ * - every entity of a capped kind must fit the greatest limit a player could
+ *   ever reach (the base plus every grant bought to its purchase limit), or
+ *   it can never be held.
+ *
+ * A kind no grant names (on the mode or on any upgrade, owned or not) is
+ * uncapped and needs no check.
+ */
+function checkStartingSlotBudget(
+  id: string,
+  def: ModeDefinition,
+  system: SlotBudgetedSystem,
+): void {
+  for (const entity of system.entities.values()) {
+    const cost = entity.slotCost
+    if (cost !== undefined && !(Number.isInteger(cost) && cost > 0))
+      throw new Error(
+        `[${id}] ${system.noun} '${entity.id}' has slotCost ${cost} — it must be a positive whole number of slots`,
+      )
+  }
+  // Slots the starting unlocks of each kind fill, each entity charged once
+  // however many refs name it.
+  const startingUnlocks = new Map<string, Set<string>>()
+  for (const ref of def.effects ?? []) {
+    if (ref.type !== system.unlockType) continue
+    const target = ref[system.idField]
+    if (typeof target !== 'string') continue
+    const entity = system.entities.get(target)
+    if (!entity) continue // an unknown entity fills no slot; the reference check reports it
+    let ids = startingUnlocks.get(entity.kind)
+    if (!ids) {
+      ids = new Set()
+      startingUnlocks.set(entity.kind, ids)
+    }
+    ids.add(target)
+  }
+  const cappedKinds = new Set<string>()
+  const add = (into: Map<string, number>, kind: string, value: number): void => {
+    into.set(kind, (into.get(kind) ?? 0) + value)
+  }
+  /** Slots `refs` grant per kind at `levels` levels; notes every kind they name as capped. */
+  const grantsOf = (
+    refs: readonly EffectRef[] | undefined,
+    levels: number,
+  ): Map<string, number> => {
+    const grants = new Map<string, number>()
+    for (const ref of refs ?? []) {
+      if (ref.type !== system.grantType) continue
+      const kind = ref[system.kindField]
+      if (kind !== 'active' && kind !== 'passive') continue // the schema's to reject
+      cappedKinds.add(kind)
+      if (typeof ref.value === 'number') add(grants, kind, ref.value * levels)
+    }
+    return grants
+  }
+  const baseSlots = grantsOf(def.effects, 1)
+  // The greatest limit a player could ever reach: the base plus every grant a
+  // player can actually own, bought to its purchase limit (infinite when any
+  // is unlimited). A `comingSoon` node is never bought, so it grants nothing;
+  // within a choice group only one node is ever owned, so a group contributes
+  // its single most generous member per kind, not the sum. Prerequisites are
+  // not walked — a raise gated behind a node nobody can own still counts — so
+  // the bound is an upper estimate: it never rejects a valid mode, and may let
+  // a dead entity through a gate this check does not see.
+  const reachableSlots = new Map(baseSlots)
+  const bestInGroup = new Map<string, Map<string, number>>()
+  for (const u of def.upgrades) {
+    if (u.comingSoon) {
+      grantsOf(u.effects, 0) // still caps the kinds it names
+      continue
+    }
+    const grants = grantsOf(u.effects, u.purchaseLimit)
+    if (u.choiceGroup === undefined) {
+      for (const [kind, value] of grants) add(reachableSlots, kind, value)
+      continue
+    }
+    let best = bestInGroup.get(u.choiceGroup)
+    if (!best) {
+      best = new Map()
+      bestInGroup.set(u.choiceGroup, best)
+    }
+    for (const [kind, value] of grants) best.set(kind, Math.max(best.get(kind) ?? 0, value))
+  }
+  for (const best of bestInGroup.values())
+    for (const [kind, value] of best) add(reachableSlots, kind, value)
+  for (const kind of cappedKinds) {
+    let held = 0
+    for (const target of startingUnlocks.get(kind) ?? [])
+      held += system.entities.get(target)?.slotCost ?? 1
+    const base = baseSlots.get(kind) ?? 0
+    if (held > base)
+      throw new Error(
+        `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} ${system.noun}s but grant only ${base} ${kind} ${system.noun} slot(s) — the round would open over budget, which no purchase can repair`,
+      )
+    // Unlocks are monotonic, so the starting unlocks fill their slots for the
+    // whole round: every other entity has to fit beside them.
+    const reachable = reachableSlots.get(kind) ?? 0
+    const starting = startingUnlocks.get(kind)
+    for (const entity of system.entities.values()) {
+      if (entity.kind !== kind || starting?.has(entity.id)) continue
+      const cost = entity.slotCost ?? 1
+      if (held + cost > reachable)
+        throw new Error(
+          `[${id}] ${kind} ${system.noun} '${entity.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} ${system.noun} slot(s) can ever be granted${held > 0 ? `, ${held} of them filled by the starting unlocks` : ''} — it can never be held`,
+        )
+    }
+  }
+}
+
+/** Validate a mode's mechanics and flavor. Called once per mode at startup. */
 export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // At least one flavor (also enforced by the schema), with unique ids so a
   // selector can address them and `getModeFlavor` resolves deterministically.
@@ -249,7 +382,8 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // `attackStat` effects scale an attack's numbers, naming the attack by id.
   // Validate the id the same way — a typo would silently buff nothing — and
   // reject a stat aimed at an attack that has no such field:
-  // `prepareCost`/`prepareTime` are forbidden on a passive attack (see below), so
+  // `prepareCost`/`prepareTime`/`duration`/`cooldown` are forbidden on a passive
+  // attack (see below), so
   // a stat pointed at one is authored dead weight.
   //
   // The schema (`guardScaledStatValue`) has already judged each value on its
@@ -291,7 +425,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     if (!known.includes(ref.stat)) return
     if (!legal.includes(ref.stat))
       throw new Error(
-        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost and delay)`,
+        `[${id}] ${where} attackStat effect moves '${ref.stat}' on passive attack '${target}', which is never activated (only an active attack has a prepare cost, delay, window or cooldown)`,
       )
 
     // A stat must have something to move. Both fields are optional on an active
@@ -312,6 +446,11 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] ${where} attackStat moves 'duration' on attack '${target}', which opens no debuff window`,
       )
+    const cooldownSec = attack.cooldownSec ?? 0
+    if (ref.stat === 'cooldown' && cooldownSec <= 0)
+      throw new Error(
+        `[${id}] ${where} attackStat moves 'cooldown' on attack '${target}', which has no cooldown to move`,
+      )
     // A purchase lock has no magnitude, so `power` has nothing to scale on an
     // attack whose effects are all locks — `duration` is that attack's lever.
     // An attack with *any* other effect keeps `power` legal, since a raid that
@@ -330,6 +469,13 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       throw new Error(
         `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${delaySec}s delay to 0 at one copy, leaving every later copy inert`,
       )
+    // The cooldown is improved by *shortening* it, so its offset is negative by
+    // schema and floors exactly like the delay's.
+    const offsetsCooldown = ref.stat === 'cooldown' && ref.op === 'offset'
+    if (offsetsCooldown && typeof value === 'number' && value <= -cooldownSec)
+      throw new Error(
+        `[${id}] ${where} attackStat 'offset' of ${value}s already floors attack '${target}'s ${cooldownSec}s cooldown to 0 at one copy, leaving every later copy inert`,
+      )
     // (`duration` is improved by *increasing* it, so its offset is positive by
     // schema and can never floor the window — no twin check is needed.)
   }
@@ -338,46 +484,32 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     for (const ref of u.effects ?? []) checkAttackStat(`upgrade '${u.id}'`, ref, u.purchaseLimit)
   }
 
-  // `attackSlots`: a kind is capped once any grant names it, and the
-  // base budget is whatever the mode's own starting effects grant. Starting
-  // effects can also *unlock* attacks, each of which fills a slot — so a mode
-  // whose starting unlocks of a kind outnumber its base cap would open the round
-  // already over budget, in a state the purchase gate can never repair. Judged
-  // by ref fields, as every check here is: the validator sees refs, not outputs.
-  // A kind no grant names is uncapped and needs no check; capping one kind but
-  // not the other is legal.
-  const startingUnlocks = new Map<AttackKind, Set<string>>()
-  for (const ref of def.effects ?? []) {
-    if (ref.type !== 'unlockAttack' || typeof ref.attack !== 'string') continue
-    const attack = attacksById.get(ref.attack)
-    if (!attack) continue // an unknown attack fills no slot
-    let ids = startingUnlocks.get(attack.kind)
-    if (!ids) {
-      ids = new Set()
-      startingUnlocks.set(attack.kind, ids)
-    }
-    ids.add(ref.attack)
-  }
-  const cappedKinds = new Set<AttackKind>()
-  const baseSlots = new Map<AttackKind, number>()
-  const noteSlotGrant = (ref: EffectRef, fromMode: boolean): void => {
-    if (ref.type !== 'attackSlots') return
-    const kind = ref.attackKind
-    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
-    cappedKinds.add(kind)
-    if (fromMode && typeof ref.value === 'number')
-      baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
-  }
-  for (const ref of def.effects ?? []) noteSlotGrant(ref, true)
-  for (const u of def.upgrades) for (const ref of u.effects ?? []) noteSlotGrant(ref, false)
-  for (const kind of cappedKinds) {
-    const held = startingUnlocks.get(kind)?.size ?? 0
-    const base = baseSlots.get(kind) ?? 0
-    if (held > base)
-      throw new Error(
-        `[${id}] the mode's starting effects unlock ${held} ${kind} attack(s) but grant only ${base} ${kind} attack slot(s) — the round would open over budget, which no purchase can repair`,
-      )
-  }
+  // `attackSlots` / `pactSlots`: a kind is capped once any grant names it,
+  // and the base budget is whatever the mode's own starting effects grant.
+  // Starting effects can also *unlock* attacks or pacts, each of which fills
+  // its `slotCost` in slots — so a mode whose starting unlocks of a kind
+  // outweigh its base cap would open the round already over budget, in a
+  // state the purchase gate can never repair; and an entity heavier than any
+  // limit a player could ever reach is never held. Judged by ref fields, as
+  // every check here is: the validator sees refs, not outputs. A kind no grant
+  // names is uncapped and needs no check; capping one kind but not the other
+  // is legal.
+  checkStartingSlotBudget(id, def, {
+    noun: 'attack',
+    unlockType: 'unlockAttack',
+    idField: 'attack',
+    grantType: 'attackSlots',
+    kindField: 'attackKind',
+    entities: attacksById,
+  })
+  checkStartingSlotBudget(id, def, {
+    noun: 'pact',
+    unlockType: 'unlockPact',
+    idField: 'pact',
+    grantType: 'pactSlots',
+    kindField: 'pactKind',
+    entities: new Map(def.pacts.map((p) => [p.id, p])),
+  })
 
   // `attackAlert`: a reveal grant shows the *name* on a warning, so a
   // mode whose grants reveal but never grant a lead has a node that is bought
@@ -649,6 +781,81 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     }
   }
 
+  // `pactProductionModifier` (a flat pact bonus) lands on the same catalog as a
+  // mirrored one, with the same highlight-factor rule; its value's direction is
+  // the schema's `guardModifierValue('bonus')`.
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (ref.type !== 'pactProductionModifier') continue
+      if (typeof ref.field === 'string' && !debuffTargetKeys.has(ref.field))
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect references unknown or unsupported field '${ref.field}' (only resource rates, 'clickIncome' and '${HIGHLIGHT_FACTOR_TARGET}' can be boosted from a pact)`,
+        )
+      if (ref.field === HIGHLIGHT_FACTOR_TARGET && ref.stage !== 'multiplicative')
+        throw new Error(
+          `[${id}] pact '${pact.id}' pactProductionModifier effect targets '${HIGHLIGHT_FACTOR_TARGET}' with stage '${String(ref.stage)}' — only 'multiplicative' is supported (the highlight factor is a multiplier)`,
+        )
+    }
+  }
+
+  // A partner-directed effect (a gift such as `partnerAutoClick`, flagged
+  // `partnerDirected` in the registry) acts on the signer's partner, which
+  // `mutual` ("the partner gets the same buff") would make ambiguous — the gift
+  // flowing both ways? Rejected until a pact wants that. `partnerAutoClick`
+  // itself also credits the partner's clicks, so it needs a mode with clicks.
+  // (The effect's hosts already keep it active-only.)
+  for (const pact of def.pacts) {
+    for (const ref of pact.effects ?? []) {
+      if (isPartnerDirectedEffect(ref.type) && pact.mutual === true)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries the partner-directed effect '${ref.type}' but is mutual — a gift to the partner cannot also be shared back`,
+        )
+      if (ref.type === 'partnerAutoClick' && !def.clicksEnabled)
+        throw new Error(
+          `[${id}] pact '${pact.id}' carries partnerAutoClick, but the mode has clicks disabled — there is no click income to credit`,
+        )
+    }
+  }
+
+  // Active-pact cost/timing — the attack rules below with the strike removed. An
+  // active pact that carries effects is *activated* (pay `activationCost`, stay
+  // in force `durationSec`), so both must be present; a passive pact is
+  // always-on and never activated, so declaring any timing field is a mistake.
+  // Effect-less active pacts stay legal — they're placeholders.
+  for (const pact of def.pacts) {
+    const timing =
+      pact.activationCost !== undefined ||
+      pact.durationSec !== undefined ||
+      pact.cooldownSec !== undefined
+    if (pact.kind === 'passive') {
+      if (timing)
+        throw new Error(
+          `[${id}] passive pact '${pact.id}' declares activationCost/durationSec/cooldownSec, but a passive pact is always-on and never activated`,
+        )
+      continue
+    }
+    if ((pact.effects?.length ?? 0) > 0) {
+      if (Object.keys(pact.activationCost ?? {}).length === 0)
+        throw new Error(
+          `[${id}] active pact '${pact.id}' carries effects but has no activationCost`,
+        )
+      if (pact.durationSec === undefined)
+        throw new Error(`[${id}] active pact '${pact.id}' carries effects but has no durationSec`)
+    }
+    // The schema's `.positive()` covers the file path; these cover a
+    // programmatically built mode.
+    if (pact.durationSec !== undefined && !(pact.durationSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive durationSec`)
+    if (pact.cooldownSec !== undefined && !(pact.cooldownSec > 0))
+      throw new Error(`[${id}] active pact '${pact.id}' has a non-positive cooldownSec`)
+    for (const currency of Object.keys(pact.activationCost ?? {})) {
+      if (!resourceKeys.has(currency))
+        throw new Error(
+          `[${id}] active pact '${pact.id}' activationCost references unknown resource '${currency}'`,
+        )
+    }
+  }
+
   // Active-attack cost/timing + `stealResource` integrity. An active attack that
   // carries effects is *activated* (pay `prepareCost`, wait `prepareTimeSec`,
   // strike), so both fields must be present and well-formed; a passive attack is
@@ -670,6 +877,10 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (attack.durationSec !== undefined)
         throw new Error(
           `[${id}] passive attack '${attack.id}' declares durationSec, but a passive attack is always-on — a window is meaningless`,
+        )
+      if (attack.cooldownSec !== undefined)
+        throw new Error(
+          `[${id}] passive attack '${attack.id}' declares cooldownSec, but a passive attack is always-on and never activated — there is nothing to rest from`,
         )
     } else {
       // active
@@ -724,6 +935,12 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
       if (attack.durationSec !== undefined && attack.durationSec <= 0)
         throw new Error(
           `[${id}] active attack '${attack.id}' has a non-positive durationSec (a window no tick could gather)`,
+        )
+      // No effect requirement, unlike `durationSec`: a rest is meaningful on a
+      // steal too. The schema's `.positive()` covers the file path.
+      if (attack.cooldownSec !== undefined && attack.cooldownSec <= 0)
+        throw new Error(
+          `[${id}] active attack '${attack.id}' has a non-positive cooldownSec (a rest of no length — omit the field)`,
         )
       for (const currency of Object.keys(attack.prepareCost ?? {})) {
         if (!resourceKeys.has(currency))

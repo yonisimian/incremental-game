@@ -25,6 +25,8 @@ function makeIdlerState(debuffs: Modifier[] = []): GameState {
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
     vsBot: false,

@@ -118,8 +118,9 @@ export type EffectFieldOption = string | { readonly value: string; readonly labe
  *
  * A few option sets depend on a *sibling* param, which is what `params` (the
  * ref's current params, minus `type`) is for: `attackStat`'s `stat` drops
- * `prepareCost`/`prepareTime` once `attack` names a passive attack, since a
- * passive attack is never activated and has neither. See
+ * the active-only stats (`prepareCost`, `prepareTime`, `duration`, `cooldown`)
+ * once `attack` names a passive attack, since a passive attack is never
+ * activated and has none of them. See
  * {@link OPTION_SOURCE_FIELDS} for how the form re-resolves after such an edit.
  *
  * Exported for testing: every id-referencing param should resolve to a picker,
@@ -165,10 +166,12 @@ export function effectFieldOptions(
       tree.generators.map((g) => g.id),
     ).map((f) => ({ value: f.key, label: f.label }))
   }
-  // A pact's mirrored bonus lands on the same targets a debuff may hit (a bonus
-  // merges in after generator output is folded, for the same reason).
+  // A pact's bonus (mirrored or flat) lands on the same targets a debuff may
+  // hit (a bonus merges in after generator output is folded, for the same reason).
   if (
-    (effectType === 'enemyProductionModifier' || effectType === 'mirrorStatModifier') &&
+    (effectType === 'enemyProductionModifier' ||
+      effectType === 'mirrorStatModifier' ||
+      effectType === 'pactProductionModifier') &&
     fieldKey === 'field'
   ) {
     return enemyDebuffTargetsFor(tree.resources).map((f) => ({ value: f.key, label: f.label }))
@@ -261,15 +264,16 @@ function attackStatOf(params?: Readonly<Record<string, unknown>>): AttackStat {
  * so editing one must re-resolve the rest of the block.
  *
  * `attackStat` is the only case today: once `attack` names a passive attack, the
- * stats an active attack alone can use (`prepareCost`, `prepareTime`) leave the
+ * stats an active attack alone can use (`prepareCost`, `prepareTime`,
+ * `duration`, `cooldown`) leave the
  * `stat` picker, and a stat already selected has to go with them — otherwise the
  * form would keep writing a combination `validateModeDefinition` refuses to boot
  * on, which the author only discovers as a startup error.
  */
 const OPTION_SOURCE_FIELDS: Record<string, readonly string[]> = {
   // A chain, resolved in schema order: `attack` narrows `stat` (a passive attack
-  // has no prepare cost or delay), and `stat` in turn narrows `op` (only
-  // `prepareTime` has a unit an `offset` can shift). `repairOptionValues` walks
+  // has no prepare cost or delay), and `stat` in turn narrows `op` (only the
+  // time stats have a unit an `offset` can shift). `repairOptionValues` walks
   // the fields in that same order, so one edit can cascade through both.
   attackStat: ['attack', 'stat'],
 }
@@ -666,7 +670,16 @@ export const EFFECT_GROUPS: readonly EffectGroup[] = [
     ],
   },
   { label: 'Defense', types: ['attackAlert'] },
-  { label: 'Pacts', types: ['mirrorCostModifier', 'mirrorStatModifier'] },
+  {
+    label: 'Pacts',
+    types: [
+      'mirrorCostModifier',
+      'mirrorStatModifier',
+      'pactProductionModifier',
+      'partnerAutoClick',
+      'pactSlots',
+    ],
+  },
   {
     label: 'Time clock',
     types: ['timeScaledModifier', 'timeFactorBoost', 'timeRetroactive'],

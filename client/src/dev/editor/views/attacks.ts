@@ -11,7 +11,8 @@
  * The cost may charge several resources at once, so it is authored as a list of
  * currency rows (like the upgrade inspector's cost section, minus the per-level
  * scaling — attack costs are always flat). An active attack carrying a debuff
- * effect also needs a duration — how long the strike's window stays open.
+ * effect also needs a duration — how long the strike's window stays open — and
+ * any active attack may set a cooldown: how long it rests after it finishes.
  * `passive` attacks apply their effects continuously and carry no prepare data.
  */
 
@@ -21,10 +22,10 @@ import {
   attackEffects,
   attackReferences,
   listAttacks,
-  listResources,
   removeAttack,
   removeAttackPrepareCurrency,
   renameAttack,
+  setAttackCooldown,
   setAttackDuration,
   setAttackEffects,
   setAttackFlavor,
@@ -32,11 +33,12 @@ import {
   setAttackPrepareCost,
   setAttackPrepareCurrency,
   setAttackPrepareTime,
+  setAttackSlotCost,
   type AttackCostRow,
   type AttackRow,
 } from '../model.js'
 import { buildEffectsSection } from '../effects-editor.js'
-import { addButton, numberInput, removeButton, renameInput } from './controls.js'
+import { addButton, numberInput, removeButton, renameInput, resourceSelect } from './controls.js'
 import { el, labeled, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
 
@@ -139,12 +141,31 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   nameInput.addEventListener('input', commitFlavor)
   descInput.addEventListener('input', commitFlavor)
 
+  // How much of its kind's slot budget the attack takes (1 = the default). A
+  // refusal (below 1) leaves the tree as it was and is reported under the
+  // input, which keeps the typed value so it can be corrected in place.
+  const slotCostError = el('span', 'ed-error ed-field-error')
+  const slotCost = numberInput(
+    ctx,
+    row.slotCost,
+    (n) => {
+      const result = setAttackSlotCost(tree, row.id, n)
+      slotCostError.textContent = result.ok ? '' : result.reason
+      slotCost.classList.toggle('invalid', !result.ok)
+      return result.ok
+    },
+    { step: '1', min: '1', allowBlank: false },
+  )
+  const slotCostField = labeled('Slot cost', slotCost)
+  slotCostField.append(slotCostError)
+
   const fields = el('div', 'ed-gen-card-fields')
   fields.append(
     labeled('Kind', kindSelect),
     labeled('Icon', iconInput),
     labeled('Name', nameInput),
     labeled('Description', descInput),
+    slotCostField,
   )
 
   // ── Preparation (active attacks only): lead time before the strike ──
@@ -169,6 +190,16 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
       { step: '0.5' },
     )
     fields.append(labeled('Debuff duration /s', duration))
+    // The rest after the attack finishes. Blank (0) means "no cooldown".
+    const cooldown = numberInput(
+      ctx,
+      row.cooldownSec ?? 0,
+      (n) => {
+        setAttackCooldown(tree, row.id, n)
+      },
+      { step: '0.5' },
+    )
+    fields.append(labeled('Cooldown /s', cooldown))
   }
 
   card.append(fields)
@@ -192,31 +223,6 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   )
 
   return card
-}
-
-/**
- * A `<select>` over the tree's resources, labelled with icon + name + key.
- * `exclude` drops resources already spoken for elsewhere (the selected one is
- * always offered, so a row can keep its own currency).
- */
-function resourceSelect(
-  tree: EditorContext['tree'],
-  selected: string,
-  onChange: (value: string) => void,
-  exclude: ReadonlySet<string> = new Set(),
-): HTMLSelectElement {
-  const sel = el('select', 'ed-input')
-  for (const r of listResources(tree)) {
-    if (r.key !== selected && exclude.has(r.key)) continue
-    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
-    opt.value = r.key
-    if (r.key === selected) opt.selected = true
-    sel.append(opt)
-  }
-  sel.addEventListener('change', () => {
-    onChange(sel.value)
-  })
-  return sel
 }
 
 /**

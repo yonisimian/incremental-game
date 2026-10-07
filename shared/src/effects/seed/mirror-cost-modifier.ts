@@ -69,6 +69,6 @@ function apply(p: MirrorCostModifierParams): MirrorCostOutput[] | null {
 export const mirrorCostModifier: EffectDef<MirrorCostModifierParams> = {
   schema,
   apply,
-  // Passive only until active pacts have a lifecycle: on an active pact nothing reads it.
-  hosts: ['passivePact'],
+  // On an active pact it is in force while the window is open.
+  hosts: ['passivePact', 'activePact'],
 }

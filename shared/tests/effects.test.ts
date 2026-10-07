@@ -18,6 +18,8 @@ import {
   isClickUnlocked,
   isDynamicEffect,
   isEffectAllowedOn,
+  isPartnerDirectedEffect,
+  MAX_CPS,
   isGeneratorUnlocked,
   isHighlightBatteryActive,
   isPactUnlocked,
@@ -83,7 +85,10 @@ describe('effect registry', () => {
       'lowerTierBoost',
       'mirrorCostModifier',
       'mirrorStatModifier',
+      'pactProductionModifier',
+      'pactSlots',
       'panelUnlock',
+      'partnerAutoClick',
       'relativeModifier',
       'stealGenerator',
       'stealResource',
@@ -110,6 +115,14 @@ describe('effect registry', () => {
       'relativeModifier',
       'timeScaledModifier',
     ])
+  })
+
+  // Pins the partner-directed set the same way: a new gift effect that forgets
+  // the flag boots on a mutual pact and stays hidden from the partner it
+  // reaches, with no other signal.
+  it('pins which effects are partner-directed', () => {
+    expect(listEffectTypes().filter(isPartnerDirectedEffect)).toEqual(['partnerAutoClick'])
+    expect(isPartnerDirectedEffect('nope')).toBe(false)
   })
 })
 
@@ -682,9 +695,9 @@ describe('mirrorCostModifier params', () => {
     expect(apply({ type: 'mirrorCostModifier', target: 'nope', costFactor: 0.5 })).toBeNull()
   })
 
-  it('lives on passive pacts only', () => {
+  it('lives on pacts only, passive and active', () => {
     expect(isEffectAllowedOn('mirrorCostModifier', 'passivePact')).toBe(true)
-    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(false)
+    expect(isEffectAllowedOn('mirrorCostModifier', 'activePact')).toBe(true)
     expect(isEffectAllowedOn('mirrorCostModifier', 'passiveAttack')).toBe(false)
     expect(isEffectAllowedOn('mirrorCostModifier', 'upgrade')).toBe(false)
   })
@@ -736,14 +749,120 @@ describe('mirrorStatModifier params', () => {
     expect(() => apply({ ...rule, stage: 'global' })).toThrow()
   })
 
-  it('lives on passive pacts only, and is not dynamic', () => {
+  it('lives on pacts only, passive and active, and is not dynamic', () => {
     expect(isEffectAllowedOn('mirrorStatModifier', 'passivePact')).toBe(true)
-    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(false)
+    expect(isEffectAllowedOn('mirrorStatModifier', 'activePact')).toBe(true)
     expect(isEffectAllowedOn('mirrorStatModifier', 'upgrade')).toBe(false)
     expect(isEffectAllowedOn('mirrorStatModifier', 'passiveAttack')).toBe(false)
     // It reads the *partner's* state, which the data panel's live-bonus
     // section (owner-side) cannot show; the relations panel reports it instead.
     expect(isDynamicEffect('mirrorStatModifier')).toBe(false)
+  })
+})
+
+// ─── pactProductionModifier ──────────────────────────────────────────
+
+describe('pactProductionModifier params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the modifier as a pactModifier output', () => {
+    expect(
+      apply({
+        type: 'pactProductionModifier',
+        stage: 'multiplicative',
+        field: 'clickIncome',
+        value: 2,
+      }),
+    ).toEqual({
+      kind: 'pactModifier',
+      modifier: { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+    })
+  })
+
+  it('rejects a value that is not a bonus', () => {
+    for (const [stage, value] of [
+      ['multiplicative', 0.5],
+      ['multiplicative', 1],
+      ['additive', 0],
+      ['additive', -1],
+    ] as const) {
+      expect(() =>
+        apply({ type: 'pactProductionModifier', stage, field: 'clickIncome', value }),
+      ).toThrow(/pactProductionModifier/)
+    }
+  })
+
+  it('lives on pacts only, passive and active', () => {
+    expect(isEffectAllowedOn('pactProductionModifier', 'passivePact')).toBe(true)
+    expect(isEffectAllowedOn('pactProductionModifier', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('pactProductionModifier', 'upgrade')).toBe(false)
+    expect(isEffectAllowedOn('pactProductionModifier', 'activeAttack')).toBe(false)
+  })
+})
+
+// ─── partnerAutoClick ────────────────────────────────────────────────
+
+describe('partnerAutoClick params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the rate as a partnerAutoClick output', () => {
+    expect(apply({ type: 'partnerAutoClick', clicksPerSec: 3 })).toEqual({
+      kind: 'partnerAutoClick',
+      clicksPerSec: 3,
+    })
+  })
+
+  it('rejects a non-positive rate, and one faster than a human may click', () => {
+    for (const clicksPerSec of [0, -1, MAX_CPS + 1]) {
+      expect(() => apply({ type: 'partnerAutoClick', clicksPerSec })).toThrow()
+    }
+    expect(() => apply({ type: 'partnerAutoClick', clicksPerSec: MAX_CPS })).not.toThrow()
+  })
+
+  it('lives on active pacts only, and is directed at the partner', () => {
+    expect(isEffectAllowedOn('partnerAutoClick', 'activePact')).toBe(true)
+    expect(isEffectAllowedOn('partnerAutoClick', 'passivePact')).toBe(false)
+    expect(isEffectAllowedOn('partnerAutoClick', 'upgrade')).toBe(false)
+    expect(isPartnerDirectedEffect('partnerAutoClick')).toBe(true)
+  })
+})
+
+// ─── pactSlots ───────────────────────────────────────────────────────
+
+describe('pactSlots params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the grant as a pactSlots output', () => {
+    expect(apply({ type: 'pactSlots', pactKind: 'passive', value: 2 })).toEqual({
+      kind: 'pactSlots',
+      pactKind: 'passive',
+      value: 2,
+    })
+  })
+
+  it('rejects a non-positive or fractional grant, and an unknown kind', () => {
+    for (const bad of [
+      { pactKind: 'passive', value: 0 },
+      { pactKind: 'passive', value: 1.5 },
+      { pactKind: 'both', value: 1 },
+    ]) {
+      expect(() => apply({ type: 'pactSlots', ...bad })).toThrow()
+    }
+  })
+
+  it('lives on the mode and upgrades', () => {
+    expect(isEffectAllowedOn('pactSlots', 'mode')).toBe(true)
+    expect(isEffectAllowedOn('pactSlots', 'upgrade')).toBe(true)
+    expect(isEffectAllowedOn('pactSlots', 'passivePact')).toBe(false)
   })
 })
 
@@ -1121,6 +1240,30 @@ describe('attackStat params', () => {
         mode,
       ),
     ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 })
+  })
+
+  it('accepts the cooldown stat, factor and offset alike', () => {
+    for (const [op, value] of [
+      ['mult', 0.5],
+      ['add', -0.2],
+      ['offset', -2],
+    ] as const) {
+      expect(
+        applyEffect({ type: 'attackStat', attack: 'a0', stat: 'cooldown', op, value }, state, mode),
+      ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'cooldown', op, value })
+    }
+  })
+
+  it('rejects a cooldown stat pointing the wrong way — a longer rest helps nobody', () => {
+    for (const ref of [
+      { stat: 'cooldown', op: 'mult', value: 2 },
+      { stat: 'cooldown', op: 'add', value: 0.2 },
+      { stat: 'cooldown', op: 'offset', value: 1 },
+    ]) {
+      expect(() => applyEffect({ type: 'attackStat', attack: 'a0', ...ref }, state, mode)).toThrow(
+        /cooldown/u,
+      )
+    }
   })
 
   it('rejects a duration stat pointing the wrong way — a shorter window helps nobody', () => {

@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { AttackKind, CostScope, PlayerState, PurchaseTarget } from '../types.js'
+import type { AttackKind, CostScope, PactKind, PlayerState, PurchaseTarget } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -164,6 +164,21 @@ export interface PactUnlockOutput {
 }
 
 /**
+ * Grants pact slots — room to hold pacts of one kind — the pact twin of
+ * {@link AttackSlotsOutput}. Emitted by the `pactSlots` effect and consumed by
+ * `pactLimit`; `hasPactSlotsFor` refuses a purchase that would unlock more
+ * pacts of the kind than the budget allows (`'pact-slots'`). A kind no
+ * `pactSlots` output names is uncapped.
+ */
+export interface PactSlotsOutput {
+  readonly kind: 'pactSlots'
+  /** Which kind of pact this budget covers. */
+  readonly pactKind: PactKind
+  /** Slots granted, per owned level. */
+  readonly value: number
+}
+
+/**
  * An *offensive* production modifier: a {@link Modifier} that applies to the
  * **opponent's** pipeline rather than the owner's. Emitted by attack effects
  * (e.g. `enemyProductionModifier`) and consumed by `collectEnemyDebuffs`, which
@@ -258,6 +273,29 @@ export interface MirrorModifierOutput {
   readonly perUnit: number
   /** Upper bound on the *bonus* (the added amount, or the excess over 1). Absent = uncapped. */
   readonly cap?: number
+}
+
+/**
+ * A *flat pact bonus*: a modifier the pact's beneficiary takes as authored
+ * while the pact is in force. Emitted by the `pactProductionModifier` effect
+ * and kept verbatim by `collectPactBonuses`, beside the resolved
+ * {@link MirrorModifierOutput}s. Same target catalog; the distinct `kind`
+ * keeps it off the production pipeline's own collector.
+ */
+export interface PactModifierOutput {
+  readonly kind: 'pactModifier'
+  readonly modifier: Modifier
+}
+
+/**
+ * Automatic clicks a pact grants its signer's **partner**, per second, while
+ * the pact's window is open. Emitted by the `partnerAutoClick` effect and read
+ * only by `collectPartnerAutoClicks` (see `pacts.ts`); the server credits the
+ * partner each tick. Partner-directed, so no owner-side collector keeps it.
+ */
+export interface PartnerAutoClickOutput {
+  readonly kind: 'partnerAutoClick'
+  readonly clicksPerSec: number
 }
 
 /**
@@ -473,12 +511,15 @@ export type EffectOutput =
   | AttackSlotsOutput
   | AttackAlertOutput
   | PactUnlockOutput
+  | PactSlotsOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput
   | EnemyCostOutput
   | EnemyPurchaseLockOutput
   | MirrorCostOutput
   | MirrorModifierOutput
+  | PactModifierOutput
+  | PartnerAutoClickOutput
   | ResourceStealOutput
   | AttackStatOutput
   | BatteryStatOutput
@@ -508,10 +549,12 @@ export type EffectOutput =
  *   `durationSec`, during which their collectors gather them.
  * - `passivePact` — a passive pact's `effects`: continuous while unlocked, a
  *   *benefit* drawn from the opponent, and only the pact outputs
- *   (`mirrorCost`, `mirrorModifier`) survive (`collectPactCostFactors` /
+ *   (`mirrorCost`, `mirrorModifier`, `pactModifier`) survive (`collectPactCostFactors` /
  *   `collectPactBonuses` in `pacts.ts`).
- * - `activePact` — an active pact's `effects`: nothing reads this host yet, so
- *   no effect declares it and boot rejects any effect authored there.
+ * - `activePact` — an active pact's `effects`: the passive-pact outputs, in
+ *   force only while the pact's window is open (`pactsInForce` lists open
+ *   windows beside the unlocked passive pacts), plus the partner-directed
+ *   `partnerAutoClick` (`collectPartnerAutoClicks`).
  */
 export type EffectHost =
   'mode' | 'upgrade' | 'passiveAttack' | 'activeAttack' | 'passivePact' | 'activePact'
@@ -551,6 +594,15 @@ export interface EffectDef<P> {
    * `false`.
    */
   readonly dynamic?: boolean
+  /**
+   * Marks a pact effect that acts on the signer's *partner* rather than the
+   * signer — a gift such as `partnerAutoClick`. The pact rules read it in two
+   * places: `validateModeDefinition` rejects such an effect on a `mutual` pact
+   * (sharing "the same buff" back is ambiguous for a gift), and a one-sided
+   * window carrying one is revealed to the partner (`sharedPactWindows`), since
+   * it already reaches them. Defaults to `false`.
+   */
+  readonly partnerDirected?: boolean
   /**
    * Validates a ref's params (the ref minus its `type` discriminant) and narrows
    * them to `P`. Throws (`ZodError`) on malformed input.

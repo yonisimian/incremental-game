@@ -20,6 +20,30 @@ import {
   type PurchaseBlockReason,
 } from '@game/shared'
 
+// ─── Slot budgets ───────────────────────────────────────────────────
+
+/**
+ * The `held / limit` badge for a kind's section heading — `Active 2 / 3` in
+ * the attack panel, `Passive 2 / 3` in the relations panel — or nothing when
+ * the mode never caps that kind (`limit` is `Infinity`). Reads as a loadout
+ * rather than an inventory: the player can see how many commitments remain.
+ * `className` is the panel's own badge class, so each keeps its styling.
+ */
+export function renderSlotsBadge(held: number, limit: number, className: string): string {
+  if (!Number.isFinite(limit)) return ''
+  return ` <span class="${className}">${held} / ${limit}</span>`
+}
+
+/**
+ * `◼ N` beside an attack's or pact's name when it takes other than one slot
+ * of a capped kind's budget — why one unlock ate several slots. Nothing for
+ * the common weight of 1, or for a kind the mode never caps.
+ */
+export function renderSlotCostBadge(cost: number, kind: string, capped: boolean): string {
+  if (cost === 1 || !capped) return ''
+  return ` <span class="slot-cost" title="Takes ${cost} ${kind} slots">◼ ${cost}</span>`
+}
+
 // ─── Goal Header Components ─────────────────────────────────────────
 
 /** The timer element — styled as a safety-cap timer for non-timed goals. */
@@ -86,6 +110,7 @@ const NODE_STATE_CLASS: Record<PurchaseBlockReason, string> = {
   prerequisite: 'locked',
   'choice-group': 'locked',
   'attack-slots': 'locked',
+  'pact-slots': 'locked',
   'locked-by-attack': 'locked-by-attack',
   unaffordable: 'too-expensive',
 }

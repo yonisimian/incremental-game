@@ -3,13 +3,17 @@
 // against the partner. Logic tier throughout: every assertion is on a value.
 
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
+  activePactExpiresAtSec,
   applyGeneratorPurchase,
+  applyPactActivation,
   applyPurchase,
   collectEnemyCostFactors,
   collectGeneratorCostFactors,
   collectPactBonuses,
   collectPactCostFactors,
+  collectPartnerAutoClicks,
   createInitialState,
   ENEMY_STAT_SCORE_KEY,
   enemyStatKeys,
@@ -17,15 +21,27 @@ import {
   getGeneratorCost,
   getGeneratorSellRefund,
   getModeDefinition,
+  getPactActivationCost,
+  hasPactSlotsFor,
+  isPactKindCapped,
+  pactLimit,
+  pactSlotsHeld,
   getUpgradeNextCost,
+  isValidPactActivation,
   NEUTRAL_COST_FACTORS,
   pactCostFactors,
+  openPactWindows,
+  pactBlockReason,
   pactModifiers,
   pactsInForce,
   purchaseBlockReason,
   readEnemyStat,
+  registerEffect,
   resolveEnemyDebuffs,
   resolveGeneratorDef,
+  sharedPacts,
+  sharedPactWindows,
+  sweepPactWindows,
   upgradeCostFactors,
   validateModeDefinition,
 } from '../src/index.js'
@@ -340,11 +356,450 @@ describe('pactsInForce', () => {
     expect(ids(pactsInForce(both, player({ signed: ['p-trade'] }), MODE))).toEqual(['p-trade'])
   })
 
-  it('skips active pacts and locked ones', () => {
-    // Signed active pact: the active-pact lifecycle, not in force here. Unsigned
-    // passive pact: locked, whatever its `mutual`.
+  it('skips a signed active pact with no open window, and locked ones', () => {
+    // Signed active pact: in force only while activated. Unsigned passive pact:
+    // locked, whatever its `mutual`.
     expect(pactsInForce(player({ signed: ['p-active'] }), player(), MODE)).toEqual([])
     expect(pactsInForce(player(), player({ signed: ['p-active'] }), MODE)).toEqual([])
+  })
+})
+
+// ─── Activation ──────────────────────────────────────────────────────
+
+describe('active pact activation', () => {
+  /** An active pact carrying an effect: 300 r0, in force 15s, resting 45s after. */
+  const ACCORD: PactDefinition = {
+    id: 'p-accord',
+    kind: 'active',
+    activationCost: { r0: { baseCost: 300 } },
+    durationSec: 15,
+    cooldownSec: 45,
+    effects: [
+      { type: 'mirrorStatModifier', source: 'r0', field: 'r0', stage: 'additive', perUnit: 1 },
+    ],
+  }
+  /** The same pact with no cooldown. */
+  const QUICK: PactDefinition = { ...ACCORD, id: 'p-quick', cooldownSec: undefined }
+  const mode: ModeDefinition = {
+    ...MODE,
+    upgrades: [...MODE.upgrades, sign(ACCORD.id), sign(QUICK.id)],
+    pacts: [...MODE.pacts, ACCORD, QUICK],
+  }
+
+  /** A player at `gameSec` who has signed the given pacts and holds `r0`. */
+  function signer(gameSec: number, patch: Partial<PlayerState> = {}, r0 = 1000): PlayerState {
+    const state = createInitialState(mode)
+    state.upgrades[`sign-${ACCORD.id}`] = 1
+    state.upgrades[`sign-${QUICK.id}`] = 1
+    state.resources.r0 = r0
+    state.meta.gameSec = gameSec
+    return Object.assign(state, patch)
+  }
+
+  it('prices the activation at level 0', () => {
+    expect(getPactActivationCost(ACCORD)).toEqual({ r0: 300 })
+    expect(getPactActivationCost({ id: 'x', kind: 'active' })).toEqual({})
+  })
+
+  describe('pactBlockReason', () => {
+    it('allows a signed, affordable, resting-free active pact', () => {
+      expect(pactBlockReason(signer(0), ACCORD.id, mode)).toBeNull()
+      expect(isValidPactActivation(signer(0), ACCORD.id, mode)).toBe(true)
+    })
+
+    it('names each permanent reason, in order', () => {
+      expect(pactBlockReason(signer(0), 'nope', mode)).toBe('unknown')
+      expect(pactBlockReason(player({ signed: ['p-trade'] }), 'p-trade', mode)).toBe('not-active')
+      expect(pactBlockReason(createInitialState(mode), ACCORD.id, mode)).toBe('locked')
+      expect(pactBlockReason(player({ signed: ['p-active'] }), 'p-active', mode)).toBe('no-effects')
+    })
+
+    it('is already-active while the window is open, then cooling-down, then free', () => {
+      const state = signer(10, {
+        activePacts: [{ pact: ACCORD.id, expiresAtSec: 25 }],
+        cooldowns: [{ kind: 'pact', id: ACCORD.id, untilSec: 70 }],
+      })
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBe('already-active')
+      state.meta.gameSec = 25
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBe('cooling-down')
+      state.meta.gameSec = 70
+      expect(pactBlockReason(state, ACCORD.id, mode)).toBeNull()
+    })
+
+    it('refuses while cooling down however rich the signer is, and ignores an attack cooldown', () => {
+      const cooling = signer(0, { cooldowns: [{ kind: 'pact', id: ACCORD.id, untilSec: 9 }] }, 1e9)
+      expect(pactBlockReason(cooling, ACCORD.id, mode)).toBe('cooling-down')
+      const attackRest = signer(0, { cooldowns: [{ kind: 'attack', id: ACCORD.id, untilSec: 9 }] })
+      expect(pactBlockReason(attackRest, ACCORD.id, mode)).toBeNull()
+    })
+
+    it('is unaffordable short of the activation cost', () => {
+      expect(pactBlockReason(signer(0, {}, 299), ACCORD.id, mode)).toBe('unaffordable')
+    })
+  })
+
+  describe('applyPactActivation', () => {
+    it('pays, opens the window, and stamps the cooldown behind it', () => {
+      const state = signer(10)
+      applyPactActivation(state, ACCORD.id, mode)
+      expect(state.resources.r0).toBe(700)
+      expect(state.score).toBe(0)
+      expect(state.activePacts).toEqual([{ pact: ACCORD.id, expiresAtSec: 25 }])
+      expect(state.cooldowns).toEqual([{ kind: 'pact', id: ACCORD.id, untilSec: 70 }])
+      expect(activePactExpiresAtSec(state, ACCORD.id)).toBe(25)
+    })
+
+    it('stamps no cooldown for a pact without one', () => {
+      const state = signer(0)
+      applyPactActivation(state, QUICK.id, mode)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 15 }])
+      expect(state).not.toHaveProperty('cooldowns')
+    })
+
+    it('replaces a closed window of the same pact rather than listing it twice', () => {
+      const state = signer(30, { activePacts: [{ pact: QUICK.id, expiresAtSec: 15 }] })
+      applyPactActivation(state, QUICK.id, mode)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 45 }])
+    })
+  })
+
+  it('reads a closed window as null before the sweep, and the sweep keeps only open ones', () => {
+    const state = signer(25, {
+      activePacts: [
+        { pact: ACCORD.id, expiresAtSec: 25 },
+        { pact: QUICK.id, expiresAtSec: 30 },
+      ],
+    })
+    expect(activePactExpiresAtSec(state, ACCORD.id)).toBeNull()
+    expect(activePactExpiresAtSec(state, QUICK.id)).toBe(30)
+    expect(openPactWindows(state, 25)).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+  })
+
+  describe('sweepPactWindows', () => {
+    it('drops the closed windows and keeps the open ones', () => {
+      const state = signer(0, {
+        activePacts: [
+          { pact: ACCORD.id, expiresAtSec: 25 },
+          { pact: QUICK.id, expiresAtSec: 30 },
+        ],
+      })
+      sweepPactWindows(state, 25)
+      expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 30 }])
+    })
+
+    it('deletes the field once nothing is left', () => {
+      const state = signer(0, { activePacts: [{ pact: ACCORD.id, expiresAtSec: 25 }] })
+      sweepPactWindows(state, 26)
+      expect(state).not.toHaveProperty('activePacts')
+    })
+
+    it('leaves a state with no windows untouched', () => {
+      const state = signer(0)
+      sweepPactWindows(state, 5)
+      expect(state).not.toHaveProperty('activePacts')
+    })
+  })
+
+  describe('open windows are in force', () => {
+    /** The mutual twin of ACCORD. */
+    const CEASEFIRE: PactDefinition = { ...ACCORD, id: 'p-ceasefire', mutual: true }
+    const withMutual: ModeDefinition = { ...mode, pacts: [...mode.pacts, CEASEFIRE] }
+    const open = (pact: string, gameSec: number, expiresAtSec: number): PlayerState =>
+      signer(gameSec, { activePacts: [{ pact, expiresAtSec }] })
+
+    it('lists the owner’s open window after the passive pacts, and drops it once closed', () => {
+      const owner = open(ACCORD.id, 10, 25)
+      owner.upgrades['sign-p-trade'] = 1
+      expect(ids(pactsInForce(owner, player(), mode))).toEqual(['p-trade', ACCORD.id])
+      owner.meta.gameSec = 25
+      expect(ids(pactsInForce(owner, player(), mode))).toEqual(['p-trade'])
+    })
+
+    it('shares a partner’s open window only when the pact is mutual', () => {
+      expect(ids(pactsInForce(player(), open(ACCORD.id, 10, 25), withMutual))).toEqual([])
+      expect(ids(pactsInForce(player(), open(CEASEFIRE.id, 10, 25), withMutual))).toEqual([
+        CEASEFIRE.id,
+      ])
+      // Judged on the partner's clock: closed for them, gone for the owner too.
+      expect(pactsInForce(player(), open(CEASEFIRE.id, 25, 25), withMutual)).toEqual([])
+    })
+
+    it('lists a window both sides have open once', () => {
+      const both = pactsInForce(open(CEASEFIRE.id, 10, 25), open(CEASEFIRE.id, 10, 30), withMutual)
+      expect(ids(both)).toEqual([CEASEFIRE.id])
+    })
+
+    it('makes the window’s effects pay while it is open', () => {
+      // ACCORD mirrors +1 r0 rate per enemy r0 held.
+      const partner = { state: player({ r0: 40 }), rates: {} }
+      expect(collectPactBonuses(open(ACCORD.id, 10, 25), partner, mode)).toEqual([
+        { pact: ACCORD.id, modifiers: [{ stage: 'additive', field: 'r0', value: 40 }] },
+      ])
+      expect(collectPactBonuses(open(ACCORD.id, 25, 25), partner, mode)).toEqual([])
+    })
+
+    it('keeps a flat pactModifier verbatim, beside the mirrors, while the window is open', () => {
+      const FRENZY: PactDefinition = {
+        ...ACCORD,
+        id: 'p-frenzy',
+        effects: [
+          {
+            type: 'pactProductionModifier',
+            stage: 'multiplicative',
+            field: 'clickIncome',
+            value: 2,
+          },
+          ...(ACCORD.effects ?? []),
+        ],
+      }
+      const withFrenzy: ModeDefinition = { ...mode, pacts: [...mode.pacts, FRENZY] }
+      const partner = { state: player({ r0: 40 }), rates: {} }
+      expect(collectPactBonuses(open(FRENZY.id, 10, 25), partner, withFrenzy)).toEqual([
+        {
+          pact: FRENZY.id,
+          modifiers: [
+            { stage: 'multiplicative', field: 'clickIncome', value: 2 },
+            { stage: 'additive', field: 'r0', value: 40 },
+          ],
+        },
+      ])
+      expect(collectPactBonuses(open(FRENZY.id, 25, 25), partner, withFrenzy)).toEqual([])
+    })
+
+    it('sums the auto-clicks a signer’s open windows grant the partner, and none once closed', () => {
+      const gift = (id: string, clicksPerSec: number): PactDefinition => ({
+        ...ACCORD,
+        id,
+        effects: [{ type: 'partnerAutoClick', clicksPerSec }],
+      })
+      const withGifts: ModeDefinition = {
+        ...mode,
+        pacts: [...mode.pacts, gift('p-drums', 3), gift('p-horns', 2)],
+      }
+      const signer = (gameSec: number) => open('p-drums', gameSec, 25)
+      const both = signer(10)
+      both.activePacts = [...both.activePacts!, { pact: 'p-horns', expiresAtSec: 20 }]
+      expect(collectPartnerAutoClicks(both, withGifts)).toBe(5)
+      both.meta.gameSec = 20
+      expect(collectPartnerAutoClicks(both, withGifts)).toBe(3)
+      expect(collectPartnerAutoClicks(signer(25), withGifts)).toBe(0)
+      // A window without the effect grants nothing.
+      expect(collectPartnerAutoClicks(open(ACCORD.id, 10, 25), withGifts)).toBe(0)
+    })
+
+    it('reveals a one-sided window that carries a gift, with its closing time', () => {
+      const DRUMS: PactDefinition = {
+        ...ACCORD,
+        id: 'p-drums',
+        effects: [{ type: 'partnerAutoClick', clicksPerSec: 3 }],
+      }
+      const withDrums: ModeDefinition = { ...mode, pacts: [...mode.pacts, DRUMS] }
+      const signer = open(DRUMS.id, 10, 25)
+      expect(sharedPacts(signer, withDrums)).toEqual([DRUMS.id])
+      expect(sharedPactWindows(signer, withDrums)).toEqual([{ pact: DRUMS.id, expiresAtSec: 25 }])
+      // A plain one-sided window stays hidden.
+      expect(sharedPactWindows(open(ACCORD.id, 10, 25), withDrums)).toEqual([])
+      // And a closed one is gone.
+      expect(sharedPactWindows(open(DRUMS.id, 25, 25), withDrums)).toEqual([])
+    })
+
+    it('judges "reaches the partner" by the registry trait, not the effect name', () => {
+      // A gift that is not partnerAutoClick: flagged partner-directed, nothing else.
+      registerEffect('testGift', {
+        schema: z.strictObject({}),
+        apply: () => null,
+        hosts: ['activePact'],
+        partnerDirected: true,
+      })
+      const GIFT: PactDefinition = { ...ACCORD, id: 'p-gift', effects: [{ type: 'testGift' }] }
+      const withGift: ModeDefinition = {
+        ...mode,
+        upgrades: [...mode.upgrades, sign(GIFT.id)],
+        pacts: [...mode.pacts, GIFT],
+      }
+      expect(sharedPactWindows(open(GIFT.id, 10, 25), withGift)).toEqual([
+        { pact: GIFT.id, expiresAtSec: 25 },
+      ])
+      expect(sharedPacts(open(GIFT.id, 10, 25), withGift)).toEqual([GIFT.id])
+
+      const flavored = (def: ModeDefinition): ModeDefinition => ({
+        ...def,
+        flavors: def.flavors.map((f) => ({
+          ...f,
+          upgrades: def.upgrades.map((u) => ({
+            id: u.id,
+            name: u.id,
+            icon: '🔧',
+            description: '',
+          })),
+          pacts: def.pacts.map((p) => ({ id: p.id, name: p.id, icon: '🤝', description: '' })),
+        })),
+      })
+      expect(() => {
+        validateModeDefinition('test', flavored(withGift))
+      }).not.toThrow()
+      expect(() => {
+        validateModeDefinition(
+          'test',
+          flavored({ ...withGift, pacts: [...mode.pacts, { ...GIFT, mutual: true }] }),
+        )
+      }).toThrow(/partner-directed effect 'testGift' but is mutual/)
+    })
+
+    it('reveals the partner’s open mutual windows, never a one-sided one', () => {
+      expect(sharedPacts(open(CEASEFIRE.id, 10, 25), withMutual)).toEqual([CEASEFIRE.id])
+      expect(sharedPacts(open(ACCORD.id, 10, 25), withMutual)).toEqual([])
+    })
+
+    it('boots with the mirror effects on an active pact', () => {
+      expect(() => {
+        validateModeDefinition('test', {
+          ...withMutual,
+          flavors: withMutual.flavors.map((f) => ({
+            ...f,
+            upgrades: withMutual.upgrades.map((u) => ({
+              id: u.id,
+              name: u.id,
+              icon: '🔧',
+              description: '',
+            })),
+            pacts: withMutual.pacts.map((p) => ({
+              id: p.id,
+              name: p.id,
+              icon: '🤝',
+              description: '',
+            })),
+          })),
+        })
+      }).not.toThrow()
+    })
+  })
+})
+
+// ─── Pact slots ──────────────────────────────────────────────────────
+
+describe('pact slots', () => {
+  /** One more passive pact reachable two ways, plus a raise and an unlock-and-raise node. */
+  const EXTRA: PactDefinition = { id: 'p-extra', kind: 'passive' }
+  const SECOND_ROUTE: UpgradeDefinition = {
+    id: 'route-research',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [{ type: 'unlockPact', pact: 'p-research' }],
+  }
+  const RAISE: UpgradeDefinition = {
+    id: 'raise',
+    cost: {},
+    purchaseLimit: 3,
+    effects: [{ type: 'pactSlots', pactKind: 'passive', value: 1 }],
+  }
+  const UNLOCK_AND_RAISE: UpgradeDefinition = {
+    id: 'unlock-and-raise',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [
+      { type: 'unlockPact', pact: EXTRA.id },
+      { type: 'pactSlots', pactKind: 'passive', value: 1 },
+    ],
+  }
+  /** One node signing two passive pacts at once. */
+  const TWO_AT_ONCE: UpgradeDefinition = {
+    id: 'sign-two',
+    cost: {},
+    purchaseLimit: 1,
+    effects: [
+      { type: 'unlockPact', pact: EXTRA.id },
+      { type: 'unlockPact', pact: TAPS.id },
+    ],
+  }
+  /** MODE, capped at two passive pacts by its own grant; actives left uncapped. */
+  const capped: ModeDefinition = {
+    ...MODE,
+    effects: [{ type: 'pactSlots', pactKind: 'passive', value: 2 }],
+    upgrades: [...MODE.upgrades, SECOND_ROUTE, RAISE, UNLOCK_AND_RAISE, TWO_AT_ONCE],
+    pacts: [...MODE.pacts, EXTRA],
+  }
+  /** `capped`, with one passive pact unlocked by the mode's starting effects. */
+  const startingGlow: ModeDefinition = {
+    ...capped,
+    effects: [...(capped.effects ?? []), { type: 'unlockPact', pact: GLOW.id }],
+  }
+  const byId = (id: string) => capped.upgrades.find((u) => u.id === id)!
+
+  it('leaves a kind no grant names uncapped', () => {
+    expect(isPactKindCapped(MODE, 'passive')).toBe(false)
+    expect(pactLimit(player(), MODE, 'passive')).toBe(Infinity)
+    expect(isPactKindCapped(capped, 'active')).toBe(false)
+    expect(pactLimit(player(), capped, 'active')).toBe(Infinity)
+  })
+
+  it('sums the base grant and every owned raise, times its level', () => {
+    const state = player()
+    expect(pactLimit(state, capped, 'passive')).toBe(2)
+    state.upgrades.raise = 3
+    expect(pactLimit(state, capped, 'passive')).toBe(5)
+  })
+
+  it('counts held pacts by kind, not by route', () => {
+    const state = player({ signed: ['p-research', 'p-trade', 'p-active'] })
+    state.upgrades['route-research'] = 1
+    expect(pactSlotsHeld(state, capped, 'passive')).toBe(2)
+    expect(pactSlotsHeld(state, capped, 'active')).toBe(1)
+  })
+
+  it('counts a pact the mode’s starting effects unlock as held', () => {
+    const state = player()
+    expect(pactSlotsHeld(state, capped, 'passive')).toBe(0)
+    expect(pactSlotsHeld(state, startingGlow, 'passive')).toBe(1)
+    // The starting pact fills one of the two slots: one sign fits, the next does not.
+    expect(hasPactSlotsFor(state, byId('sign-p-research'), startingGlow)).toBe(true)
+    const one = player({ signed: ['p-research'] })
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), capped)).toBe(true)
+    expect(hasPactSlotsFor(one, byId('sign-p-empty'), startingGlow)).toBe(false)
+  })
+
+  it('is all-or-nothing for a node signing two pacts with one slot free', () => {
+    // Two free: both fit. One free: neither — a partial unlock is not representable.
+    expect(hasPactSlotsFor(player(), byId('sign-two'), capped)).toBe(true)
+    expect(hasPactSlotsFor(player({ signed: ['p-research'] }), byId('sign-two'), capped)).toBe(
+      false,
+    )
+  })
+
+  it('refuses the unlock that would exceed the budget, all the way to purchaseBlockReason', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('sign-p-empty'), capped)).toBe(false)
+    const map = new Map(capped.upgrades.map((u) => [u.id, u]))
+    expect(purchaseBlockReason(full, 'sign-p-empty', map, capped)).toBe('pact-slots')
+    // An upgrade that unlocks nothing, and one unlocking an uncapped kind, are fine.
+    expect(hasPactSlotsFor(full, byId('raise'), capped)).toBe(true)
+    expect(hasPactSlotsFor(full, byId('sign-p-active'), capped)).toBe(true)
+    // With room, the same unlock goes through.
+    expect(hasPactSlotsFor(player({ signed: ['p-research'] }), byId('sign-p-empty'), capped)).toBe(
+      true,
+    )
+  })
+
+  it('charges nothing for a second route to a held pact', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('route-research'), capped)).toBe(true)
+  })
+
+  it('weighs held pacts and new unlocks by slot cost', () => {
+    const heavy: ModeDefinition = {
+      ...capped,
+      pacts: capped.pacts.map((p) => (p.id === 'p-empty' ? { ...p, slotCost: 2 } : p)),
+    }
+    const oneHeld = player({ signed: ['p-research'] })
+    // One of two slots held; p-empty weighs 2.
+    expect(hasPactSlotsFor(oneHeld, byId('sign-p-empty'), heavy)).toBe(false)
+    expect(hasPactSlotsFor(player(), byId('sign-p-empty'), heavy)).toBe(true)
+    expect(pactSlotsHeld(player({ signed: ['p-empty'] }), heavy, 'passive')).toBe(2)
+  })
+
+  it('lets one purchase unlock a pact and grant the slot it fills', () => {
+    const full = player({ signed: ['p-research', 'p-trade'] })
+    expect(hasPactSlotsFor(full, byId('unlock-and-raise'), capped)).toBe(true)
   })
 })
 
@@ -611,11 +1066,11 @@ describe('collectPactBonuses', () => {
 
 // ─── Idler authoring ─────────────────────────────────────────────────
 
-describe('the idler authors its four passive pacts', () => {
+describe('the idler’s authored pacts', () => {
   const idler = getModeDefinition('idler')
   const pact = (id: string) => idler.pacts.find((p) => p.id === id)!
 
-  it('boots with every pact passive and carrying effects, p1 and p3 mutual', () => {
+  it('boots with every pact carrying effects, p1 and p3 mutual', () => {
     expect(pact('p2')).toEqual({
       id: 'p2',
       kind: 'passive',
@@ -636,12 +1091,37 @@ describe('the idler authors its four passive pacts', () => {
         },
       ],
     })
-    // An authored active pact would sign and do nothing: active pacts have no lifecycle yet.
-    for (const p of idler.pacts) {
-      expect(p.kind).toBe('passive')
-      expect(p.effects?.length ?? 0).toBeGreaterThan(0)
-    }
+    for (const p of idler.pacts) expect(p.effects?.length ?? 0).toBeGreaterThan(0)
+    expect(idler.pacts.filter((p) => p.kind === 'active').map((p) => p.id)).toEqual(['drum-accord'])
     expect(pact('p1').mutual).toBe(true)
+  })
+
+  it('authors Drum Accord: clicks ×2 for 15s, 3 clicks/s to the enemy, resting 45s', () => {
+    const drums = pact('drum-accord')
+    expect(drums).toMatchObject({
+      kind: 'active',
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(drums.mutual).toBeUndefined()
+    const signer = createInitialState(idler)
+    signer.meta.gameSec = 0
+    signer.activePacts = [{ pact: 'drum-accord', expiresAtSec: 15 }]
+    expect(
+      collectPactBonuses(signer, { state: createInitialState(idler), rates: {} }, idler),
+    ).toEqual([
+      {
+        pact: 'drum-accord',
+        modifiers: [{ stage: 'multiplicative', field: 'clickIncome', value: 2 }],
+      },
+    ])
+    expect(collectPartnerAutoClicks(signer, idler)).toBe(3)
+    // Its unlock node sits under the relations panel unlock.
+    const node = idler.upgrades.find((u) =>
+      u.effects?.some((e) => e.type === 'unlockPact' && e.pact === 'drum-accord'),
+    )!
+    expect(node.prerequisites).toEqual({ type: 'upgrade', id: 'ir-unlock' })
   })
 
   it('pays +2 click income per level of sh-mf-hp the partner owns, both ways', () => {

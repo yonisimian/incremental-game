@@ -6,6 +6,7 @@
  */
 
 import { el, labeledInput } from './dom.js'
+import { listResources } from '../model.js'
 import type { MutationResult } from '../model.js'
 import type { EditorContext } from './types.js'
 
@@ -87,26 +88,61 @@ export function addButton(
 
 /**
  * A number `<input>` that commits a finite value on change (then marks dirty and
- * runs the optional `onDone`, e.g. to refresh a preview), reverting to `value`
- * for non-numeric input. `step` tunes the spinner increment.
+ * runs the optional `onDone`, e.g. to refresh a preview), reverting to the last
+ * accepted value for non-numeric input. `step` tunes the spinner increment.
+ * `commit` returns `false` to refuse a value.
  */
 export function numberInput(
   ctx: EditorContext,
   value: number,
-  commit: (n: number) => void,
-  options: { step?: string; onDone?: () => void } = {},
+  commit: (n: number) => unknown,
+  options: { step?: string; min?: string; allowBlank?: boolean; onDone?: () => void } = {},
 ): HTMLInputElement {
   const input = labeledInput('number', String(value), 'ed-input ed-input-num')
   if (options.step !== undefined) input.step = options.step
+  if (options.min !== undefined) input.min = options.min
+  let last = value
   input.addEventListener('change', () => {
+    // A blank field reads as 0, which most fields mean as "none"; a field that
+    // has no "none" (`allowBlank: false`) treats it as nothing typed instead.
+    const blank = input.value.trim() === ''
     const n = Number(input.value)
-    if (Number.isFinite(n)) {
-      commit(n)
+    if (blank && options.allowBlank === false) {
+      // Re-committing the kept value also clears a refusal shown for the typo.
+      input.value = String(last)
+      commit(last)
+    } else if (Number.isFinite(n)) {
+      if (commit(n) !== false) last = n
       ctx.markDirty()
       options.onDone?.()
     } else {
-      input.value = String(value)
+      input.value = String(last)
     }
   })
   return input
+}
+
+/**
+ * A `<select>` over the tree's resources, labelled with icon + name + key.
+ * `exclude` drops resources already spoken for elsewhere (the selected one is
+ * always offered, so a row can keep its own currency).
+ */
+export function resourceSelect(
+  tree: EditorContext['tree'],
+  selected: string,
+  onChange: (value: string) => void,
+  exclude: ReadonlySet<string> = new Set(),
+): HTMLSelectElement {
+  const sel = el('select', 'ed-input')
+  for (const r of listResources(tree)) {
+    if (r.key !== selected && exclude.has(r.key)) continue
+    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
+    opt.value = r.key
+    if (r.key === selected) opt.selected = true
+    sel.append(opt)
+  }
+  sel.addEventListener('change', () => {
+    onChange(sel.value)
+  })
+  return sel
 }
