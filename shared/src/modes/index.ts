@@ -158,7 +158,6 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   }
 }
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
 /** One slot-budgeted system, as `checkStartingSlotBudget` reads it from refs. */
 interface SlotBudgetedSystem {
   /** For the error message: `attack`, `pact`. */
@@ -220,6 +219,7 @@ function checkStartingSlotBudget(
   }
 }
 
+/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
 export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // At least one flavor (also enforced by the schema), with unique ids so a
   // selector can address them and `getModeFlavor` resolves deterministically.
