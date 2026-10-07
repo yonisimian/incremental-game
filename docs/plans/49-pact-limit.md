@@ -83,9 +83,11 @@ throws (the round would open over budget).
 
 ### 7. Content (placeholder numbers)
 
-Idler (both trees), mode `startingEffects`: `pactSlots passive 2`,
-`pactSlots active 1`. With four passive pacts and one active, that makes the
-relations branch a choice. No slot upgrades yet.
+Idler (both trees), mode `startingEffects`: `pactSlots passive 2`. With four
+passive pacts, that makes the relations branch a choice. Active pacts stay
+uncapped: with one active pact a cap of 1 could never bind and would only add
+an `Active 1 / 1` badge. Cap them once a second active pact exists. No slot
+upgrades yet.
 
 ---
 
@@ -113,6 +115,7 @@ relations branch a choice. No slot upgrades yet.
 
 ## Open questions
 
-1. **Budget numbers** — passive 2 / active 1 are placeholders for balance.
+1. **Budget numbers** — passive 2 is a placeholder for balance; active is
+   uncapped until a second active pact exists.
 2. **Slot upgrades** — none authored; the attack tree has `slot-*` nodes, the
    relations branch could get the same once the numbers settle.

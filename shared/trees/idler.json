@@ -41,11 +41,6 @@
       "type": "pactSlots",
       "pactKind": "passive",
       "value": 2
-    },
-    {
-      "type": "pactSlots",
-      "pactKind": "active",
-      "value": 1
     }
   ],
   "generators": [
