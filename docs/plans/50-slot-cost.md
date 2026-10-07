@@ -2,8 +2,11 @@
 
 ## Status: Implemented
 
-As built, following the plan. The editor rounds a typed slot cost to a whole
-number. Open questions 1–2 (content, glyph) remain for the balance pass.
+As built, following the plan. The editor accepts whole numbers of 1 or more
+only and refuses anything else under the field. The never-fits rule also
+counts the slots the starting unlocks fill, and the reachable limit honours
+choice groups and `comingSoon`. Open questions 1–2 (content, glyph) remain for
+the balance pass.
 
 Builds on [38 — attack limit](38-attack-limit.md) and
 [49 — pact limit](49-pact-limit.md). Today every held attack or pact fills
@@ -24,16 +27,16 @@ limit.
 
 ## Decisions
 
-| Question                          | Decision                                                                                                                          | Why                                                                                                                                                                                         |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Where the weight lives            | On the attack / pact definition (`slotCost`), not on the unlock upgrade.                                                          | It is a property of what is held; two routes to the same attack must charge the same.                                                                                                       |
-| Default                           | Absent = `1`.                                                                                                                     | Every existing tree keeps its meaning with no edit.                                                                                                                                         |
-| Shape                             | Positive integer (`z.number().int().positive()`).                                                                                 | Slots are whole; `0` would be a free attack in a capped kind — omit the cap instead.                                                                                                        |
-| Allowed on an uncapped kind?      | Yes, inert.                                                                                                                       | The cap is opt-in per mode; a tree can author weights before it authors budgets.                                                                                                            |
-| An attack/pact that can never fit | **Boot error** when `slotCost` exceeds the kind's greatest reachable limit (base + every grant × its purchase limit).             | Its unlock would be bought never — the dead-weight class the validator already rejects elsewhere. Infinite purchase limits make the reachable limit infinite, so nothing is rejected there. |
-| Starting unlocks                  | The boot over-budget rule sums slot costs, not counts.                                                                            | Same rule, weighted.                                                                                                                                                                        |
-| Display                           | Headings keep `held / limit` (now weighted). A card whose slot cost is not 1, in a capped kind, shows `◼ 2` — the slots it takes. | The player sees why one unlock ate the budget.                                                                                                                                              |
-| Shared code                       | One helper, `slotCostOf` in `slots.ts`, beside the budget it feeds.                                                               | Two call sites each; the attack and pact slot functions stay mirror images.                                                                                                                 |
+| Question                          | Decision                                                                                                                                               | Why                                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where the weight lives            | On the attack / pact definition (`slotCost`), not on the unlock upgrade.                                                                               | It is a property of what is held; two routes to the same attack must charge the same.                                                                                                       |
+| Default                           | Absent = `1`.                                                                                                                                          | Every existing tree keeps its meaning with no edit.                                                                                                                                         |
+| Shape                             | Positive integer (`z.number().int().positive()`).                                                                                                      | Slots are whole; `0` would be a free attack in a capped kind — omit the cap instead.                                                                                                        |
+| Allowed on an uncapped kind?      | Yes, inert.                                                                                                                                            | The cap is opt-in per mode; a tree can author weights before it authors budgets.                                                                                                            |
+| An attack/pact that can never fit | **Boot error** when `slotCost` plus the starting unlocks' slots exceeds the kind's greatest reachable limit (base + every grant × its purchase limit). | Its unlock would be bought never — the dead-weight class the validator already rejects elsewhere. Infinite purchase limits make the reachable limit infinite, so nothing is rejected there. |
+| Starting unlocks                  | The boot over-budget rule sums slot costs, not counts.                                                                                                 | Same rule, weighted.                                                                                                                                                                        |
+| Display                           | Headings keep `held / limit` (now weighted). A card whose slot cost is not 1, in a capped kind, shows `◼ 2` — the slots it takes.                      | The player sees why one unlock ate the budget.                                                                                                                                              |
+| Shared code                       | One helper, `slotCostOf` in `slots.ts`, beside the budget it feeds.                                                                                    | Two call sites each; the attack and pact slot functions stay mirror images.                                                                                                                 |
 
 ---
 
@@ -62,8 +65,12 @@ limit.
 
 - Starting-unlock rule for attacks and pacts sums slot costs.
 - New: for each capped kind, the greatest reachable limit is
-  `base + Σ over upgrades (grant × purchaseLimit)`; an attack or pact of that
-  kind whose `slotCost` exceeds it throws ("can never be held").
+  `base + Σ over ownable upgrades (grant × purchaseLimit)`, where a
+  `comingSoon` upgrade grants nothing and a choice group contributes only its
+  most generous member. Any other attack or pact of that kind whose
+  `slotCost`, beside the slots the starting unlocks fill, exceeds it throws
+  ("can never be held"). Prerequisites are not walked, so the bound is an
+  upper estimate.
 - A programmatic mode with a non-integer / non-positive `slotCost` throws
   (the schema covers files).
 
@@ -71,8 +78,9 @@ limit.
 
 - Attack card and pact card: `◼ N` badge when the kind is capped and
   `slotCost !== 1`.
-- Editor: "Slot cost" number input on attack and pact rows (clearing on `1`
-  or less, so the file stays minimal).
+- Editor: "Slot cost" number input on attack and pact rows. `1` is written as
+  absent so the file stays minimal; below 1 or a fraction is refused under the
+  field; a blank restores the last written value.
 
 ---
 
