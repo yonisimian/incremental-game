@@ -18,6 +18,7 @@ import {
   pactModifiers,
   pactsInForce,
   sharedPacts,
+  sharedPactWindows,
   resolveEnemyDebuffs,
   computePassiveRates,
   computeClickIncome,
@@ -29,9 +30,13 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
+  applyPactActivation,
+  isValidPactActivation,
   sweepDebuffWindows,
+  sweepPactWindows,
   resolveAttackStrike,
   sweepCooldowns,
+  collectPartnerAutoClicks,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -122,6 +127,21 @@ interface MatchPlayer {
    * force.
    */
   pactBonuses: PactBonus[]
+  /**
+   * The automatic clicks per second the opponent's open `partnerAutoClick`
+   * windows grant this player, resolved beside {@link pactBonuses} once per
+   * tick by {@link Match.syncPactBonuses} — before either clock moves, so both
+   * players' gifts are judged on the same instant and a window pays the same
+   * number of ticks whichever side signed it. Read by the income tick and the
+   * broadcast (`STATE_UPDATE.incomingAutoClicksPerSec`). `0` when none.
+   */
+  incomingAutoClicksPerSec: number
+  /**
+   * The resource this player's most recent click credited — "what they click
+   * on", where a `partnerAutoClick` pact's automatic clicks land. Unset until
+   * the first click; the score resource stands in until then.
+   */
+  lastClickResource?: string
 }
 
 /** A purchase log entry: the wire {@link PurchaseEvent} plus its server-internal seq. */
@@ -359,6 +379,7 @@ export class Match {
       purchaseFeedSeq: null,
       attackEvents: [],
       pactBonuses: [],
+      incomingAutoClicksPerSec: 0,
     }
   }
 
@@ -502,6 +523,11 @@ export class Match {
       } else if (action.type === 'activate_attack' && action.attackId) {
         if (!isValidAttackActivation(player.state, action.attackId, this.modeDef)) continue
         applyAttackActivation(player.state, action.attackId, this.modeDef)
+      } else if (action.type === 'activate_pact' && action.pactId) {
+        if (!isValidPactActivation(player.state, action.pactId, this.modeDef)) continue
+        applyPactActivation(player.state, action.pactId, this.modeDef)
+        // So the clicks after it in this batch are paid at the window's rate, not the last tick's.
+        this.syncPactBonuses()
       }
     }
     player.ackSeq = seq
@@ -579,8 +605,22 @@ export class Match {
       pactsInForce(a.state, b.state, mode).length === 0 &&
       pactsInForce(b.state, a.state, mode).length === 0
     ) {
-      for (const player of this.players) player.pactBonuses = []
+      // A player's own open windows are always in force, so no open window
+      // anywhere means no gift anywhere either.
+      for (const player of this.players) {
+        player.pactBonuses = []
+        player.incomingAutoClicksPerSec = 0
+      }
       return
+    }
+    // The gift each side is receiving, judged on the giver's clock at the same
+    // instant for both — reading it mid-tick, after one clock had advanced,
+    // paid the two sides a different number of ticks for identical windows.
+    for (let i = 0; i < this.players.length; i++) {
+      this.players[i].incomingAutoClicksPerSec = collectPartnerAutoClicks(
+        this.players[1 - i].state,
+        mode,
+      )
     }
     const snapshots = this.players.map((player, i): PartnerSnapshot => {
       const opponent = this.players[1 - i]
@@ -621,12 +661,28 @@ export class Match {
     // collected below, so this tick's income must be priced off this tick's
     // charge (see `advanceHighlightBattery`).
     advanceHighlightBattery(player.state, this.modeDef, tickSec)
-    // The defender's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict (e.g. a -10% wood-production attack),
-    // resolved against the defender — a highlight-factor debuff lands on whichever
-    // resource they're holding right now — plus what the pacts in force are
-    // worth to them this tick.
-    const modifiers = [
+    const modifiers = this.incomeModifiersFor(player, opponent)
+    applyPassiveTick(
+      player.state,
+      this.modeDef.resources,
+      this.modeDef.scoreResource,
+      modifiers,
+      tickSec,
+    )
+    this.applyAutoClicks(player, modifiers, tickSec)
+  }
+
+  /**
+   * Everything that prices `player`'s income right now: their own modifiers,
+   * plus the offensive debuffs `opponent`'s attacks in force inflict (e.g. a
+   * -10% wood-production attack), resolved against `player` — a
+   * highlight-factor debuff lands on whichever resource they hold, and a
+   * `clickIncome` debuff is tagged incoming so it orders after their own click
+   * power — plus what the pacts in force are worth to them. One list for the
+   * income tick, a click and an automatic click, so the three can't drift.
+   */
+  private incomeModifiersFor(player: MatchPlayer, opponent: MatchPlayer): Modifier[] {
+    return [
       ...collectModifiers(player.state, this.modeDef),
       ...resolveEnemyDebuffs(
         collectEnemyDebuffs(opponent.state, this.modeDef),
@@ -635,13 +691,39 @@ export class Match {
       ),
       ...this.pactModifiersFor(player),
     ]
-    applyPassiveTick(
-      player.state,
-      this.modeDef.resources,
-      this.modeDef.scoreResource,
-      modifiers,
-      tickSec,
-    )
+  }
+
+  /**
+   * The automatic clicks per second `player` is receiving from the opponent's
+   * pacts (cached by {@link syncPactBonuses}), for the wire — `undefined` when
+   * none, or when `player` cannot click (the same gate {@link applyAutoClicks}
+   * applies to the credit itself).
+   */
+  private incomingAutoClicks(player: MatchPlayer): number | undefined {
+    if (!isClickUnlocked(player.state, this.modeDef)) return undefined
+    const { incomingAutoClicksPerSec } = player
+    return incomingAutoClicksPerSec > 0 ? incomingAutoClicksPerSec : undefined
+  }
+
+  /**
+   * Credit the automatic clicks the opponent's open `partnerAutoClick` pacts
+   * grant `player` this tick (the rate cached by {@link syncPactBonuses}):
+   * `clicksPerSec × tickSec` clicks, each worth `player`'s own click income,
+   * onto what they last clicked on (the score resource before their first
+   * click). Nothing while `player` has not unlocked clicking — the gift has no
+   * one to click for. Not a real click: `peakCps`, `totalClicks` and the rate
+   * limit never see it.
+   */
+  private applyAutoClicks(
+    player: MatchPlayer,
+    modifiers: readonly Modifier[],
+    tickSec: number,
+  ): void {
+    const clicksPerSec = player.incomingAutoClicksPerSec
+    if (clicksPerSec <= 0 || !isClickUnlocked(player.state, this.modeDef)) return
+    const income = computeClickIncome(modifiers) * clicksPerSec * tickSec
+    const target = player.lastClickResource ?? this.modeDef.scoreResource
+    creditResource(player.state, target, income, this.modeDef.scoreResource)
   }
 
   /**
@@ -657,7 +739,8 @@ export class Match {
    * consequence, accepted: `applyPassiveIncome` runs before this in the tick and
    * reads the windows through that same filter, so a window is worth whole
    * ticks at `TICK_INTERVAL_MS` granularity, exactly as `prepareTimeSec` is.
-   * Lifted `cooldowns` are swept the same way, for the same reason.
+   * Lifted `cooldowns` and closed `activePacts` windows are swept the same
+   * way, for the same reason.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
@@ -667,6 +750,7 @@ export class Match {
 
       sweepDebuffWindows(attacker.state, gameSec)
       sweepCooldowns(attacker.state, gameSec)
+      sweepPactWindows(attacker.state, gameSec)
 
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
@@ -757,26 +841,15 @@ export class Match {
     player.stats.peakCps = Math.max(player.stats.peakCps, player.recentClickTimestamps.length)
     player.state.meta.peakCps = player.stats.peakCps
 
-    // The clicker's own modifiers plus the offensive debuffs the opponent's
-    // unlocked passive attacks inflict — resolving tags a `clickIncome` debuff as
-    // incoming, which is what orders it after the clicker's own click power —
-    // plus the pact bonuses cached by the last tick.
-    const modifiers = [
-      ...collectModifiers(player.state, this.modeDef),
-      ...resolveEnemyDebuffs(
-        collectEnemyDebuffs(this.opponentOf(player).state, this.modeDef),
-        player.state,
-        this.modeDef,
-      ),
-      ...this.pactModifiersFor(player),
-    ]
-    const income = computeClickIncome(modifiers)
+    // The pact bonuses in the list are the ones cached by the last tick.
+    const income = computeClickIncome(this.incomeModifiersFor(player, this.opponentOf(player)))
 
     // Credit the requested resource (defaults to score); only the score resource
     // contributes to score, matching passive income.
     const res =
       resource && this.modeDef.resources.includes(resource) ? resource : this.modeDef.scoreResource
     creditResource(player.state, res, income, this.modeDef.scoreResource)
+    player.lastClickResource = res
     player.stats.totalClicks++
   }
 
@@ -859,6 +932,8 @@ export class Match {
     // enemy stats they read. Absent when nothing is in force.
     const p1Pacts = p1.pactBonuses.length ? p1.pactBonuses : undefined
     const p2Pacts = p2.pactBonuses.length ? p2.pactBonuses : undefined
+    const p1AutoClicks = this.incomingAutoClicks(p1)
+    const p2AutoClicks = this.incomingAutoClicks(p2)
 
     this.send(p1, {
       type: 'STATE_UPDATE',
@@ -869,6 +944,7 @@ export class Match {
       debuffs: p2Debuffs,
       attackEvents: p1Attacks,
       pactBonuses: p1Pacts,
+      incomingAutoClicksPerSec: p1AutoClicks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -882,6 +958,7 @@ export class Match {
       debuffs: p1Debuffs,
       attackEvents: p2Attacks,
       pactBonuses: p2Pacts,
+      incomingAutoClicksPerSec: p2AutoClicks,
       timeLeft: this.timeLeftSec,
       paused: this.paused,
     })
@@ -946,11 +1023,14 @@ export class Match {
 
     this.projectIncomingAttacks(viewer, opponent, view)
 
-    // The opponent's mutual pacts already benefit the viewer, so naming them
-    // reveals nothing the viewer's own income doesn't; their one-sided pacts
-    // stay hidden.
-    const shared = sharedPacts(opponent.state, mode)
+    // The opponent's pacts that reach the viewer (mutual ones, and windows
+    // carrying a gift) already show in the viewer's own income, so naming them
+    // — and when an open window closes — reveals nothing new; their one-sided
+    // pacts stay hidden.
+    const windows = sharedPactWindows(opponent.state, mode)
+    const shared = sharedPacts(opponent.state, mode, windows)
     if (shared.length > 0) view.pacts = shared
+    if (windows.length > 0) view.pactWindows = windows
 
     return view
   }
@@ -1053,6 +1133,8 @@ export class Match {
     delete p2.state.activeDebuffs
     delete p1.state.cooldowns
     delete p2.state.cooldowns
+    delete p1.state.activePacts
+    delete p2.state.activePacts
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

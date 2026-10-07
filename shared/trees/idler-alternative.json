@@ -366,6 +366,29 @@
           "cap": 0.5
         }
       ]
+    },
+    {
+      "id": "drum-accord",
+      "kind": "active",
+      "activationCost": {
+        "r0": {
+          "baseCost": 300
+        }
+      },
+      "durationSec": 15,
+      "cooldownSec": 45,
+      "effects": [
+        {
+          "type": "pactProductionModifier",
+          "stage": "multiplicative",
+          "field": "clickIncome",
+          "value": 2
+        },
+        {
+          "type": "partnerAutoClick",
+          "clicksPerSec": 3
+        }
+      ]
     }
   ],
   "goals": [
@@ -891,6 +914,12 @@
           "name": "🚫 Embargo",
           "icon": "🚫",
           "description": "Unlock Embargo: the enemy can buy nothing for 10s."
+        },
+        {
+          "id": "pact-drum-accord",
+          "name": "Drum Accord",
+          "icon": "🥁",
+          "description": "Unlock the Drum Accord pact."
         }
       ],
       "generators": [
@@ -1025,6 +1054,12 @@
           "name": "Trade route",
           "icon": "🪵",
           "description": "+2% wood per enemy woodcutter, up to +50%. The enemy gains the same from yours."
+        },
+        {
+          "id": "drum-accord",
+          "name": "Drum Accord",
+          "icon": "🥁",
+          "description": "Your clicks are worth ×2 for 15s — but the enemy gets 3 automatic clicks per second for as long."
         }
       ]
     }
@@ -2828,6 +2863,29 @@
           "offset": {
             "x": -48,
             "y": 192
+          }
+        },
+        {
+          "id": "pact-drum-accord",
+          "cost": {
+            "r0": {
+              "baseCost": 1200
+            }
+          },
+          "purchaseLimit": 1,
+          "prerequisites": {
+            "type": "upgrade",
+            "id": "ir-unlock"
+          },
+          "effects": [
+            {
+              "type": "unlockPact",
+              "pact": "drum-accord"
+            }
+          ],
+          "offset": {
+            "x": 48,
+            "y": 288
           }
         }
       ]

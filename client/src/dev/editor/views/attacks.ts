@@ -22,7 +22,6 @@ import {
   attackEffects,
   attackReferences,
   listAttacks,
-  listResources,
   removeAttack,
   removeAttackPrepareCurrency,
   renameAttack,
@@ -38,7 +37,7 @@ import {
   type AttackRow,
 } from '../model.js'
 import { buildEffectsSection } from '../effects-editor.js'
-import { addButton, numberInput, removeButton, renameInput } from './controls.js'
+import { addButton, numberInput, removeButton, renameInput, resourceSelect } from './controls.js'
 import { el, labeled, labeledInput } from './dom.js'
 import type { EditorContext, EditorView } from './types.js'
 
@@ -204,31 +203,6 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
   )
 
   return card
-}
-
-/**
- * A `<select>` over the tree's resources, labelled with icon + name + key.
- * `exclude` drops resources already spoken for elsewhere (the selected one is
- * always offered, so a row can keep its own currency).
- */
-function resourceSelect(
-  tree: EditorContext['tree'],
-  selected: string,
-  onChange: (value: string) => void,
-  exclude: ReadonlySet<string> = new Set(),
-): HTMLSelectElement {
-  const sel = el('select', 'ed-input')
-  for (const r of listResources(tree)) {
-    if (r.key !== selected && exclude.has(r.key)) continue
-    const opt = el('option', undefined, `${r.icon} ${r.displayName} (${r.key})`)
-    opt.value = r.key
-    if (r.key === selected) opt.selected = true
-    sel.append(opt)
-  }
-  sel.addEventListener('change', () => {
-    onChange(sel.value)
-  })
-  return sel
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   registerMode,
   validateModeDefinition,
 } from '@game/shared'
-import type { ModeDefinition, PactBonus, PactCostFactor } from '@game/shared'
+import type { ActivePact, ModeDefinition, PactBonus, PactCostFactor } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import { internationalRelationshipPanel } from '../src/ui/panels/international-relationship-panel.js'
 
@@ -70,6 +70,8 @@ function makeState(opts: {
   bonuses?: PactBonus[]
   discounts?: PactCostFactor[]
   shared?: string[]
+  windows?: ActivePact[]
+  autoClicks?: number
 }): GameState {
   const player = createInitialState(base)
   for (const id of opts.signed ?? []) player.upgrades[signer(id)] = 1
@@ -85,6 +87,8 @@ function makeState(opts: {
     debuffs: [],
     pactBonuses: opts.bonuses ?? [],
     opponentPacts: opts.shared ?? [],
+    opponentPactWindows: opts.windows ?? [],
+    incomingAutoClicksPerSec: opts.autoClicks ?? 0,
     timeLeft: 60,
     paused: false,
     vsBot: false,
@@ -183,5 +187,144 @@ describe('relations panel', () => {
     const both = render(makeState({ signed: ['p3'], shared: ['p3'], bonuses: [ROUTE_WORTH] }))
     expect(both).not.toContain('Shared treaties')
     expect(both.match(/class="pact-item/g)).toHaveLength(1)
+  })
+
+  describe('active pacts', () => {
+    const DRUMS = 'p-drums'
+    const SIGN_DRUMS = 'sign-p-drums'
+
+    /** The idler plus Drum Accord: 300 🪵, clicks ×2 for 15s, 3 clicks/s to the enemy, 45s rest. */
+    function withDrums(): ModeDefinition {
+      const def: ModeDefinition = {
+        ...base,
+        pacts: [
+          ...base.pacts,
+          {
+            id: DRUMS,
+            kind: 'active',
+            activationCost: { r0: { baseCost: 300 } },
+            durationSec: 15,
+            cooldownSec: 45,
+            effects: [
+              {
+                type: 'pactProductionModifier',
+                stage: 'multiplicative',
+                field: 'clickIncome',
+                value: 2,
+              },
+              { type: 'partnerAutoClick', clicksPerSec: 3 },
+            ],
+          },
+        ],
+        upgrades: [
+          ...base.upgrades,
+          {
+            id: SIGN_DRUMS,
+            cost: {},
+            purchaseLimit: 1,
+            effects: [{ type: 'unlockPact', pact: DRUMS }],
+          },
+        ],
+        flavors: base.flavors.map((f) => ({
+          ...f,
+          pacts: [...f.pacts, { id: DRUMS, name: 'Drum Accord', icon: '🥁', description: '' }],
+          upgrades: [...f.upgrades, { id: SIGN_DRUMS, name: 'Drums', icon: '🥁', description: '' }],
+        })),
+      }
+      validateModeDefinition('idler', def)
+      return def
+    }
+
+    /** A signer of Drum Accord at game second 10 holding `wood`, with `patch` applied. */
+    function signerState(wood: number, patch: Partial<GameState['player']> = {}): GameState {
+      const state = makeState({})
+      state.player.upgrades[SIGN_DRUMS] = 1
+      state.player.resources.r0 = wood
+      state.player.meta.gameSec = 10
+      Object.assign(state.player, patch)
+      return state
+    }
+
+    const drumsCard = (html: string): string => {
+      const start = html.indexOf(`data-pact="${DRUMS}"`)
+      return html.slice(start, html.indexOf('</li>', start))
+    }
+
+    it('quotes the price on an enabled button when the pact can be signed', () => {
+      registerMode('idler', withDrums())
+      const card = drumsCard(render(signerState(1000)))
+      expect(card).toContain('300 🪵')
+      expect(card).toContain('class="pact-btn" type="button">')
+      expect(card).not.toContain('disabled')
+    })
+
+    it('shows the shortfall and disables the button when short', () => {
+      registerMode('idler', withDrums())
+      const card = drumsCard(render(signerState(120)))
+      expect(card).toContain('120/300 🪵')
+      expect(card).toContain('pact-status--blocked')
+      expect(card).toContain('disabled')
+    })
+
+    it('counts the open window down with what it is worth, disabled', () => {
+      registerMode('idler', withDrums())
+      const state = signerState(1000, { activePacts: [{ pact: DRUMS, expiresAtSec: 17.4 }] })
+      state.pactBonuses = [
+        { pact: DRUMS, modifiers: [{ stage: 'multiplicative', field: 'clickIncome', value: 2 }] },
+      ]
+      const card = drumsCard(render(state))
+      expect(card).toContain('Active for 7.4s')
+      expect(card).toContain('+100% per click')
+      expect(card).toContain('pact-btn active')
+      expect(card).toContain('disabled')
+      expect(card).not.toContain('300 🪵')
+    })
+
+    it('counts the rest down after the window, disabled however rich', () => {
+      registerMode('idler', withDrums())
+      const state = signerState(1e9, { cooldowns: [{ kind: 'pact', id: DRUMS, untilSec: 22.5 }] })
+      const card = drumsCard(render(state))
+      expect(card).toContain('Ready in 12.5s')
+      expect(card).toContain('pact-btn cooling')
+      expect(card).toContain('disabled')
+    })
+
+    it('shows the enemy’s gift window as a shared treaty, with its countdown and rate', () => {
+      registerMode('idler', withDrums())
+      const window = { pact: DRUMS, expiresAtSec: 17.4 }
+      const receiving = makeState({ shared: [DRUMS], windows: [window], autoClicks: 3 })
+      receiving.player.meta.gameSec = 10
+      const html = render(receiving)
+      expect(html).toContain('Shared treaties')
+      expect(html).toContain('Active for 7.4s')
+      expect(html).toContain('+3 clicks/s for you')
+
+      const cannotClick = makeState({ shared: [DRUMS], windows: [window] })
+      cannotClick.player.meta.gameSec = 10
+      expect(render(cannotClick)).toContain('unlock clicking to use them')
+    })
+
+    it('shows the enemy’s open window on the viewer’s own card when both have signed', () => {
+      registerMode('idler', withDrums())
+      // Both signed Drum Accord; only the enemy's window is open, gifting 3 clicks/s.
+      const state = signerState(1000)
+      state.opponentPacts = [DRUMS]
+      state.opponentPactWindows = [{ pact: DRUMS, expiresAtSec: 17.4 }]
+      state.incomingAutoClicksPerSec = 3
+      const html = render(state)
+      // No duplicate shared card: the viewer's own card carries the window.
+      expect(html).not.toContain('Shared treaties')
+      const card = drumsCard(html)
+      expect(card).toContain('Enemy’s treaty active for 7.4s')
+      expect(card).toContain('+3 clicks/s for you')
+      // The viewer's own window is closed, so the card still sells the activation.
+      expect(card).toContain('300 🪵')
+      expect(card).not.toContain('disabled')
+
+      // With no enemy window open, nothing of theirs shows on the card.
+      state.opponentPactWindows = []
+      state.incomingAutoClicksPerSec = 0
+      expect(drumsCard(render(state))).not.toContain('Enemy’s treaty')
+    })
   })
 })

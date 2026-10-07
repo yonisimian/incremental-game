@@ -58,6 +58,12 @@ import {
   removeAttackPrepareCurrency,
   type AttackCostRow,
   listPacts,
+  addPactActivationCurrency,
+  removePactActivationCurrency,
+  setPactActivationCost,
+  setPactActivationCurrency,
+  setPactCooldown,
+  setPactDuration,
   addPact,
   renamePact,
   removePact,
@@ -1224,7 +1230,7 @@ describe('pact effect references', () => {
 describe('pacts', () => {
   it('lists pacts joined with their primary flavor, mutual defaulting to false', () => {
     const rows = listPacts(idler())
-    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3'])
+    expect(rows.map((r) => r.id)).toEqual(['highlighted-clicks', 'p1', 'p2', 'p3', 'drum-accord'])
     const route = rows.find((r) => r.id === 'p3')!
     expect(route.mutual).toBe(true)
     expect(route.kind).toBe('passive')
@@ -1288,6 +1294,103 @@ describe('pacts', () => {
     setPactEffects(tree, id, [])
     expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
     expect(pactEffects(tree, id)).toEqual([])
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('authors an active pact’s activation cost, duration and cooldown into a loadable mode', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactEffects(tree, id, [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }])
+    // Effects with no cost or duration is the validator's complaint…
+    expect(() => toModeDefinition(tree)).toThrow(/no activationCost/)
+    expect(addPactActivationCurrency(tree, id)).toBe('r0')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactCooldown(tree, id, 45)
+    // …and these answer it.
+    const def = toModeDefinition(tree).pacts.find((p) => p.id === id)!
+    expect(def).toMatchObject({
+      activationCost: { r0: { baseCost: 300 } },
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+    expect(listPacts(tree).at(-1)).toMatchObject({
+      activationCost: [{ currency: 'r0', baseCost: 300 }],
+      durationSec: 15,
+      cooldownSec: 45,
+    })
+  })
+
+  it('moves and removes activation currencies, keeping the last one on an active pact with effects', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    expect(setPactActivationCurrency(tree, id, 'r0', 'r1')).toBe(true)
+    expect(tree.pacts.at(-1)!.activationCost).toEqual({ r1: { baseCost: 300 } })
+    setPactEffects(tree, id, [{ type: 'mirrorCostModifier', target: 'upgrades', costFactor: 0.75 }])
+    expect(removePactActivationCurrency(tree, id, 'r1')).toMatchObject({ ok: false })
+    setPactEffects(tree, id, [])
+    expect(removePactActivationCurrency(tree, id, 'r1')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).not.toHaveProperty('activationCost')
+  })
+
+  it('clears a non-positive duration or cooldown, and strips all three on a switch to passive', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactDuration(tree, id, 15)
+    setPactDuration(tree, id, 0)
+    setPactCooldown(tree, id, -1)
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'active' })
+
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactCooldown(tree, id, 45)
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('refuses a switch to passive while the pact carries an active-only effect', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r0', 300)
+    setPactDuration(tree, id, 15)
+    setPactEffects(tree, id, [{ type: 'partnerAutoClick', clicksPerSec: 3 }])
+    const before = structuredClone(tree.pacts.at(-1))
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // The validator would refuse the saved tree, so the editor refuses the switch.
+    expect(setPactKind(tree, id, 'passive')).toEqual({
+      ok: false,
+      reason: 'partnerAutoClick only applies on an active pact — remove it first',
+    })
+    expect(tree.pacts.at(-1)).toEqual(before)
+    expect(() => toModeDefinition(tree)).not.toThrow()
+
+    // Without the stranded effect the switch goes through.
+    setPactEffects(tree, id, [])
+    expect(setPactKind(tree, id, 'passive')).toEqual({ ok: true })
+    expect(tree.pacts.at(-1)).toEqual({ id, kind: 'passive' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
+    expect(setPactKind(tree, 'nope', 'active')).toMatchObject({ ok: false })
+  })
+
+  it('a resource rename rewrites activation costs and pact bonus fields', () => {
+    const tree = idler()
+    const id = addPact(tree)
+    setPactKind(tree, id, 'active')
+    setPactActivationCost(tree, id, 'r1', 20)
+    setPactDuration(tree, id, 10)
+    setPactEffects(tree, id, [
+      { type: 'pactProductionModifier', stage: 'multiplicative', field: 'r1', value: 1.5 },
+    ])
+    expect(renameResource(tree, 'r1', 'ale')).toBe(true)
+    expect(tree.pacts.at(-1)!.activationCost).toEqual({ ale: { baseCost: 20 } })
+    expect(pactEffects(tree, id)[0].field).toBe('ale')
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 })

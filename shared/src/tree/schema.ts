@@ -104,16 +104,19 @@ const AttackSchema = z.strictObject({
 
 /**
  * A pact — a stable id, its kind, whether it is `mutual` (the partner benefits
- * too), and the buff effects it carries. Effects are validated per-effect by the
- * registry once assembled into a `ModeDefinition` (see `validateModeDefinition`).
- * The active-only fields (activation cost, duration, cooldown) are not authored
- * yet — plans 43/44 — so a passive pact declaring one is a schema error here.
- * Display data is its flavor.
+ * too), and the buff effects it carries. Active pacts also carry an
+ * `activationCost` and a `durationSec` (the window), plus an optional
+ * `cooldownSec`. Effects are validated per-effect by the registry once
+ * assembled into a `ModeDefinition` (see `validateModeDefinition`), which also
+ * enforces the active/passive field rules. Display data is its flavor.
  */
 const PactSchema = z.strictObject({
   id: z.string(),
   kind: z.enum(['active', 'passive']),
   mutual: z.boolean().optional(),
+  activationCost: CostSchema.optional(),
+  durationSec: z.number().positive().optional(),
+  cooldownSec: z.number().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 

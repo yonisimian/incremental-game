@@ -65,6 +65,8 @@ function makeState(incoming?: EnemyCostFactor[], discounts?: PactCostFactor[]): 
     incomingAttacks: [],
     pactBonuses: [],
     opponentPacts: [],
+    opponentPactWindows: [],
+    incomingAutoClicksPerSec: 0,
     debuffs: [],
     timeLeft: 60,
     paused: false,

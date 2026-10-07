@@ -8,38 +8,63 @@
 // ships their results — cost factors stamped on `PlayerState.pactCostFactors`,
 // production bonuses on `STATE_UPDATE.pactBonuses`.
 
+import { scaledCost } from './cost.js'
+import { cooldownUntilSec, startCooldown } from './cooldowns.js'
 import { readEnemyStat } from './effects/enemy-stats.js'
 import type { PartnerSnapshot } from './effects/enemy-stats.js'
-import { applyEffect, normalizeEffectOutputs } from './effects/registry.js'
+import { applyEffect, isPartnerDirectedEffect, normalizeEffectOutputs } from './effects/registry.js'
 import type { MirrorCostOutput, MirrorModifierOutput } from './effects/types.js'
 import type { Modifier } from './modifiers/types.js'
-import { unlockedPacts } from './modes/index.js'
+import { readGameSec } from './game-clock.js'
+import { isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
-import type { PactCostFactor, PactDefinition, PlayerState } from './types.js'
+import { isCostAffordable } from './upgrade-costs.js'
+import type { ActivePact, PactCostFactor, PactDefinition, PlayerState } from './types.js'
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
+
+// ─── Lookup ──────────────────────────────────────────────────────────
+
+/**
+ * `mode.pacts` by id, built once per mode definition and reused by every
+ * resolver here — the `flavor.ts` pattern. The collectors run several times a
+ * tick and a broadcast, so a map per call would dominate their cost. Keyed by
+ * identity: a re-registered (patched) mode is a new key.
+ */
+const pactIndexCache = new WeakMap<ModeDefinition, ReadonlyMap<string, PactDefinition>>()
+
+function pactIndex(mode: ModeDefinition): ReadonlyMap<string, PactDefinition> {
+  let index = pactIndexCache.get(mode)
+  if (!index) {
+    index = new Map(mode.pacts.map((p) => [p.id, p]))
+    pactIndexCache.set(mode, index)
+  }
+  return index
+}
 
 // ─── In force ────────────────────────────────────────────────────────
 
 /**
- * The passive pacts whose buffs `owner` enjoys right now, in a stable order:
- * every passive pact `owner` has unlocked, then every **mutual** passive pact
- * `partner` has unlocked that `owner` has not. The single walk both pact
- * collectors share, so "what is in force" can't be answered differently for
- * prices than for production.
+ * The pacts whose buffs `owner` enjoys right now, in a stable order: every
+ * passive pact `owner` has unlocked, then every **mutual** passive pact
+ * `partner` has unlocked, then `owner`'s open active-pact windows, then
+ * `partner`'s open **mutual** active-pact windows — each skipping a pact
+ * already listed. The single walk both pact collectors share, so "what is in
+ * force" can't be answered differently for prices than for production. An
+ * open window is simply a pact in force for a while.
  *
  * Every pact listed resolves against the *partner*: an owner-held pact reads
  * the enemy by definition, and a partner-held mutual pact benefits `owner` by
  * reading its holder — who is, from `owner`'s side, the enemy. A pact both
  * players have signed appears once, not twice: "the enemy gains the same from
- * yours" is one treaty, not a doubled one. Active pacts will append their open windows.
+ * yours" is one treaty, not a doubled one.
  */
 export function pactsInForce(
   owner: Readonly<PlayerState>,
   partner: Readonly<PlayerState>,
   mode: ModeDefinition,
 ): PactDefinition[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
+  const pactById = pactIndex(mode)
   const inForce: PactDefinition[] = []
   const seen = new Set<string>()
   for (const id of unlockedPacts(owner, mode)) {
@@ -54,21 +79,72 @@ export function pactsInForce(
     inForce.push(pact)
     seen.add(id)
   }
+  for (const id of openWindowIds(owner)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active' || seen.has(id)) continue
+    inForce.push(pact)
+    seen.add(id)
+  }
+  for (const id of openWindowIds(partner)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active' || pact.mutual !== true || seen.has(id)) continue
+    inForce.push(pact)
+    seen.add(id)
+  }
   return inForce
 }
 
+/** Ids of the active-pact windows open on `state` at its own game clock. */
+function openWindowIds(state: Readonly<PlayerState>): string[] {
+  return openPactWindows(state, readGameSec(state)).map((w) => w.pact)
+}
+
 /**
- * The mutual passive pacts `partner` has unlocked — the treaties the other
- * player also benefits from, in mode declaration order. What the server
- * reveals of a partner's pacts (`OpponentView.pacts`): only these already
- * affect the viewer, so a one-sided pact stays hidden.
+ * Whether `pact` reaches the other player while in force: it is `mutual` (they
+ * get the same buffs), or it carries a partner-directed effect (a gift such as
+ * `partnerAutoClick`, flagged `partnerDirected` in the registry — the same
+ * trait the validator reads).
  */
-export function sharedPacts(partner: Readonly<PlayerState>, mode: ModeDefinition): string[] {
-  const pactById = new Map(mode.pacts.map((p) => [p.id, p]))
-  return unlockedPacts(partner, mode).filter((id) => {
+function reachesPartner(pact: PactDefinition): boolean {
+  if (pact.mutual === true) return true
+  return (pact.effects ?? []).some((ref) => isPartnerDirectedEffect(ref.type))
+}
+
+/**
+ * `partner`'s open active-pact windows that reach the other player (see
+ * {@link reachesPartner}), with their closing time on `partner`'s clock — what
+ * lets the viewer count down a treaty they did not sign.
+ */
+export function sharedPactWindows(
+  partner: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): ActivePact[] {
+  const pactById = pactIndex(mode)
+  return openPactWindows(partner, readGameSec(partner)).filter((w) => {
+    const pact = pactById.get(w.pact)
+    return pact?.kind === 'active' && reachesPartner(pact)
+  })
+}
+
+/**
+ * The pacts of `partner`'s that reach the other player right now — unlocked
+ * mutual passive ones in mode declaration order, then open active-pact windows
+ * that are mutual or carry a gift. What the server reveals of a partner's
+ * pacts (`OpponentView.pacts`): only these already affect the viewer, so a
+ * one-sided pact stays hidden. A caller that has already computed the
+ * `sharedPactWindows` (the server ships both) passes them as `windows`.
+ */
+export function sharedPacts(
+  partner: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  windows: readonly ActivePact[] = sharedPactWindows(partner, mode),
+): string[] {
+  const pactById = pactIndex(mode)
+  const passive = unlockedPacts(partner, mode).filter((id) => {
     const pact = pactById.get(id)
     return pact?.kind === 'passive' && pact.mutual === true
   })
+  return [...passive, ...windows.map((w) => w.pact)]
 }
 
 // ─── Cost factors ────────────────────────────────────────────────────
@@ -188,6 +264,9 @@ function resolveMirroredModifier(
  * So one snapshot suffices, and the server calls this once per player with the
  * roles swapped.
  *
+ * A `pactModifier` output (from `pactProductionModifier`) needs no partner: it
+ * is kept verbatim, in authoring order beside the resolved mirrors.
+ *
  * Bonuses come out **as authored**, which can include the virtual
  * `highlightFactor` field. Run them through `resolveEnemyDebuffs` (whose
  * arithmetic is direction-neutral) before handing them to the pipeline, as the
@@ -203,9 +282,13 @@ export function collectPactBonuses(
     const modifiers: Modifier[] = []
     for (const ref of pact.effects ?? []) {
       for (const out of normalizeEffectOutputs(applyEffect(ref, owner, mode))) {
-        if (!('kind' in out) || out.kind !== 'mirrorModifier') continue
-        const modifier = resolveMirroredModifier(out, partner)
-        if (modifier) modifiers.push(modifier)
+        if (!('kind' in out)) continue
+        if (out.kind === 'pactModifier') {
+          modifiers.push(out.modifier)
+        } else if (out.kind === 'mirrorModifier') {
+          const modifier = resolveMirroredModifier(out, partner)
+          if (modifier) modifiers.push(modifier)
+        }
       }
     }
     if (modifiers.length > 0) bonuses.push({ pact: pact.id, modifiers })
@@ -213,7 +296,167 @@ export function collectPactBonuses(
   return bonuses
 }
 
+/**
+ * The automatic clicks per second `pact` grants the signer's **partner** while
+ * in force — its `partnerAutoClick` outputs, summed. Judged by output kind, as
+ * every consumer judges an effect, so the relations panel ("does this treaty
+ * gift me clicks?") and the server read one figure. `0` for a pact carrying
+ * none.
+ */
+export function pactAutoClicksPerSec(
+  pact: PactDefinition,
+  signer: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): number {
+  let clicksPerSec = 0
+  for (const ref of pact.effects ?? []) {
+    for (const out of normalizeEffectOutputs(applyEffect(ref, signer, mode))) {
+      if ('kind' in out && out.kind === 'partnerAutoClick') clicksPerSec += out.clicksPerSec
+    }
+  }
+  return clicksPerSec
+}
+
+/**
+ * Automatic clicks per second `signer`'s open active-pact windows grant their
+ * **partner**, summed across windows (two such pacts stack). Judged on the
+ * signer's clock, as every window is. Resolved server-side: the partner's click
+ * income and click target live there.
+ */
+export function collectPartnerAutoClicks(
+  signer: Readonly<PlayerState>,
+  mode: ModeDefinition,
+): number {
+  const pactById = pactIndex(mode)
+  let clicksPerSec = 0
+  for (const id of openWindowIds(signer)) {
+    const pact = pactById.get(id)
+    if (pact?.kind !== 'active') continue
+    clicksPerSec += pactAutoClicksPerSec(pact, signer, mode)
+  }
+  return clicksPerSec
+}
+
 /** Flatten resolved bonuses for the pipeline (still unresolved for the virtual target). */
 export function pactModifiers(bonuses: readonly PactBonus[]): Modifier[] {
   return bonuses.flatMap((b) => b.modifiers)
+}
+
+// ─── Activation ──────────────────────────────────────────────────────
+//
+// The active-attack lifecycle with the strike removed: activate (pay) → window
+// (`durationSec`) → cooldown (`cooldownSec`). The window opens on the
+// activating tick, so the client predicts it with the same function the server
+// applies — `applyPactActivation` — and the reconcile replays it.
+
+/**
+ * Why an active pact cannot be activated right now. `unaffordable` is the only
+ * transient reason (wait for income); the rest are permanent for the current
+ * state — the order `attackBlockReason` uses.
+ */
+export type PactBlockReason =
+  | 'unknown' // no such pact
+  | 'not-active' // a passive pact (always-on, never activated)
+  | 'locked' // not yet unlocked (no gating upgrade owned)
+  | 'no-effects' // an effect-less placeholder — nothing to activate
+  | 'already-active' // this pact's window is still open
+  | 'cooling-down' // the window closed; its cooldown has not elapsed
+  | 'unaffordable' // valid target, cannot pay the activation cost yet
+
+/**
+ * An active pact's activation cost resolved to concrete per-currency amounts,
+ * each evaluated at level 0 (pacts have no cost curve). Empty when unset.
+ */
+export function getPactActivationCost(def: PactDefinition): Record<string, number> {
+  const cost: Record<string, number> = {}
+  for (const [currency, entry] of Object.entries(def.activationCost ?? {})) {
+    cost[currency] = scaledCost(entry, 0)
+  }
+  return cost
+}
+
+/**
+ * Game-clock time pact `pactId`'s open window closes, or `null` when none is
+ * open. A closed window the server has not swept yet reads as `null`.
+ */
+export function activePactExpiresAtSec(
+  state: Readonly<PlayerState>,
+  pactId: string,
+): number | null {
+  const gameSec = readGameSec(state)
+  const window = state.activePacts?.find((w) => w.pact === pactId && w.expiresAtSec > gameSec)
+  return window?.expiresAtSec ?? null
+}
+
+/**
+ * The pact windows in `state` still open at `gameSec` (strictly before
+ * `expiresAtSec`). Pure. The server's tick sweeps with it; readers apply the
+ * same test at read time.
+ */
+export function openPactWindows(state: Readonly<PlayerState>, gameSec: number): ActivePact[] {
+  return (state.activePacts ?? []).filter((w) => w.expiresAtSec > gameSec)
+}
+
+/**
+ * Drop the pact windows that have closed by `gameSec`; delete the field once
+ * empty — absent rather than `[]`, the convention `activeDebuffs` and
+ * `cooldowns` follow, so a quiet round carries nothing. The third of the
+ * server tick's sweeps, beside `sweepDebuffWindows` and `sweepCooldowns`; the
+ * readers already ignore a closed window at read time, so this only bounds the
+ * array.
+ */
+export function sweepPactWindows(state: PlayerState, gameSec: number): void {
+  if (!state.activePacts) return
+  const open = openPactWindows(state, gameSec)
+  if (open.length === 0) delete state.activePacts
+  else if (open.length !== state.activePacts.length) state.activePacts = open
+}
+
+/** The reason pact `pactId` cannot be activated right now, or `null` if it can. */
+export function pactBlockReason(
+  state: Readonly<PlayerState>,
+  pactId: string,
+  mode: ModeDefinition,
+): PactBlockReason | null {
+  const def = pactIndex(mode).get(pactId)
+  if (!def) return 'unknown'
+  if (def.kind !== 'active') return 'not-active'
+  if (!isPactUnlocked(state, mode, pactId)) return 'locked'
+  if ((def.effects?.length ?? 0) === 0) return 'no-effects'
+  if (activePactExpiresAtSec(state, pactId) !== null) return 'already-active'
+  if (cooldownUntilSec(state, 'pact', pactId) !== null) return 'cooling-down'
+  if (!isCostAffordable(state.resources, getPactActivationCost(def))) return 'unaffordable'
+  return null
+}
+
+/** Whether pact `pactId` can be activated right now (`pactBlockReason === null`). */
+export function isValidPactActivation(
+  state: Readonly<PlayerState>,
+  pactId: string,
+  mode: ModeDefinition,
+): boolean {
+  return pactBlockReason(state, pactId, mode) === null
+}
+
+/**
+ * Activate pact `pactId` on `state`: deduct the activation cost, open its
+ * window for `durationSec`, and — the window's end being known now — stamp its
+ * cooldown to lift `cooldownSec` after that. Mutates `state`; callers validate
+ * first (`isValidPactActivation`). Never touches `score`.
+ */
+export function applyPactActivation(
+  state: PlayerState,
+  pactId: string,
+  mode: ModeDefinition,
+): void {
+  const def = pactIndex(mode).get(pactId)
+  if (!def) return
+  for (const [currency, amount] of Object.entries(getPactActivationCost(def))) {
+    state.resources[currency] = (state.resources[currency] ?? 0) - amount
+  }
+  const expiresAtSec = readGameSec(state) + (def.durationSec ?? 0)
+  const others = (state.activePacts ?? []).filter((w) => w.pact !== pactId)
+  state.activePacts = [...others, { pact: pactId, expiresAtSec }]
+  if (def.cooldownSec !== undefined)
+    startCooldown(state, 'pact', pactId, expiresAtSec + def.cooldownSec)
 }

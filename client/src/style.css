@@ -1787,6 +1787,47 @@ body {
   border-style: dashed;
 }
 
+/* An active pact the player can sign right now. */
+.pact-btn:not(:disabled) {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.pact-btn:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.pact-status {
+  grid-column: 2;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* The window is open. */
+.pact-status--active {
+  color: var(--success);
+}
+
+.pact-btn.active {
+  border-color: var(--success);
+  opacity: 1;
+}
+
+/* Resting after the window closed. */
+.pact-status--cooling {
+  color: var(--info);
+}
+
+.pact-btn.cooling {
+  border-color: var(--info);
+  border-style: dashed;
+}
+
+.pact-status--blocked {
+  font-weight: 400;
+  color: var(--text-muted, var(--text));
+}
+
 .generator-card {
   display: flex;
   flex-direction: column;
