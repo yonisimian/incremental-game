@@ -117,15 +117,40 @@ export const upgradeTreePanel: Panel = {
     prevHtml = html
     const canvas = document.getElementById('tree-canvas')
     if (!canvas) return
-    // Replace the SVG inner content + nodes — but keep the canvas element itself
+    // Refresh the SVG + nodes but keep the canvas element itself
     // (its inline `transform` style is the live pan/zoom and must persist).
     const svg = canvas.querySelector<SVGSVGElement>('.tree-edges')
     if (svg) svg.innerHTML = edgesSvg
-    // Remove old node buttons, append fresh ones. Preserve the SVG.
-    const oldNodes = canvas.querySelectorAll<HTMLButtonElement>('.tree-node')
-    oldNodes.forEach((n) => {
-      n.remove()
-    })
-    canvas.insertAdjacentHTML('beforeend', nodes)
+    syncNodes(canvas, nodes)
   },
+}
+
+/**
+ * Patch the node buttons in place from freshly rendered markup. Replacing them
+ * would drop any click whose pointerdown landed on the old button.
+ */
+function syncNodes(canvas: HTMLElement, nodesHtml: string): void {
+  const template = document.createElement('template')
+  template.innerHTML = nodesHtml
+  const current = new Map<string, HTMLButtonElement>()
+  for (const node of canvas.querySelectorAll<HTMLButtonElement>('.tree-node')) {
+    current.set(node.dataset.upgrade ?? '', node)
+  }
+  for (const next of template.content.querySelectorAll<HTMLButtonElement>('.tree-node')) {
+    const id = next.dataset.upgrade ?? ''
+    const node = current.get(id)
+    current.delete(id)
+    if (!node) {
+      canvas.append(next)
+      continue
+    }
+    for (const { name } of [...node.attributes]) {
+      if (!next.hasAttribute(name)) node.removeAttribute(name)
+    }
+    for (const { name, value } of next.attributes) {
+      if (node.getAttribute(name) !== value) node.setAttribute(name, value)
+    }
+    if (node.innerHTML !== next.innerHTML) node.innerHTML = next.innerHTML
+  }
+  for (const stale of current.values()) stale.remove()
 }
