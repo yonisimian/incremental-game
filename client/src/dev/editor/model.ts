@@ -986,6 +986,12 @@ export interface AttackRow {
    * zero never is).
    */
   readonly durationSec: number | null
+  /**
+   * Seconds the attack rests after it finishes before it can be activated
+   * again, or `null` when unset (no cooldown). Nullable for the same reason as
+   * `durationSec`: absence is legal, zero never is.
+   */
+  readonly cooldownSec: number | null
 }
 
 /** The next free `aN` attack id. */
@@ -1013,6 +1019,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
       })),
       prepareTimeSec: a.prepareTimeSec ?? 0,
       durationSec: a.durationSec ?? null,
+      cooldownSec: a.cooldownSec ?? null,
     }
   })
 }
@@ -1079,8 +1086,9 @@ export function removeAttack(tree: TreeFile, id: string): MutationResult {
 
 /**
  * Set attack `id`'s kind. Unknown id is a no-op. Switching to `passive` strips
- * any preparation cost/time — the boot-time validator rejects those on passive
- * attacks, so leaving them would make the tree unloadable.
+ * any preparation cost/time, window and cooldown — the boot-time validator
+ * rejects those on passive attacks, so leaving them would make the tree
+ * unloadable.
  */
 export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'passive'): void {
   const attack = tree.attacks.find((a) => a.id === id)
@@ -1090,6 +1098,7 @@ export function setAttackKind(tree: TreeFile, id: string, kind: 'active' | 'pass
     delete attack.prepareCost
     delete attack.prepareTimeSec
     delete attack.durationSec
+    delete attack.cooldownSec
   }
 }
 
@@ -1109,14 +1118,30 @@ export function setAttackPrepareTime(tree: TreeFile, id: string, timeSec: number
  * seconds, or clear it with `null`. Unknown id is a no-op. Only meaningful on an
  * `active` attack carrying an `enemyProductionModifier` / `enemyCostModifier`;
  * the boot-time validator rejects a window on a passive attack, on an all-steal
- * attack, and a non-positive one — so a non-positive value is written as
- * *cleared*, which keeps the tree loadable while the author is mid-edit.
+ * attack, and a non-positive one. `0` is the field's "unset" display, so it
+ * clears like `null`; any other value is written as typed — a negative stays in
+ * the tree so export reports it, as with {@link setAttackPrepareTime}.
  */
 export function setAttackDuration(tree: TreeFile, id: string, durationSec: number | null): void {
   const attack = tree.attacks.find((a) => a.id === id)
   if (!attack) return
-  if (durationSec === null || !(durationSec > 0)) delete attack.durationSec
+  if (durationSec === null || durationSec === 0) delete attack.durationSec
   else attack.durationSec = durationSec
+}
+
+/**
+ * Set how long attack `id` rests after it finishes (its window closes, or the
+ * strike lands) before it can be activated again, in seconds, or clear it with
+ * `null`. Unknown id is a no-op. Only meaningful on an `active` attack; the
+ * boot-time validator rejects a cooldown on a passive attack and a non-positive
+ * one. `0` clears like `null`; anything else is written as typed so a negative
+ * surfaces on export, as with {@link setAttackDuration}.
+ */
+export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: number | null): void {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return
+  if (cooldownSec === null || cooldownSec === 0) delete attack.cooldownSec
+  else attack.cooldownSec = cooldownSec
 }
 
 /**

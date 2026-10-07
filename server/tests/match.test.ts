@@ -1432,6 +1432,9 @@ describe('Match', () => {
     /** The authored preparation delay of an idler attack, in ms, so the tests track the data. */
     const prepareMs = (attackId: string): number =>
       mode.attacks.find((a) => a.id === attackId)!.prepareTimeSec! * 1000
+    /** The authored rest after an idler attack finishes, in ms (`0` when it has none). */
+    const cooldownMs = (attackId: string): number =>
+      (mode.attacks.find((a) => a.id === attackId)!.cooldownSec ?? 0) * 1000
 
     function activateMsg(attackId: string, seq: number) {
       return JSON.stringify({
@@ -1486,6 +1489,8 @@ describe('Match', () => {
 
       m.handleMessage('p1', activateMsg('a0', 3))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
+      // a0 opens no window, so its cooldown starts at the strike; wait it out.
+      vi.advanceTimersByTime(cooldownMs('a0'))
       m.handleMessage('p1', activateMsg('a0', 4))
       vi.advanceTimersByTime(BROADCAST_INTERVAL_MS + prepareMs('a0'))
 
@@ -1685,6 +1690,184 @@ describe('Match', () => {
         // And it still closes on game time afterwards.
         vi.advanceTimersByTime(WINDOW_SEC * 1000)
         expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+      } finally {
+        registerMode('idler', base)
+      }
+    })
+
+    // ── Cooldown ───────────────────────────────────────────────────
+
+    const REST_SEC = 5
+    const FIXTURE_REST = 'fx-rest'
+
+    /**
+     * The window attack with a `REST_SEC` cooldown after its window closes, plus
+     * an upgrade that halves that cooldown.
+     */
+    function withCooldownAttack(): ModeDefinition {
+      const def = withDurationAttack()
+      return {
+        ...def,
+        attacks: def.attacks.map((a) =>
+          a.id === FIXTURE_ATTACK ? { ...a, cooldownSec: REST_SEC } : a,
+        ),
+        upgrades: [
+          ...def.upgrades,
+          {
+            id: FIXTURE_REST,
+            cost: {},
+            purchaseLimit: 1,
+            prerequisites: { type: 'upgrade', id: 'a-unlock' },
+            effects: [
+              {
+                type: 'attackStat',
+                attack: FIXTURE_ATTACK,
+                stat: 'cooldown',
+                op: 'mult',
+                value: 0.5,
+              },
+            ],
+          },
+        ],
+        flavors: def.flavors.map((f) => ({
+          ...f,
+          upgrades: [
+            ...f.upgrades,
+            { id: FIXTURE_REST, name: 'Rest', icon: '🧪', description: '' },
+          ],
+        })),
+      }
+    }
+
+    /** Run `body` with the cooldown fixture registered as the idler. */
+    function withCooldownMode(body: () => void) {
+      const base = getModeDefinition('idler')
+      const patched = withCooldownAttack()
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        body()
+      } finally {
+        registerMode('idler', base)
+      }
+    }
+
+    /** Fire the fixture and advance past the 1s preparation, so the strike has landed. */
+    function strike(m: Match, seq: number) {
+      m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, seq))
+      vi.advanceTimersByTime(1000 + BROADCAST_INTERVAL_MS)
+    }
+
+    it('stamps the cooldown at the strike, lifting REST_SEC after the window closes', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        const player = latestUpdate(ws1).player
+        const window = player.activeDebuffs![0]
+        expect(player.cooldowns).toEqual([
+          { kind: 'attack', id: FIXTURE_ATTACK, untilSec: window.expiresAtSec + REST_SEC },
+        ])
+        // The victim carries nothing: the rest is the attacker's.
+        expect(latestUpdate(ws2).player.cooldowns).toBeUndefined()
+      })
+    })
+
+    it('refuses re-activation during the rest however rich the attacker is, then accepts it', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        // Past the window, inside the rest.
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        expect(latestUpdate(ws1).player.activeDebuffs).toBeUndefined()
+        m.grantResourcesForTest('p1', { r0: 1_000_000 })
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const refused = latestUpdate(ws1)
+        expect(refused.player.pendingAttacks).toHaveLength(0)
+        // Nothing was paid (income only goes up).
+        expect(refused.player.resources.r0).toBeGreaterThanOrEqual(before)
+
+        // Past the rest: swept off the wire, and the attack fires again.
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 5))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.pendingAttacks).toHaveLength(1)
+      })
+    })
+
+    it('freezes the rest while the round is paused', () => {
+      withCooldownMode(() => {
+        const m = enterPlayingVsBot()
+        armWindowAttacker(m)
+        strike(m, 3)
+        vi.advanceTimersByTime(WINDOW_SEC * 1000)
+        const rest = latestUpdate(ws1).player.cooldowns
+        expect(rest).toHaveLength(1)
+
+        m.handleMessage('p1', pauseMsg())
+        vi.advanceTimersByTime(REST_SEC * 10 * 1000)
+        m.handleMessage('p1', unpauseMsg())
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.cooldowns).toEqual(rest)
+
+        vi.advanceTimersByTime(REST_SEC * 1000)
+        expect(latestUpdate(ws1).player.cooldowns).toBeUndefined()
+      })
+    })
+
+    it('freezes the rest against a cooldown upgrade bought mid-rest; the next rest is shorter', () => {
+      withCooldownMode(() => {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        strike(m, 3)
+        const first = latestUpdate(ws1).player.cooldowns![0].untilSec
+        m.handleMessage('p1', buyMsg(FIXTURE_REST, 4))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        expect(latestUpdate(ws1).player.upgrades[FIXTURE_REST]).toBe(1)
+        expect(latestUpdate(ws1).player.cooldowns![0].untilSec).toBe(first)
+
+        // Wait out window + rest, fire again: the new rest is half as long.
+        vi.advanceTimersByTime((WINDOW_SEC + REST_SEC) * 1000)
+        m.grantResourcesForTest('p1', { r0: 100 })
+        strike(m, 5)
+        const player = latestUpdate(ws1).player
+        expect(player.cooldowns![0].untilSec).toBeCloseTo(
+          player.activeDebuffs![0].expiresAtSec + REST_SEC / 2,
+          6,
+        )
+      })
+    })
+
+    it('starts a steal-only attack’s rest at the strike', () => {
+      const base = getModeDefinition('idler')
+      const patched = withFixtureAttack({
+        kind: 'active',
+        prepareCost: { r0: { baseCost: 10 } },
+        prepareTimeSec: 1,
+        cooldownSec: REST_SEC,
+        effects: [{ type: 'stealResource', resource: 'r0', fraction: 0.1 }],
+      })
+      validateModeDefinition('idler', patched)
+      registerMode('idler', patched)
+      try {
+        const m = enterPlaying()
+        armWindowAttacker(m)
+        m.handleMessage('p1', activateMsg(FIXTURE_ATTACK, 3))
+        vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const readyAt = latestUpdate(ws1).player.pendingAttacks[0].readyAtSec
+        vi.advanceTimersByTime(1000)
+        const player = latestUpdate(ws1).player
+        expect(player.activeDebuffs).toBeUndefined()
+        expect(player.cooldowns).toHaveLength(1)
+        // Stamped on the tick the strike landed: no earlier than the ready time,
+        // within one tick of it.
+        const until = player.cooldowns![0].untilSec
+        expect(until - REST_SEC).toBeGreaterThanOrEqual(readyAt)
+        expect(until - REST_SEC).toBeLessThan(readyAt + TICK_INTERVAL_MS / 1000 + 1e-9)
       } finally {
         registerMode('idler', base)
       }

@@ -1074,6 +1074,9 @@ function clonePlayerState(s: Readonly<PlayerState>): PlayerState {
     // Never predicted, only carried: the strike that opens a window lands
     // server-side, so this arrives like any other reconciled field.
     ...(s.activeDebuffs ? { activeDebuffs: [...s.activeDebuffs] } : {}),
+    // Same for cooldowns, which the strike stamps — and a replayed activation
+    // must be refused under the cooldown the server refused it under.
+    ...(s.cooldowns ? { cooldowns: [...s.cooldowns] } : {}),
     meta: structuredClone(s.meta),
   }
 }

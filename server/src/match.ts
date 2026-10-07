@@ -29,8 +29,9 @@ import {
   applyGeneratorSell,
   applyAttackActivation,
   dueAttacks,
-  openDebuffWindows,
+  sweepDebuffWindows,
   resolveAttackStrike,
+  sweepCooldowns,
   hasEnemyDataAccess,
   enemyDataKeysFor,
   ENEMY_DATA_CPS_KEY,
@@ -656,6 +657,7 @@ export class Match {
    * consequence, accepted: `applyPassiveIncome` runs before this in the tick and
    * reads the windows through that same filter, so a window is worth whole
    * ticks at `TICK_INTERVAL_MS` granularity, exactly as `prepareTimeSec` is.
+   * Lifted `cooldowns` are swept the same way, for the same reason.
    */
   private resolveDueAttacks(): void {
     for (let i = 0; i < this.players.length; i++) {
@@ -663,14 +665,8 @@ export class Match {
       const victim = this.players[1 - i]
       const gameSec = (attacker.state.meta.gameSec as number | undefined) ?? 0
 
-      if (attacker.state.activeDebuffs !== undefined) {
-        const open = openDebuffWindows(attacker.state, gameSec)
-        // Absent rather than empty once the last window closes — the same
-        // convention as `incomingCostFactors`, so a quiet round carries nothing.
-        if (open.length === 0) delete attacker.state.activeDebuffs
-        else if (open.length !== attacker.state.activeDebuffs.length)
-          attacker.state.activeDebuffs = open
-      }
+      sweepDebuffWindows(attacker.state, gameSec)
+      sweepCooldowns(attacker.state, gameSec)
 
       const due = dueAttacks(attacker.state, gameSec)
       if (due.length === 0) continue
@@ -1050,11 +1046,13 @@ export class Match {
 
     const [p1, p2] = this.players
     // Discard any attacks still preparing — the round is over, so they never
-    // land — and close any open debuff window with them.
+    // land — and close any open debuff window and cooldown with them.
     p1.state.pendingAttacks = []
     p2.state.pendingAttacks = []
     delete p1.state.activeDebuffs
     delete p2.state.activeDebuffs
+    delete p1.state.cooldowns
+    delete p2.state.cooldowns
     let winnerForP1: MatchWinner
     let winnerForP2: MatchWinner
     if (winnerPlayerIdx !== undefined) {

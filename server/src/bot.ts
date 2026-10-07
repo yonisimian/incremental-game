@@ -374,8 +374,8 @@ export class IdlerBot implements BotStrategy {
    * upgrade plan is exhausted (a bot that raids itself out of its next upgrade
    * regresses), and only if the prepare cost fits what is left in `wallet`
    * after this tick's buys. One activation per tick keeps `decide` bounded;
-   * `attackBlockReason` already refuses a strike that is preparing or whose
-   * window is open, so this never double-fires.
+   * `attackBlockReason` already refuses a strike that is preparing, whose
+   * window is open, or that is cooling down, so this never double-fires.
    */
   private fireAttack(
     state: Readonly<PlayerState>,

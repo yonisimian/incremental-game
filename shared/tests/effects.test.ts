@@ -1123,6 +1123,30 @@ describe('attackStat params', () => {
     ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'duration', op: 'offset', value: 3 })
   })
 
+  it('accepts the cooldown stat, factor and offset alike', () => {
+    for (const [op, value] of [
+      ['mult', 0.5],
+      ['add', -0.2],
+      ['offset', -2],
+    ] as const) {
+      expect(
+        applyEffect({ type: 'attackStat', attack: 'a0', stat: 'cooldown', op, value }, state, mode),
+      ).toEqual({ kind: 'attackStat', attack: 'a0', stat: 'cooldown', op, value })
+    }
+  })
+
+  it('rejects a cooldown stat pointing the wrong way — a longer rest helps nobody', () => {
+    for (const ref of [
+      { stat: 'cooldown', op: 'mult', value: 2 },
+      { stat: 'cooldown', op: 'add', value: 0.2 },
+      { stat: 'cooldown', op: 'offset', value: 1 },
+    ]) {
+      expect(() => applyEffect({ type: 'attackStat', attack: 'a0', ...ref }, state, mode)).toThrow(
+        /cooldown/u,
+      )
+    }
+  })
+
   it('rejects a duration stat pointing the wrong way — a shorter window helps nobody', () => {
     for (const ref of [
       { stat: 'duration', op: 'mult', value: 0.5 },

@@ -11,7 +11,8 @@
  * The cost may charge several resources at once, so it is authored as a list of
  * currency rows (like the upgrade inspector's cost section, minus the per-level
  * scaling — attack costs are always flat). An active attack carrying a debuff
- * effect also needs a duration — how long the strike's window stays open.
+ * effect also needs a duration — how long the strike's window stays open — and
+ * any active attack may set a cooldown: how long it rests after it finishes.
  * `passive` attacks apply their effects continuously and carry no prepare data.
  */
 
@@ -25,6 +26,7 @@ import {
   removeAttack,
   removeAttackPrepareCurrency,
   renameAttack,
+  setAttackCooldown,
   setAttackDuration,
   setAttackEffects,
   setAttackFlavor,
@@ -169,6 +171,16 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
       { step: '0.5' },
     )
     fields.append(labeled('Debuff duration /s', duration))
+    // The rest after the attack finishes. Blank (0) means "no cooldown".
+    const cooldown = numberInput(
+      ctx,
+      row.cooldownSec ?? 0,
+      (n) => {
+        setAttackCooldown(tree, row.id, n)
+      },
+      { step: '0.5' },
+    )
+    fields.append(labeled('Cooldown /s', cooldown))
   }
 
   card.append(fields)

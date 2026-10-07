@@ -422,6 +422,22 @@ describe('Bot', () => {
         ).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
       })
 
+      it('holds while the attack is cooling down, and fires once the rest lifts', () => {
+        const bot = botAtTrophy()
+        bot.decide(stateWith(1500)) // buys the trophy → plan exhausted
+        const resting = {
+          upgrades: { ...armed, trophy: 1 },
+          cooldowns: [{ kind: 'attack' as const, id: 'a0', untilSec: 8 }],
+        }
+        // gameSec 5 < 8: rich enough, still refused.
+        expect(attacksOf(bot.decide(stateWith(5000, resting)))).toEqual([])
+        expect(
+          attacksOf(
+            bot.decide(stateWith(5000, { ...resting, meta: { highlight: 'r0', gameSec: 8 } })),
+          ),
+        ).toEqual([{ type: 'activate_attack', attackId: 'a0' }])
+      })
+
       it('holds while the attack is preparing, unaffordable, or not unlocked', () => {
         const bot = botAtTrophy()
         bot.decide(stateWith(1500)) // buys the trophy → plan exhausted

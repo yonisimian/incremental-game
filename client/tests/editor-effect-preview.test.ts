@@ -67,6 +67,34 @@ describe('describeEffectRef — attackStat', () => {
     ).toBe(`${def.id} debuff duration: 10s → 12s (L1) · 14s (L2)`)
   })
 
+  it('resolves a cooldown stat against the attack’s rest, factor and offset alike', () => {
+    const tree = idler()
+    const def = activeAttack(tree)
+    def.cooldownSec = 20
+    const ref = { type: 'attackStat', attack: def.id, stat: 'cooldown' } as const
+    expect(describeEffectRef(tree, { ...ref, op: 'mult', value: 0.5 })).toBe(
+      `${def.id} cooldown: 20s → 10s (L1) · 5s (L2)`,
+    )
+    expect(describeEffectRef(tree, { ...ref, op: 'offset', value: -3 })).toBe(
+      `${def.id} cooldown: 20s → 17s (L1) · 14s (L2)`,
+    )
+  })
+
+  it('reports a cooldown stat’s shape when the attack authors no cooldown', () => {
+    const tree = idler()
+    const def = activeAttack(tree)
+    delete def.cooldownSec
+    expect(
+      describeEffectRef(tree, {
+        type: 'attackStat',
+        attack: def.id,
+        stat: 'cooldown',
+        op: 'offset',
+        value: -3,
+      }),
+    ).toBe(`${def.id} cooldown: -3s (L1) · -6s (L2)`)
+  })
+
   it('shows an add for the multiplier it is, not the seconds it looks like', () => {
     const tree = idler()
     const def = activeAttack(tree)
