@@ -18,8 +18,16 @@ import type { Modifier } from './modifiers/types.js'
 import { readGameSec } from './game-clock.js'
 import { isPactUnlocked, unlockedPacts } from './modes/index.js'
 import type { ModeDefinition } from './modes/types.js'
+import { makeSlotBudget } from './slots.js'
 import { isCostAffordable } from './upgrade-costs.js'
-import type { ActivePact, PactCostFactor, PactDefinition, PlayerState } from './types.js'
+import type {
+  ActivePact,
+  PactCostFactor,
+  PactDefinition,
+  PactKind,
+  PlayerState,
+  UpgradeDefinition,
+} from './types.js'
 
 export type { PartnerSnapshot } from './effects/enemy-stats.js'
 
@@ -459,4 +467,67 @@ export function applyPactActivation(
   state.activePacts = [...others, { pact: pactId, expiresAtSec }]
   if (def.cooldownSec !== undefined)
     startCooldown(state, 'pact', pactId, expiresAtSec + def.cooldownSec)
+}
+
+// ─── Pact slots ──────────────────────────────────────────────────────
+//
+// The pact twin of the attack budget: how many pacts of each kind a player
+// can *hold*. Unlocking stays derived and monotonic; the cap refuses the
+// *purchase* that would exceed it. The algorithm lives in `slots.ts`, shared
+// with `attacks.ts`; this is the pact system's description of itself, and the
+// rules under their own names.
+
+const pactSlots = makeSlotBudget<PactKind>({
+  grantType: 'pactSlots',
+  readGrant: (out) =>
+    'kind' in out && out.kind === 'pactSlots' ? { kind: out.pactKind, value: out.value } : null,
+  unlockType: 'unlockPact',
+  readUnlock: (out) => ('kind' in out && out.kind === 'pactUnlock' ? out.pact : null),
+  entities: (mode) => mode.pacts,
+  isUnlocked: (state, mode, id) => isPactUnlocked(state, mode, id),
+  unlocked: (state, mode) => unlockedPacts(state, mode),
+})
+
+/** Whether the mode caps how many pacts of `kind` a player may hold. */
+export function isPactKindCapped(mode: ModeDefinition, kind: PactKind): boolean {
+  return pactSlots.isCapped(mode, kind)
+}
+
+/**
+ * How many pacts of `kind` this player may hold: the mode's base grant plus
+ * `value × owned` for every owned `pactSlots` upgrade naming the kind.
+ * `Infinity` for a kind the mode never caps.
+ */
+export function pactLimit(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  kind: PactKind,
+): number {
+  return pactSlots.limit(state, mode, kind)
+}
+
+/**
+ * How many pacts of `kind` this player holds — the unlocked pacts of the kind.
+ * Counts *pacts*, not unlock routes (see `SlotBudget.held`).
+ */
+export function pactSlotsHeld(
+  state: Readonly<PlayerState>,
+  mode: ModeDefinition,
+  kind: PactKind,
+): number {
+  return pactSlots.held(state, mode, kind)
+}
+
+/**
+ * Whether buying one more level of `def` fits the player's pact budget —
+ * all-or-nothing over the pacts it would newly unlock, counting any slots it
+ * grants itself (see `SlotBudget.hasSlotsFor`). An upgrade with no `unlockPact`
+ * effect is never blocked here.
+ */
+export function hasPactSlotsFor(
+  state: Readonly<PlayerState>,
+  def: UpgradeDefinition,
+  mode: ModeDefinition,
+): boolean {
+  return pactSlots.hasSlotsFor(state, def, mode)
 }

@@ -31,6 +31,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
+import { renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -214,19 +215,17 @@ function renderPassiveAttack(
   `
 }
 
-/**
- * The `held / limit` slots line for one kind's heading — `Active 2 / 3` — or
- * nothing when the mode never caps that kind. Reads as a loadout
- * rather than an inventory: the player can see how many commitments remain.
- */
+/** The `held / limit` badge for one kind's heading, or nothing for an uncapped kind. */
 function renderSlots(
   state: Readonly<GameState>,
   modeDef: ModeDefinition,
   kind: AttackKind,
 ): string {
-  const limit = attackLimit(state.player, modeDef, kind)
-  if (!Number.isFinite(limit)) return ''
-  return ` <span class="attack-slots">${attackSlotsHeld(state.player, modeDef, kind)} / ${limit}</span>`
+  return renderSlotsBadge(
+    attackSlotsHeld(state.player, modeDef, kind),
+    attackLimit(state.player, modeDef, kind),
+    'attack-slots',
+  )
 }
 
 function renderSection(heading: string, slots: string, items: string): string {

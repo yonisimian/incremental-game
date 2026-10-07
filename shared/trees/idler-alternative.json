@@ -36,6 +36,11 @@
       "type": "attackSlots",
       "attackKind": "passive",
       "value": 4
+    },
+    {
+      "type": "pactSlots",
+      "pactKind": "passive",
+      "value": 2
     }
   ],
   "generators": [

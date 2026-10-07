@@ -2,7 +2,7 @@ import type { ZodType } from 'zod'
 
 import type { Modifier } from '../modifiers/types.js'
 import type { ModeDefinition } from '../modes/types.js'
-import type { AttackKind, CostScope, PlayerState, PurchaseTarget } from '../types.js'
+import type { AttackKind, CostScope, PactKind, PlayerState, PurchaseTarget } from '../types.js'
 // Type-only (erased at runtime), so naming the seed here can't create an import
 // cycle — and the schema's enum stays the single source of truth for both.
 import type { BatteryStat, BatteryStatOp } from './seed/battery-stat.js'
@@ -161,6 +161,21 @@ export interface PactUnlockOutput {
   readonly kind: 'pactUnlock'
   /** Stable pact id this upgrade reveals. */
   readonly pact: string
+}
+
+/**
+ * Grants pact slots — room to hold pacts of one kind — the pact twin of
+ * {@link AttackSlotsOutput}. Emitted by the `pactSlots` effect and consumed by
+ * `pactLimit`; `hasPactSlotsFor` refuses a purchase that would unlock more
+ * pacts of the kind than the budget allows (`'pact-slots'`). A kind no
+ * `pactSlots` output names is uncapped.
+ */
+export interface PactSlotsOutput {
+  readonly kind: 'pactSlots'
+  /** Which kind of pact this budget covers. */
+  readonly pactKind: PactKind
+  /** Slots granted, per owned level. */
+  readonly value: number
 }
 
 /**
@@ -496,6 +511,7 @@ export type EffectOutput =
   | AttackSlotsOutput
   | AttackAlertOutput
   | PactUnlockOutput
+  | PactSlotsOutput
   | EnemyDataAccessOutput
   | EnemyModifierOutput
   | EnemyCostOutput

@@ -86,6 +86,7 @@ describe('effect registry', () => {
       'mirrorCostModifier',
       'mirrorStatModifier',
       'pactProductionModifier',
+      'pactSlots',
       'panelUnlock',
       'partnerAutoClick',
       'relativeModifier',
@@ -829,6 +830,39 @@ describe('partnerAutoClick params', () => {
     expect(isEffectAllowedOn('partnerAutoClick', 'passivePact')).toBe(false)
     expect(isEffectAllowedOn('partnerAutoClick', 'upgrade')).toBe(false)
     expect(isPartnerDirectedEffect('partnerAutoClick')).toBe(true)
+  })
+})
+
+// ─── pactSlots ───────────────────────────────────────────────────────
+
+describe('pactSlots params', () => {
+  function apply(ref: EffectRef): unknown {
+    const mode = getModeDefinition('idler')
+    return applyEffect(ref, createInitialState(mode), mode)
+  }
+
+  it('echoes the grant as a pactSlots output', () => {
+    expect(apply({ type: 'pactSlots', pactKind: 'passive', value: 2 })).toEqual({
+      kind: 'pactSlots',
+      pactKind: 'passive',
+      value: 2,
+    })
+  })
+
+  it('rejects a non-positive or fractional grant, and an unknown kind', () => {
+    for (const bad of [
+      { pactKind: 'passive', value: 0 },
+      { pactKind: 'passive', value: 1.5 },
+      { pactKind: 'both', value: 1 },
+    ]) {
+      expect(() => apply({ type: 'pactSlots', ...bad })).toThrow()
+    }
+  })
+
+  it('lives on the mode and upgrades', () => {
+    expect(isEffectAllowedOn('pactSlots', 'mode')).toBe(true)
+    expect(isEffectAllowedOn('pactSlots', 'upgrade')).toBe(true)
+    expect(isEffectAllowedOn('pactSlots', 'passivePact')).toBe(false)
   })
 })
 
