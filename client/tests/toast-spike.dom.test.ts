@@ -3,10 +3,9 @@
 /**
  * Pins down what the happy-dom environment gives us for the toast/VFX code.
  *
- * Finding: happy-dom does **not** implement `Element.animate`. The toast code
- * both calls it and wires slot removal to its `onfinish`, so the environment
- * alone can't run it. The harness installs a minimal `animate` shim that fires
- * `onfinish` via `setTimeout(duration)`; combined with Vitest fake timers, a
+ * The toast code wires slot removal to `animate`'s `onfinish`. The harness
+ * replaces `Element.animate` with a minimal shim that fires `onfinish` via
+ * `setTimeout(duration)`; combined with Vitest fake timers, a
  * single clock advance completes both the dismiss timer and the exit animation,
  * making removal deterministic with no bespoke flush. These tests are that
  * proof; the other DOM tests rely on the mechanism.
@@ -17,12 +16,6 @@ import { spawnToast } from '../src/ui/vfx/toast.js'
 import { installAnimateShim, mountToastLayer, resetDom } from './dom-harness.js'
 
 describe('happy-dom capability spike', () => {
-  it('confirms happy-dom ships no native Element.animate', () => {
-    // Documents *why* the shim exists — if a future happy-dom adds animate, this
-    // flips and we can reconsider the shim.
-    expect(typeof document.createElement('div').animate).toBe('undefined')
-  })
-
   describe('with the harness animate shim', () => {
     beforeEach(() => {
       vi.useFakeTimers()
