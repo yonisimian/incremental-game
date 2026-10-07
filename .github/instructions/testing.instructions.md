@@ -75,7 +75,7 @@ client/server boundary?**
   `*.dom.test.ts`. No config split — one `pnpm --filter client test` runs
   everything. The DOM-free guard case (asserting `hasDom()` no-ops) stays a
   **node** file (no docblock).
-- happy-dom ships **no** `Element.animate`. Use `installAnimateShim()` from
+- Don't rely on happy-dom's `Element.animate`. Use `installAnimateShim()` from
   [client/tests/dom-harness.ts](../../client/tests/dom-harness.ts): it fires
   `onfinish` via `setTimeout(duration)`, so with `vi.useFakeTimers()` a single
   `vi.advanceTimersByTime()` drives both the code's own dismiss timer and the

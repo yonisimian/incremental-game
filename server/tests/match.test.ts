@@ -2068,8 +2068,9 @@ describe('Match', () => {
 
           // ~5.5s remain: still outside even the extended lead.
           expect(latestUpdate(ws2).opponent.incomingAttacks).toBeUndefined()
-          // One more broadcast: ~5.0s remain, inside a 5s lead but not a 4s one.
-          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+          // A second on: inside a 5s lead but not a 4s one. Not the exact 5.0s edge —
+          // a tick and a broadcast due together fire in no guaranteed order.
+          vi.advanceTimersByTime(BROADCAST_INTERVAL_MS * 2)
           expect(latestUpdate(ws2).opponent.incomingAttacks).toEqual([{ readyAtSec, attack: 'a0' }])
         } finally {
           registerMode('idler', base)
