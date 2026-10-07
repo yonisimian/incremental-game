@@ -2699,8 +2699,24 @@ describe('Match', () => {
         const plain = clickWorth(4)
         expect(plain).toBeGreaterThan(0)
 
-        m.handleMessage('p1', activatePactMsg('p3', 5))
+        // A click in the activation's own batch is already doubled.
+        const passive = incomeOver(ws1)
+        const before = latestUpdate(ws1).player.resources.r0
+        m.handleMessage(
+          'p1',
+          JSON.stringify({
+            type: 'ACTION_BATCH',
+            seq: 5,
+            actions: [
+              { type: 'activate_pact', timestamp: Date.now(), pactId: 'p3' },
+              { type: 'click', timestamp: Date.now() },
+            ],
+          }),
+        )
         vi.advanceTimersByTime(BROADCAST_INTERVAL_MS)
+        const activationCost = 10
+        const sameBatch = latestUpdate(ws1).player.resources.r0 - before - passive + activationCost
+        expect(sameBatch).toBeCloseTo(plain * 2, 6)
         expect(clickWorth(6)).toBeCloseTo(plain * 2, 6)
         // The partner's clicks are untouched: the pact is one-sided.
         expect(latestUpdate(ws2).pactBonuses ?? []).toEqual([])

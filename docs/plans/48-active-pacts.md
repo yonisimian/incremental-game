@@ -42,8 +42,18 @@ Review follow-ups (PR #167), one commit each:
   instead of writing a tree the boot validator rejects.
 - The pact-by-id map is cached per mode definition (WeakMap, as `flavor.ts`
   does), and the opponent view computes `sharedPactWindows` once per viewer.
-- The prediction gap in §4 (clicks between the activation and the next
-  snapshot predicted without the ×2) stands as accepted.
+- The opening side of the prediction gap in §4 (clicks between the activation
+  and the next snapshot predicted without the ×2) stands as accepted; it only
+  ever corrects upward. Two follow-ups close the rest of it:
+  - **Clicks in the activation's own batch are paid the ×2.** Clicks read the
+    bonuses cached by the last tick, so the server re-runs `syncPactBonuses`
+    right after a successful `activate_pact`.
+  - **The close side corrects upward too.** The client stopped seeing the
+    window close until the next snapshot, so it over-predicted the last
+    clicks and the snapshot took score back. `externalModifiers` now drops a
+    window's bonus once the snapshot's `gameSec`, advanced by real time, is
+    within `PACT_CLOSE_MARGIN_SEC` (0.5 s: a batch plus a round trip) of every
+    open window of that pact closing.
 
 The buildable cut of [44 — active pacts](44-active-pacts.md), on top of
 [47 — attack cooldown](47-attack-cooldown.md) (whose `PlayerState.cooldowns`
@@ -212,7 +222,7 @@ Prediction gap, accepted: the window is predicted but `pactBonuses` is
 server-resolved, so clicks between the activation and the next snapshot are
 predicted without the ×2 and corrected by that snapshot. One broadcast at
 most; the alternative (a client-side resolver for own-window flat buffs) is a
-second source of truth.
+second source of truth. (As built, the close side is handled too — see Status.)
 
 ### 5. Effect: `partnerAutoClick` → output `partnerAutoClick` (new)
 

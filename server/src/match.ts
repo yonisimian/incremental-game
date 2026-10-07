@@ -526,6 +526,8 @@ export class Match {
       } else if (action.type === 'activate_pact' && action.pactId) {
         if (!isValidPactActivation(player.state, action.pactId, this.modeDef)) continue
         applyPactActivation(player.state, action.pactId, this.modeDef)
+        // So the clicks after it in this batch are paid at the window's rate, not the last tick's.
+        this.syncPactBonuses()
       }
     }
     player.ackSeq = seq
