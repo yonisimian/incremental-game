@@ -168,27 +168,48 @@ interface SlotBudgetedSystem {
   /** The grant effect's ref type and the param naming the kind. */
   readonly grantType: string
   readonly kindField: string
-  /** The mode's entities by id — only their `kind` is read. */
-  readonly kindOf: ReadonlyMap<string, { readonly kind: string }>
+  /** The mode's entities by id — only their `kind` and `slotCost` are read. */
+  readonly entities: ReadonlyMap<
+    string,
+    { readonly id: string; readonly kind: string; readonly slotCost?: number }
+  >
 }
 
 /**
- * Throws when the mode's starting effects unlock more entities of a capped
- * kind than its base grant has slots for: the round would open over budget,
- * which no purchase can repair. A kind no grant names (on the mode or on any
- * upgrade, owned or not) is uncapped and needs no check.
+ * The slot-budget rules a mode must satisfy at boot, for one system:
+ *
+ * - `slotCost` is a positive whole number of slots (the schema covers the
+ *   file path; this covers a programmatically built mode);
+ * - the mode's starting effects must not unlock more slots of a capped kind
+ *   than its base grant has — the round would open over budget, which no
+ *   purchase can repair;
+ * - every entity of a capped kind must fit the greatest limit a player could
+ *   ever reach (the base plus every grant bought to its purchase limit), or
+ *   it can never be held.
+ *
+ * A kind no grant names (on the mode or on any upgrade, owned or not) is
+ * uncapped and needs no check.
  */
 function checkStartingSlotBudget(
   id: string,
   def: ModeDefinition,
   system: SlotBudgetedSystem,
 ): void {
+  for (const entity of system.entities.values()) {
+    const cost = entity.slotCost
+    if (cost !== undefined && !(Number.isInteger(cost) && cost > 0))
+      throw new Error(
+        `[${id}] ${system.noun} '${entity.id}' has slotCost ${cost} — it must be a positive whole number of slots`,
+      )
+  }
+  // Slots the starting unlocks of each kind fill, each entity charged once
+  // however many refs name it.
   const startingUnlocks = new Map<string, Set<string>>()
   for (const ref of def.effects ?? []) {
     if (ref.type !== system.unlockType) continue
     const target = ref[system.idField]
     if (typeof target !== 'string') continue
-    const entity = system.kindOf.get(target)
+    const entity = system.entities.get(target)
     if (!entity) continue // an unknown entity fills no slot; the reference check reports it
     let ids = startingUnlocks.get(entity.kind)
     if (!ids) {
@@ -198,28 +219,79 @@ function checkStartingSlotBudget(
     ids.add(target)
   }
   const cappedKinds = new Set<string>()
-  const baseSlots = new Map<string, number>()
-  const noteGrant = (ref: EffectRef, fromMode: boolean): void => {
-    if (ref.type !== system.grantType) return
-    const kind = ref[system.kindField]
-    if (kind !== 'active' && kind !== 'passive') return // the schema's to reject
-    cappedKinds.add(kind)
-    if (fromMode && typeof ref.value === 'number')
-      baseSlots.set(kind, (baseSlots.get(kind) ?? 0) + ref.value)
+  const add = (into: Map<string, number>, kind: string, value: number): void => {
+    into.set(kind, (into.get(kind) ?? 0) + value)
   }
-  for (const ref of def.effects ?? []) noteGrant(ref, true)
-  for (const u of def.upgrades) for (const ref of u.effects ?? []) noteGrant(ref, false)
+  /** Slots `refs` grant per kind at `levels` levels; notes every kind they name as capped. */
+  const grantsOf = (
+    refs: readonly EffectRef[] | undefined,
+    levels: number,
+  ): Map<string, number> => {
+    const grants = new Map<string, number>()
+    for (const ref of refs ?? []) {
+      if (ref.type !== system.grantType) continue
+      const kind = ref[system.kindField]
+      if (kind !== 'active' && kind !== 'passive') continue // the schema's to reject
+      cappedKinds.add(kind)
+      if (typeof ref.value === 'number') add(grants, kind, ref.value * levels)
+    }
+    return grants
+  }
+  const baseSlots = grantsOf(def.effects, 1)
+  // The greatest limit a player could ever reach: the base plus every grant a
+  // player can actually own, bought to its purchase limit (infinite when any
+  // is unlimited). A `comingSoon` node is never bought, so it grants nothing;
+  // within a choice group only one node is ever owned, so a group contributes
+  // its single most generous member per kind, not the sum. Prerequisites are
+  // not walked — a raise gated behind a node nobody can own still counts — so
+  // the bound is an upper estimate: it never rejects a valid mode, and may let
+  // a dead entity through a gate this check does not see.
+  const reachableSlots = new Map(baseSlots)
+  const bestInGroup = new Map<string, Map<string, number>>()
+  for (const u of def.upgrades) {
+    if (u.comingSoon) {
+      grantsOf(u.effects, 0) // still caps the kinds it names
+      continue
+    }
+    const grants = grantsOf(u.effects, u.purchaseLimit)
+    if (u.choiceGroup === undefined) {
+      for (const [kind, value] of grants) add(reachableSlots, kind, value)
+      continue
+    }
+    let best = bestInGroup.get(u.choiceGroup)
+    if (!best) {
+      best = new Map()
+      bestInGroup.set(u.choiceGroup, best)
+    }
+    for (const [kind, value] of grants) best.set(kind, Math.max(best.get(kind) ?? 0, value))
+  }
+  for (const best of bestInGroup.values())
+    for (const [kind, value] of best) add(reachableSlots, kind, value)
   for (const kind of cappedKinds) {
-    const held = startingUnlocks.get(kind)?.size ?? 0
+    let held = 0
+    for (const target of startingUnlocks.get(kind) ?? [])
+      held += system.entities.get(target)?.slotCost ?? 1
     const base = baseSlots.get(kind) ?? 0
     if (held > base)
       throw new Error(
-        `[${id}] the mode's starting effects unlock ${held} ${kind} ${system.noun}(s) but grant only ${base} ${kind} ${system.noun} slot(s) — the round would open over budget, which no purchase can repair`,
+        `[${id}] the mode's starting effects unlock ${held} slot(s) of ${kind} ${system.noun}s but grant only ${base} ${kind} ${system.noun} slot(s) — the round would open over budget, which no purchase can repair`,
       )
+    // Unlocks are monotonic, so the starting unlocks fill their slots for the
+    // whole round: every other entity has to fit beside them.
+    const reachable = reachableSlots.get(kind) ?? 0
+    const starting = startingUnlocks.get(kind)
+    for (const entity of system.entities.values()) {
+      if (entity.kind !== kind || starting?.has(entity.id)) continue
+      const cost = entity.slotCost ?? 1
+      if (held + cost > reachable)
+        throw new Error(
+          `[${id}] ${kind} ${system.noun} '${entity.id}' takes ${cost} slot(s) but at most ${reachable} ${kind} ${system.noun} slot(s) can ever be granted${held > 0 ? `, ${held} of them filled by the starting unlocks` : ''} — it can never be held`,
+        )
+    }
   }
 }
 
-/** Validate that flavor ↔ mechanics agree. Called once per mode at startup. */
+/** Validate a mode's mechanics and flavor. Called once per mode at startup. */
 export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // At least one flavor (also enforced by the schema), with unique ids so a
   // selector can address them and `getModeFlavor` resolves deterministically.
@@ -414,19 +486,21 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
 
   // `attackSlots` / `pactSlots`: a kind is capped once any grant names it,
   // and the base budget is whatever the mode's own starting effects grant.
-  // Starting effects can also *unlock* attacks or pacts, each of which fills a
-  // slot — so a mode whose starting unlocks of a kind outnumber its base cap
-  // would open the round already over budget, in a state the purchase gate can
-  // never repair. Judged by ref fields, as every check here is: the validator
-  // sees refs, not outputs. A kind no grant names is uncapped and needs no
-  // check; capping one kind but not the other is legal.
+  // Starting effects can also *unlock* attacks or pacts, each of which fills
+  // its `slotCost` in slots — so a mode whose starting unlocks of a kind
+  // outweigh its base cap would open the round already over budget, in a
+  // state the purchase gate can never repair; and an entity heavier than any
+  // limit a player could ever reach is never held. Judged by ref fields, as
+  // every check here is: the validator sees refs, not outputs. A kind no grant
+  // names is uncapped and needs no check; capping one kind but not the other
+  // is legal.
   checkStartingSlotBudget(id, def, {
     noun: 'attack',
     unlockType: 'unlockAttack',
     idField: 'attack',
     grantType: 'attackSlots',
     kindField: 'attackKind',
-    kindOf: attacksById,
+    entities: attacksById,
   })
   checkStartingSlotBudget(id, def, {
     noun: 'pact',
@@ -434,7 +508,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     idField: 'pact',
     grantType: 'pactSlots',
     kindField: 'pactKind',
-    kindOf: new Map(def.pacts.map((p) => [p.id, p])),
+    entities: new Map(def.pacts.map((p) => [p.id, p])),
   })
 
   // `attackAlert`: a reveal grant shows the *name* on a warning, so a

@@ -99,6 +99,7 @@ const AttackSchema = z.strictObject({
   prepareTimeSec: z.number().min(0).optional(),
   durationSec: z.number().positive().optional(),
   cooldownSec: z.number().positive().optional(),
+  slotCost: z.number().int().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 
@@ -117,6 +118,7 @@ const PactSchema = z.strictObject({
   activationCost: CostSchema.optional(),
   durationSec: z.number().positive().optional(),
   cooldownSec: z.number().positive().optional(),
+  slotCost: z.number().int().positive().optional(),
   effects: z.array(EffectRefSchema).optional(),
 })
 

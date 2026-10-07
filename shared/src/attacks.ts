@@ -650,8 +650,9 @@ export function attackLimit(
 }
 
 /**
- * How many attacks of `kind` this player holds — the unlocked attacks, filtered
- * by kind. Counts *attacks*, not unlock upgrades (see `SlotBudget.held`).
+ * How many slots of `kind` this player's held attacks fill — the unlocked
+ * attacks of the kind, each weighted by its `slotCostOf`. Counts
+ * *attacks*, not unlock upgrades (see `SlotBudget.held`).
  */
 export function attackSlotsHeld(
   state: Readonly<PlayerState>,

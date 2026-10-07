@@ -507,8 +507,9 @@ export function pactLimit(
 }
 
 /**
- * How many pacts of `kind` this player holds — the unlocked pacts of the kind.
- * Counts *pacts*, not unlock routes (see `SlotBudget.held`).
+ * How many slots of `kind` this player's held pacts fill — the unlocked pacts
+ * of the kind, each weighted by its `slotCostOf`. Counts *pacts*, not
+ * unlock routes (see `SlotBudget.held`).
  */
 export function pactSlotsHeld(
   state: Readonly<PlayerState>,

@@ -182,6 +182,12 @@ export interface AttackDefinition {
    */
   readonly cooldownSec?: number
   /**
+   * Slots of its kind's budget (`attackSlots`) this takes while held — a strong
+   * one can cost several. Positive integer; absent means `1`. Inert when the
+   * mode does not cap the kind.
+   */
+  readonly slotCost?: number
+  /**
    * Offensive effects this attack carries. Each ref names a registered effect
    * plus its params. On a *passive* attack an `enemyModifier`-emitting effect
    * applies continuously to the opponent; on an *active* attack a
@@ -242,6 +248,12 @@ export interface PactDefinition {
    * only; optional.
    */
   readonly cooldownSec?: number
+  /**
+   * Slots of its kind's budget (`pactSlots`) this takes while held — a strong
+   * one can cost several. Positive integer; absent means `1`. Inert when the
+   * mode does not cap the kind.
+   */
+  readonly slotCost?: number
 }
 
 /** Full state of a single player within a match. */

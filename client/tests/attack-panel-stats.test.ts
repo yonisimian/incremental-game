@@ -335,3 +335,38 @@ describe('attackPanel — cooldown status', () => {
     }
   })
 })
+
+describe('attackPanel — slot cost badge', () => {
+  it('shows ◼ N for a weighted attack of a capped kind, and nothing at weight 1', () => {
+    expect(renderHtml(makeState(a0Cost))).not.toContain('slot-cost')
+    registerMode('idler', {
+      ...modeDef,
+      attacks: modeDef.attacks.map((a) => (a.id === 'a0' ? { ...a, slotCost: 2 } : a)),
+    })
+    try {
+      // The idler caps active attacks, so the weight shows.
+      expect(renderHtml(makeState(a0Cost))).toContain(
+        '<span class="slot-cost" title="Takes 2 active slots">◼ 2</span>',
+      )
+    } finally {
+      registerMode('idler', modeDef)
+    }
+  })
+
+  it('hides the weight when the mode does not cap the kind', () => {
+    registerMode('idler', {
+      ...modeDef,
+      effects: (modeDef.effects ?? []).filter((e) => e.type !== 'attackSlots'),
+      upgrades: modeDef.upgrades.map((u) => ({
+        ...u,
+        effects: u.effects?.filter((e) => e.type !== 'attackSlots'),
+      })),
+      attacks: modeDef.attacks.map((a) => (a.id === 'a0' ? { ...a, slotCost: 2 } : a)),
+    })
+    try {
+      expect(renderHtml(makeState(a0Cost))).not.toContain('slot-cost')
+    } finally {
+      registerMode('idler', modeDef)
+    }
+  })
+})

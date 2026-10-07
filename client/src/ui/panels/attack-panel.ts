@@ -5,6 +5,7 @@ import {
   activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
+  slotCostOf,
   attackSlotsHeld,
   collectAttackParams,
   cooldownUntilSec,
@@ -18,6 +19,7 @@ import {
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
+  isAttackKindCapped,
   readGameSec,
   unlockedAttacks,
 } from '@game/shared'
@@ -31,7 +33,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
-import { renderSlotsBadge } from '../components.js'
+import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -120,6 +122,11 @@ function renderStats(def: AttackDefinition, params: AttackParams): string {
   return `<span class="attack-stats">${parts.join(' · ')}</span>`
 }
 
+/** The attack's slot-cost badge (see `renderSlotCostBadge`). */
+function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string {
+  return renderSlotCostBadge(slotCostOf(def), def.kind, isAttackKindCapped(modeDef, def.kind))
+}
+
 /** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
 function pendingReadyAt(state: Readonly<GameState>, id: string): number | null {
   return state.player.pendingAttacks.find((p) => p.attack === id)?.readyAtSec ?? null
@@ -179,7 +186,7 @@ function renderActiveAttack(
     <li class="attack-item" data-attack="${id}">
       <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${status}
         ${renderStats(def, params)}
@@ -207,7 +214,7 @@ function renderPassiveAttack(
     <li class="attack-item">
       <button class="attack-btn" type="button" disabled>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
-        <span class="attack-name">${getAttackName(flavor, id)}</span>
+        <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}
         ${renderStats(def, collectAttackParams(state.player, modeDef, id))}
       </button>

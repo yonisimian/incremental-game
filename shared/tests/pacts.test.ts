@@ -785,6 +785,18 @@ describe('pact slots', () => {
     expect(hasPactSlotsFor(full, byId('route-research'), capped)).toBe(true)
   })
 
+  it('weighs held pacts and new unlocks by slot cost', () => {
+    const heavy: ModeDefinition = {
+      ...capped,
+      pacts: capped.pacts.map((p) => (p.id === 'p-empty' ? { ...p, slotCost: 2 } : p)),
+    }
+    const oneHeld = player({ signed: ['p-research'] })
+    // One of two slots held; p-empty weighs 2.
+    expect(hasPactSlotsFor(oneHeld, byId('sign-p-empty'), heavy)).toBe(false)
+    expect(hasPactSlotsFor(player(), byId('sign-p-empty'), heavy)).toBe(true)
+    expect(pactSlotsHeld(player({ signed: ['p-empty'] }), heavy, 'passive')).toBe(2)
+  })
+
   it('lets one purchase unlock a pact and grant the slot it fills', () => {
     const full = player({ signed: ['p-research', 'p-trade'] })
     expect(hasPactSlotsFor(full, byId('unlock-and-raise'), capped)).toBe(true)

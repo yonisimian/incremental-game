@@ -1007,6 +1007,22 @@ export interface AttackRow {
    * `durationSec`: absence is legal, zero never is.
    */
   readonly cooldownSec: number | null
+  /** Slots of its kind's budget this attack takes while held (1 when unset). */
+  readonly slotCost: number
+}
+
+/**
+ * The value written for an authored slot cost: a whole number above 1, or
+ * `undefined` (absent) for the default of 1 so the file stays minimal.
+ * Anything else — below 1, or fractional — is refused: the schema requires a
+ * positive count, and silently writing a nearby value would hide the slip.
+ */
+function normalizeSlotCost(
+  slotCost: number,
+): { ok: true; value: number | undefined } | { ok: false; reason: string } {
+  if (!Number.isInteger(slotCost) || slotCost < 1)
+    return { ok: false, reason: `slot cost must be a positive whole number (got ${slotCost})` }
+  return { ok: true, value: slotCost > 1 ? slotCost : undefined }
 }
 
 /** The next free `aN` attack id. */
@@ -1035,6 +1051,7 @@ export function listAttacks(tree: TreeFile): AttackRow[] {
       prepareTimeSec: a.prepareTimeSec ?? 0,
       durationSec: a.durationSec ?? null,
       cooldownSec: a.cooldownSec ?? null,
+      slotCost: a.slotCost ?? 1,
     }
   })
 }
@@ -1157,6 +1174,21 @@ export function setAttackCooldown(tree: TreeFile, id: string, cooldownSec: numbe
   if (!attack) return
   if (cooldownSec === null || cooldownSec === 0) delete attack.cooldownSec
   else attack.cooldownSec = cooldownSec
+}
+
+/**
+ * Set how many slots of its kind's budget attack `id` takes, a whole number;
+ * `1` is written as absent (the default). Refuses a value below 1 or a
+ * fraction, leaving the attack as it was. Unknown id is a no-op.
+ */
+export function setAttackSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
+  const attack = tree.attacks.find((a) => a.id === id)
+  if (!attack) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete attack.slotCost
+  else attack.slotCost = result.value
+  return { ok: true }
 }
 
 /**
@@ -1286,6 +1318,8 @@ export interface PactRow {
   readonly durationSec: number | null
   /** Seconds the pact rests after its window closes, or `null` when unset. */
   readonly cooldownSec: number | null
+  /** Slots of its kind's budget this pact takes while held (1 when unset). */
+  readonly slotCost: number
 }
 
 /** The next free `pN` pact id. */
@@ -1314,6 +1348,7 @@ export function listPacts(tree: TreeFile): PactRow[] {
       })),
       durationSec: p.durationSec ?? null,
       cooldownSec: p.cooldownSec ?? null,
+      slotCost: p.slotCost ?? 1,
     }
   })
 }
@@ -1432,6 +1467,20 @@ export function setPactCooldown(tree: TreeFile, id: string, cooldownSec: number 
   if (!pact) return
   if (cooldownSec === null || !(cooldownSec > 0)) delete pact.cooldownSec
   else pact.cooldownSec = cooldownSec
+}
+
+/**
+ * Set how many slots of its kind's budget pact `id` takes — the rules of
+ * {@link setAttackSlotCost}: whole, `1` written as absent, the rest refused.
+ */
+export function setPactSlotCost(tree: TreeFile, id: string, slotCost: number): MutationResult {
+  const pact = tree.pacts.find((p) => p.id === id)
+  if (!pact) return { ok: true }
+  const result = normalizeSlotCost(slotCost)
+  if (!result.ok) return result
+  if (result.value === undefined) delete pact.slotCost
+  else pact.slotCost = result.value
+  return { ok: true }
 }
 
 /**

@@ -13,7 +13,9 @@ import {
   getResourceIcon,
   pactAutoClicksPerSec,
   pactBlockReason,
+  isPactKindCapped,
   pactLimit,
+  slotCostOf,
   pactSlotsHeld,
   readGameSec,
   unlockedPacts,
@@ -28,7 +30,7 @@ import type {
 } from '@game/shared'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
-import { renderSlotsBadge } from '../components.js'
+import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -94,6 +96,11 @@ function discountLines(state: Readonly<GameState>, pactId: string): string {
   return lines.join('')
 }
 
+/** The pact's slot-cost badge (see `renderSlotCostBadge`). */
+function renderSlotCost(modeDef: ModeDefinition, pact: PactDefinition): string {
+  return renderSlotCostBadge(slotCostOf(pact), pact.kind, isPactKindCapped(modeDef, pact.kind))
+}
+
 /**
  * One pact card: flavor, a mutual badge, and what the treaty is worth right
  * now — the resolved bonuses the server sent for it, plus any discount stamped
@@ -126,7 +133,7 @@ function renderCard(
     <li class="pact-item" data-pact="${pact.id}">
       <div class="pact-card">
         <span class="pact-icon">${getPactIcon(flavor, pact.id)}</span>
-        <span class="pact-name">${getPactName(flavor, pact.id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
+        <span class="pact-name">${getPactName(flavor, pact.id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
         ${body}
       </div>
@@ -189,7 +196,7 @@ function renderActiveCard(
     <li class="pact-item" data-pact="${id}">
       <button class="pact-btn${expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
         <span class="pact-icon">${getPactIcon(flavor, id)}</span>
-        <span class="pact-name">${getPactName(flavor, id)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
+        <span class="pact-name">${getPactName(flavor, id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}
         ${status}
         ${sharedWindowLines(state, modeDef, pact, 'Enemy’s treaty active for {}s')}

@@ -88,25 +88,35 @@ export function addButton(
 
 /**
  * A number `<input>` that commits a finite value on change (then marks dirty and
- * runs the optional `onDone`, e.g. to refresh a preview), reverting to `value`
- * for non-numeric input. `step` tunes the spinner increment.
+ * runs the optional `onDone`, e.g. to refresh a preview), reverting to the last
+ * accepted value for non-numeric input. `step` tunes the spinner increment.
+ * `commit` returns `false` to refuse a value.
  */
 export function numberInput(
   ctx: EditorContext,
   value: number,
-  commit: (n: number) => void,
-  options: { step?: string; onDone?: () => void } = {},
+  commit: (n: number) => unknown,
+  options: { step?: string; min?: string; allowBlank?: boolean; onDone?: () => void } = {},
 ): HTMLInputElement {
   const input = labeledInput('number', String(value), 'ed-input ed-input-num')
   if (options.step !== undefined) input.step = options.step
+  if (options.min !== undefined) input.min = options.min
+  let last = value
   input.addEventListener('change', () => {
+    // A blank field reads as 0, which most fields mean as "none"; a field that
+    // has no "none" (`allowBlank: false`) treats it as nothing typed instead.
+    const blank = input.value.trim() === ''
     const n = Number(input.value)
-    if (Number.isFinite(n)) {
-      commit(n)
+    if (blank && options.allowBlank === false) {
+      // Re-committing the kept value also clears a refusal shown for the typo.
+      input.value = String(last)
+      commit(last)
+    } else if (Number.isFinite(n)) {
+      if (commit(n) !== false) last = n
       ctx.markDirty()
       options.onDone?.()
     } else {
-      input.value = String(value)
+      input.value = String(last)
     }
   })
   return input
