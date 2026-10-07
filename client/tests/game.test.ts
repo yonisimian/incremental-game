@@ -1359,6 +1359,55 @@ describe('game.ts', () => {
       // sc-unlock's +1 plus the mirrored 4.
       expect(game.getState().player.resources.r0).toBe(5)
     })
+
+    it('stops predicting a window’s bonus just before the window closes', () => {
+      const now = vi.spyOn(performance, 'now').mockReturnValue(1000)
+      try {
+        enterIdlerPlaying(game)
+        const snapshot = (opponentWindowSec?: number) =>
+          makeStateUpdate({
+            ackSeq: 999,
+            player: {
+              score: 0,
+              resources: { r0: 0, r1: 0 },
+              upgrades: { 'sc-unlock': 1 },
+              generators: {},
+              pendingAttacks: [],
+              activePacts: [{ pact: 'p3', expiresAtSec: 12 }],
+              meta: { highlight: 'r0', gameSec: 10 },
+            },
+            pactBonuses: [
+              { pact: 'p3', modifiers: [{ stage: 'additive', field: 'clickIncome', value: 4 }] },
+            ],
+            opponent: {
+              resources: {},
+              rates: {},
+              ...(opponentWindowSec === undefined
+                ? {}
+                : {
+                    pacts: ['p3'],
+                    pactWindows: [{ pact: 'p3', expiresAtSec: opponentWindowSec }],
+                  }),
+            },
+          })
+        game.handleServerMessage(snapshot())
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(5)
+
+        // 1.6s on, a click would reach the server after the window at 12 closes.
+        now.mockReturnValue(2600)
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(6)
+
+        // Unless the opponent's window of the same pact is still open.
+        game.handleServerMessage(snapshot(20))
+        now.mockReturnValue(4200)
+        game.doClick()
+        expect(game.getState().player.resources.r0).toBe(5)
+      } finally {
+        now.mockRestore()
+      }
+    })
   })
 
   // ── Idler: doClick ─────────────────────────────────────────────────

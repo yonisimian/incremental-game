@@ -278,6 +278,15 @@ export function getConfirmedHighlight(): string | null {
 
 /** Bumped on every `STATE_UPDATE`, so display code can tell a snapshot from a local action. */
 let snapshotCount = 0
+/** `performance.now()` when the last `STATE_UPDATE` arrived: the predicted game clock's anchor. */
+let snapshotAtMs = 0
+
+/**
+ * How long before a pact window closes a click stops being predicted at its
+ * rate. A click reaches the server up to a batch plus a round trip after it is
+ * predicted, so without a margin the last ones are paid less than shown.
+ */
+const PACT_CLOSE_MARGIN_SEC = 0.5
 
 export function getSnapshotCount(): number {
   return snapshotCount
@@ -782,6 +791,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   }
   state.timeLeft = msg.timeLeft
   state.paused = msg.paused
+  snapshotAtMs = performance.now()
   state.debuffs = msg.debuffs ?? []
   // The alert list is state, not a delta: replace it, and keep one toast per
   // strike in view — counting down, gone once the strike lands.
@@ -1083,11 +1093,23 @@ export function externalModifiers(
   player: Readonly<PlayerState>,
   modeDef: ModeDefinition,
 ): Modifier[] {
-  return resolveEnemyDebuffs(
-    [...state.debuffs, ...pactModifiers(state.pactBonuses)],
-    player,
-    modeDef,
+  const bonuses = state.pactBonuses.filter((b) => !isPactWindowClosing(b.pact, player))
+  return resolveEnemyDebuffs([...state.debuffs, ...pactModifiers(bonuses)], player, modeDef)
+}
+
+/**
+ * Whether every open window of pact `pactId` (the player's own, or the
+ * opponent's that reaches them) closes before a click predicted now would reach
+ * the server. `false` for a pact with no window — a passive one.
+ */
+function isPactWindowClosing(pactId: string, player: Readonly<PlayerState>): boolean {
+  const windows = [...(player.activePacts ?? []), ...state.opponentPactWindows].filter(
+    (w) => w.pact === pactId,
   )
+  if (windows.length === 0) return false
+  const leadSec = state.paused ? 0 : Math.max(0, performance.now() - snapshotAtMs) / 1000
+  const cutoffSec = readGameSec(player) + leadSec + PACT_CLOSE_MARGIN_SEC
+  return windows.every((w) => w.expiresAtSec <= cutoffSec)
 }
 
 function computeClickIncome(player: PlayerState): number {
