@@ -163,6 +163,7 @@ function buildRow(ctx: EditorContext, row: PactRow, render: () => void): HTMLEle
       const result = setPactSlotCost(tree, row.id, n)
       slotCostError.textContent = result.ok ? '' : result.reason
       slotCost.classList.toggle('invalid', !result.ok)
+      return result.ok
     },
     { step: '1', min: '1', allowBlank: false },
   )

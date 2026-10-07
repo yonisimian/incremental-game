@@ -152,6 +152,7 @@ function buildRow(ctx: EditorContext, row: AttackRow, render: () => void): HTMLE
       const result = setAttackSlotCost(tree, row.id, n)
       slotCostError.textContent = result.ok ? '' : result.reason
       slotCost.classList.toggle('invalid', !result.ok)
+      return result.ok
     },
     { step: '1', min: '1', allowBlank: false },
   )

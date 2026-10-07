@@ -86,4 +86,23 @@ describe.each([
     expect(view.input.classList.contains('invalid')).toBe(false)
     expect(first(view.tree).slotCost).toBe(2)
   })
+
+  it('restores the last written value on a blank, not the value the row opened with', () => {
+    const view = mount(make)
+    view.type('2')
+    view.type('')
+    expect(view.input.value).toBe('2')
+    expect(first(view.tree).slotCost).toBe(2)
+  })
+
+  it('clears a refusal when the field is blanked back to the kept value', () => {
+    const view = mount(make)
+    const before = structuredClone(first(view.tree))
+    view.type('0')
+    view.type('')
+    expect(view.input.value).toBe(String(before.slotCost ?? 1))
+    expect(view.error()).toBe('')
+    expect(view.input.classList.contains('invalid')).toBe(false)
+    expect(first(view.tree)).toEqual(before)
+  })
 })
