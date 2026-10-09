@@ -49,6 +49,9 @@ test('ROOM-03 creator configures all goals and exact settings reach both players
   await expect(creator.page.locator('#goal-duration-input')).toHaveValue('600')
   await configureGoal(creator.page, { type: 'buy-upgrade' })
   await expect(creator.page.locator('[data-goal-type="buy-upgrade"]')).toHaveClass(/selected/u)
+  await configureGoal(creator.page, { type: 'random' })
+  await expect(creator.page.locator('[data-goal-type="random"]')).toHaveClass(/selected/u)
+  await expect(creator.page.locator('#room-settings input')).toHaveCount(0)
   await configureGoal(creator.page, { type: 'target-score', target: 5 })
   await expect(creator.page.locator('#goal-target-input')).toHaveValue('10')
 

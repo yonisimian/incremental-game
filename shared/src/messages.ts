@@ -1,6 +1,14 @@
 import type { Modifier } from './modifiers/types.js'
 import type { PactBonus } from './pacts.js'
-import type { ActivePact, GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
+import type {
+  ActivePact,
+  GameMode,
+  Goal,
+  GoalChoice,
+  MatchWinner,
+  PlayerAction,
+  PlayerState,
+} from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
@@ -39,7 +47,7 @@ export interface RoomJoinMessage {
 export interface RoomUpdateMessage {
   type: 'ROOM_UPDATE'
   mode?: GameMode
-  goal?: Goal
+  goal?: GoalChoice
 }
 
 /** Sent by client to voluntarily quit the current match, room, or queue. */
@@ -71,8 +79,8 @@ export interface RematchMessage {
   matchId: string
   /** Mode from the just-finished match. */
   mode: GameMode
-  /** Goal from the just-finished match. */
-  goal: Goal
+  /** The goal pick behind the just-finished match; `random` rolls afresh. */
+  goal: GoalChoice
 }
 
 export type ClientMessage =
@@ -305,6 +313,11 @@ export interface RoundStartMessage {
   config: {
     mode: GameMode
     goal: Goal
+    /**
+     * The room's pick when it isn't `goal` itself — i.e. `random`, meaning
+     * `goal` was rolled at start and a rematch rolls again. Omitted otherwise.
+     */
+    goalChoice?: GoalChoice
   }
   /** Opponent's display name (may be empty). */
   opponentName: string
@@ -339,7 +352,7 @@ export interface RoundEndMessage {
 /** Room settings payload. */
 export interface RoomSettings {
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
 }
 
 /** Confirms room creation, provides the code and initial player list. */

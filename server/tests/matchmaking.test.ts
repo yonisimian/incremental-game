@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
-import { MAX_TARGET_SCORE } from '@game/shared'
+import { MAX_TARGET_SCORE, RANDOM_GOAL } from '@game/shared'
 
 function mockWs(): WebSocket {
   return { readyState: 1, send: vi.fn() } as unknown as WebSocket
@@ -224,6 +224,26 @@ describe('rooms', () => {
     if (!res.ok) return
     if (res.settings.goal.type !== 'timed') return
     expect(res.settings.goal.durationSec).toBe(120)
+  })
+
+  it('accepts the random goal pick, with its own label', () => {
+    createRoom(player('p1'), noop)
+    const res = updateRoomSettings('p1', { goal: { type: 'random', label: 'whatever' } })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.settings.goal).toEqual(RANDOM_GOAL)
+    expect(getRoomByPlayerId('p1')!.goal.type).toBe('random')
+  })
+
+  it('keeps the random pick across a mode change', async () => {
+    const { getModeDefinition, registerMode } = await import('@game/shared')
+    registerMode('idler-copy', getModeDefinition('idler'))
+    createRoom(player('p1'), noop)
+    updateRoomSettings('p1', { goal: RANDOM_GOAL })
+    const res = updateRoomSettings('p1', { mode: 'idler-copy' })
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.settings.goal.type).toBe('random')
   })
 
   it('resets goal when mode changes and goal is incompatible', () => {

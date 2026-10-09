@@ -6,6 +6,7 @@ export type GoalSetup =
   | { readonly type: 'target-score'; readonly target?: number }
   | { readonly type: 'timed'; readonly durationSec?: number }
   | { readonly type: 'buy-upgrade' }
+  | { readonly type: 'random' }
 
 export async function createRoom(player: GamePlayer, goal?: GoalSetup): Promise<string> {
   await player.page.getByRole('button', { name: /Create Room/u }).click()

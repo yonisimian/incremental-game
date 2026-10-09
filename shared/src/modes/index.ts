@@ -12,9 +12,11 @@ import type {
   GameMode,
   GeneratorDefinition,
   Goal,
+  GoalChoice,
   PlayerState,
   PurchaseLock,
   PurchaseTarget,
+  RandomGoalChoice,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -1105,6 +1107,36 @@ export function isAvailableMode(mode: unknown): mode is GameMode {
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {
   return getModeDefinition(mode).goals[0]
+}
+
+/** The creator's "roll a goal at match start" pick, offered beside the mode's goals. */
+export const RANDOM_GOAL: RandomGoalChoice = { type: 'random', label: '🎲 Random' }
+
+/**
+ * Whether `choice` is something a room on `mode` may hold: one of the mode's
+ * goal types, or `random` when there is more than one goal to roll between.
+ * The check for an untrusted goal payload.
+ */
+export function isAvailableGoalChoice(mode: GameMode, choice: unknown): choice is GoalChoice {
+  if (!choice || typeof choice !== 'object' || !('type' in choice)) return false
+  const { type } = choice
+  const goals = getModeDefinition(mode).goals
+  if (type === 'random') return goals.length > 1
+  return goals.some((g) => g.type === type)
+}
+
+/**
+ * The concrete goal a match plays for a room's pick: a goal passes through,
+ * `random` rolls one of the mode's goals. `random` is injectable for tests.
+ */
+export function resolveGoal(
+  mode: GameMode,
+  choice: GoalChoice,
+  random: () => number = Math.random,
+): Goal {
+  if (choice.type !== 'random') return choice
+  const goals = getModeDefinition(mode).goals
+  return goals[Math.min(goals.length - 1, Math.floor(random() * goals.length))]
 }
 
 /**

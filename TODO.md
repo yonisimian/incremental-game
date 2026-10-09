@@ -20,6 +20,7 @@
 - [x] By time
 - [x] By first to score
 - [x] By first to buy a specific upgrade
+- [x] Random — rolled from the mode's goals when the match starts (and on each rematch)
 
 ### Player Count
 

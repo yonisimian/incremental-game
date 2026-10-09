@@ -1,12 +1,14 @@
 import type WebSocket from 'ws'
-import type { GameMode, Goal, RoomSettings } from '@game/shared'
+import type { GameMode, GoalChoice, RoomSettings } from '@game/shared'
 import {
   MAX_ROOMS,
+  RANDOM_GOAL,
   ROOM_TTL_MS,
   getModeDefinition,
   getDefaultGoal,
   customizeGoal,
   DEFAULT_MODE,
+  isAvailableGoalChoice,
   isAvailableMode,
 } from '@game/shared'
 import { realTimeDelay } from './runtime-config.js'
@@ -24,7 +26,7 @@ export interface Room {
   creatorId: string
   players: QueuedPlayer[]
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
   createdAt: number
   ttlTimer: ReturnType<typeof setTimeout> | null
   /** Callback invoked when the TTL timer fires. Set at creation time. */
@@ -173,12 +175,12 @@ type UpdateResult = { ok: true; settings: RoomSettings } | { ok: false }
 
 /**
  * Update room settings. Only the creator may call this.
- * Validates mode/goal. If mode changes and the current goal type isn't
+ * Validates mode/goal. If mode changes and the current goal pick isn't
  * available in the new mode, resets goal to the new mode's default.
  */
 export function updateRoomSettings(
   playerId: string,
-  update: { mode?: GameMode; goal?: Goal },
+  update: { mode?: GameMode; goal?: GoalChoice },
 ): UpdateResult {
   const code = playerRooms.get(playerId)
   if (!code) return { ok: false }
@@ -190,22 +192,22 @@ export function updateRoomSettings(
   if (update.mode !== undefined) {
     if (!isAvailableMode(update.mode)) return { ok: false }
     room.mode = update.mode
-    // Check if current goal is still valid for the new mode
-    const modeDef = getModeDefinition(room.mode)
-    const goalStillValid = modeDef.goals.some((g) => g.type === room.goal.type)
-    if (!goalStillValid) {
+    // Check if the current goal pick is still valid for the new mode
+    if (!isAvailableGoalChoice(room.mode, room.goal)) {
       room.goal = getDefaultGoal(room.mode)
     }
   }
 
-  // Validate goal
-  if (update.goal !== undefined) {
-    const modeDef = getModeDefinition(room.mode)
-    const predefined = modeDef.goals.find((g) => g.type === update.goal!.type)
-    if (predefined) {
-      room.goal = customizeGoal(predefined, update.goal)
+  // Validate goal — unknown types (and `random` with nothing to roll) are
+  // silently ignored. The label and safety cap always come from our own data.
+  if (update.goal !== undefined && isAvailableGoalChoice(room.mode, update.goal)) {
+    const requested = update.goal
+    if (requested.type === 'random') {
+      room.goal = RANDOM_GOAL
+    } else {
+      const predefined = getModeDefinition(room.mode).goals.find((g) => g.type === requested.type)
+      if (predefined) room.goal = customizeGoal(predefined, requested)
     }
-    // Silently ignore invalid goals
   }
 
   return { ok: true, settings: { mode: room.mode, goal: room.goal } }

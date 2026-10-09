@@ -8,6 +8,7 @@ import {
   getAvailableUpgrades,
   getDefaultGoal,
   getModeDefinition,
+  resolveGoal,
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
@@ -54,6 +55,7 @@ import type {
   ClientMessage,
   GameMode,
   Goal,
+  GoalChoice,
   MatchWinner,
   Modifier,
   ModeDefinition,
@@ -76,6 +78,12 @@ import {
   isValidAttackActivation,
 } from './validation.js'
 import type { BotStrategy } from './bot.js'
+
+/**
+ * Builds the bot once the match knows its goal: it receives the goal-filtered
+ * upgrade list, which a `random` pick only settles inside the constructor.
+ */
+export type BotFactory = (availableUpgrades: readonly UpgradeDefinition[]) => BotStrategy
 import { elapsedGameSeconds, realTimeDelay } from './runtime-config.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -189,6 +197,8 @@ export class Match {
   readonly id: string
   readonly mode: GameMode
   readonly goal: Goal
+  /** What was picked for this match; `random` when `goal` was rolled at start. */
+  readonly goalChoice: GoalChoice
   private readonly modeDef: ModeDefinition
   private readonly availableUpgrades: readonly UpgradeDefinition[]
   private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
@@ -215,17 +225,20 @@ export class Match {
     p1: { id: string; ws: WebSocket; name?: string },
     p2: { id: string; ws: WebSocket | null; name?: string },
     mode: GameMode,
-    goal?: Goal,
-    bot?: BotStrategy,
+    goal?: GoalChoice,
+    bot?: BotStrategy | BotFactory,
   ) {
     this.id = randomUUID()
     this.mode = mode
-    this.goal = goal ?? getDefaultGoal(mode)
+    this.goalChoice = goal ?? getDefaultGoal(mode)
+    this.goal = resolveGoal(mode, this.goalChoice)
     this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
     this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
-    this.bot = bot ?? null
+    // A factory sees the goal-filtered upgrade list, which only exists once the
+    // (possibly rolled) goal is known.
+    this.bot = typeof bot === 'function' ? bot(this.availableUpgrades) : (bot ?? null)
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
 
@@ -262,6 +275,7 @@ export class Match {
     const config = {
       mode: this.mode,
       goal: this.goal,
+      ...(this.goalChoice.type === 'random' ? { goalChoice: this.goalChoice } : {}),
     }
 
     for (let i = 0; i < this.players.length; i++) {

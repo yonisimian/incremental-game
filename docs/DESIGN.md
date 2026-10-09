@@ -135,7 +135,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
    └─► Join Room    → enters a code to join an existing room
 
 2. ROOM (private rooms only)
-   ├─► Creator can change mode & goal; changes broadcast to the other player
+   ├─► Creator can change mode & goal (or pick "random": rolled at match start); changes broadcast to the other player
    ├─► Either player can request a bot opponent
    ├─► Room has a TTL (10 min); expires automatically if the match never starts
    └─► Match starts when two players are present

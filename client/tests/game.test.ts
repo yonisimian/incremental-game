@@ -5,6 +5,7 @@ import {
   getAvailableUpgrades,
   getAttackPrepareCost,
   NEUTRAL_ATTACK_PARAMS,
+  RANDOM_GOAL,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -29,6 +30,7 @@ vi.mock('../src/network.js', () => {
     sendRoomUpdate: vi.fn(),
     sendQuit: vi.fn(),
     sendBotRequest: vi.fn(),
+    sendRematch: vi.fn(() => true),
   }
 })
 
@@ -953,6 +955,36 @@ describe('game.ts', () => {
     it('is a no-op on lobby screen', () => {
       game.quitMatch()
       expect(game.getState().screen).toBe('lobby')
+    })
+  })
+
+  // ── rematch ──────────────────────────────────────────────────────
+
+  describe('rematch', () => {
+    it('re-sends the random pick so the next round rolls afresh', async () => {
+      const { sendRematch } = await import('../src/network.js')
+      game.handleServerMessage(
+        makeRoundStart({
+          matchId: 'm-rand',
+          config: { mode: 'idler', goal: defaultTimedGoal, goalChoice: RANDOM_GOAL },
+        }),
+      )
+      game.handleServerMessage(makeRoundEnd())
+      game.rematch()
+      expect(sendRematch).toHaveBeenCalledWith(expect.any(String), 'm-rand', 'idler', RANDOM_GOAL)
+    })
+
+    it('re-sends the goal itself when none was rolled', async () => {
+      const { sendRematch } = await import('../src/network.js')
+      game.handleServerMessage(makeRoundStart({ matchId: 'm-fixed' }))
+      game.handleServerMessage(makeRoundEnd())
+      game.rematch()
+      expect(sendRematch).toHaveBeenCalledWith(
+        expect.any(String),
+        'm-fixed',
+        'idler',
+        defaultTimedGoal,
+      )
     })
   })
 

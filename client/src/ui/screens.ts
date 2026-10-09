@@ -1,10 +1,11 @@
-import type { GameMode, Goal } from '@game/shared'
+import type { GameMode, Goal, GoalChoice } from '@game/shared'
 import {
   getModeDefinition,
   getModeFlavor,
   getAvailableModes,
   isAvailableMode,
   customizeGoal,
+  RANDOM_GOAL,
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
   MIN_ROUND_DURATION_SEC,
@@ -97,7 +98,7 @@ export function updateCountdown(state: Readonly<GameState>): void {
 let lastSettingsSig: string | null = null
 
 /** Identifies everything the settings block renders from (role + mode + goal). */
-function settingsSignature(isCreator: boolean, mode: GameMode, goal: Goal): string {
+function settingsSignature(isCreator: boolean, mode: GameMode, goal: GoalChoice): string {
   const tunable =
     goal.type === 'target-score' ? goal.target : goal.type === 'timed' ? goal.durationSec : ''
   return `${isCreator ? 'c' : 'j'}|${mode}|${goal.type}|${tunable}`
@@ -204,7 +205,7 @@ function renderPlayerSlots(players: string[]): string {
   `
 }
 
-function renderCreatorSettings(mode: GameMode, goal: Goal): string {
+function renderCreatorSettings(mode: GameMode, goal: GoalChoice): string {
   const modeDef = getModeDefinition(mode)
   const modes = getAvailableModes()
   // Hide the mode picker entirely when there's only one mode to choose from.
@@ -223,7 +224,10 @@ function renderCreatorSettings(mode: GameMode, goal: Goal): string {
       </div>`
       : ''
 
-  const goalChips = modeDef.goals
+  // "Random" only means something when there is more than one goal to roll.
+  const goalChoices: readonly GoalChoice[] =
+    modeDef.goals.length > 1 ? [...modeDef.goals, RANDOM_GOAL] : modeDef.goals
+  const goalChips = goalChoices
     .map((g) => {
       const selected = g.type === goal.type ? ' selected' : ''
       return `<button class="goal-chip${selected}" data-goal-type="${g.type}">${escapeAttr(g.label)}</button>`
@@ -241,8 +245,18 @@ function renderCreatorSettings(mode: GameMode, goal: Goal): string {
   `
 }
 
-/** Editable numeric input for the selected goal's tunable value (creator only). */
-function renderGoalTuningRow(goal: Goal): string {
+/**
+ * Editable numeric input for the selected goal's tunable value (creator only).
+ * The random pick has nothing to tune; it says when the roll happens instead.
+ */
+function renderGoalTuningRow(goal: GoalChoice): string {
+  if (goal.type === 'random') {
+    return `
+      <div class="setting-row">
+        <span class="setting-label">Rolled</span>
+        <span class="setting-value">When the match starts</span>
+      </div>`
+  }
   if (goal.type === 'target-score') {
     return `
       <div class="setting-row">
@@ -280,9 +294,10 @@ function renderGoalTuningRow(goal: Goal): string {
   return ''
 }
 
-function renderJoinerSettings(mode: GameMode, goal: Goal): string {
+function renderJoinerSettings(mode: GameMode, goal: GoalChoice): string {
   const modeDef = getModeDefinition(mode)
-  const predefined = modeDef.goals.find((g) => g.type === goal.type)
+  const predefined =
+    goal.type === 'random' ? RANDOM_GOAL : modeDef.goals.find((g) => g.type === goal.type)
   const goalLabel = predefined?.label ?? goal.type
   const detail = goalDetail(goal)
   return `
@@ -300,7 +315,7 @@ function renderJoinerSettings(mode: GameMode, goal: Goal): string {
 }
 
 /** Human-readable summary of a goal's tunable value, or '' if none. */
-function goalDetail(goal: Goal): string {
+function goalDetail(goal: GoalChoice): string {
   if (goal.type === 'target-score') return `${goal.target} pts`
   if (goal.type === 'timed') return `${goal.durationSec}s`
   return ''
@@ -322,8 +337,10 @@ function wireCreatorSettings(currentMode: GameMode): void {
     chip.addEventListener('click', () => {
       const goalType = chip.dataset.goalType
       if (!goalType) return
-      const modeDef = getModeDefinition(currentMode)
-      const goal = modeDef.goals.find((g) => g.type === goalType)
+      const goal =
+        goalType === 'random'
+          ? RANDOM_GOAL
+          : getModeDefinition(currentMode).goals.find((g) => g.type === goalType)
       if (goal) updateRoomSettings({ goal })
     })
   })

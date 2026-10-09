@@ -4,15 +4,17 @@ import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
   SERVER_STATUS_INTERVAL_MS,
-  getAvailableUpgrades,
+  RANDOM_GOAL,
   getModeDefinition,
   getAvailableModes,
+  isAvailableGoalChoice,
   isAvailableMode,
+  resolveGoal,
 } from '@game/shared'
 import type {
   ClientMessage,
   GameMode,
-  Goal,
+  GoalChoice,
   ServerMessage,
   ServerStatusMessage,
 } from '@game/shared'
@@ -47,15 +49,6 @@ const HOST = process.env.HOST
 // the exact trees (multiplayer integrity).
 const rawTrees = loadTreeFiles()
 const modeList = JSON.stringify([...rawTrees.keys()])
-
-// ─── Helper: valid goals ─────────────────────────────────────────────
-
-/** Check that a goal matches one of the mode's defined goals (by type). */
-function isValidGoal(mode: GameMode, goal: unknown): goal is Goal {
-  if (!goal || typeof goal !== 'object' || !('type' in goal)) return false
-  const modeDef = getModeDefinition(mode)
-  return modeDef.goals.some((g) => g.type === (goal as { type: string }).type)
-}
 
 // ─── HTTP Server (health check + tree files) ────────────────────────
 
@@ -125,7 +118,7 @@ interface RematchEntry {
   ws: WebSocket
   name: string
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
 }
 
 /** Rematch queue keyed by matchId — only the two original opponents can pair. */
@@ -162,12 +155,10 @@ function getRematchEntry(playerId: string): RematchEntry | undefined {
 }
 
 /** Roll random settings for quick-match. */
-function rollRandomSettings(): { mode: GameMode; goal: Goal } {
+function rollRandomSettings(): { mode: GameMode; goal: GoalChoice } {
   const modes = getAvailableModes()
   const mode = modes[Math.floor(Math.random() * modes.length)]
-  const modeDef = getModeDefinition(mode)
-  const goal = modeDef.goals[Math.floor(Math.random() * modeDef.goals.length)]
-  return { mode, goal }
+  return { mode, goal: resolveGoal(mode, RANDOM_GOAL) }
 }
 
 /** Callback when a room's TTL expires — notify remaining players. */
@@ -236,7 +227,7 @@ wss.on('connection', (ws: WebSocket) => {
       if (getQueuedPlayer(data.id)) return // already in queue
       if (getRoomByPlayerId(data.id)) return // already in a room
       if (!isAvailableMode(msg.mode)) return
-      if (!isValidGoal(msg.mode, msg.goal)) return
+      if (!isAvailableGoalChoice(msg.mode, msg.goal)) return
       if (!msg.matchId || typeof msg.matchId !== 'string') return
 
       const name = sanitizeName(msg.name)
@@ -398,12 +389,14 @@ function notifyPlayerLeft(result: ReturnType<typeof leaveRoom>): void {
 function startBotMatch(
   human: { id: string; ws: WebSocket; name: string },
   mode: GameMode,
-  goal: Goal,
+  goal: GoalChoice,
 ): void {
   const modeDef = getModeDefinition(mode)
-  const bot = createBot(mode, modeDef, getAvailableUpgrades(modeDef, goal))
   const botPlayer = { id: `bot-${randomUUID()}`, ws: null, name: 'Bot' }
-  startMatch(new Match(human, botPlayer, mode, goal, bot))
+  // The match resolves a `random` pick, so the bot is built from the goal it rolled.
+  startMatch(
+    new Match(human, botPlayer, mode, goal, (upgrades) => createBot(mode, modeDef, upgrades)),
+  )
 }
 
 /** Register a match, wire up cleanup, and start it. */

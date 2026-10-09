@@ -5,6 +5,10 @@ import {
   getModeDefinition,
   getDefaultGoal,
   customizeGoal,
+  isAvailableGoalChoice,
+  resolveGoal,
+  registerMode,
+  RANDOM_GOAL,
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
@@ -107,6 +111,45 @@ describe('customizeGoal', () => {
 })
 
 // ─── Mode goal & trophy coverage ─────────────────────────────────────
+
+// ─── Random goal pick ────────────────────────────────────────────────
+
+describe('isAvailableGoalChoice', () => {
+  it("accepts each of the mode's goals and the random pick", () => {
+    for (const goal of getModeDefinition('idler').goals) {
+      expect(isAvailableGoalChoice('idler', goal)).toBe(true)
+    }
+    expect(isAvailableGoalChoice('idler', RANDOM_GOAL)).toBe(true)
+  })
+
+  it('rejects unknown goal types and non-objects', () => {
+    expect(isAvailableGoalChoice('idler', { type: 'sudden-death' })).toBe(false)
+    expect(isAvailableGoalChoice('idler', 'timed')).toBe(false)
+    expect(isAvailableGoalChoice('idler', null)).toBe(false)
+  })
+
+  it('rejects random when the mode has only one goal to roll', () => {
+    const idler = getModeDefinition('idler')
+    registerMode('one-goal', { ...idler, goals: [idler.goals[0]] })
+    expect(isAvailableGoalChoice('one-goal', RANDOM_GOAL)).toBe(false)
+    expect(isAvailableGoalChoice('one-goal', idler.goals[0])).toBe(true)
+  })
+})
+
+describe('resolveGoal', () => {
+  it('passes a concrete goal through untouched', () => {
+    const goal = getDefaultGoal('idler')
+    expect(resolveGoal('idler', goal)).toBe(goal)
+  })
+
+  it("rolls one of the mode's goals for the random pick", () => {
+    const goals = getModeDefinition('idler').goals
+    expect(goals.length).toBeGreaterThan(1)
+    expect(resolveGoal('idler', RANDOM_GOAL, () => 0)).toBe(goals[0])
+    expect(resolveGoal('idler', RANDOM_GOAL, () => 0.999)).toBe(goals[goals.length - 1])
+    expect(goals).toContain(resolveGoal('idler', RANDOM_GOAL))
+  })
+})
 
 describe('mode goals', () => {
   it.each(['idler'] as const)('%s mode has all three goal types', (mode) => {
