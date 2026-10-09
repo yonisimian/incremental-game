@@ -61,6 +61,9 @@ function priceOf(...upgrades: UpgradeDefinition[]): Record<string, number> {
   return total
 }
 
+/** The idler's buy-upgrade trophy (the Royal Throne). */
+const TROPHY = getModeDefinition('idler').upgrades.find((u) => u.id === 'goal')!
+
 /** A test-only attack, unlocked by the free `FIXTURE_UNLOCK` under `a-unlock`. */
 const FIXTURE_ATTACK = 'fx-attack'
 const FIXTURE_UNLOCK = 'fx-unlock'
@@ -1329,8 +1332,8 @@ describe('Match', () => {
 
     it('buying the trophy ends the match with the buyer as winner', () => {
       const m = enterBuyPlaying()
-      // goal (Royal Throne) costs 30000 — grant via the test seam (unreachable via passive income)
-      m.grantResourcesForTest('p1', { r0: 30_000 })
+      // The trophy is priced far beyond passive income — grant it via the test seam
+      m.grantResourcesForTest('p1', priceOf(TROPHY))
       m.handleMessage('p1', buyMsg('goal', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
@@ -1343,7 +1346,7 @@ describe('Match', () => {
 
     it('player 2 buying the trophy makes player 2 the winner', () => {
       const m = enterBuyPlaying()
-      m.grantResourcesForTest('p2', { r0: 30_000 })
+      m.grantResourcesForTest('p2', priceOf(TROPHY))
       m.handleMessage('p2', buyMsg('goal', 1))
 
       const p1End = sentOfType(ws1, 'ROUND_END')[0]
@@ -1396,7 +1399,7 @@ describe('Match', () => {
     it('no further actions are processed after trophy purchase', () => {
       const m = enterBuyPlaying()
       // Grant enough for the trophy plus another upgrade
-      m.grantResourcesForTest('p1', { r0: 30_005 })
+      m.grantResourcesForTest('p1', { r0: priceOf(TROPHY).r0 + 5 })
       // Send trophy buy and a second buy in the same batch
       m.handleMessage(
         'p1',
