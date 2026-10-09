@@ -96,6 +96,7 @@ function makeRoundEnd(overrides: Partial<RoundEndMessage> = {}): RoundEndMessage
     winner: 'player',
     reason: 'complete',
     finalScores: { player: 42, opponent: 10 },
+    durationSec: 60,
     stats: { totalClicks: 30, peakCps: 8, upgradesPurchased: [] },
     ...overrides,
   }

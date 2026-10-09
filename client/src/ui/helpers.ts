@@ -46,6 +46,14 @@ export function formatTime(seconds: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`
 }
 
+/** Whole-second `m:ss` for elapsed spans (no centiseconds, unlike the live timer). */
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const min = Math.floor(total / 60)
+  const sec = total % 60
+  return `${min}:${sec.toString().padStart(2, '0')}`
+}
+
 // ─── Game-Related Helpers ────────────────────────────────────────────
 
 /** Escape HTML-special characters to prevent XSS when interpolating into innerHTML / attributes. */

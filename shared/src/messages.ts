@@ -327,6 +327,11 @@ export interface RoundEndMessage {
    * opponent's score is irrelevant to the result and never revealed.
    */
   finalScores: { player: number; opponent?: number }
+  /**
+   * How long the round ran, in game seconds. Equals the goal's duration when
+   * a timed round ran to completion; 0 when the round ended during countdown.
+   */
+  durationSec: number
   stats: {
     totalClicks: number
     peakCps: number

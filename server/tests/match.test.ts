@@ -798,6 +798,29 @@ describe('Match', () => {
       expect(p2End.reason).toBe('complete')
     })
 
+    it('reports the full goal duration when a timed round runs to completion', () => {
+      enterPlaying()
+      vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000)
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBe(ROUND_DURATION_SEC)
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBe(ROUND_DURATION_SEC)
+    })
+
+    it('reports elapsed time to both players when a player quits mid-round', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.durationSec).toBeCloseTo(10, 0)
+      expect(p2End.durationSec).toBe(p1End.durationSec)
+    })
+
+    it('reports zero duration when a player quits during countdown', () => {
+      const m = startMatch()
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBe(0)
+    })
+
     it('declares a draw when scores are equal', () => {
       enterPlaying()
       vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000)

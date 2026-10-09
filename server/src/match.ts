@@ -197,6 +197,8 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
+  /** Game seconds the round started with (timed duration or safety cap). */
+  private readonly initialSec: number
   /**
    * Monotonic timestamp (ms, from `performance.now()`) at which the current
    * round ends; source of truth for the timer. Uses the monotonic clock rather
@@ -222,7 +224,8 @@ export class Match {
     this.mode = mode
     this.goal = goal ?? getDefaultGoal(mode)
     this.modeDef = getModeDefinition(mode)
-    this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
+    this.initialSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
+    this.timeLeftSec = this.initialSec
     this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
     this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
     this.bot = bot ?? null
@@ -337,6 +340,7 @@ export class Match {
       winner: 'opponent',
       reason: 'quit',
       finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
+      durationSec: this.elapsedSec(),
       stats: quitter.stats,
     })
 
@@ -345,6 +349,7 @@ export class Match {
       winner: 'player',
       reason: 'quit',
       finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
+      durationSec: this.elapsedSec(),
       stats: opponent.stats,
     })
 
@@ -1154,6 +1159,7 @@ export class Match {
       winner: winnerForP1,
       reason,
       finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
+      durationSec: this.elapsedSec(),
       stats: p1.stats,
     })
 
@@ -1162,6 +1168,7 @@ export class Match {
       winner: winnerForP2,
       reason,
       finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
+      durationSec: this.elapsedSec(),
       stats: p2.stats,
     })
 
@@ -1182,10 +1189,16 @@ export class Match {
       winner: 'player',
       reason: 'forfeit',
       finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
+      durationSec: this.elapsedSec(),
       stats: winner.stats,
     })
 
     this.onEndCallback?.()
+  }
+
+  /** Game seconds the round has run so far (0 until the countdown ends). */
+  private elapsedSec(): number {
+    return Math.max(0, this.initialSec - this.timeLeftSec)
   }
 
   private clearTimers(): void {

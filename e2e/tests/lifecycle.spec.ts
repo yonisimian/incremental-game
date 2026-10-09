@@ -97,6 +97,7 @@ test('LIFE-05 quit during countdown and play yields correct terminal states', as
   await waitForEnded(first)
   await expect(first.page.locator('.result')).toContainText('You Resigned')
   await expect(first.page.locator('#rematch-btn')).toBeVisible()
+  await expect(first.page.locator('.end-duration-value')).toHaveText(/^\d+:\d{2}$/u)
   await waitForEnded(second)
   await expect(second.page.locator('.result')).toContainText('Opponent Resigned')
 })

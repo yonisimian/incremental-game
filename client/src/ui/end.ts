@@ -1,7 +1,13 @@
 import type { GameState } from '../game.js'
 import { rematch, resetForMatch } from '../game.js'
 import { getModeDefinition, getModeFlavor } from '@game/shared'
-import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
+import {
+  app,
+  formatDuration,
+  formatUpgradesPurchased,
+  playerDisplayName,
+  opponentDisplayName,
+} from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { openReportModal } from './report-modal.js'
 
@@ -49,6 +55,10 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       <button id="report-btn" class="report-btn" aria-label="Report a bug" title="Report a bug">!</button>
       <h1 class="result ${resultClass}">${winnerText}</h1>
       ${scoresBlock}
+      <div class="end-duration" id="end-duration">
+        <span class="end-duration-label">Match time</span>
+        <span class="end-duration-value">${formatDuration(end.durationSec)}</span>
+      </div>
       <div class="stats">
         ${flavor.showClickStats ? `<div>Clicks: ${formatNumber(end.stats.totalClicks)}</div>` : ''}
         ${flavor.showClickStats ? `<div>Peak CPS: ${formatNumber(end.stats.peakCps)}</div>` : ''}
