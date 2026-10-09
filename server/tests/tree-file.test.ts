@@ -1,7 +1,7 @@
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MODE,
@@ -30,9 +30,12 @@ function treeDir(files: Record<string, string>): string {
 
 describe('canonical tree files', () => {
   it('every tree file loads as a mode, default mode first', () => {
+    const files = readdirSync(dirname(IDLER_TREE))
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => file.slice(0, -'.json'.length))
     const modes = [...loadTreeFiles().keys()]
     expect(modes[0]).toBe(DEFAULT_MODE)
-    expect(modes).toContain('idler-alternative')
+    expect([...modes].sort()).toEqual(files.sort())
   })
 
   it('every mode has a distinct lobby display name', () => {

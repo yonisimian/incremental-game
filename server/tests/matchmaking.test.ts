@@ -171,13 +171,17 @@ describe('rooms', () => {
     expect(res.settings.mode).toBe('idler')
   })
 
-  it('lets the creator switch the room to the alternative idler tree', () => {
+  it('lets the creator switch the room to another tree', async () => {
+    // Only one tree ships; register the idler tree under a second id (from the
+    // same module instance the reset matchmaking module sees).
+    const { getModeDefinition, registerMode } = await import('@game/shared')
+    registerMode('idler-copy', getModeDefinition('idler'))
     createRoom(player('p1'), noop)
-    const res = updateRoomSettings('p1', { mode: 'idler-alternative' })
+    const res = updateRoomSettings('p1', { mode: 'idler-copy' })
     expect(res.ok).toBe(true)
     if (!res.ok) return
-    expect(res.settings.mode).toBe('idler-alternative')
-    expect(getRoomByPlayerId('p1')!.mode).toBe('idler-alternative')
+    expect(res.settings.mode).toBe('idler-copy')
+    expect(getRoomByPlayerId('p1')!.mode).toBe('idler-copy')
   })
 
   it('rejects settings update from non-creator', () => {

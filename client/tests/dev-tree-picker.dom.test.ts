@@ -3,12 +3,35 @@
 // The dev panel's Tree picker chooses which mode the Queue, Envelopes, and
 // Editor tabs work on. DOM tier: what matters is that the picker lists every
 // bundled tree and that switching remounts the tree-bound tabs on the new one.
+// Only one tree ships, so a second mode is bundled here as a copy of it.
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getAvailableModes } from '@game/shared'
-import { BUNDLED_TREES } from '../src/dev/bundled-modes.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getAvailableModes, getModeDefinition, registerMode } from '@game/shared'
 import { initDevPanel } from '../src/dev/ui.js'
 import { resetDom } from './dom-harness.js'
+
+/** A second mode to switch to: the idler tree under another id. */
+const COPY = 'idler-copy'
+
+type BundledModes = typeof import('../src/dev/bundled-modes.js')
+
+// The Envelopes tab resolves its tree through the bundled map, so the copy
+// must be bundled too, not just registered.
+vi.mock('../src/dev/bundled-modes.js', async (importOriginal) => {
+  const actual = await importOriginal<BundledModes>()
+  const trees = new Map([
+    ...actual.BUNDLED_TREES,
+    ['idler-copy', actual.BUNDLED_TREES.get('idler')],
+  ])
+  return {
+    ...actual,
+    BUNDLED_TREES: trees,
+    bundledTree: (mode: string) => {
+      if (!trees.has(mode)) throw new Error(`No bundled tree for mode '${mode}'`)
+      return trees.get(mode)
+    },
+  } satisfies BundledModes
+})
 
 let root: HTMLElement
 
@@ -25,6 +48,7 @@ function openTab(selector: string): void {
 
 beforeEach(() => {
   localStorage.clear()
+  registerMode(COPY, getModeDefinition('idler'))
   root = document.createElement('div')
   document.body.append(root)
   initDevPanel(root)
@@ -35,8 +59,9 @@ afterEach(() => {
 })
 
 describe('bundled trees', () => {
-  it('bundles every tree file, keyed by file name, default mode first', () => {
-    expect([...BUNDLED_TREES.keys()]).toEqual(['idler', 'idler-alternative'])
+  it('bundles every tree file, keyed by file name, default mode first', async () => {
+    const actual = await vi.importActual<BundledModes>('../src/dev/bundled-modes.js')
+    expect([...actual.BUNDLED_TREES.keys()]).toEqual(['idler'])
   })
 })
 
@@ -48,28 +73,28 @@ describe('dev panel tree picker (DOM)', () => {
 
   it('remounts the queue tab with the selected tree’s strategies', () => {
     const listText = (): string => root.querySelector('#q-list')!.textContent
-    // Idler bundles reference strategies; a tree without any starts on one
+    // Idler bundles reference strategies; a mode without any starts on one
     // empty scratch strategy.
     expect(listText()).not.toContain('Strategy 1')
-    selectTree('idler-alternative')
+    selectTree(COPY)
     expect(listText()).toContain('Strategy 1')
   })
 
   it('remounts the envelopes and editor tabs on the selected tree', () => {
     openTab('[data-subtab="envelopes"]')
-    selectTree('idler-alternative')
-    expect(root.querySelector('#env-reset-btn')!.textContent).toContain('idler-alternative')
+    selectTree(COPY)
+    expect(root.querySelector('#env-reset-btn')!.textContent).toContain(COPY)
 
     openTab('[data-tab="editor"]')
-    expect(root.querySelector('#ed-reset-btn')!.textContent).toContain('idler-alternative')
+    expect(root.querySelector('#ed-reset-btn')!.textContent).toContain(COPY)
   })
 
   it('remembers the selection across reloads', () => {
-    selectTree('idler-alternative')
+    selectTree(COPY)
     resetDom()
     root = document.createElement('div')
     document.body.append(root)
     initDevPanel(root)
-    expect(picker().value).toBe('idler-alternative')
+    expect(picker().value).toBe(COPY)
   })
 })
