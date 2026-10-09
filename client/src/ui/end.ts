@@ -12,7 +12,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   let winnerText: string
   if (end.reason === 'quit') {
-    winnerText = 'Opponent Resigned'
+    winnerText = end.winner === 'opponent' ? 'You Resigned' : 'Opponent Resigned'
   } else if (end.reason === 'forfeit') {
     winnerText = 'Opponent Disconnected — Victory!'
   } else if (end.reason === 'safety-cap') {
@@ -27,7 +27,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       end.winner === 'player' ? '🎉 Victory!' : end.winner === 'opponent' ? 'Defeat' : 'Draw'
   }
 
-  const resultClass = end.reason === 'quit' || end.reason === 'forfeit' ? 'player' : end.winner
+  const resultClass = end.reason === 'forfeit' ? 'player' : end.winner
 
   const scoreLabel = flavor.scoreLabel
   const pName = playerDisplayName(state)

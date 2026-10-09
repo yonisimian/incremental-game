@@ -681,10 +681,15 @@ export function requestBot(): void {
   sendBotRequest()
 }
 
-/** Resign the current match and return to lobby. */
+/**
+ * Resign the current match. The server answers with a ROUND_END (reason
+ * 'quit', winner 'opponent'), which moves us to the end screen so the
+ * player sees their stats and can ask for a rematch. If the socket is
+ * down there will be no answer, so fall back to the lobby.
+ */
 export function resignMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
-  sendQuit()
+  if (sendQuit()) return
   recorderRoundEnd(state.player.score)
   resetForMatch()
 }
@@ -895,10 +900,6 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
-  // If WE resigned (reason=quit, winner=opponent), we already
-  // transitioned to lobby in resignMatch(). Just ignore this message.
-  if (msg.reason === 'quit' && msg.winner === 'opponent') return
-
   state.screen = 'ended'
   state.endData = msg
   state.paused = false

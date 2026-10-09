@@ -166,10 +166,11 @@ export function sendRoomUpdate(update: { mode?: GameMode; goal?: Goal }): void {
   ws.send(JSON.stringify(msg))
 }
 
-/** Send a quit message to voluntarily leave the current match. */
-export function sendQuit(): void {
-  if (ws?.readyState !== WebSocket.OPEN) return
+/** Send a quit message to voluntarily leave the current match. Returns false if not connected. */
+export function sendQuit(): boolean {
+  if (ws?.readyState !== WebSocket.OPEN) return false
   ws.send(JSON.stringify({ type: 'QUIT' }))
+  return true
 }
 
 /** Send a pause request for the current match. */

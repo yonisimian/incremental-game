@@ -94,7 +94,9 @@ test('LIFE-05 quit during countdown and play yields correct terminal states', as
   await startRoomMatch(first, second, { type: 'timed', durationSec: 35 })
 
   await first.page.locator('#resign-btn').click()
-  await expect(first.page.locator('.lobby-screen')).toBeVisible()
+  await waitForEnded(first)
+  await expect(first.page.locator('.result')).toContainText('You Resigned')
+  await expect(first.page.locator('#rematch-btn')).toBeVisible()
   await waitForEnded(second)
   await expect(second.page.locator('.result')).toContainText('Opponent Resigned')
 })
