@@ -681,8 +681,8 @@ export function requestBot(): void {
   sendBotRequest()
 }
 
-/** Voluntarily quit the current match and return to lobby. */
-export function quitMatch(): void {
+/** Resign the current match and return to lobby. */
+export function resignMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
   sendQuit()
   recorderRoundEnd(state.player.score)
@@ -895,8 +895,8 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
-  // If WE are the quitter (reason=quit, winner=opponent), we already
-  // transitioned to lobby in quitMatch(). Just ignore this message.
+  // If WE resigned (reason=quit, winner=opponent), we already
+  // transitioned to lobby in resignMatch(). Just ignore this message.
   if (msg.reason === 'quit' && msg.winner === 'opponent') return
 
   state.screen = 'ended'

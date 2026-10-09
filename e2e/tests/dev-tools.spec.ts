@@ -116,7 +116,7 @@ test('DEV-05 real BroadcastChannel streams a live game into the dev tab', async 
 
   await expect(dev.page.locator('#live-status')).toContainText(/Recording|Round/u)
   await expect(dev.page.locator('#live-chart-score canvas')).not.toHaveCount(0)
-  await game.page.locator('#quit-btn').click()
+  await game.page.locator('#resign-btn').click()
   await expect(dev.page.locator('#live-status')).toContainText(/ended|final/iu)
 })
 

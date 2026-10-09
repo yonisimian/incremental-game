@@ -218,7 +218,7 @@ test('SYS-06 buy-upgrade mode never exposes opponent score on wire or UI', async
     expect((message as { opponent: Record<string, unknown> }).opponent).not.toHaveProperty('score')
   }
 
-  await second.page.locator('#quit-btn').click()
+  await second.page.locator('#resign-btn').click()
   await waitForEnded(first)
   await expect(first.page.locator('.final-scores')).toHaveCount(0)
   const ends = wire.received('ROUND_END') as { finalScores: Record<string, unknown> }[]

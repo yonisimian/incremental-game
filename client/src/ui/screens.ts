@@ -11,7 +11,7 @@ import {
   MAX_ROUND_DURATION_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
+import { cancelQueue, resignMatch, requestBot, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
 
@@ -73,12 +73,12 @@ export function renderWaitingScreen(): void {
 export function renderCountdownScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen countdown-screen">
-      <button class="quit-btn" id="quit-btn">← Quit</button>
+      <button class="quit-btn" id="resign-btn">Resign</button>
       <div class="countdown-number" id="countdown">${state.countdown}</div>
     </div>
   `
 
-  document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
+  document.getElementById('resign-btn')!.addEventListener('click', resignMatch)
 }
 
 export function updateCountdown(state: Readonly<GameState>): void {

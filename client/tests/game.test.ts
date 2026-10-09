@@ -931,14 +931,14 @@ describe('game.ts', () => {
     })
   })
 
-  // ── quitMatch ──────────────────────────────────────────────────────
+  // ── resignMatch ──────────────────────────────────────────────────────
 
-  describe('quitMatch', () => {
+  describe('resignMatch', () => {
     it('transitions to lobby from playing', async () => {
       enterPlaying(game)
       const { sendQuit } = await import('../src/network.js')
       vi.mocked(sendQuit).mockClear()
-      game.quitMatch()
+      game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
       expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
     })
@@ -946,12 +946,12 @@ describe('game.ts', () => {
     it('transitions to lobby from countdown', () => {
       game.handleServerMessage(makeRoundStart())
       expect(game.getState().screen).toBe('countdown')
-      game.quitMatch()
+      game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
     })
 
     it('is a no-op on lobby screen', () => {
-      game.quitMatch()
+      game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
     })
   })
@@ -959,13 +959,13 @@ describe('game.ts', () => {
   // ── ROUND_END reason handling ──────────────────────────────────────
 
   describe('ROUND_END reason', () => {
-    it('ignores quit message when user is the quitter', () => {
+    it('ignores quit message when user resigned', () => {
       enterPlaying(game)
-      // Simulate: we quit, server tells us we lost
+      // Simulate: we resigned, server tells us we lost
       game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
-      // Should be ignored since quitMatch() already moved us to lobby
+      // Should be ignored since resignMatch() already moved us to lobby
       // Here we test that handleRoundEnd doesn't move to ended screen
-      // (in real flow, quitMatch resets to lobby before this arrives)
+      // (in real flow, resignMatch resets to lobby before this arrives)
       expect(game.getState().screen).toBe('playing') // not ended
     })
 

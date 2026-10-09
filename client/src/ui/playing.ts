@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { externalModifiers, quitMatch, togglePause } from '../game.js'
+import { externalModifiers, resignMatch, togglePause } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
@@ -131,7 +131,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          <button class="quit-btn" id="quit-btn">← Quit</button>
+          <button class="quit-btn" id="resign-btn">Resign</button>
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -150,7 +150,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     </div>
   `
 
-  document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
+  document.getElementById('resign-btn')!.addEventListener('click', resignMatch)
   document.getElementById('pause-btn')?.addEventListener('click', togglePause)
   bindTabEvents()
   renderActivePanel(state)

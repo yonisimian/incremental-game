@@ -93,10 +93,10 @@ test('LIFE-05 quit during countdown and play yields correct terminal states', as
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'timed', durationSec: 35 })
 
-  await first.page.locator('#quit-btn').click()
+  await first.page.locator('#resign-btn').click()
   await expect(first.page.locator('.lobby-screen')).toBeVisible()
   await waitForEnded(second)
-  await expect(second.page.locator('.result')).toContainText('Opponent Quit')
+  await expect(second.page.locator('.result')).toContainText('Opponent Resigned')
 })
 
 test('LIFE-06 a real ten-second timed match leaves zero without dwelling', async ({ players }) => {
@@ -122,7 +122,7 @@ test('LIFE-08 concurrent matches never cross names, scores, or quits', async ({ 
 
   await expect(a1.page.locator('.playing-screen')).toContainText('Iso-A2')
   await expect(a1.page.locator('.playing-screen')).not.toContainText('Iso-B2')
-  await b1.page.locator('#quit-btn').click()
+  await b1.page.locator('#resign-btn').click()
   await waitForEnded(b2)
   await expect(a1.page.locator('.playing-screen')).toBeVisible()
   await expect(a2.page.locator('.playing-screen')).toBeVisible()

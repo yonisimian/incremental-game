@@ -12,7 +12,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   let winnerText: string
   if (end.reason === 'quit') {
-    winnerText = 'Opponent Quit'
+    winnerText = 'Opponent Resigned'
   } else if (end.reason === 'forfeit') {
     winnerText = 'Opponent Disconnected — Victory!'
   } else if (end.reason === 'safety-cap') {
