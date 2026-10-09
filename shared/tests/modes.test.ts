@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_TARGET_SCORE, MIN_TARGET_SCORE } from '../src/game-config.js'
 import {
   getAvailableUpgrades,
   getModeDefinition,
@@ -73,9 +74,9 @@ describe('customizeGoal', () => {
 
   it('clamps an out-of-range value to the bounds', () => {
     const low = customizeGoal(targetBase, { ...targetBase, target: -10 })
-    const high = customizeGoal(targetBase, { ...targetBase, target: 10_000_000 })
-    expect(low.type === 'target-score' && low.target).toBe(10)
-    expect(high.type === 'target-score' && high.target).toBe(100_000)
+    const high = customizeGoal(targetBase, { ...targetBase, target: MAX_TARGET_SCORE * 10 })
+    expect(low.type === 'target-score' && low.target).toBe(MIN_TARGET_SCORE)
+    expect(high.type === 'target-score' && high.target).toBe(MAX_TARGET_SCORE)
   })
 
   it('rounds fractional values to integers', () => {

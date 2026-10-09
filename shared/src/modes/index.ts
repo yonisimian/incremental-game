@@ -303,6 +303,23 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
     validateFlavor(id, def, f)
   }
 
+  // Authored goals must sit inside the creator-tunable bounds: the room clamps
+  // every goal update to them, so an out-of-range default would be silently
+  // rewritten the moment the creator selects it.
+  for (const goal of def.goals) {
+    if (goal.type === 'target-score') {
+      if (goal.target < MIN_TARGET_SCORE || goal.target > MAX_TARGET_SCORE)
+        throw new Error(
+          `[${id}] target-score goal target ${goal.target} is outside ${MIN_TARGET_SCORE}–${MAX_TARGET_SCORE}`,
+        )
+    } else if (goal.type === 'timed') {
+      if (goal.durationSec < MIN_ROUND_DURATION_SEC || goal.durationSec > MAX_ROUND_DURATION_SEC)
+        throw new Error(
+          `[${id}] timed goal duration ${goal.durationSec}s is outside ${MIN_ROUND_DURATION_SEC}–${MAX_ROUND_DURATION_SEC}s`,
+        )
+    }
+  }
+
   // Prerequisite expression validation
   validateUpgradePrerequisites(def.upgrades)
   validateUpgradeChoiceGroups(def.upgrades)
