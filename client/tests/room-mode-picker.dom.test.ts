@@ -4,9 +4,10 @@
 // only renders when more than one mode is available, and a chip click is what
 // sends the `ROOM_UPDATE` — DOM tier because both are about the rendered
 // lobby, not the settings logic (covered server-side in matchmaking.test.ts).
+// Only one tree ships, so a second mode is registered here as a copy of it.
 
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { getAvailableModes, getModeDefinition, getModeFlavor } from '@game/shared'
+import { getAvailableModes, getModeDefinition, getModeFlavor, registerMode } from '@game/shared'
 import type { GameMode } from '@game/shared'
 import type { GameState } from '../src/game.js'
 
@@ -22,7 +23,15 @@ vi.mock('../src/network.js', () => ({ connect: vi.fn() }))
 
 let renderRoomScreen: (typeof import('../src/ui/screens.js'))['renderRoomScreen']
 
+/** A second mode to pick: the idler tree under another id and display name. */
+const COPY = 'idler-copy'
+
 beforeAll(async () => {
+  const idler = getModeDefinition('idler')
+  registerMode(COPY, {
+    ...idler,
+    flavors: [{ ...idler.flavors[0], displayName: 'Idler (copy)' }, ...idler.flavors.slice(1)],
+  })
   // `ui/helpers.ts` resolves `#app` at import time, so it must exist first.
   document.body.innerHTML = '<div id="app"></div>'
   ;({ renderRoomScreen } = await import('../src/ui/screens.js'))
@@ -43,22 +52,22 @@ const chips = (): HTMLButtonElement[] => [
 
 describe('room mode picker (DOM)', () => {
   it('shows one chip per tree, labelled with its display name, current one selected', () => {
-    renderRoomScreen(roomState('idler-alternative'))
+    renderRoomScreen(roomState(COPY))
     expect(chips().map((c) => c.dataset.mode)).toEqual(getAvailableModes())
     expect(chips().map((c) => c.textContent)).toEqual(
       getAvailableModes().map((m) => getModeFlavor(getModeDefinition(m)).displayName),
     )
     const selected = chips().filter((c) => c.classList.contains('selected'))
-    expect(selected.map((c) => c.dataset.mode)).toEqual(['idler-alternative'])
+    expect(selected.map((c) => c.dataset.mode)).toEqual([COPY])
   })
 
   it('sends the chosen tree as a room settings update', () => {
     updateRoomSettings.mockClear()
     renderRoomScreen(roomState('idler'))
     chips()
-      .find((c) => c.dataset.mode === 'idler-alternative')!
+      .find((c) => c.dataset.mode === COPY)!
       .click()
-    expect(updateRoomSettings).toHaveBeenCalledWith({ mode: 'idler-alternative' })
+    expect(updateRoomSettings).toHaveBeenCalledWith({ mode: COPY })
   })
 
   it('hides the picker from the joining player', () => {

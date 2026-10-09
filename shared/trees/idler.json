@@ -402,13 +402,13 @@
     {
       "type": "target-score",
       "label": "🎯 Race to Score",
-      "target": 364,
+      "target": 30000000,
       "safetyCapSec": 300
     },
     {
       "type": "timed",
       "label": "⏱ Timed",
-      "durationSec": 35
+      "durationSec": 120
     }
   ],
   "flavors": [
@@ -1059,7 +1059,7 @@
       "id": "goal",
       "cost": {
         "r0": {
-          "baseCost": 30000
+          "baseCost": 30000000
         }
       },
       "purchaseLimit": 1,

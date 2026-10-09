@@ -415,7 +415,8 @@ Pushing this file to GitHub and clicking "New Blueprint" in Render creates both 
 - Must use `wss://` (not `ws://`) — Render terminates SSL at the load balancer and forwards as `ws://` internally
 - The server URL is injected into the client via Vite's env variables:
   - `client/.env.production`: `VITE_WS_URL=wss://incremental-server.onrender.com/ws`
-  - `client/.env.development`: `VITE_WS_URL=ws://localhost:10000/ws`
+  - `client/.env.development`: leaves `VITE_WS_URL` unset, so dev falls back to
+    `ws://<page host>:10000/ws` and works from other devices on the LAN
   - Accessed in code as `import.meta.env.VITE_WS_URL`
 
 ---
@@ -505,7 +506,7 @@ incremental-game/
 │   ├── tsconfig.json
 │   ├── vite.config.ts
 │   ├── index.html               ← entry point (script type="module")
-│   ├── .env.development          ← VITE_WS_URL=ws://localhost:10000/ws
+│   ├── .env.development          ← VITE_WS_URL unset → ws://<page host>:10000/ws
 │   ├── .env.production           ← VITE_WS_URL=wss://incremental-server.onrender.com/ws
 │   └── src/
 │       ├── main.ts              ← entry: init UI, connect to server

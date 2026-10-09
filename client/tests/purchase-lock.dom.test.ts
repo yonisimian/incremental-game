@@ -29,8 +29,10 @@ const { openUpgradeDetail, closeUpgradeDetail } = await import('../src/ui/upgrad
 
 const mode = getModeDefinition('idler')
 
-/** A free root upgrade with no prerequisites — buyable unless locked. */
-const ROOT = mode.upgrades.find((u) => u.prerequisites === undefined && u.purchaseLimit === 1)!
+/** A cheap root upgrade with no prerequisites (not the trophy) — buyable unless locked. */
+const ROOT = mode.upgrades.find(
+  (u) => u.prerequisites === undefined && u.purchaseLimit === 1 && u.goalType === undefined,
+)!
 
 function makeState(locks?: PurchaseLock[]): GameState {
   const player = createInitialState(mode)

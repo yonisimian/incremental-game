@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
+import { MAX_TARGET_SCORE } from '@game/shared'
 
 function mockWs(): WebSocket {
   return { readyState: 1, send: vi.fn() } as unknown as WebSocket
@@ -171,13 +172,17 @@ describe('rooms', () => {
     expect(res.settings.mode).toBe('idler')
   })
 
-  it('lets the creator switch the room to the alternative idler tree', () => {
+  it('lets the creator switch the room to another tree', async () => {
+    // Only one tree ships; register the idler tree under a second id (from the
+    // same module instance the reset matchmaking module sees).
+    const { getModeDefinition, registerMode } = await import('@game/shared')
+    registerMode('idler-copy', getModeDefinition('idler'))
     createRoom(player('p1'), noop)
-    const res = updateRoomSettings('p1', { mode: 'idler-alternative' })
+    const res = updateRoomSettings('p1', { mode: 'idler-copy' })
     expect(res.ok).toBe(true)
     if (!res.ok) return
-    expect(res.settings.mode).toBe('idler-alternative')
-    expect(getRoomByPlayerId('p1')!.mode).toBe('idler-alternative')
+    expect(res.settings.mode).toBe('idler-copy')
+    expect(getRoomByPlayerId('p1')!.mode).toBe('idler-copy')
   })
 
   it('rejects settings update from non-creator', () => {
@@ -200,12 +205,12 @@ describe('rooms', () => {
   it('clamps an out-of-range custom target score', () => {
     createRoom(player('p1'), noop)
     const res = updateRoomSettings('p1', {
-      goal: { type: 'target-score', label: 'x', target: 99_999_999, safetyCapSec: 1 },
+      goal: { type: 'target-score', label: 'x', target: MAX_TARGET_SCORE * 10, safetyCapSec: 1 },
     })
     expect(res.ok).toBe(true)
     if (!res.ok) return
     if (res.settings.goal.type !== 'target-score') return
-    expect(res.settings.goal.target).toBe(100_000)
+    expect(res.settings.goal.target).toBe(MAX_TARGET_SCORE)
     // Non-tunable fields come from the predefined goal, not the client payload.
     expect(res.settings.goal.safetyCapSec).toBe(300)
   })

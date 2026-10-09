@@ -21,7 +21,7 @@ export async function configureGoal(page: Page, goal: GoalSetup): Promise<void> 
     const input = page.locator('#goal-target-input')
     await input.fill(String(goal.target))
     await input.dispatchEvent('change')
-    await expect(input).toHaveValue(String(Math.max(10, Math.min(100_000, goal.target))))
+    await expect(input).toHaveValue(String(Math.max(10, Math.min(100_000_000, goal.target))))
   }
   if (goal.type === 'timed' && goal.durationSec !== undefined) {
     const input = page.locator('#goal-duration-input')

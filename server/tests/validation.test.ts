@@ -168,10 +168,12 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
   // upgrade map under any other goal. Validation enforces this purely via
   // map presence — no signature change in isValidPurchase.
 
+  const trophyCost = idlerDef.upgrades.find((u) => u.id === 'goal')!.cost.r0.baseCost
+
   function makeAffordableState(): PlayerState {
     return {
       score: 0,
-      resources: { r0: 99999 },
+      resources: { r0: trophyCost },
       upgrades: Object.fromEntries(idlerDef.upgrades.map((u) => [u.id, 0])),
       generators: {},
       pendingAttacks: [],
@@ -209,7 +211,7 @@ describe('isValidPurchase — goal-tagged upgrades', () => {
       getAvailableUpgrades(idlerDef, buyUpgradeGoal).map((u) => [u.id, u]),
     )
     const state = makeAffordableState()
-    state.resources.r0 = 100 // trophy costs 30000
+    state.resources.r0 = 100 // far below the trophy's price
     expect(isValidPurchase(state, 'goal', filteredMap, idlerDef)).toBe(false)
   })
 })

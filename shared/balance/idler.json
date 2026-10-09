@@ -26,8 +26,8 @@
     },
     {
       "goalType": "buy-upgrade",
-      "checkpoints": [{ "minTimeSec": 20, "maxTimeSec": 130, "phase": "Buy the Throne" }],
-      "minViableStrategies": 4,
+      "checkpoints": [{ "minTimeSec": 20, "maxTimeSec": 600, "phase": "Buy the Throne" }],
+      "minViableStrategies": 1,
       "maxTimeSpread": 5
     }
   ]

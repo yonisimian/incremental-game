@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getModeDefinition, validateModeDefinition } from '../src/modes/index.js'
 import type { ModeDefinition, ModeFlavor } from '../src/modes/types.js'
+import { MAX_TARGET_SCORE, MIN_ROUND_DURATION_SEC } from '../src/game-config.js'
 import type { EffectRef, GameMode } from '../src/types.js'
 import {
   getModeFlavor,
@@ -112,6 +113,28 @@ function withFlavor(def: ModeDefinition, patch: Partial<ModeFlavor>): ModeDefini
 }
 
 describe('validateModeDefinition — negative tests', () => {
+  it('throws when a target-score goal sits outside the tunable bounds', () => {
+    const def: ModeDefinition = {
+      ...makeValidDef(),
+      goals: [
+        { type: 'target-score', label: 'x', target: MAX_TARGET_SCORE + 1, safetyCapSec: 300 },
+      ],
+    }
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/target-score goal target .* is outside/u)
+  })
+
+  it('throws when a timed goal sits outside the tunable bounds', () => {
+    const def: ModeDefinition = {
+      ...makeValidDef(),
+      goals: [{ type: 'timed', label: 'x', durationSec: MIN_ROUND_DURATION_SEC - 1 }],
+    }
+    expect(() => {
+      validateModeDefinition('test', def)
+    }).toThrow(/timed goal duration .* is outside/u)
+  })
+
   it('passes for a valid minimal definition', () => {
     expect(() => {
       validateModeDefinition('test', makeValidDef())

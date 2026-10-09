@@ -68,10 +68,13 @@ export function setConnectionStateHandler(handler: ConnectionStateHandler): void
 export async function connect(): Promise<void> {
   intentionalClose = false
   // The E2E harness may inject a per-worker server URL at runtime; otherwise use
-  // the value baked in at build time.
+  // the value baked in at build time. When neither is set (local dev), talk to a
+  // server on the same host the page came from, so a phone on the LAN reaches the
+  // dev server instead of itself.
   const wsUrl =
     (globalThis as { __E2E_WS_URL__?: string }).__E2E_WS_URL__ ??
-    (import.meta.env.VITE_WS_URL as string)
+    (import.meta.env.VITE_WS_URL as string | undefined) ??
+    `ws://${location.hostname}:10000/ws`
   const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:').replace(/\/ws$/, '/')
 
   // Health check — detect cold start

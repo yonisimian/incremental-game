@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Competitive multiplayer incremental game",
   "scripts": {
-    "dev": "pnpm --filter @game/shared build && concurrently -n shared,server,client -c yellow,blue,green \"pnpm --filter @game/shared dev\" \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+    "dev": "pnpm --filter @game/shared build && concurrently -n shared,server,client -c yellow,blue,green \"pnpm --filter @game/shared dev\" \"pnpm --filter server dev\" \"pnpm --filter client dev --host\"",
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
     "dev:shared": "pnpm --filter @game/shared dev",
