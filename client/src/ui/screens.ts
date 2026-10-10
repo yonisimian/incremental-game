@@ -5,6 +5,7 @@ import {
   getAvailableModes,
   isAvailableMode,
   customizeGoal,
+  findGoalChoice,
   RANDOM_GOAL,
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
@@ -320,9 +321,7 @@ function renderGoalTuningRow(goal: GoalChoice): string {
 
 function renderJoinerSettings(mode: GameMode, goal: GoalChoice): string {
   const modeDef = getModeDefinition(mode)
-  const predefined =
-    goal.type === 'random' ? RANDOM_GOAL : modeDef.goals.find((g) => g.type === goal.type)
-  const goalLabel = predefined?.label ?? goal.type
+  const goalLabel = findGoalChoice(mode, goal.type)?.label ?? goal.type
   const detail = goalDetail(goal)
   return `
     <div class="room-settings" id="room-settings">
@@ -361,10 +360,7 @@ function wireCreatorSettings(currentMode: GameMode): void {
     chip.addEventListener('click', () => {
       const goalType = chip.dataset.goalType
       if (!goalType) return
-      const goal =
-        goalType === 'random'
-          ? RANDOM_GOAL
-          : getModeDefinition(currentMode).goals.find((g) => g.type === goalType)
+      const goal = findGoalChoice(currentMode, goalType)
       if (goal) updateRoomSettings({ goal })
     })
   })

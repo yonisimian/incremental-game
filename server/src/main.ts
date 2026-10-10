@@ -7,9 +7,9 @@ import {
   RANDOM_GOAL,
   getModeDefinition,
   getAvailableModes,
-  isAvailableGoalChoice,
   isAvailableMode,
   resolveGoal,
+  sanitizeGoalChoice,
 } from '@game/shared'
 import type {
   ClientMessage,
@@ -228,12 +228,13 @@ wss.on('connection', (ws: WebSocket) => {
       if (getQueuedPlayer(data.id)) return // already in queue
       if (getRoomByPlayerId(data.id)) return // already in a room
       if (!isAvailableMode(msg.mode)) return
-      if (!isAvailableGoalChoice(msg.mode, msg.goal)) return
       if (!msg.matchId || typeof msg.matchId !== 'string') return
+      // Only the type and tunable survive from the payload; everything else is ours.
+      const goal = sanitizeGoalChoice(msg.mode, msg.goal)
+      if (!goal) return
 
       const name = sanitizeName(msg.name)
       const mode = msg.mode
-      const goal = msg.goal
       const pair = addToRematchQueue(msg.matchId, { id: data.id, ws, name, mode, goal })
       if (pair) {
         const match = new Match(

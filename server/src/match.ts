@@ -78,13 +78,13 @@ import {
   isValidAttackActivation,
 } from './validation.js'
 import type { BotStrategy } from './bot.js'
+import { elapsedGameSeconds, realTimeDelay } from './runtime-config.js'
 
 /**
  * Builds the bot once the match knows its goal: it receives the goal-filtered
  * upgrade list, which a `random` pick only settles inside the constructor.
  */
 export type BotFactory = (availableUpgrades: readonly UpgradeDefinition[]) => BotStrategy
-import { elapsedGameSeconds, realTimeDelay } from './runtime-config.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -226,7 +226,7 @@ export class Match {
     p2: { id: string; ws: WebSocket | null; name?: string },
     mode: GameMode,
     goal?: GoalChoice,
-    bot?: BotStrategy | BotFactory,
+    bot?: BotFactory,
   ) {
     this.id = randomUUID()
     this.mode = mode
@@ -238,7 +238,7 @@ export class Match {
     this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
     // A factory sees the goal-filtered upgrade list, which only exists once the
     // (possibly rolled) goal is known.
-    this.bot = typeof bot === 'function' ? bot(this.availableUpgrades) : (bot ?? null)
+    this.bot = bot ? bot(this.availableUpgrades) : null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
 

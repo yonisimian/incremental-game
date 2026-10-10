@@ -1113,16 +1113,36 @@ export function getDefaultGoal(mode: GameMode): Goal {
 export const RANDOM_GOAL: RandomGoalChoice = { type: 'random', label: '🎲 Random' }
 
 /**
- * Whether `choice` is something a room on `mode` may hold: one of the mode's
- * goal types, or `random` when there is more than one goal to roll between.
- * The check for an untrusted goal payload.
+ * The choice `type` names on `mode`: one of the mode's goals, or `RANDOM_GOAL`
+ * when there is more than one goal to roll between. `undefined` otherwise.
+ */
+export function findGoalChoice(mode: GameMode, type: string): GoalChoice | undefined {
+  const goals = getModeDefinition(mode).goals
+  if (type === 'random') return goals.length > 1 ? RANDOM_GOAL : undefined
+  return goals.find((g) => g.type === type)
+}
+
+/**
+ * Whether `choice` names something a room on `mode` may hold. Only the `type`
+ * is inspected — use `sanitizeGoalChoice` to turn an untrusted payload into a
+ * goal whose every field is ours.
  */
 export function isAvailableGoalChoice(mode: GameMode, choice: unknown): choice is GoalChoice {
   if (!choice || typeof choice !== 'object' || !('type' in choice)) return false
-  const { type } = choice
-  const goals = getModeDefinition(mode).goals
-  if (type === 'random') return goals.length > 1
-  return goals.some((g) => g.type === type)
+  return typeof choice.type === 'string' && findGoalChoice(mode, choice.type) !== undefined
+}
+
+/**
+ * The authoritative choice for an untrusted goal payload: `null` when it names
+ * nothing `mode` offers; otherwise our own `RANDOM_GOAL`, or the predefined goal
+ * with the client's tunable clamped onto it (see `customizeGoal`). The label,
+ * safety cap and any extra fields come from our data, never from the payload.
+ */
+export function sanitizeGoalChoice(mode: GameMode, requested: unknown): GoalChoice | null {
+  if (!isAvailableGoalChoice(mode, requested)) return null
+  const base = findGoalChoice(mode, requested.type)!
+  if (base.type === 'random' || requested.type === 'random') return base
+  return customizeGoal(base, requested)
 }
 
 /**

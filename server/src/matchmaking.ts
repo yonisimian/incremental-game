@@ -2,14 +2,12 @@ import type WebSocket from 'ws'
 import type { GameMode, GoalChoice, RoomSettings } from '@game/shared'
 import {
   MAX_ROOMS,
-  RANDOM_GOAL,
   ROOM_TTL_MS,
-  getModeDefinition,
   getDefaultGoal,
-  customizeGoal,
   DEFAULT_MODE,
   isAvailableGoalChoice,
   isAvailableMode,
+  sanitizeGoalChoice,
 } from '@game/shared'
 import { realTimeDelay } from './runtime-config.js'
 
@@ -89,7 +87,10 @@ function destroyRoom(code: string): void {
   console.info(`[room] destroyed ${code}`)
 }
 
-/** Start (or restart) the TTL timer for a non-full room. */
+/**
+ * Start (or restart) the TTL timer. It runs until the creator starts the match,
+ * so a room that fills up but never starts still expires.
+ */
 function startTtlTimer(room: Room): void {
   if (room.ttlTimer) clearTimeout(room.ttlTimer)
   room.ttlTimer = setTimeout(() => {
@@ -98,7 +99,7 @@ function startTtlTimer(room: Room): void {
   }, realTimeDelay(ROOM_TTL_MS))
 }
 
-/** Cancel the TTL timer (e.g., room became full). */
+/** Cancel the TTL timer (the match is starting, or the room is going away). */
 function cancelTtlTimer(room: Room): void {
   if (room.ttlTimer) {
     clearTimeout(room.ttlTimer)
@@ -213,14 +214,9 @@ export function updateRoomSettings(
 
   // Validate goal — unknown types (and `random` with nothing to roll) are
   // silently ignored. The label and safety cap always come from our own data.
-  if (update.goal !== undefined && isAvailableGoalChoice(room.mode, update.goal)) {
-    const requested = update.goal
-    if (requested.type === 'random') {
-      room.goal = RANDOM_GOAL
-    } else {
-      const predefined = getModeDefinition(room.mode).goals.find((g) => g.type === requested.type)
-      if (predefined) room.goal = customizeGoal(predefined, requested)
-    }
+  if (update.goal !== undefined) {
+    const goal = sanitizeGoalChoice(room.mode, update.goal)
+    if (goal) room.goal = goal
   }
 
   return { ok: true, settings: { mode: room.mode, goal: room.goal } }

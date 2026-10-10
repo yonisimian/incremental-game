@@ -5,8 +5,10 @@ import {
   getModeDefinition,
   getDefaultGoal,
   customizeGoal,
+  findGoalChoice,
   isAvailableGoalChoice,
   resolveGoal,
+  sanitizeGoalChoice,
   registerMode,
   RANDOM_GOAL,
   createInitialState,
@@ -133,6 +135,49 @@ describe('isAvailableGoalChoice', () => {
     registerMode('one-goal', { ...idler, goals: [idler.goals[0]] })
     expect(isAvailableGoalChoice('one-goal', RANDOM_GOAL)).toBe(false)
     expect(isAvailableGoalChoice('one-goal', idler.goals[0])).toBe(true)
+  })
+})
+
+describe('findGoalChoice', () => {
+  it("returns the mode's goal for its type and RANDOM_GOAL for random", () => {
+    const goals = getModeDefinition('idler').goals
+    expect(findGoalChoice('idler', 'timed')).toBe(goals.find((g) => g.type === 'timed'))
+    expect(findGoalChoice('idler', 'random')).toBe(RANDOM_GOAL)
+    expect(findGoalChoice('idler', 'sudden-death')).toBeUndefined()
+  })
+})
+
+describe('sanitizeGoalChoice', () => {
+  it('rejects payloads that name nothing the mode offers', () => {
+    expect(sanitizeGoalChoice('idler', { type: 'sudden-death' })).toBeNull()
+    expect(sanitizeGoalChoice('idler', { type: 42 })).toBeNull()
+    expect(sanitizeGoalChoice('idler', 'timed')).toBeNull()
+    expect(sanitizeGoalChoice('idler', null)).toBeNull()
+  })
+
+  it('returns our own RANDOM_GOAL whatever label the payload carries', () => {
+    expect(sanitizeGoalChoice('idler', { type: 'random', label: 'whatever' })).toBe(RANDOM_GOAL)
+  })
+
+  it('fills a missing tunable from our bounds instead of trusting the payload', () => {
+    const g = sanitizeGoalChoice('idler', { type: 'timed' })
+    expect(g?.type).toBe('timed')
+    if (g?.type !== 'timed') return
+    expect(Number.isFinite(g.durationSec)).toBe(true)
+    expect(g.durationSec).toBeGreaterThan(0)
+  })
+
+  it('clamps the tunable and keeps label, safety cap and extra fields ours', () => {
+    const base = getModeDefinition('idler').goals.find((g) => g.type === 'target-score')!
+    const g = sanitizeGoalChoice('idler', {
+      type: 'target-score',
+      label: 'x',
+      target: MAX_TARGET_SCORE * 10,
+      safetyCapSec: 1,
+      extra: 'junk',
+    })
+    expect(g).toEqual({ ...base, target: MAX_TARGET_SCORE })
+    expect(g).not.toHaveProperty('extra')
   })
 })
 

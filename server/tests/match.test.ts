@@ -131,9 +131,15 @@ describe('Match', () => {
 
   /** Create a bot match (pause is bot-only) and advance into the playing phase. */
   function enterPlayingVsBot() {
-    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'idler', TIMED_GOAL, {
-      decide: () => [],
-    })
+    const m = new Match(
+      { id: 'p1', ws: ws1 },
+      { id: 'bot', ws: null },
+      'idler',
+      TIMED_GOAL,
+      () => ({
+        decide: () => [],
+      }),
+    )
     m.start()
     vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
     return m
