@@ -157,7 +157,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
    ├─► Stats screen (clicks, CPS peak, upgrades purchased, etc.)
    ├─► Rematch (once both ask): a room match returns both players to their room — same code,
    │   mode and goal pick, host starts again; a quick match restarts with the same settings
-   └─► Or return to the lobby
+   └─► Or return to the main menu
 ```
 
 ---
