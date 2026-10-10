@@ -265,7 +265,12 @@ function stopBatching(): void {
   }
 }
 
-function flushBatch(): void {
+/**
+ * Send any actions queued since the last batch right now instead of waiting
+ * for the batch timer. Used before QUIT so the server scores the clicks the
+ * player already saw counted.
+ */
+export function flushBatch(): void {
   if (pendingActions.length === 0) return
   if (ws?.readyState !== WebSocket.OPEN) return
 

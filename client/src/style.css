@@ -629,9 +629,14 @@ body {
     border-color 0.15s;
 }
 
-.quit-btn:hover {
+.quit-btn:not(:disabled):hover {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.quit-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Pause button (bot matches only) */

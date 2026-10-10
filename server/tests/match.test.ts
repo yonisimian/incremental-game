@@ -815,6 +815,19 @@ describe('Match', () => {
       expect(p2End.durationSec).toBe(p1End.durationSec)
     })
 
+    it('stamps both players with one elapsed reading even as the clock moves between sends', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      const base = performance.now()
+      let reads = 0
+      const spy = vi.spyOn(performance, 'now').mockImplementation(() => base + 7 * reads++)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      spy.mockRestore()
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.durationSec).toBe(p2End.durationSec)
+    })
+
     it('reports elapsed time from the clock anchor when quitting between ticks', () => {
       // 100ms in is before the first tick, so the tick-cached timer still
       // reads the full duration; the anchor knows the round has run.

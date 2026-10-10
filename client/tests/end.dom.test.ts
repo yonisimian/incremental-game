@@ -44,7 +44,7 @@ const result = (): string => document.querySelector('.result')!.textContent
 const duration = (): HTMLElement | null => document.querySelector('.end-duration-value')
 
 describe('end screen (DOM)', () => {
-  it('tells the resigner they resigned, without a win/loss class', () => {
+  it('tells the resigner they resigned, styled as a defeat', () => {
     renderEndScreen(endState({ reason: 'quit', winner: 'opponent' }))
     expect(result()).toBe('You Resigned')
     expect(document.querySelector('.result')!.classList.contains('opponent')).toBe(true)

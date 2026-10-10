@@ -28,6 +28,7 @@ vi.mock('../src/network.js', () => {
     sendRoomJoin: vi.fn(() => true),
     sendRoomUpdate: vi.fn(),
     sendQuit: vi.fn(() => true),
+    flushBatch: vi.fn(),
     sendBotRequest: vi.fn(),
   }
 })
@@ -977,6 +978,28 @@ describe('game.ts', () => {
       vi.advanceTimersByTime(1)
       expect(game.getState().screen).toBe('lobby')
       expect(game.getState().resigning).toBe(false)
+    })
+
+    it('flushes queued actions before sending QUIT', async () => {
+      enterPlaying(game)
+      const { flushBatch, sendQuit } = await import('../src/network.js')
+      vi.mocked(flushBatch).mockClear()
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      expect(vi.mocked(flushBatch)).toHaveBeenCalledOnce()
+      expect(vi.mocked(flushBatch).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(sendQuit).mock.invocationCallOrder[0],
+      )
+    })
+
+    it('ignores a ROUND_END that arrives after the fallback already left the match', () => {
+      enterPlaying(game)
+      game.resignMatch()
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      expect(game.getState().screen).toBe('lobby')
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().screen).toBe('lobby')
+      expect(game.getState().endData).toBeNull()
     })
 
     it('does not fall back once the server has answered', () => {

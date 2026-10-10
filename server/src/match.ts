@@ -331,6 +331,7 @@ export class Match {
     this.phase = 'ended'
     this.clearTimers()
 
+    const durationSec = this.elapsedSec()
     const quitterIdx = this.players[0].id === playerId ? 0 : 1
     const quitter = this.players[quitterIdx]
     const opponent = this.players[1 - quitterIdx]
@@ -340,7 +341,7 @@ export class Match {
       winner: 'opponent',
       reason: 'quit',
       finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
-      durationSec: this.elapsedSec(),
+      durationSec,
       stats: quitter.stats,
     })
 
@@ -349,7 +350,7 @@ export class Match {
       winner: 'player',
       reason: 'quit',
       finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
-      durationSec: this.elapsedSec(),
+      durationSec,
       stats: opponent.stats,
     })
 
@@ -1128,6 +1129,7 @@ export class Match {
     if (this.phase === 'ended') return
     this.phase = 'ended'
     this.clearTimers()
+    const durationSec = this.elapsedSec()
 
     const [p1, p2] = this.players
     // Discard any attacks still preparing — the round is over, so they never
@@ -1159,7 +1161,7 @@ export class Match {
       winner: winnerForP1,
       reason,
       finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
-      durationSec: this.elapsedSec(),
+      durationSec,
       stats: p1.stats,
     })
 
@@ -1168,7 +1170,7 @@ export class Match {
       winner: winnerForP2,
       reason,
       finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
-      durationSec: this.elapsedSec(),
+      durationSec,
       stats: p2.stats,
     })
 
@@ -1180,6 +1182,7 @@ export class Match {
     this.phase = 'ended'
     this.clearTimers()
 
+    const durationSec = this.elapsedSec()
     const winnerIdx = this.players[0].id === playerId ? 1 : 0
     const winner = this.players[winnerIdx]
     const loser = this.players[1 - winnerIdx]
@@ -1189,7 +1192,7 @@ export class Match {
       winner: 'player',
       reason: 'forfeit',
       finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
-      durationSec: this.elapsedSec(),
+      durationSec,
       stats: winner.stats,
     })
 
@@ -1203,7 +1206,8 @@ export class Match {
    * forfeit or target-score finish between ticks would otherwise be short by
    * up to one tick. The callers flip `phase` to 'ended' before building the
    * ROUND_END, so key off the anchor (set when the countdown ends) rather
-   * than the phase.
+   * than the phase. Read once per round end so both players get the same
+   * value — two reads would straddle a clock step.
    */
   private elapsedSec(): number {
     const clockRunning = this.endAtMs > 0 && !this.paused

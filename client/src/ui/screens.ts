@@ -13,7 +13,7 @@ import {
 import type { GameState } from '../game.js'
 import { cancelQueue, resignMatch, requestBot, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
-import { app, escapeAttr } from './helpers.js'
+import { app, escapeAttr, renderResignButton, syncResignButton } from './helpers.js'
 
 // ─── Shared Fragments ────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ export function renderWaitingScreen(): void {
 export function renderCountdownScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen countdown-screen">
-      <button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${state.resigning ? 'Resigning…' : 'Resign'}</button>
+      ${renderResignButton(state)}
       <div class="countdown-number" id="countdown">${state.countdown}</div>
     </div>
   `
@@ -86,11 +86,7 @@ export function updateCountdown(state: Readonly<GameState>): void {
   if (el) {
     el.textContent = state.countdown <= 0 ? 'GO!' : String(state.countdown)
   }
-  const resignBtn = document.getElementById('resign-btn') as HTMLButtonElement | null
-  if (resignBtn && resignBtn.disabled !== state.resigning) {
-    resignBtn.disabled = state.resigning
-    resignBtn.textContent = state.resigning ? 'Resigning…' : 'Resign'
-  }
+  syncResignButton(state)
 }
 
 // ─── Room Screen ─────────────────────────────────────────────────────

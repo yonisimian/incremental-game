@@ -67,6 +67,7 @@ import {
   sendRoomCreate,
   sendRoomJoin,
   sendRoomUpdate,
+  flushBatch,
   sendQuit,
   sendPause,
   sendUnpause,
@@ -480,9 +481,18 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
   notify()
 }
 
+/**
+ * Whether the player may act on the match right now: the round is live, not
+ * paused, and no resignation is in flight. Every optimistic action starts
+ * with this so a new freeze condition is added in one place.
+ */
+function canAct(): boolean {
+  return state.screen === 'playing' && !state.paused && !state.resigning
+}
+
 /** Record a click action (optimistic). Only active when the mode enables clicks. */
 export function doClick(target?: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning) return
+  if (!canAct()) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isClickUnlocked(state.player, modeDef)) return
@@ -524,7 +534,7 @@ export function getClickTarget(modeDef: ModeDefinition): string {
 
 /** Cycle the Space hotkey's click target to the next clickable resource. */
 export function cycleClickTarget(): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isClickUnlocked(state.player, modeDef)) return
   const { resources } = modeDef
@@ -541,7 +551,7 @@ export function cycleClickTarget(): void {
  * mode, optimistic).
  */
 export function setHighlight(target: string | null): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning) return
+  if (!canAct()) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (readHighlight(state.player) === target) return
@@ -582,7 +592,7 @@ export function upgradeBlockReason(
 
 /** Attempt to purchase an upgrade (optimistic). */
 export function doBuy(upgradeId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning) return
+  if (!canAct()) return
   if (!state.mode) return
   // The server's own rule, so a predicted buy it would drop never happens here.
   if (upgradeBlockReason(state, upgradeId) !== null) return
@@ -600,7 +610,7 @@ export function doBuy(upgradeId: string): void {
 
 /** Attempt to purchase a generator (optimistic). */
 export function doBuyGenerator(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -616,7 +626,7 @@ export function doBuyGenerator(generatorId: string): void {
 
 /** Attempt to purchase the maximum affordable copies of a generator. */
 export function doBuyGeneratorMax(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -639,7 +649,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
 
 /** Attempt to sell one copy of a generator (optimistic). */
 export function doSellGenerator(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -652,7 +662,7 @@ export function doSellGenerator(generatorId: string): void {
 
 /** Activate an active attack (optimistic) — pays the prepare cost and queues the strike. */
 export function doActivateAttack(attackId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isValidAttackActivation(state.player, attackId, modeDef)) return
   applyAttackActivation(state.player, attackId, modeDef)
@@ -669,7 +679,7 @@ export function doActivateAttack(attackId: string): void {
  * apply it.
  */
 export function doActivatePact(pactId: string): void {
-  if (state.screen !== 'playing' || state.paused || state.resigning || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isValidPactActivation(state.player, pactId, modeDef)) return
   applyPactActivation(state.player, pactId, modeDef)
@@ -708,6 +718,8 @@ export function requestBot(): void {
 export function resignMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
   if (state.resigning) return
+  // Ship the clicks already queued so the server's final score includes them.
+  flushBatch()
   if (sendQuit()) {
     state.resigning = true
     resignTimer = setTimeout(leaveMatchLocally, RESIGN_TIMEOUT_MS)
@@ -939,6 +951,9 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
+  // A resign fallback may already have left the match (or a new queue may be
+  // underway); a late answer for that old match has nothing to end.
+  if (state.screen !== 'playing' && state.screen !== 'countdown') return
   clearResign()
   state.screen = 'ended'
   state.endData = msg

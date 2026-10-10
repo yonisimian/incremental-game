@@ -8,7 +8,15 @@ import {
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
 import { renderTimer, renderProgressBars } from './components.js'
-import { app, setText, formatScore, playerDisplayName, opponentDisplayName } from './helpers.js'
+import {
+  app,
+  setText,
+  formatScore,
+  playerDisplayName,
+  opponentDisplayName,
+  renderResignButton,
+  syncResignButton,
+} from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
 import { counterAttr, paintCounters, syncCounters } from './counters.js'
@@ -131,7 +139,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          <button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${state.resigning ? 'Resigning…' : 'Resign'}</button>
+          ${renderResignButton(state)}
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -177,12 +185,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBanner.textContent = state.paused ? 'PAUSED' : ''
   }
 
-  // Freeze the resign button once a QUIT is in flight.
-  const resignBtn = document.getElementById('resign-btn') as HTMLButtonElement | null
-  if (resignBtn && resignBtn.disabled !== state.resigning) {
-    resignBtn.disabled = state.resigning
-    resignBtn.textContent = state.resigning ? 'Resigning…' : 'Resign'
-  }
+  syncResignButton(state)
 
   // Update pause button icon/label to reflect the current state.
   const pauseBtn = document.getElementById('pause-btn')
