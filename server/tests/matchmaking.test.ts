@@ -75,6 +75,7 @@ describe('rooms', () => {
   let getRoomCount: (typeof import('../src/matchmaking.js'))['getRoomCount']
   let getRoomByPlayerId: (typeof import('../src/matchmaking.js'))['getRoomByPlayerId']
   let removeFromAll: (typeof import('../src/matchmaking.js'))['removeFromAll']
+  let reopenRoom: (typeof import('../src/matchmaking.js'))['reopenRoom']
 
   beforeEach(async () => {
     vi.resetModules()
@@ -92,6 +93,58 @@ describe('rooms', () => {
     getRoomCount = mod.getRoomCount
     getRoomByPlayerId = mod.getRoomByPlayerId
     removeFromAll = mod.removeFromAll
+    reopenRoom = mod.reopenRoom
+  })
+
+  describe('reopenRoom', () => {
+    const snapshot = { code: 'ABCDEF', creatorId: 'p1', mode: 'idler' as const, goal: RANDOM_GOAL }
+
+    it('seats both players back in a room with the old code, host seat and settings', () => {
+      const res = reopenRoom(player('p1'), player('p2'), snapshot, noop)
+      expect(res.ok).toBe(true)
+      if (!res.ok) return
+      expect(res.room.code).toBe('ABCDEF')
+      expect(res.room.creatorId).toBe('p1')
+      expect(res.room.players.map((p) => p.id)).toEqual(['p1', 'p2'])
+      expect(res.room.mode).toBe('idler')
+      expect(res.room.goal).toEqual(RANDOM_GOAL)
+      expect(getRoomByPlayerId('p1')).toBe(res.room)
+      expect(getRoomByPlayerId('p2')).toBe(res.room)
+      expect(getRoomCount()).toBe(1)
+    })
+
+    it('picks a fresh code when the old one is taken', () => {
+      const first = reopenRoom(player('a'), player('b'), snapshot, noop)
+      const second = reopenRoom(player('p1'), player('p2'), snapshot, noop)
+      expect(first.ok && second.ok).toBe(true)
+      if (!first.ok || !second.ok) return
+      expect(second.room.code).not.toBe('ABCDEF')
+      expect(second.room.code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/u)
+      expect(getRoomCount()).toBe(2)
+    })
+
+    it('refuses when either player is already in a room', () => {
+      createRoom(player('p2'), noop)
+      const res = reopenRoom(player('p1'), player('p2'), snapshot, noop)
+      expect(res).toEqual({ ok: false, reason: 'already_in_room' })
+      expect(getRoomByPlayerId('p1')).toBeUndefined()
+    })
+
+    it('is full and startable by the host, and expires if never started', () => {
+      const onExpire = vi.fn()
+      reopenRoom(player('p1'), player('p2'), snapshot, onExpire)
+      expect(startRoom('p2')).toEqual({ ok: false, reason: 'not_creator' })
+      vi.advanceTimersByTime(10 * 60 * 1000)
+      expect(onExpire).toHaveBeenCalledTimes(1)
+      expect(getRoomCount()).toBe(0)
+    })
+
+    it('can be started by the host right away', () => {
+      reopenRoom(player('p1'), player('p2'), snapshot, noop)
+      const res = startRoom('p1')
+      expect(res.ok).toBe(true)
+      expect(getRoomCount()).toBe(0)
+    })
   })
 
   it('creates a room successfully', () => {

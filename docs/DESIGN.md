@@ -155,7 +155,9 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 5. ROUND END
    ├─► Server declares winner based on final scores
    ├─► Stats screen (clicks, CPS peak, upgrades purchased, etc.)
-   └─► Option to rematch (same mode and goal as the round just played) or return to lobby
+   ├─► Rematch (once both ask): a room match returns both players to their room — same code,
+   │   mode and goal pick, host starts again; a quick match restarts with the same settings
+   └─► Or return to the lobby
 ```
 
 ---

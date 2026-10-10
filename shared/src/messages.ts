@@ -75,7 +75,11 @@ export interface BotRequestMessage {
   type: 'BOT_REQUEST'
 }
 
-/** Sent by client on end screen to request a rematch with the same opponent. */
+/**
+ * Sent by client on end screen to request a rematch with the same opponent.
+ * Once both ask: a room match reopens its room (`ROOM_CREATED`/`ROOM_JOINED`)
+ * for the host to start again; a quick match starts straight away.
+ */
 export interface RematchMessage {
   type: 'REMATCH'
   /** Player's display name. */
@@ -356,7 +360,10 @@ export interface RoomSettings {
   goal: GoalChoice
 }
 
-/** Confirms room creation, provides the code and initial player list. */
+/**
+ * Confirms room creation, provides the code and initial player list. Also
+ * sent to the host when a rematch reopens a room, then with both players.
+ */
 export interface RoomCreatedMessage {
   type: 'ROOM_CREATED'
   code: string
@@ -365,7 +372,10 @@ export interface RoomCreatedMessage {
   players: string[]
 }
 
-/** Confirms join, provides current room state (players = display names). */
+/**
+ * Confirms join, provides current room state (players = display names). Also
+ * sent to the guest when a rematch reopens a room.
+ */
 export interface RoomJoinedMessage {
   type: 'ROOM_JOINED'
   code: string

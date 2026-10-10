@@ -62,6 +62,18 @@ export async function startRoomMatch(
   return code
 }
 
+/**
+ * Both players rematch from the end screen of a room match: they land back in
+ * their room, and the creator starts the next round.
+ */
+export async function rematchRoomMatch(creator: GamePlayer, joiner: GamePlayer): Promise<void> {
+  await creator.page.locator('#rematch-btn').click()
+  await joiner.page.locator('#rematch-btn').click()
+  await expect(creator.page.locator('#room-start-btn')).toBeVisible()
+  await startRoom(creator)
+  await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
+}
+
 export async function startBotMatch(player: GamePlayer, goal: GoalSetup): Promise<void> {
   await createRoom(player, goal)
   await player.page.locator('#room-bot-btn').click()

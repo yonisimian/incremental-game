@@ -110,6 +110,15 @@ function cancelTtlTimer(room: Room): void {
 type CreateRoomResult =
   { ok: true; room: Room } | { ok: false; reason: 'room_limit' | 'already_in_room' }
 
+/** Register a room and seat its players, then start its clock. */
+function openRoom(fields: Omit<Room, 'createdAt' | 'ttlTimer'>): Room {
+  const room: Room = { ...fields, createdAt: Date.now(), ttlTimer: null }
+  rooms.set(room.code, room)
+  for (const p of room.players) playerRooms.set(p.id, room.code)
+  startTtlTimer(room)
+  return room
+}
+
 /**
  * Create a new room. The creator becomes the first player.
  * Default settings: idler + buy-upgrade.
@@ -118,24 +127,53 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
   if (playerRooms.has(player.id)) return { ok: false, reason: 'already_in_room' }
   if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
 
-  const code = generateRoomCode()
-  const defaultGoal = getDefaultGoal(DEFAULT_MODE)
-
-  const room: Room = {
-    code,
+  const room = openRoom({
+    code: generateRoomCode(),
     creatorId: player.id,
     players: [player],
     mode: DEFAULT_MODE,
-    goal: defaultGoal,
-    createdAt: Date.now(),
-    ttlTimer: null,
+    goal: getDefaultGoal(DEFAULT_MODE),
     onExpire,
-  }
+  })
+  console.info(`[room] created ${room.code} by ${player.id}`)
+  return { ok: true, room }
+}
 
-  rooms.set(code, room)
-  playerRooms.set(player.id, code)
-  startTtlTimer(room)
-  console.info(`[room] created ${code} by ${player.id}`)
+/** What a room looked like when its match started — enough to reopen it. */
+export interface RoomSnapshot {
+  code: string
+  creatorId: string
+  mode: GameMode
+  goal: GoalChoice
+}
+
+/**
+ * Seat two players back in their room after a match, with the mode and goal
+ * pick the match was started from (a `random` pick comes back as `random`).
+ * The old code is reused while it's free, so the first round's invite link
+ * keeps working; the creator keeps the host seat. Full but not started, so the
+ * TTL runs until the host presses Start.
+ */
+export function reopenRoom(
+  creator: QueuedPlayer,
+  joiner: QueuedPlayer,
+  snapshot: RoomSnapshot,
+  onExpire: (room: Room) => void,
+): CreateRoomResult {
+  if (playerRooms.has(creator.id) || playerRooms.has(joiner.id)) {
+    return { ok: false, reason: 'already_in_room' }
+  }
+  if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
+
+  const room = openRoom({
+    code: rooms.has(snapshot.code) ? generateRoomCode() : snapshot.code,
+    creatorId: creator.id,
+    players: [creator, joiner],
+    mode: snapshot.mode,
+    goal: snapshot.goal,
+    onExpire,
+  })
+  console.info(`[room] reopened ${room.code} for a rematch`)
   return { ok: true, room }
 }
 

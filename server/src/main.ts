@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
+  ROOM_TTL_MS,
   SERVER_STATUS_INTERVAL_MS,
   RANDOM_GOAL,
   getModeDefinition,
@@ -27,11 +28,12 @@ import {
   leaveRoom,
   updateRoomSettings,
   startRoom,
+  reopenRoom,
   removeFromAll,
   getRoomCount,
   getRoomByPlayerId,
 } from './matchmaking.js'
-import type { Room } from './matchmaking.js'
+import type { Room, RoomSnapshot } from './matchmaking.js'
 import { Match } from './match.js'
 import { createBot } from './bot.js'
 import { loadTreeFiles } from './trees.js'
@@ -155,6 +157,34 @@ function getRematchEntry(playerId: string): RematchEntry | undefined {
   return undefined
 }
 
+/**
+ * The room each room-started match came from, keyed by match id. A rematch
+ * of such a match reopens the room instead of starting straight away. Kept
+ * for one room TTL after the match ends, then forgotten.
+ */
+const roomSnapshots = new Map<string, RoomSnapshot>()
+
+/** Both players asked for a rematch of a room match: seat them back in it. */
+function reopenRoomForRematch(pair: [RematchEntry, RematchEntry], snapshot: RoomSnapshot): void {
+  const creator = pair[1].id === snapshot.creatorId ? pair[1] : pair[0]
+  const joiner = creator === pair[0] ? pair[1] : pair[0]
+  const result = reopenRoom(
+    { id: creator.id, ws: creator.ws, name: creator.name },
+    { id: joiner.id, ws: joiner.ws, name: joiner.name },
+    snapshot,
+    onRoomExpire,
+  )
+  if (!result.ok) {
+    broadcast([creator, joiner], { type: 'ROOM_ERROR', reason: result.reason })
+    return
+  }
+  const { room } = result
+  const settings = { mode: room.mode, goal: room.goal }
+  const players = room.players.map((p) => p.name)
+  send(creator.ws, { type: 'ROOM_CREATED', code: room.code, settings, players })
+  send(joiner.ws, { type: 'ROOM_JOINED', code: room.code, settings, players })
+}
+
 /** Roll random settings for quick-match. */
 function rollRandomSettings(): { mode: GameMode; goal: GoalChoice } {
   const modes = getAvailableModes()
@@ -236,15 +266,23 @@ wss.on('connection', (ws: WebSocket) => {
       const name = sanitizeName(msg.name)
       const mode = msg.mode
       const pair = addToRematchQueue(msg.matchId, { id: data.id, ws, name, mode, goal })
-      if (pair) {
-        const match = new Match(
+      if (!pair) return
+      // A room match goes back to its room for the host to start again; a
+      // quick match replays its settings straight away.
+      const snapshot = roomSnapshots.get(msg.matchId)
+      if (snapshot) {
+        roomSnapshots.delete(msg.matchId)
+        reopenRoomForRematch(pair, snapshot)
+        return
+      }
+      startMatch(
+        new Match(
           { id: pair[0].id, ws: pair[0].ws, name: pair[0].name },
           { id: pair[1].id, ws: pair[1].ws, name: pair[1].name },
           pair[0].mode,
           pair[0].goal,
-        )
-        startMatch(match)
-      }
+        ),
+      )
       return
     }
 
@@ -312,6 +350,7 @@ wss.on('connection', (ws: WebSocket) => {
           room.mode,
           room.goal,
         ),
+        { code: room.code, creatorId: creator.id, mode: room.mode, goal: room.goal },
       )
       return
     }
@@ -407,14 +446,21 @@ function startBotMatch(
   )
 }
 
-/** Register a match, wire up cleanup, and start it. */
-function startMatch(match: Match): void {
+/**
+ * Register a match, wire up cleanup, and start it. `fromRoom` is the room a
+ * room match was started from, remembered so a rematch can reopen it.
+ */
+function startMatch(match: Match, fromRoom?: RoomSnapshot): void {
   for (const pid of match.getPlayerIds()) {
     playerMatches.set(pid, match)
   }
+  if (fromRoom) roomSnapshots.set(match.id, fromRoom)
   match.onEnd(() => {
     for (const pid of match.getPlayerIds()) {
       playerMatches.delete(pid)
+    }
+    if (fromRoom) {
+      setTimeout(() => roomSnapshots.delete(match.id), realTimeDelay(ROOM_TTL_MS)).unref()
     }
   })
   match.start()
