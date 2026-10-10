@@ -6,7 +6,7 @@ import {
   getState,
   togglePause,
   cancelQueue,
-  quitMatch,
+  resignMatch,
 } from '../game.js'
 import { canBuy } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
@@ -39,15 +39,15 @@ export function initHotkeys(): void {
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       return
 
-    // ── Escape — context-sensitive quit/back (screen-agnostic) ──
+    // ── Escape — context-sensitive resign/back (screen-agnostic) ──
     if (e.key === 'Escape') {
-      // An open upgrade-detail popup takes priority — close it, don't quit.
+      // An open upgrade-detail popup takes priority — close it, don't resign.
       if (isUpgradeDetailOpen()) {
         closeUpgradeDetail()
         return
       }
       if (state.screen === 'playing' || state.screen === 'countdown') {
-        quitMatch()
+        resignMatch()
       } else if (state.screen === 'waiting' || state.screen === 'room') {
         cancelQueue()
       }

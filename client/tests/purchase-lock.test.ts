@@ -63,6 +63,7 @@ function makeState(locks?: PurchaseLock[]): GameState {
     debuffs: [],
     timeLeft: 60,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: null,
     upgrades: [FREE],

@@ -320,6 +320,11 @@ export type RoundEndReason = 'complete' | 'safety-cap' | 'quit' | 'forfeit'
 /** Sent when the round ends (timer expired, quit, or forfeit). */
 export interface RoundEndMessage {
   type: 'ROUND_END'
+  /**
+   * The match this verdict belongs to, so a client can drop a late answer
+   * for a match it already left. Optional on the wire for an older server.
+   */
+  matchId?: string
   winner: MatchWinner
   reason: RoundEndReason
   /**
@@ -327,6 +332,14 @@ export interface RoundEndMessage {
    * opponent's score is irrelevant to the result and never revealed.
    */
   finalScores: { player: number; opponent?: number }
+  /**
+   * How long the round ran, in game seconds. Equals the goal's duration when
+   * a timed round ran to completion; 0 when the round ended during countdown.
+   * Optional on the wire: the client (static site) and server (web service)
+   * deploy separately, so a newer client must tolerate an older server that
+   * does not send it yet.
+   */
+  durationSec?: number
   stats: {
     totalClicks: number
     peakCps: number

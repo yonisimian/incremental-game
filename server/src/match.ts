@@ -197,6 +197,8 @@ export class Match {
   private phase: MatchPhase = 'countdown'
   private tick = 0
   private timeLeftSec: number
+  /** Game seconds the round started with (timed duration or safety cap). */
+  private readonly initialSec: number
   /**
    * Monotonic timestamp (ms, from `performance.now()`) at which the current
    * round ends; source of truth for the timer. Uses the monotonic clock rather
@@ -222,7 +224,8 @@ export class Match {
     this.mode = mode
     this.goal = goal ?? getDefaultGoal(mode)
     this.modeDef = getModeDefinition(mode)
-    this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
+    this.initialSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
+    this.timeLeftSec = this.initialSec
     this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
     this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
     this.bot = bot ?? null
@@ -328,23 +331,28 @@ export class Match {
     this.phase = 'ended'
     this.clearTimers()
 
+    const durationSec = this.elapsedSec()
     const quitterIdx = this.players[0].id === playerId ? 0 : 1
     const quitter = this.players[quitterIdx]
     const opponent = this.players[1 - quitterIdx]
 
     this.send(quitter, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'opponent',
       reason: 'quit',
       finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
+      durationSec,
       stats: quitter.stats,
     })
 
     this.send(opponent, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'player',
       reason: 'quit',
       finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
+      durationSec,
       stats: opponent.stats,
     })
 
@@ -399,7 +407,7 @@ export class Match {
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
+      this.timeLeftSec = this.remainingSecFromAnchor()
 
       if (this.timeLeftSec <= 0) {
         this.endRound(this.timeExpiredReason)
@@ -817,7 +825,7 @@ export class Match {
     this.paused = true
     // Freeze the remaining time from the monotonic anchor. The tick stops
     // advancing the clock (and ending the round) while paused.
-    this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
+    this.timeLeftSec = this.remainingSecFromAnchor()
     this.broadcastState()
   }
 
@@ -1123,6 +1131,7 @@ export class Match {
     if (this.phase === 'ended') return
     this.phase = 'ended'
     this.clearTimers()
+    const durationSec = this.elapsedSec()
 
     const [p1, p2] = this.players
     // Discard any attacks still preparing — the round is over, so they never
@@ -1151,17 +1160,21 @@ export class Match {
 
     this.send(p1, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: winnerForP1,
       reason,
       finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
+      durationSec,
       stats: p1.stats,
     })
 
     this.send(p2, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: winnerForP2,
       reason,
       finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
+      durationSec,
       stats: p2.stats,
     })
 
@@ -1173,19 +1186,43 @@ export class Match {
     this.phase = 'ended'
     this.clearTimers()
 
+    const durationSec = this.elapsedSec()
     const winnerIdx = this.players[0].id === playerId ? 1 : 0
     const winner = this.players[winnerIdx]
     const loser = this.players[1 - winnerIdx]
 
     this.send(winner, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'player',
       reason: 'forfeit',
       finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
+      durationSec,
       stats: winner.stats,
     })
 
     this.onEndCallback?.()
+  }
+
+  /**
+   * Game seconds the round has run so far (0 until the countdown ends).
+   * `timeLeftSec` is only refreshed by the tick (and frozen by `pause()`), so
+   * while the clock is running read the monotonic anchor directly — a quit,
+   * forfeit or target-score finish between ticks would otherwise be short by
+   * up to one tick. The callers flip `phase` to 'ended' before building the
+   * ROUND_END, so key off the anchor (set when the countdown ends) rather
+   * than the phase. Read once per round end so both players get the same
+   * value — two reads would straddle a clock step.
+   */
+  private elapsedSec(): number {
+    const clockRunning = this.endAtMs > 0 && !this.paused
+    const left = clockRunning ? this.remainingSecFromAnchor() : this.timeLeftSec
+    return Math.max(0, this.initialSec - left)
+  }
+
+  /** Game seconds left per the monotonic anchor, clamped at zero. */
+  private remainingSecFromAnchor(): number {
+    return Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
   }
 
   private clearTimers(): void {

@@ -55,6 +55,7 @@ function makeState(locks?: PurchaseLock[]): GameState {
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: 'test-match',
     upgrades: mode.upgrades,

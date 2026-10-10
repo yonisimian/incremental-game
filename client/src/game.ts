@@ -67,6 +67,7 @@ import {
   sendRoomCreate,
   sendRoomJoin,
   sendRoomUpdate,
+  flushBatch,
   sendQuit,
   sendPause,
   sendUnpause,
@@ -157,6 +158,12 @@ export interface GameState {
   timeLeft: number
   /** Whether the server has paused the current match. */
   paused: boolean
+  /**
+   * A QUIT has been sent and we're waiting for the server's ROUND_END. Input
+   * is ignored meanwhile so optimistic score can't climb past what the server
+   * will report, and a second Resign is a no-op.
+   */
+  resigning: boolean
   /** Whether the current match is against a bot. */
   vsBot: boolean
   /** Current match ID. */
@@ -241,6 +248,7 @@ const state: GameState = {
   incomingAutoClicksPerSec: 0,
   timeLeft: 0,
   paused: false,
+  resigning: false,
   vsBot: false,
   matchId: null,
   upgrades: [],
@@ -257,6 +265,15 @@ const state: GameState = {
 }
 
 const pendingBatches: PendingBatch[] = []
+/**
+ * How long to wait for the server's ROUND_END after sending QUIT before giving
+ * up and returning to the lobby locally. The server answers immediately, so
+ * this only fires when the answer can't arrive: the socket was replaced after
+ * a drop (the new connection has no match, so the server has nothing to end)
+ * or the message was lost in flight.
+ */
+export const RESIGN_TIMEOUT_MS = 3000
+let resignTimer: ReturnType<typeof setTimeout> | null = null
 let onChange: StateChangeHandler = () => {}
 let onRoomJoinResolved: (() => void) | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
@@ -464,9 +481,18 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
   notify()
 }
 
+/**
+ * Whether the player may act on the match right now: the round is live, not
+ * paused, and no resignation is in flight. Every optimistic action starts
+ * with this so a new freeze condition is added in one place.
+ */
+function canAct(): boolean {
+  return state.screen === 'playing' && !state.paused && !state.resigning
+}
+
 /** Record a click action (optimistic). Only active when the mode enables clicks. */
 export function doClick(target?: string): void {
-  if (state.screen !== 'playing' || state.paused) return
+  if (!canAct()) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isClickUnlocked(state.player, modeDef)) return
@@ -508,7 +534,7 @@ export function getClickTarget(modeDef: ModeDefinition): string {
 
 /** Cycle the Space hotkey's click target to the next clickable resource. */
 export function cycleClickTarget(): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isClickUnlocked(state.player, modeDef)) return
   const { resources } = modeDef
@@ -525,7 +551,7 @@ export function cycleClickTarget(): void {
  * mode, optimistic).
  */
 export function setHighlight(target: string | null): void {
-  if (state.screen !== 'playing' || state.paused) return
+  if (!canAct()) return
   if (!state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (readHighlight(state.player) === target) return
@@ -566,7 +592,7 @@ export function upgradeBlockReason(
 
 /** Attempt to purchase an upgrade (optimistic). */
 export function doBuy(upgradeId: string): void {
-  if (state.screen !== 'playing' || state.paused) return
+  if (!canAct()) return
   if (!state.mode) return
   // The server's own rule, so a predicted buy it would drop never happens here.
   if (upgradeBlockReason(state, upgradeId) !== null) return
@@ -584,7 +610,7 @@ export function doBuy(upgradeId: string): void {
 
 /** Attempt to purchase a generator (optimistic). */
 export function doBuyGenerator(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -600,7 +626,7 @@ export function doBuyGenerator(generatorId: string): void {
 
 /** Attempt to purchase the maximum affordable copies of a generator. */
 export function doBuyGeneratorMax(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -623,7 +649,7 @@ export function doBuyGeneratorMax(generatorId: string): void {
 
 /** Attempt to sell one copy of a generator (optimistic). */
 export function doSellGenerator(generatorId: string): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   const def = modeDef.generators.find((g) => g.id === generatorId)
   if (!def) return
@@ -636,7 +662,7 @@ export function doSellGenerator(generatorId: string): void {
 
 /** Activate an active attack (optimistic) — pays the prepare cost and queues the strike. */
 export function doActivateAttack(attackId: string): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isValidAttackActivation(state.player, attackId, modeDef)) return
   applyAttackActivation(state.player, attackId, modeDef)
@@ -653,7 +679,7 @@ export function doActivateAttack(attackId: string): void {
  * apply it.
  */
 export function doActivatePact(pactId: string): void {
-  if (state.screen !== 'playing' || state.paused || !state.mode) return
+  if (!canAct() || !state.mode) return
   const modeDef = getModeDefinition(state.mode)
   if (!isValidPactActivation(state.player, pactId, modeDef)) return
   applyPactActivation(state.player, pactId, modeDef)
@@ -681,17 +707,45 @@ export function requestBot(): void {
   sendBotRequest()
 }
 
-/** Voluntarily quit the current match and return to lobby. */
-export function quitMatch(): void {
+/**
+ * Resign the current match. The server answers with a ROUND_END (reason
+ * 'quit', winner 'opponent'), which moves us to the end screen so the
+ * player sees their stats and can ask for a rematch. Until it arrives the
+ * match is frozen (`state.resigning`). If the socket is down, or no answer
+ * comes within `RESIGN_TIMEOUT_MS`, fall back to the lobby so the player is
+ * never stuck on a dead match.
+ */
+export function resignMatch(): void {
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
-  sendQuit()
+  if (state.resigning) return
+  // Ship the clicks already queued so the server's final score includes them.
+  flushBatch()
+  if (sendQuit()) {
+    state.resigning = true
+    resignTimer = setTimeout(leaveMatchLocally, RESIGN_TIMEOUT_MS)
+    notify()
+    return
+  }
+  leaveMatchLocally()
+}
+
+/** Leave the match without a server verdict: record the round and go to lobby. */
+function leaveMatchLocally(): void {
   recorderRoundEnd(state.player.score)
   resetForMatch()
 }
 
+function clearResign(): void {
+  if (resignTimer) {
+    clearTimeout(resignTimer)
+    resignTimer = null
+  }
+  state.resigning = false
+}
+
 /** Toggle the paused state for the current match. */
 export function togglePause(): void {
-  if (state.screen !== 'playing') return
+  if (state.screen !== 'playing' || state.resigning) return
   if (!state.vsBot) return // pause is only allowed in bot matches
   if (state.paused) {
     sendUnpause()
@@ -722,6 +776,7 @@ export function resetForMatch(): void {
   state.countdown = COUNTDOWN_SEC
   state.endData = null
   state.opponentName = ''
+  clearResign()
   roundStats.reset()
   resetRoom()
   pendingBatches.length = 0
@@ -762,6 +817,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.timeLeft =
     msg.config.goal.type === 'timed' ? msg.config.goal.durationSec : msg.config.goal.safetyCapSec
   state.paused = false
+  clearResign()
   state.vsBot = msg.vsBot
   state.countdown = COUNTDOWN_SEC
   state.endData = null
@@ -895,10 +951,11 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
-  // If WE are the quitter (reason=quit, winner=opponent), we already
-  // transitioned to lobby in quitMatch(). Just ignore this message.
-  if (msg.reason === 'quit' && msg.winner === 'opponent') return
-
+  // A resign fallback may already have left the match (or a new one may be
+  // underway); a late answer for that old match has nothing to end.
+  if (state.screen !== 'playing' && state.screen !== 'countdown') return
+  if (msg.matchId !== undefined && msg.matchId !== state.matchId) return
+  clearResign()
   state.screen = 'ended'
   state.endData = msg
   state.paused = false

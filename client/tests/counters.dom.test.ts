@@ -34,6 +34,7 @@ function makeState(): GameState {
     debuffs: [],
     timeLeft: 30,
     paused: true,
+    resigning: false,
     vsBot: false,
     matchId: 'counters-dom',
     upgrades: [],
