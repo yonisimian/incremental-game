@@ -2,8 +2,9 @@
 //
 // The room's two seats name whoever sits in them. A player who skipped the
 // name field still has a seat, so they get a role label ("Host" / "Guest")
-// rather than looking like nobody is there. DOM tier: this is purely about
-// the rendered lobby.
+// rather than looking like nobody is there. Each seat also carries tags:
+// "Lobby owner" on the host's seat for both players, "(you)" on the viewer's
+// own seat. DOM tier: this is purely about the rendered lobby.
 
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { getModeDefinition } from '@game/shared'
@@ -37,7 +38,10 @@ function roomState(roomPlayers: string[], isRoomCreator = true): GameState {
 }
 
 const slots = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('.player-slot')]
-const texts = (): string[] => slots().map((s) => s.textContent.trim())
+const texts = (): string[] =>
+  slots().map((s) => s.querySelector('.player-slot-name')!.textContent.trim())
+const tags = (): string[][] =>
+  slots().map((s) => [...s.querySelectorAll('.player-tag')].map((t) => t.textContent.trim()))
 
 describe('room player slots (DOM)', () => {
   it('names both seated players', () => {
@@ -75,5 +79,27 @@ describe('room player slots (DOM)', () => {
     renderRoomScreen(roomState(['Alice', '<img src=x>']))
     expect(texts()[1]).toBe('<img src=x>')
     expect(document.querySelector('.player-slot img')).toBeNull()
+  })
+
+  it('tags the host seat as lobby owner and the creator as (you)', () => {
+    renderRoomScreen(roomState(['Alice', 'Bob'], true))
+    expect(tags()).toEqual([['Lobby owner', '(you)'], []])
+  })
+
+  it('tags the guest seat as (you) for the joiner, keeping the owner tag on the host', () => {
+    renderRoomScreen(roomState(['Alice', 'Bob'], false))
+    expect(tags()).toEqual([['Lobby owner'], ['(you)']])
+  })
+
+  it('never tags an empty seat', () => {
+    renderRoomScreen(roomState(['Alice'], true))
+    expect(tags()).toEqual([['Lobby owner', '(you)'], []])
+  })
+
+  it('moves the tags when the remaining player is promoted to owner', () => {
+    renderRoomScreen(roomState(['Alice', 'Bob'], false))
+    updateRoomScreen(roomState(['Bob'], true))
+    expect(texts()).toEqual(['Bob', 'Waiting…'])
+    expect(tags()).toEqual([['Lobby owner', '(you)'], []])
   })
 })

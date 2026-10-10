@@ -111,7 +111,7 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
 
   lastSettingsSig = settingsSignature(isRoomCreator, roomSettings.mode, roomSettings.goal)
   const shareUrl = `${location.origin}${location.pathname}?room=${roomCode}`
-  const playerSlots = renderPlayerSlots(roomPlayers)
+  const playerSlots = renderPlayerSlots(roomPlayers, isRoomCreator)
   const settingsHtml = isRoomCreator
     ? renderCreatorSettings(roomSettings.mode, roomSettings.goal)
     : renderJoinerSettings(roomSettings.mode, roomSettings.goal)
@@ -162,7 +162,7 @@ export function updateRoomScreen(state: Readonly<GameState>): void {
   // Re-render the player slots and settings in-place
   const playersEl = document.getElementById('room-players')
   if (playersEl) {
-    playersEl.innerHTML = renderPlayerSlots(state.roomPlayers)
+    playersEl.innerHTML = renderPlayerSlots(state.roomPlayers, state.isRoomCreator)
   }
 
   // Settings section: re-render only when its inputs would actually differ.
@@ -226,15 +226,28 @@ function wireRoomActions(): void {
  * first, and promotion keeps it that way). A seated player with no name shows
  * a role label instead, so an empty name never reads as an empty seat.
  */
-function renderPlayerSlots(players: string[]): string {
+/**
+ * The two seats. Each shows its player's name plus tags: "Lobby owner" on the
+ * host's seat for everyone, and "(you)" on whichever seat is the viewer's.
+ */
+function renderPlayerSlots(players: string[], isRoomCreator: boolean): string {
   const host = players[0] ?? ''
   const guest = players.length > 1 ? (players[1] ?? '') : null
   const guestLabel = guest === null ? 'Waiting…' : guest ? escapeAttr(guest) : 'Guest'
+  const you = '(you)'
   return `
-    <div class="player-slot filled">${host ? escapeAttr(host) : 'Host'}</div>
+    ${renderPlayerSlot(true, host ? escapeAttr(host) : 'Host', ['Lobby owner', ...(isRoomCreator ? [you] : [])])}
     <div class="player-slot-vs">vs</div>
-    <div class="player-slot ${guest === null ? 'empty' : 'filled'}">${guestLabel}</div>
+    ${renderPlayerSlot(guest !== null, guestLabel, guest !== null && !isRoomCreator ? [you] : [])}
   `
+}
+
+function renderPlayerSlot(filled: boolean, label: string, tags: string[]): string {
+  const tagsHtml =
+    tags.length > 0
+      ? `<span class="player-slot-tags">${tags.map((t) => `<span class="player-tag">${t}</span>`).join('')}</span>`
+      : ''
+  return `<div class="player-slot ${filled ? 'filled' : 'empty'}"><span class="player-slot-name">${label}</span>${tagsHtml}</div>`
 }
 
 function renderCreatorSettings(mode: GameMode, goal: GoalChoice): string {

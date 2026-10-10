@@ -360,6 +360,23 @@ body {
   font-weight: 600;
 }
 
+.player-slot-name {
+  display: block;
+}
+
+.player-slot-tags {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.player-tag {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
 .room-settings {
   width: 100%;
   display: flex;
