@@ -330,8 +330,11 @@ export interface RoundEndMessage {
   /**
    * How long the round ran, in game seconds. Equals the goal's duration when
    * a timed round ran to completion; 0 when the round ended during countdown.
+   * Optional on the wire: the client (static site) and server (web service)
+   * deploy separately, so a newer client must tolerate an older server that
+   * does not send it yet.
    */
-  durationSec: number
+  durationSec?: number
   stats: {
     totalClicks: number
     peakCps: number

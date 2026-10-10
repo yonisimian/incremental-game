@@ -815,6 +815,15 @@ describe('Match', () => {
       expect(p2End.durationSec).toBe(p1End.durationSec)
     })
 
+    it('reports elapsed time from the clock anchor when quitting between ticks', () => {
+      // 100ms in is before the first tick, so the tick-cached timer still
+      // reads the full duration; the anchor knows the round has run.
+      const m = enterPlaying()
+      vi.advanceTimersByTime(100)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(0.1, 2)
+    })
+
     it('reports zero duration when a player quits during countdown', () => {
       const m = startMatch()
       m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))

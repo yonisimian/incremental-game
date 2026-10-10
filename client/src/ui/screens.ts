@@ -73,7 +73,7 @@ export function renderWaitingScreen(): void {
 export function renderCountdownScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen countdown-screen">
-      <button class="quit-btn" id="resign-btn">Resign</button>
+      <button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${state.resigning ? 'Resigning…' : 'Resign'}</button>
       <div class="countdown-number" id="countdown">${state.countdown}</div>
     </div>
   `
@@ -85,6 +85,11 @@ export function updateCountdown(state: Readonly<GameState>): void {
   const el = document.getElementById('countdown')
   if (el) {
     el.textContent = state.countdown <= 0 ? 'GO!' : String(state.countdown)
+  }
+  const resignBtn = document.getElementById('resign-btn') as HTMLButtonElement | null
+  if (resignBtn && resignBtn.disabled !== state.resigning) {
+    resignBtn.disabled = state.resigning
+    resignBtn.textContent = state.resigning ? 'Resigning…' : 'Resign'
   }
 }
 

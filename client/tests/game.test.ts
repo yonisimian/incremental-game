@@ -964,6 +964,51 @@ describe('game.ts', () => {
       expect(game.getState().screen).toBe('lobby')
     })
 
+    it('falls back to lobby when no ROUND_END arrives in time', async () => {
+      // A socket drop mid-match leaves the client on 'playing' with a match
+      // the server no longer has; the QUIT then gets no answer.
+      enterPlaying(game)
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      expect(game.getState().resigning).toBe(true)
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS - 1)
+      expect(game.getState().screen).toBe('playing')
+      vi.advanceTimersByTime(1)
+      expect(game.getState().screen).toBe('lobby')
+      expect(game.getState().resigning).toBe(false)
+    })
+
+    it('does not fall back once the server has answered', () => {
+      enterPlaying(game)
+      game.resignMatch()
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().resigning).toBe(false)
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      expect(game.getState().screen).toBe('ended')
+    })
+
+    it('sends QUIT only once while the answer is pending', async () => {
+      enterPlaying(game)
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      game.resignMatch()
+      expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
+    })
+
+    it('ignores input while the answer is pending', async () => {
+      enterPlaying(game)
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+      const scoreBefore = game.getState().player.score
+      game.resignMatch()
+      game.doClick()
+      game.doBuyGenerator('g0')
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+      expect(game.getState().player.score).toBe(scoreBefore)
+    })
+
     it('is a no-op on lobby screen', async () => {
       const { sendQuit } = await import('../src/network.js')
       vi.mocked(sendQuit).mockClear()

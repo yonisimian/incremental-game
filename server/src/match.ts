@@ -1196,9 +1196,21 @@ export class Match {
     this.onEndCallback?.()
   }
 
-  /** Game seconds the round has run so far (0 until the countdown ends). */
+  /**
+   * Game seconds the round has run so far (0 until the countdown ends).
+   * `timeLeftSec` is only refreshed by the tick (and frozen by `pause()`), so
+   * while the clock is running read the monotonic anchor directly — a quit,
+   * forfeit or target-score finish between ticks would otherwise be short by
+   * up to one tick. The callers flip `phase` to 'ended' before building the
+   * ROUND_END, so key off the anchor (set when the countdown ends) rather
+   * than the phase.
+   */
   private elapsedSec(): number {
-    return Math.max(0, this.initialSec - this.timeLeftSec)
+    const clockRunning = this.endAtMs > 0 && !this.paused
+    const left = clockRunning
+      ? Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
+      : this.timeLeftSec
+    return Math.max(0, this.initialSec - left)
   }
 
   private clearTimers(): void {

@@ -78,7 +78,7 @@ A real-time head-to-head incremental game playable on any device via the browser
    Server → Client:
      STATE_UPDATE   { tick, ackSeq, player, opponent, timeLeft, paused }
      ROUND_START    { matchId, config, opponentName, vsBot, serverTime }
-     ROUND_END      { winner, reason, finalScores, stats }
+     ROUND_END      { winner, reason, finalScores, durationSec, stats }
 
    Server → Client (room lifecycle):
      ROOM_CREATED       { code, settings, players }   ← confirms creation

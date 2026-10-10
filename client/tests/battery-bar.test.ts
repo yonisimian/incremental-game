@@ -36,6 +36,7 @@ function makeState(
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: 'test-match',
     upgrades: [],

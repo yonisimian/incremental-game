@@ -50,15 +50,23 @@ export function renderEndScreen(state: Readonly<GameState>): void {
         <div>${oName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.opponent ?? 0))}</strong></div>
       </div>`
 
+  // An older server (deploy skew) may not send the duration — omit the block
+  // rather than render a NaN readout.
+  const durationBlock =
+    end.durationSec === undefined
+      ? ''
+      : `
+      <div class="end-duration" id="end-duration">
+        <span class="end-duration-label">Match time</span>
+        <span class="end-duration-value">${formatDuration(end.durationSec)}</span>
+      </div>`
+
   app.innerHTML = `
     <div class="screen end-screen">
       <button id="report-btn" class="report-btn" aria-label="Report a bug" title="Report a bug">!</button>
       <h1 class="result ${resultClass}">${winnerText}</h1>
       ${scoresBlock}
-      <div class="end-duration" id="end-duration">
-        <span class="end-duration-label">Match time</span>
-        <span class="end-duration-value">${formatDuration(end.durationSec)}</span>
-      </div>
+      ${durationBlock}
       <div class="stats">
         ${flavor.showClickStats ? `<div>Clicks: ${formatNumber(end.stats.totalClicks)}</div>` : ''}
         ${flavor.showClickStats ? `<div>Peak CPS: ${formatNumber(end.stats.peakCps)}</div>` : ''}

@@ -131,7 +131,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          <button class="quit-btn" id="resign-btn">Resign</button>
+          <button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${state.resigning ? 'Resigning…' : 'Resign'}</button>
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -175,6 +175,13 @@ export function updatePlaying(state: Readonly<GameState>): void {
   if (pauseBanner) {
     pauseBanner.hidden = !state.paused
     pauseBanner.textContent = state.paused ? 'PAUSED' : ''
+  }
+
+  // Freeze the resign button once a QUIT is in flight.
+  const resignBtn = document.getElementById('resign-btn') as HTMLButtonElement | null
+  if (resignBtn && resignBtn.disabled !== state.resigning) {
+    resignBtn.disabled = state.resigning
+    resignBtn.textContent = state.resigning ? 'Resigning…' : 'Resign'
   }
 
   // Update pause button icon/label to reflect the current state.
