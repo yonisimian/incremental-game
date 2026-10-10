@@ -69,6 +69,7 @@ describe('quick-match queue', () => {
 describe('rooms', () => {
   let createRoom: (typeof import('../src/matchmaking.js'))['createRoom']
   let joinRoom: (typeof import('../src/matchmaking.js'))['joinRoom']
+  let startRoom: (typeof import('../src/matchmaking.js'))['startRoom']
   let leaveRoom: (typeof import('../src/matchmaking.js'))['leaveRoom']
   let updateRoomSettings: (typeof import('../src/matchmaking.js'))['updateRoomSettings']
   let getRoomCount: (typeof import('../src/matchmaking.js'))['getRoomCount']
@@ -85,6 +86,7 @@ describe('rooms', () => {
     const mod = await import('../src/matchmaking.js')
     createRoom = mod.createRoom
     joinRoom = mod.joinRoom
+    startRoom = mod.startRoom
     leaveRoom = mod.leaveRoom
     updateRoomSettings = mod.updateRoomSettings
     getRoomCount = mod.getRoomCount
@@ -110,21 +112,56 @@ describe('rooms', () => {
     expect(res.reason).toBe('already_in_room')
   })
 
-  it('joins a room by code', () => {
+  it('joins a room by code and keeps the full room waiting for its host', () => {
     const create = createRoom(player('p1'), noop)
     if (!create.ok) throw new Error('create failed')
     const join = joinRoom(player('p2'), create.room.code)
     expect(join.ok).toBe(true)
     if (!join.ok) return
-    expect(join.matchReady).toBe(true)
     expect(join.room.players).toHaveLength(2)
+    expect(getRoomCount()).toBe(1)
+    expect(getRoomByPlayerId('p2')?.code).toBe(create.room.code)
   })
 
-  it('removes the room from map when full (matchReady)', () => {
+  it('lets the creator start a full room, removing it from the map', () => {
     const create = createRoom(player('p1'), noop)
     if (!create.ok) throw new Error('create failed')
     joinRoom(player('p2'), create.room.code)
+    const res = startRoom('p1')
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.room.players.map((p) => p.id)).toEqual(['p1', 'p2'])
     expect(getRoomCount()).toBe(0)
+    expect(getRoomByPlayerId('p1')).toBeUndefined()
+    expect(getRoomByPlayerId('p2')).toBeUndefined()
+  })
+
+  it('refuses to start a room that is not full', () => {
+    createRoom(player('p1'), noop)
+    expect(startRoom('p1')).toEqual({ ok: false, reason: 'not_full' })
+    expect(getRoomCount()).toBe(1)
+  })
+
+  it('refuses a start from the joiner or an outsider', () => {
+    const create = createRoom(player('p1'), noop)
+    if (!create.ok) throw new Error('create failed')
+    joinRoom(player('p2'), create.room.code)
+    expect(startRoom('p2')).toEqual({ ok: false, reason: 'not_creator' })
+    expect(startRoom('ghost')).toEqual({ ok: false, reason: 'not_in_room' })
+    expect(getRoomCount()).toBe(1)
+  })
+
+  it('lets a promoted joiner start once a new second player arrives', () => {
+    const create = createRoom(player('p1'), noop)
+    if (!create.ok) throw new Error('create failed')
+    joinRoom(player('p2'), create.room.code)
+    leaveRoom('p1')
+    expect(startRoom('p2')).toEqual({ ok: false, reason: 'not_full' })
+    joinRoom(player('p3'), create.room.code)
+    const res = startRoom('p2')
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.room.creatorId).toBe('p2')
   })
 
   it('rejects join with invalid code', () => {
@@ -155,13 +192,10 @@ describe('rooms', () => {
   it('promotes the other player to creator when creator leaves', () => {
     const create = createRoom(player('p1'), noop)
     if (!create.ok) throw new Error('create failed')
-    // Need to add a second player without triggering matchReady
-    // Actually with 2-player rooms, joining makes it full. So leave/promote
-    // only applies if we test with the creator leaving before second joins.
-    // For the current 2-player design, leaving always destroys the room.
+    joinRoom(player('p2'), create.room.code)
     const res = leaveRoom('p1')
-    expect(res).not.toBeNull()
-    expect(res!.destroyed).toBe(true)
+    expect(res).toMatchObject({ destroyed: false, promoted: true, leaverName: 'Player p1' })
+    expect(getRoomByPlayerId('p2')!.creatorId).toBe('p2')
   })
 
   it('allows the creator to update room settings', () => {

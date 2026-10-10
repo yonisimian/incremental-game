@@ -70,6 +70,7 @@ A real-time head-to-head incremental game playable on any device via the browser
      ROOM_CREATE    { name }                          ← create a private room
      ROOM_JOIN      { code, name }                    ← join room by 6-char code
      ROOM_UPDATE    { mode?, goal? }                  ← creator changes settings
+     ROOM_START     {}                                ← creator starts the full room
      QUIT           {}                                ← leave match / room / queue
      PAUSE          {}                                ← pause match (bot matches only)
      UNPAUSE        {}                                ← resume a paused match
@@ -138,7 +139,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
    ├─► Creator can change mode & goal (or pick "random": rolled at match start); changes broadcast to the other player
    ├─► Either player can request a bot opponent
    ├─► Room has a TTL (10 min); expires automatically if the match never starts
-   └─► Match starts when two players are present
+   └─► Match starts when the creator presses Start with both players present
 
 3. COUNTDOWN
    └─► 3-2-1 countdown synced to server clock

@@ -559,6 +559,34 @@ body {
   border-color: var(--accent);
 }
 
+.room-actions {
+  display: flex;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+
+.start-btn {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem 1.75rem;
+  cursor: pointer;
+  transition:
+    filter 0.15s,
+    transform 0.1s;
+}
+
+.start-btn:hover {
+  filter: brightness(1.1);
+}
+
+.start-btn:active {
+  transform: scale(0.97);
+}
+
 .countdown-number {
   font-size: 6rem;
   font-weight: 800;

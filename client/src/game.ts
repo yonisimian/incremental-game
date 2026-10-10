@@ -68,6 +68,7 @@ import {
   sendRematch,
   sendRoomCreate,
   sendRoomJoin,
+  sendRoomStart,
   sendRoomUpdate,
   sendQuit,
   sendPause,
@@ -467,6 +468,14 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: GoalChoice 
     state.roomSettings = { ...state.roomSettings, goal: update.goal }
   }
   notify()
+}
+
+/** Start the room's match (creator only, once the second player is in). */
+export function startRoomMatch(): void {
+  if (state.screen !== 'room' || !state.isRoomCreator) return
+  if (state.roomPlayers.length < 2) return
+  sendRoomStart()
+  // The screen changes when ROUND_START arrives.
 }
 
 /** Record a click action (optimistic). Only active when the mode enables clicks. */

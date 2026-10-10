@@ -37,6 +37,11 @@ export async function joinRoom(player: GamePlayer, code: string): Promise<void> 
   await player.page.getByRole('button', { name: 'Join', exact: true }).click()
 }
 
+/** The creator's Start button, shown once the second player is in. */
+export async function startRoom(creator: GamePlayer): Promise<void> {
+  await creator.page.locator('#room-start-btn').click()
+}
+
 export async function waitForPlaying(player: GamePlayer, timeout = 12_000): Promise<void> {
   await expect(player.page.locator('.playing-screen')).toBeVisible({ timeout })
 }
@@ -52,6 +57,7 @@ export async function startRoomMatch(
 ): Promise<string> {
   const code = await createRoom(creator, goal)
   await joinRoom(joiner, code)
+  await startRoom(creator)
   await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
   return code
 }

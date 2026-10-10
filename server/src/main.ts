@@ -26,6 +26,7 @@ import {
   joinRoom,
   leaveRoom,
   updateRoomSettings,
+  startRoom,
   removeFromAll,
   getRoomCount,
   getRoomByPlayerId,
@@ -281,30 +282,36 @@ wss.on('connection', (ws: WebSocket) => {
         return
       }
 
-      if (result.matchReady) {
-        // Room is full — start match (creator = player 1)
-        const p1 = result.room.players[0]
-        const p2 = result.room.players[1]
-        const match = new Match(
-          { id: p1.id, ws: p1.ws!, name: p1.name },
-          { id: p2.id, ws: p2.ws!, name: p2.name },
-          result.room.mode,
-          result.room.goal,
-        )
-        startMatch(match)
-      } else {
-        // Confirm join to the joiner
-        send(ws, {
-          type: 'ROOM_JOINED',
-          code: result.room.code,
-          settings: { mode: result.room.mode, goal: result.room.goal },
-          players: result.room.players.map((p) => p.name),
-        })
-        broadcast(
-          result.room.players.filter((p) => p.id !== data.id),
-          { type: 'ROOM_PLAYER_JOINED', name },
-        )
-      }
+      // Confirm join to the joiner; the creator starts the match from here.
+      send(ws, {
+        type: 'ROOM_JOINED',
+        code: result.room.code,
+        settings: { mode: result.room.mode, goal: result.room.goal },
+        players: result.room.players.map((p) => p.name),
+      })
+      broadcast(
+        result.room.players.filter((p) => p.id !== data.id),
+        { type: 'ROOM_PLAYER_JOINED', name },
+      )
+      return
+    }
+
+    // ── ROOM_START ───────────────────────────────────────────────
+    if (msg.type === 'ROOM_START') {
+      const result = startRoom(data.id)
+      if (!result.ok) return
+      const { room } = result
+      // Creator = player 1, whoever joined = player 2.
+      const creator = room.players.find((p) => p.id === room.creatorId)!
+      const joiner = room.players.find((p) => p.id !== creator.id)!
+      startMatch(
+        new Match(
+          { id: creator.id, ws: creator.ws!, name: creator.name },
+          { id: joiner.id, ws: joiner.ws!, name: joiner.name },
+          room.mode,
+          room.goal,
+        ),
+      )
       return
     }
 

@@ -139,12 +139,11 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
 }
 
 type JoinRoomResult =
-  | { ok: true; room: Room; matchReady: boolean }
-  | { ok: false; reason: 'full' | 'not_found' | 'already_in_room' }
+  { ok: true; room: Room } | { ok: false; reason: 'full' | 'not_found' | 'already_in_room' }
 
 /**
- * Join an existing room by code. If the room becomes full, it is
- * atomically removed from the map and `matchReady: true` is returned.
+ * Join an existing room by code. A full room stays in the map, waiting for
+ * its creator to start the match (`startRoom`).
  */
 export function joinRoom(player: QueuedPlayer, code: string): JoinRoomResult {
   if (playerRooms.has(player.id)) return { ok: false, reason: 'already_in_room' }
@@ -156,19 +155,33 @@ export function joinRoom(player: QueuedPlayer, code: string): JoinRoomResult {
   room.players.push(player)
   playerRooms.set(player.id, normalized)
 
-  if (room.players.length >= 2) {
-    // Room is full — atomically remove from map before match starts.
-    cancelTtlTimer(room)
-    for (const p of room.players) playerRooms.delete(p.id)
-    rooms.delete(normalized)
-    console.info(`[room] ${normalized} full — starting match`)
-    return { ok: true, room, matchReady: true }
-  }
+  // The clock restarts on a join so a full room whose host never presses
+  // Start still expires, but only after a full TTL from the join.
+  startTtlTimer(room)
+  console.info(`[room] ${normalized} now has ${room.players.length} player(s)`)
+  return { ok: true, room }
+}
 
-  // Room still needs another player — cancel old timer & restart.
-  // (Timer was running; now a player joined but room isn't full yet — shouldn't
-  //  happen with max 2, but guard for future >2 rooms.)
-  return { ok: true, room, matchReady: false }
+type StartRoomResult =
+  { ok: true; room: Room } | { ok: false; reason: 'not_in_room' | 'not_creator' | 'not_full' }
+
+/**
+ * Start a full room's match. Only the creator may call this. The room is
+ * atomically removed from the map so a late leave or join can't touch a room
+ * whose match is already under way.
+ */
+export function startRoom(playerId: string): StartRoomResult {
+  const code = playerRooms.get(playerId)
+  const room = code === undefined ? undefined : rooms.get(code)
+  if (code === undefined || !room) return { ok: false, reason: 'not_in_room' }
+  if (room.creatorId !== playerId) return { ok: false, reason: 'not_creator' }
+  if (room.players.length < 2) return { ok: false, reason: 'not_full' }
+
+  cancelTtlTimer(room)
+  for (const p of room.players) playerRooms.delete(p.id)
+  rooms.delete(code)
+  console.info(`[room] ${code} started by its creator`)
+  return { ok: true, room }
 }
 
 type UpdateResult = { ok: true; settings: RoomSettings } | { ok: false }

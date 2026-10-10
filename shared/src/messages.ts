@@ -50,6 +50,11 @@ export interface RoomUpdateMessage {
   goal?: GoalChoice
 }
 
+/** Sent by the room creator to start the match once the second player is in. */
+export interface RoomStartMessage {
+  type: 'ROOM_START'
+}
+
 /** Sent by client to voluntarily quit the current match, room, or queue. */
 export interface QuitMessage {
   type: 'QUIT'
@@ -89,6 +94,7 @@ export type ClientMessage =
   | RoomCreateMessage
   | RoomJoinMessage
   | RoomUpdateMessage
+  | RoomStartMessage
   | QuitMessage
   | PauseMessage
   | UnpauseMessage

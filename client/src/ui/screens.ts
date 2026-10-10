@@ -12,7 +12,7 @@ import {
   MAX_ROUND_DURATION_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
+import { cancelQueue, quitMatch, requestBot, startRoomMatch, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
 
@@ -114,7 +114,7 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
   const settingsHtml = isRoomCreator
     ? renderCreatorSettings(roomSettings.mode, roomSettings.goal)
     : renderJoinerSettings(roomSettings.mode, roomSettings.goal)
-  const botBtnHtml = isRoomCreator && roomPlayers.length < 2 ? botButtonHtml('room-bot-btn') : ''
+  const actionsSig = roomActionsSignature(isRoomCreator, roomPlayers.length)
 
   app.innerHTML = `
     <div class="screen room-screen">
@@ -128,7 +128,7 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
       </div>
       <div class="room-players" id="room-players">${playerSlots}</div>
       ${settingsHtml}
-      ${botBtnHtml}
+      <div class="room-actions" id="room-actions" data-sig="${actionsSig}">${renderRoomActions(isRoomCreator, roomPlayers.length)}</div>
     </div>
   `
 
@@ -154,7 +154,7 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
     wireCreatorSettings(roomSettings.mode)
   }
 
-  document.getElementById('room-bot-btn')?.addEventListener('click', requestBot)
+  wireRoomActions()
 }
 
 export function updateRoomScreen(state: Readonly<GameState>): void {
@@ -186,11 +186,36 @@ export function updateRoomScreen(state: Readonly<GameState>): void {
     }
   }
 
-  // Show/hide bot button
-  const botBtn = document.getElementById('room-bot-btn')
-  if (botBtn) {
-    botBtn.style.display = state.isRoomCreator && state.roomPlayers.length < 2 ? '' : 'none'
+  // Call to action: swap it only when the role or head count changed.
+  const actionsEl = document.getElementById('room-actions')
+  if (actionsEl) {
+    const sig = roomActionsSignature(state.isRoomCreator, state.roomPlayers.length)
+    if (actionsEl.dataset.sig !== sig) {
+      actionsEl.dataset.sig = sig
+      actionsEl.innerHTML = renderRoomActions(state.isRoomCreator, state.roomPlayers.length)
+      wireRoomActions()
+    }
   }
+}
+
+/** Identifies everything the room's call-to-action block renders from. */
+function roomActionsSignature(isCreator: boolean, playerCount: number): string {
+  return `${isCreator ? 'c' : 'j'}|${playerCount}`
+}
+
+/**
+ * The room's call to action: alone, the creator can summon a bot; once the
+ * second player is in, the creator starts the match and the joiner waits.
+ */
+function renderRoomActions(isCreator: boolean, playerCount: number): string {
+  if (playerCount < 2) return isCreator ? botButtonHtml('room-bot-btn') : ''
+  if (isCreator) return '<button class="start-btn" id="room-start-btn">▶ Start game</button>'
+  return '<p class="status-text" id="room-waiting">Waiting for the host to start…</p>'
+}
+
+function wireRoomActions(): void {
+  document.getElementById('room-bot-btn')?.addEventListener('click', requestBot)
+  document.getElementById('room-start-btn')?.addEventListener('click', startRoomMatch)
 }
 
 // ─── Room Helpers ────────────────────────────────────────────────────
