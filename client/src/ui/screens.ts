@@ -278,16 +278,9 @@ function renderCreatorSettings(mode: GameMode, goal: GoalChoice): string {
 
 /**
  * Editable numeric input for the selected goal's tunable value (creator only).
- * The random pick has nothing to tune; it says when the roll happens instead.
+ * Goals with nothing to tune (race, random) render no row.
  */
 function renderGoalTuningRow(goal: GoalChoice): string {
-  if (goal.type === 'random') {
-    return `
-      <div class="setting-row">
-        <span class="setting-label">Rolled</span>
-        <span class="setting-value">When the match starts</span>
-      </div>`
-  }
   if (goal.type === 'target-score') {
     return `
       <div class="setting-row">
