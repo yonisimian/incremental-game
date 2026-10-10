@@ -595,7 +595,13 @@ describe('Bot', () => {
       const modeDef = getModeDefinition(mode)
       const strategy =
         bot ?? createBot(mode, modeDef, getAvailableUpgrades(modeDef, goal ?? modeDef.goals[0]))
-      return new Match({ id: 'human', ws: ws1 }, { id: 'bot-1', ws: null }, mode, goal, strategy)
+      return new Match(
+        { id: 'human', ws: ws1 },
+        { id: 'bot-1', ws: null },
+        mode,
+        goal,
+        () => strategy,
+      )
     }
 
     it('sends ROUND_START only to the human player', () => {

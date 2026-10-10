@@ -2,6 +2,7 @@ import { test, expect } from './fixtures/test.js'
 import {
   finishTargetMatch,
   startBotMatch,
+  startRoom,
   startRoomMatch,
   waitForEnded,
   waitForPlaying,
@@ -43,17 +44,26 @@ test('LIFE-02 target completion maps complementary results and resets to lobby',
   await expect(winner.page.locator('.lobby-screen')).toBeVisible()
 })
 
-test('LIFE-03 two-player rematch preserves settings with fresh state', async ({ players }) => {
+test('LIFE-03 room rematch returns both to their room, then replays with fresh state', async ({
+  players,
+}) => {
   const first = await players.create('Rematch-A')
   const second = await players.create('Rematch-B')
   await Promise.all([first.open(), second.open()])
-  await startRoomMatch(first, second, { type: 'target-score', target: 10 })
+  const code = await startRoomMatch(first, second, { type: 'target-score', target: 10 })
   await finishTargetMatch(first)
   await waitForEnded(second)
 
   await first.page.locator('#rematch-btn').click()
   await expect(first.page.locator('.waiting-screen')).toBeVisible()
   await second.page.locator('#rematch-btn').click()
+  // Back in the same room: same code, same goal, host's Start button, guest waiting.
+  await expect(first.page.locator('#room-code')).toHaveText(code)
+  await expect(second.page.locator('#room-code')).toHaveText(code)
+  await expect(first.page.locator('#goal-target-input')).toHaveValue('10')
+  await expect(first.page.locator('#room-start-btn')).toBeVisible()
+  await expect(second.page.locator('#room-waiting')).toBeVisible()
+  await startRoom(first)
   await Promise.all([waitForPlaying(first), waitForPlaying(second)])
   // Fresh state with settings preserved: the score reset to a single digit
   // (below the target it had just reached to win) against the same `/ 10` goal.

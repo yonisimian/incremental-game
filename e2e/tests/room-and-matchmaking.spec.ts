@@ -4,6 +4,7 @@ import {
   createRoom,
   joinRoom,
   startBotMatch,
+  startRoom,
   startRoomMatch,
   waitForPlaying,
 } from './fixtures/journeys.js'
@@ -49,11 +50,33 @@ test('ROOM-03 creator configures all goals and exact settings reach both players
   await expect(creator.page.locator('#goal-duration-input')).toHaveValue('600')
   await configureGoal(creator.page, { type: 'buy-upgrade' })
   await expect(creator.page.locator('[data-goal-type="buy-upgrade"]')).toHaveClass(/selected/u)
+  await configureGoal(creator.page, { type: 'random' })
+  await expect(creator.page.locator('[data-goal-type="random"]')).toHaveClass(/selected/u)
+  await expect(creator.page.locator('#room-settings input')).toHaveCount(0)
   await configureGoal(creator.page, { type: 'target-score', target: 5 })
   await expect(creator.page.locator('#goal-target-input')).toHaveValue('10')
 
   const code = (await creator.page.locator('#room-code').textContent())!
   await joinRoom(joiner, code)
+  // A full room waits for the host: the joiner sees the final settings and no
+  // way to start; the creator holds the only Start button.
+  await expect(joiner.page.locator('#room-settings')).toContainText('10 pts')
+  await expect(creator.page.locator('.player-slot-name')).toHaveText(['Settings-A', 'Settings-B'])
+  await expect(joiner.page.locator('.player-slot-name')).toHaveText(['Settings-A', 'Settings-B'])
+  // Both see the owner tag on the host seat; each sees "(you)" on their own.
+  await expect(creator.page.locator('.player-slot').nth(0).locator('.player-tag')).toHaveText([
+    'Lobby owner',
+    '(you)',
+  ])
+  await expect(joiner.page.locator('.player-slot').nth(0).locator('.player-tag')).toHaveText([
+    'Lobby owner',
+  ])
+  await expect(joiner.page.locator('.player-slot').nth(1).locator('.player-tag')).toHaveText([
+    '(you)',
+  ])
+  await expect(joiner.page.locator('#room-waiting')).toBeVisible()
+  await expect(joiner.page.locator('#room-start-btn')).toHaveCount(0)
+  await startRoom(creator)
   await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
   await expect(creator.page.locator('#player-bar-score')).toContainText('/ 10')
   await expect(joiner.page.locator('#player-bar-score')).toContainText('/ 10')
@@ -71,6 +94,8 @@ test('ROOM-04 deep-link auto-join clears the consumed room parameter', async ({ 
   })
 
   await joiner.page.goto(`/?room=${code}`)
+  await expect(joiner.page.locator('#room-waiting')).toBeVisible()
+  await startRoom(creator)
   await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
   await expect(joiner.page).toHaveURL('http://127.0.0.1:4173/')
 })

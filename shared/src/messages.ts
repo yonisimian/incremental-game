@@ -1,6 +1,14 @@
 import type { Modifier } from './modifiers/types.js'
 import type { PactBonus } from './pacts.js'
-import type { ActivePact, GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
+import type {
+  ActivePact,
+  GameMode,
+  Goal,
+  GoalChoice,
+  MatchWinner,
+  PlayerAction,
+  PlayerState,
+} from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
@@ -39,7 +47,12 @@ export interface RoomJoinMessage {
 export interface RoomUpdateMessage {
   type: 'ROOM_UPDATE'
   mode?: GameMode
-  goal?: Goal
+  goal?: GoalChoice
+}
+
+/** Sent by the room creator to start the match once the second player is in. */
+export interface RoomStartMessage {
+  type: 'ROOM_START'
 }
 
 /** Sent by client to voluntarily quit the current match, room, or queue. */
@@ -62,16 +75,24 @@ export interface BotRequestMessage {
   type: 'BOT_REQUEST'
 }
 
-/** Sent by client on end screen to request a rematch with the same opponent. */
+/**
+ * Sent by client on end screen to request a rematch with the same opponent.
+ * Once both ask: a room match reopens its room (`ROOM_CREATED`/`ROOM_JOINED`)
+ * for the host to start again; a quick match starts straight away.
+ */
 export interface RematchMessage {
   type: 'REMATCH'
   /** Player's display name. */
   name: string
   /** Match ID from the just-finished match (pairs only the same two players). */
   matchId: string
-  /** Mode from the just-finished match. */
+  /** Mode from the just-finished match. Replayed by a quick match; ignored by a room match. */
   mode: GameMode
-  /** Goal from the just-finished match. */
+  /**
+   * Goal from the just-finished match. A quick match replays it (a rolled
+   * goal stays rolled); a room match ignores it and reopens the room with
+   * the server's own record of the pick.
+   */
   goal: Goal
 }
 
@@ -81,6 +102,7 @@ export type ClientMessage =
   | RoomCreateMessage
   | RoomJoinMessage
   | RoomUpdateMessage
+  | RoomStartMessage
   | QuitMessage
   | PauseMessage
   | UnpauseMessage
@@ -339,10 +361,13 @@ export interface RoundEndMessage {
 /** Room settings payload. */
 export interface RoomSettings {
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
 }
 
-/** Confirms room creation, provides the code and initial player list. */
+/**
+ * Confirms room creation, provides the code and initial player list. Also
+ * sent to the host when a rematch reopens a room, then with both players.
+ */
 export interface RoomCreatedMessage {
   type: 'ROOM_CREATED'
   code: string
@@ -351,7 +376,10 @@ export interface RoomCreatedMessage {
   players: string[]
 }
 
-/** Confirms join, provides current room state (players = display names). */
+/**
+ * Confirms join, provides current room state (players = display names). Also
+ * sent to the guest when a rematch reopens a room.
+ */
 export interface RoomJoinedMessage {
   type: 'ROOM_JOINED'
   code: string

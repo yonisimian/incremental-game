@@ -1,17 +1,19 @@
-import type { GameMode, Goal } from '@game/shared'
+import type { GameMode, Goal, GoalChoice } from '@game/shared'
 import {
   getModeDefinition,
   getModeFlavor,
   getAvailableModes,
   isAvailableMode,
   customizeGoal,
+  findGoalChoice,
+  RANDOM_GOAL,
   MIN_TARGET_SCORE,
   MAX_TARGET_SCORE,
   MIN_ROUND_DURATION_SEC,
   MAX_ROUND_DURATION_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { cancelQueue, quitMatch, requestBot, updateRoomSettings } from '../game.js'
+import { cancelQueue, quitMatch, requestBot, startRoomMatch, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
 
@@ -97,7 +99,7 @@ export function updateCountdown(state: Readonly<GameState>): void {
 let lastSettingsSig: string | null = null
 
 /** Identifies everything the settings block renders from (role + mode + goal). */
-function settingsSignature(isCreator: boolean, mode: GameMode, goal: Goal): string {
+function settingsSignature(isCreator: boolean, mode: GameMode, goal: GoalChoice): string {
   const tunable =
     goal.type === 'target-score' ? goal.target : goal.type === 'timed' ? goal.durationSec : ''
   return `${isCreator ? 'c' : 'j'}|${mode}|${goal.type}|${tunable}`
@@ -109,11 +111,11 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
 
   lastSettingsSig = settingsSignature(isRoomCreator, roomSettings.mode, roomSettings.goal)
   const shareUrl = `${location.origin}${location.pathname}?room=${roomCode}`
-  const playerSlots = renderPlayerSlots(roomPlayers)
+  const playerSlots = renderPlayerSlots(roomPlayers, isRoomCreator)
   const settingsHtml = isRoomCreator
     ? renderCreatorSettings(roomSettings.mode, roomSettings.goal)
     : renderJoinerSettings(roomSettings.mode, roomSettings.goal)
-  const botBtnHtml = isRoomCreator && roomPlayers.length < 2 ? botButtonHtml('room-bot-btn') : ''
+  const actionsSig = roomActionsSignature(isRoomCreator, roomPlayers.length)
 
   app.innerHTML = `
     <div class="screen room-screen">
@@ -127,7 +129,7 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
       </div>
       <div class="room-players" id="room-players">${playerSlots}</div>
       ${settingsHtml}
-      ${botBtnHtml}
+      <div class="room-actions" id="room-actions" data-sig="${actionsSig}">${renderRoomActions(isRoomCreator, roomPlayers.length)}</div>
     </div>
   `
 
@@ -153,14 +155,14 @@ export function renderRoomScreen(state: Readonly<GameState>): void {
     wireCreatorSettings(roomSettings.mode)
   }
 
-  document.getElementById('room-bot-btn')?.addEventListener('click', requestBot)
+  wireRoomActions()
 }
 
 export function updateRoomScreen(state: Readonly<GameState>): void {
   // Re-render the player slots and settings in-place
   const playersEl = document.getElementById('room-players')
   if (playersEl) {
-    playersEl.innerHTML = renderPlayerSlots(state.roomPlayers)
+    playersEl.innerHTML = renderPlayerSlots(state.roomPlayers, state.isRoomCreator)
   }
 
   // Settings section: re-render only when its inputs would actually differ.
@@ -185,26 +187,68 @@ export function updateRoomScreen(state: Readonly<GameState>): void {
     }
   }
 
-  // Show/hide bot button
-  const botBtn = document.getElementById('room-bot-btn')
-  if (botBtn) {
-    botBtn.style.display = state.isRoomCreator && state.roomPlayers.length < 2 ? '' : 'none'
+  // Call to action: swap it only when the role or head count changed.
+  const actionsEl = document.getElementById('room-actions')
+  if (actionsEl) {
+    const sig = roomActionsSignature(state.isRoomCreator, state.roomPlayers.length)
+    if (actionsEl.dataset.sig !== sig) {
+      actionsEl.dataset.sig = sig
+      actionsEl.innerHTML = renderRoomActions(state.isRoomCreator, state.roomPlayers.length)
+      wireRoomActions()
+    }
   }
+}
+
+/** Identifies everything the room's call-to-action block renders from. */
+function roomActionsSignature(isCreator: boolean, playerCount: number): string {
+  return `${isCreator ? 'c' : 'j'}|${playerCount}`
+}
+
+/**
+ * The room's call to action: alone, the creator can summon a bot; once the
+ * second player is in, the creator starts the match and the joiner waits.
+ */
+function renderRoomActions(isCreator: boolean, playerCount: number): string {
+  if (playerCount < 2) return isCreator ? botButtonHtml('room-bot-btn') : ''
+  if (isCreator) return '<button class="start-btn" id="room-start-btn">▶ Start game</button>'
+  return '<p class="status-text" id="room-waiting">Waiting for the host to start…</p>'
+}
+
+function wireRoomActions(): void {
+  document.getElementById('room-bot-btn')?.addEventListener('click', requestBot)
+  document.getElementById('room-start-btn')?.addEventListener('click', startRoomMatch)
 }
 
 // ─── Room Helpers ────────────────────────────────────────────────────
 
-function renderPlayerSlots(players: string[]): string {
-  const p1 = players[0] ?? null
-  const p2 = players[1] ?? null
+/**
+ * The two seats. The host always sits first (the server lists the creator
+ * first, and promotion keeps it that way). A seated player with no name shows
+ * a role label instead, so an empty name never reads as an empty seat. Each
+ * seat also carries tags: "Lobby owner" on the host's seat for everyone, and
+ * "(you)" on whichever seat is the viewer's.
+ */
+function renderPlayerSlots(players: string[], isRoomCreator: boolean): string {
+  const host = players[0] ?? ''
+  const guest = players.length > 1 ? (players[1] ?? '') : null
+  const guestLabel = guest === null ? 'Waiting…' : guest ? escapeAttr(guest) : 'Guest'
+  const you = '(you)'
   return `
-    <div class="player-slot filled">${p1 ? escapeAttr(p1) : 'You'}</div>
+    ${renderPlayerSlot(true, host ? escapeAttr(host) : 'Host', ['Lobby owner', ...(isRoomCreator ? [you] : [])])}
     <div class="player-slot-vs">vs</div>
-    <div class="player-slot ${p2 ? 'filled' : 'empty'}">${p2 ? escapeAttr(p2) : 'Waiting…'}</div>
+    ${renderPlayerSlot(guest !== null, guestLabel, guest !== null && !isRoomCreator ? [you] : [])}
   `
 }
 
-function renderCreatorSettings(mode: GameMode, goal: Goal): string {
+function renderPlayerSlot(filled: boolean, label: string, tags: string[]): string {
+  const tagsHtml =
+    tags.length > 0
+      ? `<span class="player-slot-tags">${tags.map((t) => `<span class="player-tag">${t}</span>`).join('')}</span>`
+      : ''
+  return `<div class="player-slot ${filled ? 'filled' : 'empty'}"><span class="player-slot-name">${label}</span>${tagsHtml}</div>`
+}
+
+function renderCreatorSettings(mode: GameMode, goal: GoalChoice): string {
   const modeDef = getModeDefinition(mode)
   const modes = getAvailableModes()
   // Hide the mode picker entirely when there's only one mode to choose from.
@@ -223,7 +267,10 @@ function renderCreatorSettings(mode: GameMode, goal: Goal): string {
       </div>`
       : ''
 
-  const goalChips = modeDef.goals
+  // "Random" only means something when there is more than one goal to roll.
+  const goalChoices: readonly GoalChoice[] =
+    modeDef.goals.length > 1 ? [...modeDef.goals, RANDOM_GOAL] : modeDef.goals
+  const goalChips = goalChoices
     .map((g) => {
       const selected = g.type === goal.type ? ' selected' : ''
       return `<button class="goal-chip${selected}" data-goal-type="${g.type}">${escapeAttr(g.label)}</button>`
@@ -241,8 +288,11 @@ function renderCreatorSettings(mode: GameMode, goal: Goal): string {
   `
 }
 
-/** Editable numeric input for the selected goal's tunable value (creator only). */
-function renderGoalTuningRow(goal: Goal): string {
+/**
+ * Editable numeric input for the selected goal's tunable value (creator only).
+ * Goals with nothing to tune (race, random) render no row.
+ */
+function renderGoalTuningRow(goal: GoalChoice): string {
   if (goal.type === 'target-score') {
     return `
       <div class="setting-row">
@@ -280,10 +330,9 @@ function renderGoalTuningRow(goal: Goal): string {
   return ''
 }
 
-function renderJoinerSettings(mode: GameMode, goal: Goal): string {
+function renderJoinerSettings(mode: GameMode, goal: GoalChoice): string {
   const modeDef = getModeDefinition(mode)
-  const predefined = modeDef.goals.find((g) => g.type === goal.type)
-  const goalLabel = predefined?.label ?? goal.type
+  const goalLabel = findGoalChoice(mode, goal.type)?.label ?? goal.type
   const detail = goalDetail(goal)
   return `
     <div class="room-settings" id="room-settings">
@@ -300,7 +349,7 @@ function renderJoinerSettings(mode: GameMode, goal: Goal): string {
 }
 
 /** Human-readable summary of a goal's tunable value, or '' if none. */
-function goalDetail(goal: Goal): string {
+function goalDetail(goal: GoalChoice): string {
   if (goal.type === 'target-score') return `${goal.target} pts`
   if (goal.type === 'timed') return `${goal.durationSec}s`
   return ''
@@ -322,8 +371,7 @@ function wireCreatorSettings(currentMode: GameMode): void {
     chip.addEventListener('click', () => {
       const goalType = chip.dataset.goalType
       if (!goalType) return
-      const modeDef = getModeDefinition(currentMode)
-      const goal = modeDef.goals.find((g) => g.type === goalType)
+      const goal = findGoalChoice(currentMode, goalType)
       if (goal) updateRoomSettings({ goal })
     })
   })

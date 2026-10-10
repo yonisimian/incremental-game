@@ -13,6 +13,7 @@ import {
   getModeDefinition,
   getUpgradeNextCost,
   NEUTRAL_COST_FACTORS,
+  RANDOM_GOAL,
   registerMode,
   validateModeDefinition,
 } from '@game/shared'
@@ -130,9 +131,15 @@ describe('Match', () => {
 
   /** Create a bot match (pause is bot-only) and advance into the playing phase. */
   function enterPlayingVsBot() {
-    const m = new Match({ id: 'p1', ws: ws1 }, { id: 'bot', ws: null }, 'idler', TIMED_GOAL, {
-      decide: () => [],
-    })
+    const m = new Match(
+      { id: 'p1', ws: ws1 },
+      { id: 'bot', ws: null },
+      'idler',
+      TIMED_GOAL,
+      () => ({
+        decide: () => [],
+      }),
+    )
     m.start()
     vi.advanceTimersByTime(COUNTDOWN_SEC * 1000)
     return m
@@ -215,6 +222,29 @@ describe('Match', () => {
       })
       expect(msg.matchId).toBeDefined()
       expect(msg.serverTime).toBeGreaterThan(0)
+    })
+
+    it('rolls a concrete goal for the random pick and sends it in ROUND_START', () => {
+      const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', RANDOM_GOAL)
+      m.start()
+      expect(getModeDefinition('idler').goals).toContain(m.goal)
+      expect(sentOfType(ws1, 'ROUND_START')[0].config).toEqual({ mode: 'idler', goal: m.goal })
+    })
+
+    it('builds a factory bot from the goal it rolled', () => {
+      let seen: readonly UpgradeDefinition[] | null = null
+      const m = new Match(
+        { id: 'p1', ws: ws1 },
+        { id: 'bot', ws: null },
+        'idler',
+        RANDOM_GOAL,
+        (u) => {
+          seen = u
+          return { decide: () => [] }
+        },
+      )
+      const trophyVisible = seen!.some((u) => u.goalType === 'buy-upgrade')
+      expect(trophyVisible).toBe(m.goal.type === 'buy-upgrade')
     })
 
     it('ignores actions during countdown', () => {

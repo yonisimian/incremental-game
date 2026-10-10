@@ -8,6 +8,7 @@ import {
   getAvailableUpgrades,
   getDefaultGoal,
   getModeDefinition,
+  resolveGoal,
   createInitialState,
   collectModifiers,
   collectEnemyDebuffs,
@@ -54,6 +55,7 @@ import type {
   ClientMessage,
   GameMode,
   Goal,
+  GoalChoice,
   MatchWinner,
   Modifier,
   ModeDefinition,
@@ -77,6 +79,12 @@ import {
 } from './validation.js'
 import type { BotStrategy } from './bot.js'
 import { elapsedGameSeconds, realTimeDelay } from './runtime-config.js'
+
+/**
+ * Builds the bot once the match knows its goal: it receives the goal-filtered
+ * upgrade list, which a `random` pick only settles inside the constructor.
+ */
+export type BotFactory = (availableUpgrades: readonly UpgradeDefinition[]) => BotStrategy
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -215,17 +223,20 @@ export class Match {
     p1: { id: string; ws: WebSocket; name?: string },
     p2: { id: string; ws: WebSocket | null; name?: string },
     mode: GameMode,
-    goal?: Goal,
-    bot?: BotStrategy,
+    goal?: GoalChoice,
+    bot?: BotFactory,
   ) {
     this.id = randomUUID()
     this.mode = mode
-    this.goal = goal ?? getDefaultGoal(mode)
+    // A `random` pick is rolled here, once; a rematch replays the rolled goal.
+    this.goal = resolveGoal(mode, goal ?? getDefaultGoal(mode))
     this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
     this.upgradeMap = new Map(this.availableUpgrades.map((u) => [u.id, u]))
-    this.bot = bot ?? null
+    // A factory sees the goal-filtered upgrade list, which only exists once the
+    // (possibly rolled) goal is known.
+    this.bot = bot ? bot(this.availableUpgrades) : null
     this.players = [this.initPlayer(p1), this.initPlayer(p2)]
   }
 
@@ -259,10 +270,7 @@ export class Match {
 
   /** Send ROUND_START to both, then begin the game loop after countdown. */
   start(): void {
-    const config = {
-      mode: this.mode,
-      goal: this.goal,
-    }
+    const config = { mode: this.mode, goal: this.goal }
 
     for (let i = 0; i < this.players.length; i++) {
       const player = this.players[i]

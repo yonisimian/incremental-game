@@ -2,11 +2,13 @@ import type {
   ActionBatchMessage,
   GameMode,
   Goal,
+  GoalChoice,
   QuickMatchMessage,
   PauseMessage,
   RematchMessage,
   RoomCreateMessage,
   RoomJoinMessage,
+  RoomStartMessage,
   RoomUpdateMessage,
   UnpauseMessage,
   PlayerAction,
@@ -160,9 +162,16 @@ export function sendRoomJoin(code: string, name: string): boolean {
 }
 
 /** Send a room settings update (creator only). */
-export function sendRoomUpdate(update: { mode?: GameMode; goal?: Goal }): void {
+export function sendRoomUpdate(update: { mode?: GameMode; goal?: GoalChoice }): void {
   if (ws?.readyState !== WebSocket.OPEN) return
   const msg: RoomUpdateMessage = { type: 'ROOM_UPDATE', ...update }
+  ws.send(JSON.stringify(msg))
+}
+
+/** Ask the server to start the room's match (creator only, once the room is full). */
+export function sendRoomStart(): void {
+  if (ws?.readyState !== WebSocket.OPEN) return
+  const msg: RoomStartMessage = { type: 'ROOM_START' }
   ws.send(JSON.stringify(msg))
 }
 

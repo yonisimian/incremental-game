@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type GoalChoice,
   type IncomingAttack,
   type ModeDefinition,
   type Modifier,
@@ -21,6 +22,7 @@ import {
   COUNTDOWN_SEC,
   createInitialState,
   getDefaultGoal,
+  isAvailableGoalChoice,
   getModeDefinition,
   getAvailableUpgrades,
   collectModifiers,
@@ -66,6 +68,7 @@ import {
   sendRematch,
   sendRoomCreate,
   sendRoomJoin,
+  sendRoomStart,
   sendRoomUpdate,
   sendQuit,
   sendPause,
@@ -267,7 +270,6 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
  * (each click action already carries its own resource).
  */
 let clickTarget: string | null = null
-
 /** The highlight as of the last `STATE_UPDATE`, before unacked actions are replayed. */
 let confirmedHighlight: string | null = null
 
@@ -419,6 +421,8 @@ export function rematch(): void {
   if (state.screen !== 'ended') return
   const { mode, goal, matchId } = state
   if (!mode || !goal || !matchId) return
+  // A quick match replays this mode and goal straight away. A room match
+  // ignores them: the server reopens the room from its own record of it.
   if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
   resetForMatch()
   state.screen = 'waiting'
@@ -442,7 +446,7 @@ export function joinRoom(code: string): void {
 }
 
 /** Update room settings (creator only). Optimistically updates local state. */
-export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): void {
+export function updateRoomSettings(update: { mode?: GameMode; goal?: GoalChoice }): void {
   if (state.screen !== 'room') return
   if (!state.isRoomCreator) return
   if (!state.roomSettings) return
@@ -451,10 +455,8 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
   // Optimistic local update — mirrors server-side updateRoomSettings logic
   if (update.mode !== undefined) {
     state.roomSettings = { ...state.roomSettings, mode: update.mode }
-    // If the current goal is no longer valid for the new mode, reset it
-    const modeDef = getModeDefinition(update.mode)
-    const goalStillValid = modeDef.goals.some((g) => g.type === state.roomSettings!.goal.type)
-    if (!goalStillValid) {
+    // If the current goal pick is no longer valid for the new mode, reset it
+    if (!isAvailableGoalChoice(update.mode, state.roomSettings.goal)) {
       state.roomSettings.goal = getDefaultGoal(update.mode)
     }
   }
@@ -462,6 +464,14 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
     state.roomSettings = { ...state.roomSettings, goal: update.goal }
   }
   notify()
+}
+
+/** Start the room's match (creator only, once the second player is in). */
+export function startRoomMatch(): void {
+  if (state.screen !== 'room' || !state.isRoomCreator) return
+  if (state.roomPlayers.length < 2) return
+  sendRoomStart()
+  // The screen changes when ROUND_START arrives.
 }
 
 /** Record a click action (optimistic). Only active when the mode enables clicks. */

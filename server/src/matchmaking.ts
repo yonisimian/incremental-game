@@ -1,13 +1,13 @@
 import type WebSocket from 'ws'
-import type { GameMode, Goal, RoomSettings } from '@game/shared'
+import type { GameMode, GoalChoice, RoomSettings } from '@game/shared'
 import {
   MAX_ROOMS,
   ROOM_TTL_MS,
-  getModeDefinition,
   getDefaultGoal,
-  customizeGoal,
   DEFAULT_MODE,
+  isAvailableGoalChoice,
   isAvailableMode,
+  sanitizeGoalChoice,
 } from '@game/shared'
 import { realTimeDelay } from './runtime-config.js'
 
@@ -24,7 +24,7 @@ export interface Room {
   creatorId: string
   players: QueuedPlayer[]
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
   createdAt: number
   ttlTimer: ReturnType<typeof setTimeout> | null
   /** Callback invoked when the TTL timer fires. Set at creation time. */
@@ -87,7 +87,10 @@ function destroyRoom(code: string): void {
   console.info(`[room] destroyed ${code}`)
 }
 
-/** Start (or restart) the TTL timer for a non-full room. */
+/**
+ * Start (or restart) the TTL timer. It runs until the creator starts the match,
+ * so a room that fills up but never starts still expires.
+ */
 function startTtlTimer(room: Room): void {
   if (room.ttlTimer) clearTimeout(room.ttlTimer)
   room.ttlTimer = setTimeout(() => {
@@ -96,7 +99,7 @@ function startTtlTimer(room: Room): void {
   }, realTimeDelay(ROOM_TTL_MS))
 }
 
-/** Cancel the TTL timer (e.g., room became full). */
+/** Cancel the TTL timer (the match is starting, or the room is going away). */
 function cancelTtlTimer(room: Room): void {
   if (room.ttlTimer) {
     clearTimeout(room.ttlTimer)
@@ -107,6 +110,15 @@ function cancelTtlTimer(room: Room): void {
 type CreateRoomResult =
   { ok: true; room: Room } | { ok: false; reason: 'room_limit' | 'already_in_room' }
 
+/** Register a room and seat its players, then start its clock. */
+function openRoom(fields: Omit<Room, 'createdAt' | 'ttlTimer'>): Room {
+  const room: Room = { ...fields, createdAt: Date.now(), ttlTimer: null }
+  rooms.set(room.code, room)
+  for (const p of room.players) playerRooms.set(p.id, room.code)
+  startTtlTimer(room)
+  return room
+}
+
 /**
  * Create a new room. The creator becomes the first player.
  * Default settings: idler + buy-upgrade.
@@ -115,34 +127,62 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
   if (playerRooms.has(player.id)) return { ok: false, reason: 'already_in_room' }
   if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
 
-  const code = generateRoomCode()
-  const defaultGoal = getDefaultGoal(DEFAULT_MODE)
-
-  const room: Room = {
-    code,
+  const room = openRoom({
+    code: generateRoomCode(),
     creatorId: player.id,
     players: [player],
     mode: DEFAULT_MODE,
-    goal: defaultGoal,
-    createdAt: Date.now(),
-    ttlTimer: null,
+    goal: getDefaultGoal(DEFAULT_MODE),
     onExpire,
-  }
+  })
+  console.info(`[room] created ${room.code} by ${player.id}`)
+  return { ok: true, room }
+}
 
-  rooms.set(code, room)
-  playerRooms.set(player.id, code)
-  startTtlTimer(room)
-  console.info(`[room] created ${code} by ${player.id}`)
+/** What a room looked like when its match started — enough to reopen it. */
+export interface RoomSnapshot {
+  code: string
+  creatorId: string
+  mode: GameMode
+  goal: GoalChoice
+}
+
+/**
+ * Seat two players back in their room after a match, with the mode and goal
+ * pick the match was started from (a `random` pick comes back as `random`).
+ * The old code is reused while it's free, so the first round's invite link
+ * keeps working; the creator keeps the host seat. Full but not started, so the
+ * TTL runs until the host presses Start.
+ */
+export function reopenRoom(
+  creator: QueuedPlayer,
+  joiner: QueuedPlayer,
+  snapshot: RoomSnapshot,
+  onExpire: (room: Room) => void,
+): CreateRoomResult {
+  if (playerRooms.has(creator.id) || playerRooms.has(joiner.id)) {
+    return { ok: false, reason: 'already_in_room' }
+  }
+  if (rooms.size >= MAX_ROOMS) return { ok: false, reason: 'room_limit' }
+
+  const room = openRoom({
+    code: rooms.has(snapshot.code) ? generateRoomCode() : snapshot.code,
+    creatorId: creator.id,
+    players: [creator, joiner],
+    mode: snapshot.mode,
+    goal: snapshot.goal,
+    onExpire,
+  })
+  console.info(`[room] reopened ${room.code} for a rematch`)
   return { ok: true, room }
 }
 
 type JoinRoomResult =
-  | { ok: true; room: Room; matchReady: boolean }
-  | { ok: false; reason: 'full' | 'not_found' | 'already_in_room' }
+  { ok: true; room: Room } | { ok: false; reason: 'full' | 'not_found' | 'already_in_room' }
 
 /**
- * Join an existing room by code. If the room becomes full, it is
- * atomically removed from the map and `matchReady: true` is returned.
+ * Join an existing room by code. A full room stays in the map, waiting for
+ * its creator to start the match (`startRoom`).
  */
 export function joinRoom(player: QueuedPlayer, code: string): JoinRoomResult {
   if (playerRooms.has(player.id)) return { ok: false, reason: 'already_in_room' }
@@ -154,31 +194,45 @@ export function joinRoom(player: QueuedPlayer, code: string): JoinRoomResult {
   room.players.push(player)
   playerRooms.set(player.id, normalized)
 
-  if (room.players.length >= 2) {
-    // Room is full — atomically remove from map before match starts.
-    cancelTtlTimer(room)
-    for (const p of room.players) playerRooms.delete(p.id)
-    rooms.delete(normalized)
-    console.info(`[room] ${normalized} full — starting match`)
-    return { ok: true, room, matchReady: true }
-  }
+  // The clock restarts on a join so a full room whose host never presses
+  // Start still expires, but only after a full TTL from the join.
+  startTtlTimer(room)
+  console.info(`[room] ${normalized} now has ${room.players.length} player(s)`)
+  return { ok: true, room }
+}
 
-  // Room still needs another player — cancel old timer & restart.
-  // (Timer was running; now a player joined but room isn't full yet — shouldn't
-  //  happen with max 2, but guard for future >2 rooms.)
-  return { ok: true, room, matchReady: false }
+type StartRoomResult =
+  { ok: true; room: Room } | { ok: false; reason: 'not_in_room' | 'not_creator' | 'not_full' }
+
+/**
+ * Start a full room's match. Only the creator may call this. The room is
+ * atomically removed from the map so a late leave or join can't touch a room
+ * whose match is already under way.
+ */
+export function startRoom(playerId: string): StartRoomResult {
+  const code = playerRooms.get(playerId)
+  const room = code === undefined ? undefined : rooms.get(code)
+  if (code === undefined || !room) return { ok: false, reason: 'not_in_room' }
+  if (room.creatorId !== playerId) return { ok: false, reason: 'not_creator' }
+  if (room.players.length < 2) return { ok: false, reason: 'not_full' }
+
+  cancelTtlTimer(room)
+  for (const p of room.players) playerRooms.delete(p.id)
+  rooms.delete(code)
+  console.info(`[room] ${code} started by its creator`)
+  return { ok: true, room }
 }
 
 type UpdateResult = { ok: true; settings: RoomSettings } | { ok: false }
 
 /**
  * Update room settings. Only the creator may call this.
- * Validates mode/goal. If mode changes and the current goal type isn't
+ * Validates mode/goal. If mode changes and the current goal pick isn't
  * available in the new mode, resets goal to the new mode's default.
  */
 export function updateRoomSettings(
   playerId: string,
-  update: { mode?: GameMode; goal?: Goal },
+  update: { mode?: GameMode; goal?: GoalChoice },
 ): UpdateResult {
   const code = playerRooms.get(playerId)
   if (!code) return { ok: false }
@@ -190,22 +244,17 @@ export function updateRoomSettings(
   if (update.mode !== undefined) {
     if (!isAvailableMode(update.mode)) return { ok: false }
     room.mode = update.mode
-    // Check if current goal is still valid for the new mode
-    const modeDef = getModeDefinition(room.mode)
-    const goalStillValid = modeDef.goals.some((g) => g.type === room.goal.type)
-    if (!goalStillValid) {
+    // Check if the current goal pick is still valid for the new mode
+    if (!isAvailableGoalChoice(room.mode, room.goal)) {
       room.goal = getDefaultGoal(room.mode)
     }
   }
 
-  // Validate goal
+  // Validate goal — unknown types (and `random` with nothing to roll) are
+  // silently ignored. The label and safety cap always come from our own data.
   if (update.goal !== undefined) {
-    const modeDef = getModeDefinition(room.mode)
-    const predefined = modeDef.goals.find((g) => g.type === update.goal!.type)
-    if (predefined) {
-      room.goal = customizeGoal(predefined, update.goal)
-    }
-    // Silently ignore invalid goals
+    const goal = sanitizeGoalChoice(room.mode, update.goal)
+    if (goal) room.goal = goal
   }
 
   return { ok: true, settings: { mode: room.mode, goal: room.goal } }
