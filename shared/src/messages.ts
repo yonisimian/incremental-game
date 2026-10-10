@@ -84,8 +84,8 @@ export interface RematchMessage {
   matchId: string
   /** Mode from the just-finished match. */
   mode: GameMode
-  /** The goal pick behind the just-finished match; `random` rolls afresh. */
-  goal: GoalChoice
+  /** Goal from the just-finished match (a rolled goal stays rolled). */
+  goal: Goal
 }
 
 export type ClientMessage =
@@ -319,11 +319,6 @@ export interface RoundStartMessage {
   config: {
     mode: GameMode
     goal: Goal
-    /**
-     * The room's pick when it isn't `goal` itself — i.e. `random`, meaning
-     * `goal` was rolled at start and a rematch rolls again. Omitted otherwise.
-     */
-    goalChoice?: GoalChoice
   }
   /** Opponent's display name (may be empty). */
   opponentName: string

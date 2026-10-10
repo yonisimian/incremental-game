@@ -155,7 +155,7 @@ ModeDefinition (mechanics)          ModeFlavor (display)
 5. ROUND END
    ├─► Server declares winner based on final scores
    ├─► Stats screen (clicks, CPS peak, upgrades purchased, etc.)
-   └─► Option to rematch or return to lobby
+   └─► Option to rematch (same mode and goal as the round just played) or return to lobby
 ```
 
 ---

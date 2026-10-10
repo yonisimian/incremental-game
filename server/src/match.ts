@@ -197,8 +197,6 @@ export class Match {
   readonly id: string
   readonly mode: GameMode
   readonly goal: Goal
-  /** What was picked for this match; `random` when `goal` was rolled at start. */
-  readonly goalChoice: GoalChoice
   private readonly modeDef: ModeDefinition
   private readonly availableUpgrades: readonly UpgradeDefinition[]
   private readonly upgradeMap: ReadonlyMap<string, UpgradeDefinition>
@@ -230,8 +228,8 @@ export class Match {
   ) {
     this.id = randomUUID()
     this.mode = mode
-    this.goalChoice = goal ?? getDefaultGoal(mode)
-    this.goal = resolveGoal(mode, this.goalChoice)
+    // A `random` pick is rolled here, once; a rematch replays the rolled goal.
+    this.goal = resolveGoal(mode, goal ?? getDefaultGoal(mode))
     this.modeDef = getModeDefinition(mode)
     this.timeLeftSec = this.goal.type === 'timed' ? this.goal.durationSec : this.goal.safetyCapSec
     this.availableUpgrades = getAvailableUpgrades(this.modeDef, this.goal)
@@ -272,11 +270,7 @@ export class Match {
 
   /** Send ROUND_START to both, then begin the game loop after countdown. */
   start(): void {
-    const config = {
-      mode: this.mode,
-      goal: this.goal,
-      ...(this.goalChoice.type === 'random' ? { goalChoice: this.goalChoice } : {}),
-    }
+    const config = { mode: this.mode, goal: this.goal }
 
     for (let i = 0; i < this.players.length; i++) {
       const player = this.players[i]

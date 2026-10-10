@@ -224,18 +224,11 @@ describe('Match', () => {
       expect(msg.serverTime).toBeGreaterThan(0)
     })
 
-    it('rolls a concrete goal for the random pick and flags it in ROUND_START', () => {
+    it('rolls a concrete goal for the random pick and sends it in ROUND_START', () => {
       const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', RANDOM_GOAL)
       m.start()
       expect(getModeDefinition('idler').goals).toContain(m.goal)
-      const msg = sentOfType(ws1, 'ROUND_START')[0]
-      expect(msg.config.goal).toEqual(m.goal)
-      expect(msg.config.goalChoice).toEqual(RANDOM_GOAL)
-    })
-
-    it('omits goalChoice from ROUND_START for a concrete goal', () => {
-      startMatch()
-      expect(sentOfType(ws1, 'ROUND_START')[0].config).not.toHaveProperty('goalChoice')
+      expect(sentOfType(ws1, 'ROUND_START')[0].config).toEqual({ mode: 'idler', goal: m.goal })
     })
 
     it('builds a factory bot from the goal it rolled', () => {

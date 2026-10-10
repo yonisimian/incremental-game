@@ -270,12 +270,6 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
  * (each click action already carries its own resource).
  */
 let clickTarget: string | null = null
-/**
- * The pick behind `state.goal` for the current match — `random` when the goal
- * was rolled. A rematch re-sends it so a random room rolls again.
- */
-let goalChoice: GoalChoice | null = null
-
 /** The highlight as of the last `STATE_UPDATE`, before unacked actions are replayed. */
 let confirmedHighlight: string | null = null
 
@@ -425,9 +419,10 @@ export function quickMatch(): void {
 /** Request a rematch with the same opponent from the end screen. */
 export function rematch(): void {
   if (state.screen !== 'ended') return
-  const { mode, matchId } = state
-  if (!mode || !goalChoice || !matchId) return
-  if (!sendRematch(state.playerName, matchId, mode, goalChoice)) return // not connected
+  const { mode, goal, matchId } = state
+  if (!mode || !goal || !matchId) return
+  // Same mode and goal as last time — a goal rolled from `random` stays rolled.
+  if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
   resetForMatch()
   state.screen = 'waiting'
   notify()
@@ -720,7 +715,6 @@ export function resetForMatch(): void {
   state.screen = 'lobby'
   state.mode = null
   state.goal = null
-  goalChoice = null
   state.player = clonePlayerState(EMPTY_PLAYER_STATE)
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
@@ -761,7 +755,6 @@ function handleRoundStart(msg: RoundStartMessage): void {
   state.matchId = msg.matchId
   state.mode = msg.config.mode
   state.goal = msg.config.goal
-  goalChoice = msg.config.goalChoice ?? msg.config.goal
   const modeDef = getModeDefinition(msg.config.mode)
   state.upgrades = getAvailableUpgrades(modeDef, msg.config.goal)
   state.opponentName = msg.opponentName

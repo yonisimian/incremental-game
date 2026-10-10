@@ -5,7 +5,6 @@ import {
   getAvailableUpgrades,
   getAttackPrepareCost,
   NEUTRAL_ATTACK_PARAMS,
-  RANDOM_GOAL,
   getModeDefinition,
   isMaxed,
   isUnlimited,
@@ -993,20 +992,7 @@ describe('game.ts', () => {
   // ── rematch ──────────────────────────────────────────────────────
 
   describe('rematch', () => {
-    it('re-sends the random pick so the next round rolls afresh', async () => {
-      const { sendRematch } = await import('../src/network.js')
-      game.handleServerMessage(
-        makeRoundStart({
-          matchId: 'm-rand',
-          config: { mode: 'idler', goal: defaultTimedGoal, goalChoice: RANDOM_GOAL },
-        }),
-      )
-      game.handleServerMessage(makeRoundEnd())
-      game.rematch()
-      expect(sendRematch).toHaveBeenCalledWith(expect.any(String), 'm-rand', 'idler', RANDOM_GOAL)
-    })
-
-    it('re-sends the goal itself when none was rolled', async () => {
+    it('re-sends the mode and goal of the match just played', async () => {
       const { sendRematch } = await import('../src/network.js')
       game.handleServerMessage(makeRoundStart({ matchId: 'm-fixed' }))
       game.handleServerMessage(makeRoundEnd())
