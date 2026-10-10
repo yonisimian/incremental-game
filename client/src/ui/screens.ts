@@ -220,13 +220,19 @@ function wireRoomActions(): void {
 
 // ─── Room Helpers ────────────────────────────────────────────────────
 
+/**
+ * The two seats. The host always sits first (the server lists the creator
+ * first, and promotion keeps it that way). A seated player with no name shows
+ * a role label instead, so an empty name never reads as an empty seat.
+ */
 function renderPlayerSlots(players: string[]): string {
-  const p1 = players[0] ?? null
-  const p2 = players[1] ?? null
+  const host = players[0] ?? ''
+  const guest = players.length > 1 ? (players[1] ?? '') : null
+  const guestLabel = guest === null ? 'Waiting…' : guest ? escapeAttr(guest) : 'Guest'
   return `
-    <div class="player-slot filled">${p1 ? escapeAttr(p1) : 'You'}</div>
+    <div class="player-slot filled">${host ? escapeAttr(host) : 'Host'}</div>
     <div class="player-slot-vs">vs</div>
-    <div class="player-slot ${p2 ? 'filled' : 'empty'}">${p2 ? escapeAttr(p2) : 'Waiting…'}</div>
+    <div class="player-slot ${guest === null ? 'empty' : 'filled'}">${guestLabel}</div>
   `
 }
 

@@ -61,6 +61,8 @@ test('ROOM-03 creator configures all goals and exact settings reach both players
   // A full room waits for the host: the joiner sees the final settings and no
   // way to start; the creator holds the only Start button.
   await expect(joiner.page.locator('#room-settings')).toContainText('10 pts')
+  await expect(creator.page.locator('.player-slot')).toHaveText(['Settings-A', 'Settings-B'])
+  await expect(joiner.page.locator('.player-slot')).toHaveText(['Settings-A', 'Settings-B'])
   await expect(joiner.page.locator('#room-waiting')).toBeVisible()
   await expect(joiner.page.locator('#room-start-btn')).toHaveCount(0)
   await startRoom(creator)
