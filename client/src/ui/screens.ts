@@ -224,11 +224,9 @@ function wireRoomActions(): void {
 /**
  * The two seats. The host always sits first (the server lists the creator
  * first, and promotion keeps it that way). A seated player with no name shows
- * a role label instead, so an empty name never reads as an empty seat.
- */
-/**
- * The two seats. Each shows its player's name plus tags: "Lobby owner" on the
- * host's seat for everyone, and "(you)" on whichever seat is the viewer's.
+ * a role label instead, so an empty name never reads as an empty seat. Each
+ * seat also carries tags: "Lobby owner" on the host's seat for everyone, and
+ * "(you)" on whichever seat is the viewer's.
  */
 function renderPlayerSlots(players: string[], isRoomCreator: boolean): string {
   const host = players[0] ?? ''

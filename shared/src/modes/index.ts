@@ -1123,26 +1123,27 @@ export function findGoalChoice(mode: GameMode, type: string): GoalChoice | undef
 }
 
 /**
- * Whether `choice` names something a room on `mode` may hold. Only the `type`
- * is inspected — use `sanitizeGoalChoice` to turn an untrusted payload into a
- * goal whose every field is ours.
- */
-export function isAvailableGoalChoice(mode: GameMode, choice: unknown): choice is GoalChoice {
-  if (!choice || typeof choice !== 'object' || !('type' in choice)) return false
-  return typeof choice.type === 'string' && findGoalChoice(mode, choice.type) !== undefined
-}
-
-/**
  * The authoritative choice for an untrusted goal payload: `null` when it names
  * nothing `mode` offers; otherwise our own `RANDOM_GOAL`, or the predefined goal
  * with the client's tunable clamped onto it (see `customizeGoal`). The label,
  * safety cap and any extra fields come from our data, never from the payload.
  */
 export function sanitizeGoalChoice(mode: GameMode, requested: unknown): GoalChoice | null {
-  if (!isAvailableGoalChoice(mode, requested)) return null
-  const base = findGoalChoice(mode, requested.type)!
-  if (base.type === 'random' || requested.type === 'random') return base
-  return customizeGoal(base, requested)
+  if (!requested || typeof requested !== 'object' || !('type' in requested)) return null
+  if (typeof requested.type !== 'string') return null
+  const base = findGoalChoice(mode, requested.type)
+  if (!base) return null
+  if (base.type === 'random') return base
+  // Same `type` as `base`, so it reads as that goal; only its tunable is used.
+  return customizeGoal(base, requested as Goal)
+}
+
+/**
+ * Whether `choice` names something a room on `mode` may hold. Only the `type`
+ * matters — use `sanitizeGoalChoice` to get a goal whose every field is ours.
+ */
+export function isAvailableGoalChoice(mode: GameMode, choice: unknown): choice is GoalChoice {
+  return sanitizeGoalChoice(mode, choice) !== null
 }
 
 /**

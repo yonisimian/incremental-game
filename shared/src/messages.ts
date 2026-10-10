@@ -86,9 +86,13 @@ export interface RematchMessage {
   name: string
   /** Match ID from the just-finished match (pairs only the same two players). */
   matchId: string
-  /** Mode from the just-finished match. */
+  /** Mode from the just-finished match. Replayed by a quick match; ignored by a room match. */
   mode: GameMode
-  /** Goal from the just-finished match (a rolled goal stays rolled). */
+  /**
+   * Goal from the just-finished match. A quick match replays it (a rolled
+   * goal stays rolled); a room match ignores it and reopens the room with
+   * the server's own record of the pick.
+   */
   goal: Goal
 }
 

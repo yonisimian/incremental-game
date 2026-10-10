@@ -421,7 +421,8 @@ export function rematch(): void {
   if (state.screen !== 'ended') return
   const { mode, goal, matchId } = state
   if (!mode || !goal || !matchId) return
-  // Same mode and goal as last time — a goal rolled from `random` stays rolled.
+  // A quick match replays this mode and goal straight away. A room match
+  // ignores them: the server reopens the room from its own record of it.
   if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
   resetForMatch()
   state.screen = 'waiting'
