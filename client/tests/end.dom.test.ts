@@ -60,6 +60,12 @@ describe('end screen (DOM)', () => {
     expect(duration()!.textContent).toBe('1:35')
   })
 
+  it('rounds a fractional duration up to match the floored live timer', () => {
+    // 60s round resigned with 50.3s left: the timer read 0:50, so 0:10.
+    renderEndScreen(endState({ durationSec: 9.7 }))
+    expect(duration()!.textContent).toBe('0:10')
+  })
+
   it('omits the duration block when the server did not send one', () => {
     renderEndScreen(endState({ durationSec: undefined }))
     expect(duration()).toBeNull()

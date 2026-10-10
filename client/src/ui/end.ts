@@ -51,14 +51,16 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       </div>`
 
   // An older server (deploy skew) may not send the duration — omit the block
-  // rather than render a NaN readout.
+  // rather than render a NaN readout. The live timer floors what's left, so
+  // the ceiling of what elapsed is the figure the player would work out from
+  // the last reading they saw.
   const durationBlock =
     end.durationSec === undefined
       ? ''
       : `
       <div class="end-duration" id="end-duration">
         <span class="end-duration-label">Match time</span>
-        <span class="end-duration-value">${formatDuration(end.durationSec)}</span>
+        <span class="end-duration-value">${formatDuration(Math.ceil(end.durationSec))}</span>
       </div>`
 
   app.innerHTML = `

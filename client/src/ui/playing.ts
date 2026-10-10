@@ -7,16 +7,15 @@ import {
   getModeFlavor,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
-import { renderTimer, renderProgressBars } from './components.js'
 import {
-  app,
-  setText,
-  formatScore,
-  playerDisplayName,
-  opponentDisplayName,
+  renderTimer,
+  renderProgressBars,
   renderResignButton,
   syncResignButton,
-} from './helpers.js'
+  renderPauseButton,
+  syncPauseButton,
+} from './components.js'
+import { app, setText, formatScore, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
 import { counterAttr, paintCounters, syncCounters } from './counters.js'
@@ -85,17 +84,6 @@ function renderResourceBar(state: Readonly<GameState>): string {
         .join('')}
     </div>
   `
-}
-
-/**
- * Pause/resume button — only rendered in bot matches, where pausing is allowed.
- * The icon doubles as a play triangle while paused so the same control resumes.
- */
-function renderPauseButton(state: Readonly<GameState>): string {
-  if (!state.vsBot) return ''
-  const label = state.paused ? 'Resume match' : 'Pause match'
-  const icon = state.paused ? '▶' : '⏸'
-  return `<button class="pause-btn" id="pause-btn" aria-label="${label}" title="${label}">${icon}</button>`
 }
 
 /**
@@ -186,15 +174,7 @@ export function updatePlaying(state: Readonly<GameState>): void {
   }
 
   syncResignButton(state)
-
-  // Update pause button icon/label to reflect the current state.
-  const pauseBtn = document.getElementById('pause-btn')
-  if (pauseBtn) {
-    const label = state.paused ? 'Resume match' : 'Pause match'
-    pauseBtn.textContent = state.paused ? '▶' : '⏸'
-    pauseBtn.setAttribute('aria-label', label)
-    pauseBtn.setAttribute('title', label)
-  }
+  syncPauseButton(state)
 
   // Amounts, scores and the timer are painted by the counters; only the rates are written here.
   if (activeFlavor && activeModeDef) {

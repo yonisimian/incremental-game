@@ -29,6 +29,8 @@ vi.mock('../src/network.js', () => {
     sendRoomUpdate: vi.fn(),
     sendQuit: vi.fn(() => true),
     flushBatch: vi.fn(),
+    sendPause: vi.fn(),
+    sendUnpause: vi.fn(),
     sendBotRequest: vi.fn(),
   }
 })
@@ -96,6 +98,7 @@ function makeRoundEnd(overrides: Partial<RoundEndMessage> = {}): RoundEndMessage
     type: 'ROUND_END',
     winner: 'player',
     reason: 'complete',
+    matchId: 'test-match',
     finalScores: { player: 42, opponent: 10 },
     durationSec: 60,
     stats: { totalClicks: 30, peakCps: 8, upgradesPurchased: [] },
@@ -1002,6 +1005,27 @@ describe('game.ts', () => {
       expect(game.getState().endData).toBeNull()
     })
 
+    it('ignores a ROUND_END stamped for a match other than the current one', () => {
+      // The fallback left the old match and a new one started; the old
+      // verdict then arrives late.
+      enterPlaying(game)
+      game.resignMatch()
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      game.handleServerMessage(makeRoundStart({ matchId: 'next-match' }))
+      advancePastCountdown()
+      game.handleServerMessage(
+        makeRoundEnd({ matchId: 'test-match', reason: 'quit', winner: 'opponent' }),
+      )
+      expect(game.getState().screen).toBe('playing')
+      expect(game.getState().matchId).toBe('next-match')
+    })
+
+    it('still accepts a ROUND_END from an older server that sends no matchId', () => {
+      enterPlaying(game)
+      game.handleServerMessage(makeRoundEnd({ matchId: undefined }))
+      expect(game.getState().screen).toBe('ended')
+    })
+
     it('does not fall back once the server has answered', () => {
       enterPlaying(game)
       game.resignMatch()
@@ -1018,6 +1042,16 @@ describe('game.ts', () => {
       game.resignMatch()
       game.resignMatch()
       expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
+    })
+
+    it('ignores pause while the answer is pending', async () => {
+      game.handleServerMessage(makeRoundStart({ vsBot: true }))
+      advancePastCountdown()
+      const { sendPause } = await import('../src/network.js')
+      vi.mocked(sendPause).mockClear()
+      game.resignMatch()
+      game.togglePause()
+      expect(vi.mocked(sendPause)).not.toHaveBeenCalled()
     })
 
     it('ignores input while the answer is pending', async () => {

@@ -338,6 +338,7 @@ export class Match {
 
     this.send(quitter, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'opponent',
       reason: 'quit',
       finalScores: this.finalScoresFor(quitter.state.score, opponent.state.score),
@@ -347,6 +348,7 @@ export class Match {
 
     this.send(opponent, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'player',
       reason: 'quit',
       finalScores: this.finalScoresFor(opponent.state.score, quitter.state.score),
@@ -405,7 +407,7 @@ export class Match {
     this.tickTimer = setInterval(() => {
       if (this.paused) return
       this.tick++
-      this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
+      this.timeLeftSec = this.remainingSecFromAnchor()
 
       if (this.timeLeftSec <= 0) {
         this.endRound(this.timeExpiredReason)
@@ -823,7 +825,7 @@ export class Match {
     this.paused = true
     // Freeze the remaining time from the monotonic anchor. The tick stops
     // advancing the clock (and ending the round) while paused.
-    this.timeLeftSec = Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
+    this.timeLeftSec = this.remainingSecFromAnchor()
     this.broadcastState()
   }
 
@@ -1158,6 +1160,7 @@ export class Match {
 
     this.send(p1, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: winnerForP1,
       reason,
       finalScores: this.finalScoresFor(p1.state.score, p2.state.score),
@@ -1167,6 +1170,7 @@ export class Match {
 
     this.send(p2, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: winnerForP2,
       reason,
       finalScores: this.finalScoresFor(p2.state.score, p1.state.score),
@@ -1189,6 +1193,7 @@ export class Match {
 
     this.send(winner, {
       type: 'ROUND_END',
+      matchId: this.id,
       winner: 'player',
       reason: 'forfeit',
       finalScores: this.finalScoresFor(winner.state.score, loser.state.score),
@@ -1211,10 +1216,13 @@ export class Match {
    */
   private elapsedSec(): number {
     const clockRunning = this.endAtMs > 0 && !this.paused
-    const left = clockRunning
-      ? Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
-      : this.timeLeftSec
+    const left = clockRunning ? this.remainingSecFromAnchor() : this.timeLeftSec
     return Math.max(0, this.initialSec - left)
+  }
+
+  /** Game seconds left per the monotonic anchor, clamped at zero. */
+  private remainingSecFromAnchor(): number {
+    return Math.max(0, elapsedGameSeconds(this.endAtMs - performance.now()))
   }
 
   private clearTimers(): void {

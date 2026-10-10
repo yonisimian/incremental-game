@@ -320,6 +320,11 @@ export type RoundEndReason = 'complete' | 'safety-cap' | 'quit' | 'forfeit'
 /** Sent when the round ends (timer expired, quit, or forfeit). */
 export interface RoundEndMessage {
   type: 'ROUND_END'
+  /**
+   * The match this verdict belongs to, so a client can drop a late answer
+   * for a match it already left. Optional on the wire for an older server.
+   */
+  matchId?: string
   winner: MatchWinner
   reason: RoundEndReason
   /**

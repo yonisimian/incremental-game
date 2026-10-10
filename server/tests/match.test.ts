@@ -837,6 +837,22 @@ describe('Match', () => {
       expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(0.1, 2)
     })
 
+    it('excludes paused time from the elapsed duration', () => {
+      const m = enterPlayingVsBot()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(30_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(10, 0)
+    })
+
+    it('stamps ROUND_END with the match id', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].matchId).toBe(m.id)
+      expect(sentOfType(ws2, 'ROUND_END')[0].matchId).toBe(m.id)
+    })
+
     it('reports zero duration when a player quits during countdown', () => {
       const m = startMatch()
       m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))

@@ -13,7 +13,8 @@ import {
 import type { GameState } from '../game.js'
 import { cancelQueue, resignMatch, requestBot, updateRoomSettings } from '../game.js'
 import { connect } from '../network.js'
-import { app, escapeAttr, renderResignButton, syncResignButton } from './helpers.js'
+import { app, escapeAttr } from './helpers.js'
+import { renderResignButton, syncResignButton } from './components.js'
 
 // ─── Shared Fragments ────────────────────────────────────────────────
 

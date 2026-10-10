@@ -51,24 +51,6 @@ export function formatDuration(seconds: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`
 }
 
-/** The Resign button; frozen with a pending label once a QUIT is in flight. */
-export function renderResignButton(state: Readonly<GameState>): string {
-  return `<button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${resignLabel(state)}</button>`
-}
-
-/** Keep the rendered Resign button in step with `state.resigning`. */
-export function syncResignButton(state: Readonly<GameState>): void {
-  const btn = document.getElementById('resign-btn') as HTMLButtonElement | null
-  if (btn && btn.disabled !== state.resigning) {
-    btn.disabled = state.resigning
-    btn.textContent = resignLabel(state)
-  }
-}
-
-function resignLabel(state: Readonly<GameState>): string {
-  return state.resigning ? 'Resigning…' : 'Resign'
-}
-
 // ─── Game-Related Helpers ────────────────────────────────────────────
 
 /** Escape HTML-special characters to prevent XSS when interpolating into innerHTML / attributes. */

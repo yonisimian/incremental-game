@@ -745,7 +745,7 @@ function clearResign(): void {
 
 /** Toggle the paused state for the current match. */
 export function togglePause(): void {
-  if (state.screen !== 'playing') return
+  if (state.screen !== 'playing' || state.resigning) return
   if (!state.vsBot) return // pause is only allowed in bot matches
   if (state.paused) {
     sendUnpause()
@@ -951,9 +951,10 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 }
 
 function handleRoundEnd(msg: RoundEndMessage): void {
-  // A resign fallback may already have left the match (or a new queue may be
+  // A resign fallback may already have left the match (or a new one may be
   // underway); a late answer for that old match has nothing to end.
   if (state.screen !== 'playing' && state.screen !== 'countdown') return
+  if (msg.matchId !== undefined && msg.matchId !== state.matchId) return
   clearResign()
   state.screen = 'ended'
   state.endData = msg
