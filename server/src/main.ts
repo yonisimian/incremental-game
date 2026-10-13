@@ -5,15 +5,16 @@ import {
   HEARTBEAT_INTERVAL_MS,
   SERVER_STATUS_INTERVAL_MS,
   RANDOM_GOAL,
+  getAvailableUpgrades,
   getModeDefinition,
   getAvailableModes,
   isAvailableMode,
   resolveGoal,
-  sanitizeGoalChoice,
 } from '@game/shared'
 import type {
   ClientMessage,
   GameMode,
+  Goal,
   GoalChoice,
   ServerMessage,
   ServerStatusMessage,
@@ -35,12 +36,12 @@ import {
 import type { Room, RoomSnapshot } from './matchmaking.js'
 import { Match } from './match.js'
 import {
-  getRematchEntry,
+  getPendingRematch,
   recordFinishedMatch,
   removeFromRematchQueue,
   requestRematch,
 } from './rematch.js'
-import type { RematchEntry } from './rematch.js'
+import type { FinishedMatch, RematchEntry } from './rematch.js'
 import { createBot } from './bot.js'
 import { loadTreeFiles } from './trees.js'
 import { GAME_TIME_SCALE, realTimeDelay } from './runtime-config.js'
@@ -145,7 +146,7 @@ function reopenRoomForRematch(
 }
 
 /** Roll random settings for quick-match. */
-function rollRandomSettings(): { mode: GameMode; goal: GoalChoice } {
+function rollRandomSettings(): { mode: GameMode; goal: Goal } {
   const modes = getAvailableModes()
   const mode = modes[Math.floor(Math.random() * modes.length)]
   return { mode, goal: resolveGoal(mode, RANDOM_GOAL) }
@@ -217,36 +218,31 @@ wss.on('connection', (ws: WebSocket) => {
     if (msg.type === 'REMATCH') {
       if (getQueuedPlayer(data.id)) return // already in queue
       if (getRoomByPlayerId(data.id)) return // already in a room
-      if (!isAvailableMode(msg.mode)) return
       if (!msg.matchId || typeof msg.matchId !== 'string') return
       if (typeof msg.seatToken !== 'string') return
-      // Only the type and tunable survive from the payload; everything else is ours.
-      const goal = sanitizeGoalChoice(msg.mode, msg.goal)
-      if (!goal) return
 
       const result = requestRematch(msg.matchId, {
         id: data.id,
         ws,
         name: sanitizeName(msg.name),
         seatToken: msg.seatToken,
-        mode: msg.mode,
-        goal,
       })
       if (result.kind === 'expired') send(ws, { type: 'ROOM_ERROR', reason: 'rematch_expired' })
       if (result.kind !== 'paired') return
-      const { pair, room } = result
+      const { pair, finished } = result
       // A room match goes back to its room for the host to start again; a
       // quick match replays its settings straight away.
-      if (room) {
-        reopenRoomForRematch(pair, room)
+      if (finished.roomCode !== null) {
+        const { roomCode: code, mode, goal } = finished
+        reopenRoomForRematch(pair, { code, mode, goal })
         return
       }
       startMatch(
         new Match(
           { id: pair[0].id, ws: pair[0].ws, name: pair[0].name },
           { id: pair[1].id, ws: pair[1].ws, name: pair[1].name },
-          pair[0].mode,
-          pair[0].goal,
+          finished.mode,
+          resolveGoal(finished.mode, finished.goal),
         ),
       )
       return
@@ -316,9 +312,9 @@ wss.on('connection', (ws: WebSocket) => {
           { id: creator.id, ws: creator.ws!, name: creator.name },
           { id: joiner.id, ws: joiner.ws!, name: joiner.name },
           room.mode,
-          room.goal,
+          resolveGoal(room.mode, room.goal),
         ),
-        { code: room.code, mode: room.mode, goal: room.goal },
+        room,
       )
       return
     }
@@ -348,11 +344,11 @@ wss.on('connection', (ws: WebSocket) => {
       }
 
       // Try rematch queue (player clicked "play against a bot" after a rematch)
-      const rematchEntry = getRematchEntry(data.id)
-      if (rematchEntry) {
+      const pending = getPendingRematch(data.id)
+      if (pending) {
         removeFromRematchQueue(data.id)
-        const { mode, goal, name } = rematchEntry
-        startBotMatch({ id: data.id, ws, name }, mode, goal)
+        const { mode, goal } = pending.finished
+        startBotMatch({ id: data.id, ws, name: pending.entry.name }, mode, goal)
         return
       }
 
@@ -407,19 +403,24 @@ function startBotMatch(
   goal: GoalChoice,
 ): void {
   const modeDef = getModeDefinition(mode)
+  const played = resolveGoal(mode, goal)
+  const bot = createBot(mode, modeDef, getAvailableUpgrades(modeDef, played))
   const botPlayer = { id: `bot-${randomUUID()}`, ws: null, name: 'Bot' }
-  // The match resolves a `random` pick, so the bot is built from the goal it rolled.
-  startMatch(
-    new Match(human, botPlayer, mode, goal, (upgrades) => createBot(mode, modeDef, upgrades)),
-  )
+  startMatch(new Match(human, botPlayer, mode, played, bot))
 }
 
 /**
  * Register a match, wire up cleanup, and start it. `fromRoom` is the room a
- * room match was started from, remembered (with the rest of the finished
- * match, for one room TTL) so a rematch can reopen it.
+ * room match was started from, so a rematch can reopen it.
  */
-function startMatch(match: Match, fromRoom?: RoomSnapshot): void {
+function startMatch(match: Match, fromRoom?: Pick<Room, 'code' | 'goal'>): void {
+  // Plain data only, so neither the room nor the match outlives its rematch window.
+  const finished: FinishedMatch = {
+    mode: match.mode,
+    goal: fromRoom?.goal ?? match.goal,
+    roomCode: fromRoom?.code ?? null,
+    seatTokens: match.getSeatTokens(),
+  }
   for (const pid of match.getPlayerIds()) {
     playerMatches.set(pid, match)
   }
@@ -427,14 +428,9 @@ function startMatch(match: Match, fromRoom?: RoomSnapshot): void {
     for (const pid of match.getPlayerIds()) {
       playerMatches.delete(pid)
     }
-    // Only plain data is kept, so the finished match itself can be freed.
-    recordFinishedMatch(
-      match.id,
-      { room: fromRoom ?? null, seatTokens: match.getSeatTokens() },
-      (waiting) => {
-        send(waiting.ws, { type: 'ROOM_ERROR', reason: 'rematch_expired' })
-      },
-    )
+    recordFinishedMatch(match.id, finished, (waiting) => {
+      send(waiting.ws, { type: 'ROOM_ERROR', reason: 'rematch_expired' })
+    })
   })
   match.start()
 }

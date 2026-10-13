@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type WebSocket from 'ws'
 import { RANDOM_GOAL, getDefaultGoal } from '@game/shared'
-import type { RematchEntry } from '../src/rematch.js'
+import type { FinishedMatch, RematchEntry } from '../src/rematch.js'
 
 type RematchModule = typeof import('../src/rematch.js')
 
 const TTL_MS = 10 * 60 * 1000
 const SEATS = ['seat-host', 'seat-guest'] as const
-const ROOM = { code: 'ABCDEF', mode: 'idler' as const, goal: RANDOM_GOAL }
+const ROOM_MATCH: FinishedMatch = {
+  mode: 'idler',
+  goal: RANDOM_GOAL,
+  roomCode: 'ABCDEF',
+  seatTokens: SEATS,
+}
 
 function entry(id: string, seatToken: string): RematchEntry {
   return {
@@ -15,8 +20,6 @@ function entry(id: string, seatToken: string): RematchEntry {
     ws: { readyState: 1, send: vi.fn() } as unknown as WebSocket,
     name: `Player ${id}`,
     seatToken,
-    mode: 'idler',
-    goal: getDefaultGoal('idler'),
   }
 }
 
@@ -32,7 +35,7 @@ describe('rematch', () => {
   })
 
   function finishRoomMatch(matchId = 'm1'): void {
-    m.recordFinishedMatch(matchId, { room: ROOM, seatTokens: SEATS }, onClosed)
+    m.recordFinishedMatch(matchId, ROOM_MATCH, onClosed)
   }
 
   it('waits for the first seat, then pairs with the second', () => {
@@ -42,7 +45,7 @@ describe('rematch', () => {
     expect(res.kind).toBe('paired')
     if (res.kind !== 'paired') return
     expect(res.pair.map((e) => e.id)).toEqual(['p1', 'p2'])
-    expect(res.room).toEqual(ROOM)
+    expect(res.finished).toEqual(ROOM_MATCH)
   })
 
   it('puts the host first by seat token, whoever asks first', () => {
@@ -59,11 +62,17 @@ describe('rematch', () => {
     expect(res.kind === 'paired' && res.pair[0].id).toBe('host-reconnected')
   })
 
-  it('reports no room for a quick match', () => {
-    m.recordFinishedMatch('q1', { room: null, seatTokens: SEATS }, onClosed)
+  it('hands back the recorded settings of a quick match', () => {
+    const quick: FinishedMatch = {
+      mode: 'idler',
+      goal: getDefaultGoal('idler'),
+      roomCode: null,
+      seatTokens: SEATS,
+    }
+    m.recordFinishedMatch('q1', quick, onClosed)
     m.requestRematch('q1', entry('p1', SEATS[0]))
     const res = m.requestRematch('q1', entry('p2', SEATS[1]))
-    expect(res).toMatchObject({ kind: 'paired', room: null })
+    expect(res).toMatchObject({ kind: 'paired', finished: quick })
   })
 
   it('refuses a seat token that is not one of the match seats', () => {
@@ -77,8 +86,8 @@ describe('rematch', () => {
     finishRoomMatch()
     m.requestRematch('m1', entry('old-socket', SEATS[0]))
     expect(m.requestRematch('m1', entry('new-socket', SEATS[0]))).toEqual({ kind: 'waiting' })
-    expect(m.getRematchEntry('old-socket')).toBeUndefined()
-    expect(m.getRematchEntry('new-socket')).toBeDefined()
+    expect(m.getPendingRematch('old-socket')).toBeUndefined()
+    expect(m.getPendingRematch('new-socket')).toMatchObject({ finished: ROOM_MATCH })
   })
 
   it('refuses a rematch of an unknown match', () => {
@@ -100,7 +109,7 @@ describe('rematch', () => {
     expect(onClosed).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
     expect(onClosed).toHaveBeenCalledWith(waiting)
-    expect(m.getRematchEntry('p1')).toBeUndefined()
+    expect(m.getPendingRematch('p1')).toBeUndefined()
   })
 
   it('consumes the match once paired, so a third request finds it closed', () => {
@@ -125,7 +134,7 @@ describe('rematch', () => {
     finishRoomMatch()
     m.requestRematch('m1', entry('p1', SEATS[0]))
     m.removeFromRematchQueue('p1')
-    expect(m.getRematchEntry('p1')).toBeUndefined()
+    expect(m.getPendingRematch('p1')).toBeUndefined()
     expect(m.requestRematch('m1', entry('p2', SEATS[1]))).toEqual({ kind: 'waiting' })
   })
 })

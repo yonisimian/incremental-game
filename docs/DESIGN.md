@@ -75,7 +75,7 @@ A real-time head-to-head incremental game playable on any device via the browser
      PAUSE          {}                                ← pause match (bot matches only)
      UNPAUSE        {}                                ← resume a paused match
      BOT_REQUEST    {}                                ← request a bot opponent
-     REMATCH        { name, matchId, seatToken, mode, goal } ← rematch the same opponent
+     REMATCH        { name, matchId, seatToken }      ← rematch the same opponent
 
    Server → Client:
      STATE_UPDATE   { tick, ackSeq, player, opponent, timeLeft, paused }

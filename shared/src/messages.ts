@@ -78,7 +78,8 @@ export interface BotRequestMessage {
 /**
  * Sent by client on end screen to request a rematch with the same opponent.
  * Once both ask: a room match reopens its room (`ROOM_CREATED`/`ROOM_JOINED`)
- * for the host to start again; a quick match starts straight away.
+ * for the host to start again; a quick match starts straight away. Either way
+ * the settings come from the server's record of the match.
  */
 export interface RematchMessage {
   type: 'REMATCH'
@@ -91,15 +92,6 @@ export interface RematchMessage {
    * reconnect (unlike the player id), so a room's host keeps the host seat.
    */
   seatToken: string
-  /** Mode from the just-finished match. Replayed by a quick match; ignored by a room match. */
-  mode: GameMode
-  /**
-   * Goal from the just-finished match. A quick match replays it (a rolled
-   * goal stays rolled); a room match ignores it and reopens the room with
-   * the server's own record of the pick. Re-sanitized against the mode, so
-   * any choice the mode offers is accepted.
-   */
-  goal: GoalChoice
 }
 
 export type ClientMessage =

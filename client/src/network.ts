@@ -1,7 +1,6 @@
 import type {
   ActionBatchMessage,
   GameMode,
-  Goal,
   GoalChoice,
   QuickMatchMessage,
   PauseMessage,
@@ -203,15 +202,9 @@ export function sendBotRequest(): void {
 }
 
 /** Request a rematch with the same opponent. Returns false if not connected. */
-export function sendRematch(
-  name: string,
-  matchId: string,
-  seatToken: string,
-  mode: GameMode,
-  goal: Goal,
-): boolean {
+export function sendRematch(name: string, matchId: string, seatToken: string): boolean {
   if (ws?.readyState !== WebSocket.OPEN) return false
-  const msg: RematchMessage = { type: 'REMATCH', name, matchId, seatToken, mode, goal }
+  const msg: RematchMessage = { type: 'REMATCH', name, matchId, seatToken }
   ws.send(JSON.stringify(msg))
   return true
 }

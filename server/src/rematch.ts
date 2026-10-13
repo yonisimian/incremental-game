@@ -1,7 +1,6 @@
 import type WebSocket from 'ws'
 import { ROOM_TTL_MS } from '@game/shared'
 import type { GameMode, GoalChoice } from '@game/shared'
-import type { RoomSnapshot } from './matchmaking.js'
 import { realTimeDelay } from './runtime-config.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -12,14 +11,15 @@ export interface RematchEntry {
   name: string
   /** The seat this player held in the finished match (see `Match.getSeatTokens`). */
   seatToken: string
-  mode: GameMode
-  goal: GoalChoice
 }
 
 /** A finished match that can still be rematched. */
 export interface FinishedMatch {
+  mode: GameMode
+  /** What a rematch plays: a room's pick (so `random` rolls again), else the goal just played. */
+  goal: GoalChoice
   /** The room it was started from; `null` for quick and bot matches. */
-  room: RoomSnapshot | null
+  roomCode: string | null
   /** Both seat tokens in seat order: seat 0 is a room's host, even after a reconnect. */
   seatTokens: readonly [string, string]
 }
@@ -32,7 +32,7 @@ export type RematchResult =
   /** Queued; the opponent hasn't asked yet. */
   | { kind: 'waiting' }
   /** Both seats asked. `pair` is in seat order, so a room's host comes first. */
-  | { kind: 'paired'; pair: [RematchEntry, RematchEntry]; room: RoomSnapshot | null }
+  | { kind: 'paired'; pair: [RematchEntry, RematchEntry]; finished: FinishedMatch }
 
 // ─── State ───────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ export function requestRematch(matchId: string, entry: RematchEntry): RematchRes
   rematchQueue.delete(matchId)
   finishedMatches.delete(matchId)
   const pair: [RematchEntry, RematchEntry] = seat === 0 ? [entry, waiting] : [waiting, entry]
-  return { kind: 'paired', pair, room: finished.room }
+  return { kind: 'paired', pair, finished }
 }
 
 /** Drop a player's pending rematch, if any (they quit, left, or started something else). */
@@ -102,10 +102,15 @@ export function removeFromRematchQueue(playerId: string): void {
   }
 }
 
-/** Look up a player's pending rematch (for bot-request). */
-export function getRematchEntry(playerId: string): RematchEntry | undefined {
-  for (const entry of rematchQueue.values()) {
-    if (entry.id === playerId) return entry
+/** Look up a player's pending rematch and the match it is for (for bot-request). */
+export function getPendingRematch(
+  playerId: string,
+): { entry: RematchEntry; finished: FinishedMatch } | undefined {
+  for (const [matchId, entry] of rematchQueue) {
+    if (entry.id !== playerId) continue
+    // Queued entries are dropped with their match, so the record is always there.
+    const finished = finishedMatches.get(matchId)
+    return finished ? { entry, finished } : undefined
   }
   return undefined
 }
