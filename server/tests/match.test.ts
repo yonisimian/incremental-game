@@ -836,6 +836,86 @@ describe('Match', () => {
       expect(p2End.reason).toBe('complete')
     })
 
+    it('reports the full goal duration when a timed round runs to completion', () => {
+      enterPlaying()
+      vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000)
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBe(ROUND_DURATION_SEC)
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBe(ROUND_DURATION_SEC)
+    })
+
+    it('reports elapsed time to both players when a player quits mid-round', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.durationSec).toBeCloseTo(10, 0)
+      expect(p2End.durationSec).toBe(p1End.durationSec)
+    })
+
+    it('stamps both players with one elapsed reading even as the clock moves between sends', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      const base = performance.now()
+      let reads = 0
+      const spy = vi.spyOn(performance, 'now').mockImplementation(() => base + 7 * reads++)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      spy.mockRestore()
+      const p1End = sentOfType(ws1, 'ROUND_END')[0]
+      const p2End = sentOfType(ws2, 'ROUND_END')[0]
+      expect(p1End.durationSec).toBe(p2End.durationSec)
+    })
+
+    it('reports elapsed time from the clock anchor when quitting between ticks', () => {
+      // 100ms in is before the first tick, so the tick-cached timer still
+      // reads the full duration; the anchor knows the round has run.
+      const m = enterPlaying()
+      vi.advanceTimersByTime(100)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(0.1, 2)
+    })
+
+    it('excludes paused time from the elapsed duration', () => {
+      const m = enterPlayingVsBot()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(30_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(10, 0)
+    })
+
+    it('counts time before a pause and after a resume, but not the pause itself', () => {
+      const m = enterPlayingVsBot()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(30_000)
+      m.handleMessage('p1', unpauseMsg())
+      vi.advanceTimersByTime(5_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(15, 0)
+    })
+
+    it('rounds the elapsed duration to the millisecond', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(1234.5678)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      const { durationSec } = sentOfType(ws1, 'ROUND_END')[0]
+      expect(durationSec).toBe(Math.round(durationSec! * 1000) / 1000)
+    })
+
+    it('stamps ROUND_END with the match id', () => {
+      const m = enterPlaying()
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].matchId).toBe(m.id)
+      expect(sentOfType(ws2, 'ROUND_END')[0].matchId).toBe(m.id)
+    })
+
+    it('reports zero duration when a player quits during countdown', () => {
+      const m = startMatch()
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBe(0)
+    })
+
     it('declares a draw when scores are equal', () => {
       enterPlaying()
       vi.advanceTimersByTime(ROUND_DURATION_SEC * 1000)
@@ -864,6 +944,13 @@ describe('Match', () => {
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
       expect(p2End.winner).toBe('player')
       expect(p2End.reason).toBe('forfeit')
+    })
+
+    it('reports the elapsed time to the remaining player', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      m.handleDisconnect('p1')
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBeCloseTo(10, 0)
     })
 
     it('fires the onEnd callback on forfeit', () => {

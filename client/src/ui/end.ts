@@ -1,7 +1,13 @@
 import type { GameState } from '../game.js'
 import { rematch, resetForMatch } from '../game.js'
 import { getModeDefinition, getModeFlavor } from '@game/shared'
-import { app, formatUpgradesPurchased, playerDisplayName, opponentDisplayName } from './helpers.js'
+import {
+  app,
+  formatDuration,
+  formatUpgradesPurchased,
+  playerDisplayName,
+  opponentDisplayName,
+} from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { openReportModal } from './report-modal.js'
 
@@ -12,7 +18,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
 
   let winnerText: string
   if (end.reason === 'quit') {
-    winnerText = 'Opponent Quit'
+    winnerText = end.winner === 'opponent' ? 'You Resigned' : 'Opponent Resigned'
   } else if (end.reason === 'forfeit') {
     winnerText = 'Opponent Disconnected — Victory!'
   } else if (end.reason === 'safety-cap') {
@@ -27,7 +33,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       end.winner === 'player' ? '🎉 Victory!' : end.winner === 'opponent' ? 'Defeat' : 'Draw'
   }
 
-  const resultClass = end.reason === 'quit' || end.reason === 'forfeit' ? 'player' : end.winner
+  const resultClass = end.reason === 'forfeit' ? 'player' : end.winner
 
   const scoreLabel = flavor.scoreLabel
   const pName = playerDisplayName(state)
@@ -44,11 +50,25 @@ export function renderEndScreen(state: Readonly<GameState>): void {
         <div>${oName}'s ${scoreLabel}: <strong>${formatNumber(Math.floor(end.finalScores.opponent ?? 0))}</strong></div>
       </div>`
 
+  // An older server (deploy skew) may not send the duration — omit the block
+  // rather than render a NaN readout. The live timer floors what's left, so
+  // the ceiling of what elapsed is the figure the player would work out from
+  // the last reading they saw.
+  const durationBlock =
+    end.durationSec === undefined
+      ? ''
+      : `
+      <div class="end-duration" id="end-duration">
+        <span class="end-duration-label">Match time</span>
+        <span class="end-duration-value">${formatDuration(Math.ceil(end.durationSec))}</span>
+      </div>`
+
   app.innerHTML = `
     <div class="screen end-screen">
       <button id="report-btn" class="report-btn" aria-label="Report a bug" title="Report a bug">!</button>
       <h1 class="result ${resultClass}">${winnerText}</h1>
       ${scoresBlock}
+      ${durationBlock}
       <div class="stats">
         ${flavor.showClickStats ? `<div>Clicks: ${formatNumber(end.stats.totalClicks)}</div>` : ''}
         ${flavor.showClickStats ? `<div>Peak CPS: ${formatNumber(end.stats.peakCps)}</div>` : ''}

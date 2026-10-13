@@ -13,9 +13,16 @@ import {
   MAX_ROUND_DURATION_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { cancelQueue, quitMatch, requestBot, startRoomMatch, updateRoomSettings } from '../game.js'
+import {
+  cancelQueue,
+  resignMatch,
+  requestBot,
+  startRoomMatch,
+  updateRoomSettings,
+} from '../game.js'
 import { connect } from '../network.js'
 import { app, escapeAttr } from './helpers.js'
+import { renderResignButton, syncResignButton } from './components.js'
 
 // ─── Shared Fragments ────────────────────────────────────────────────
 
@@ -75,12 +82,12 @@ export function renderWaitingScreen(): void {
 export function renderCountdownScreen(state: Readonly<GameState>): void {
   app.innerHTML = `
     <div class="screen countdown-screen">
-      <button class="quit-btn" id="quit-btn">← Quit</button>
+      ${renderResignButton(state)}
       <div class="countdown-number" id="countdown">${state.countdown}</div>
     </div>
   `
 
-  document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
+  document.getElementById('resign-btn')!.addEventListener('click', resignMatch)
 }
 
 export function updateCountdown(state: Readonly<GameState>): void {
@@ -88,6 +95,7 @@ export function updateCountdown(state: Readonly<GameState>): void {
   if (el) {
     el.textContent = state.countdown <= 0 ? 'GO!' : String(state.countdown)
   }
+  syncResignButton(state)
 }
 
 // ─── Room Screen ─────────────────────────────────────────────────────

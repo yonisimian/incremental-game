@@ -95,18 +95,21 @@ test('LIFE-04 bot request works from rematch waiting', async ({ players }) => {
     .toBe('Bot')
 })
 
-test('LIFE-05 quit during countdown and play yields correct terminal states', async ({
+test('LIFE-05 resigning mid-match shows both players the resign end screen', async ({
   players,
 }) => {
-  const first = await players.create('Quit-A')
-  const second = await players.create('Quit-B')
+  const first = await players.create('Resign-A')
+  const second = await players.create('Resign-B')
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'timed', durationSec: 35 })
 
-  await first.page.locator('#quit-btn').click()
-  await expect(first.page.locator('.lobby-screen')).toBeVisible()
+  await first.page.locator('#resign-btn').click()
+  await waitForEnded(first)
+  await expect(first.page.locator('.result')).toContainText('You Resigned')
+  await expect(first.page.locator('#rematch-btn')).toBeVisible()
+  await expect(first.page.locator('.end-duration-value')).toHaveText(/^\d+:\d{2}$/u)
   await waitForEnded(second)
-  await expect(second.page.locator('.result')).toContainText('Opponent Quit')
+  await expect(second.page.locator('.result')).toContainText('Opponent Resigned')
 })
 
 test('LIFE-06 a real ten-second timed match leaves zero without dwelling', async ({ players }) => {
@@ -132,7 +135,7 @@ test('LIFE-08 concurrent matches never cross names, scores, or quits', async ({ 
 
   await expect(a1.page.locator('.playing-screen')).toContainText('Iso-A2')
   await expect(a1.page.locator('.playing-screen')).not.toContainText('Iso-B2')
-  await b1.page.locator('#quit-btn').click()
+  await b1.page.locator('#resign-btn').click()
   await waitForEnded(b2)
   await expect(a1.page.locator('.playing-screen')).toBeVisible()
   await expect(a2.page.locator('.playing-screen')).toBeVisible()
