@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test.js'
-import { createRoom, joinRoom, waitForPlaying } from './fixtures/journeys.js'
+import { createRoom, joinRoom, startRoom, waitForPlaying } from './fixtures/journeys.js'
 
 test('BOOT-01 built client boots through health, tree, and WebSocket', async ({ players }) => {
   const player = await players.create('Boot')
@@ -24,6 +24,7 @@ test('BOOT-03 configured countdown transitions both players into play', async ({
   await Promise.all([creator.open(), joiner.open()])
   const code = await createRoom(creator, { type: 'timed', durationSec: 10 })
   await joinRoom(joiner, code)
+  await startRoom(creator)
 
   await expect(creator.page.locator('.countdown-screen')).toBeVisible()
   await expect(joiner.page.locator('.countdown-screen')).toBeVisible()

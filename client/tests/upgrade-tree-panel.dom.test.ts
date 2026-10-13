@@ -47,6 +47,7 @@ function makeState(wood: number): GameState {
     resigning: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: mode.upgrades,
     countdown: COUNTDOWN_SEC,
     endData: null,

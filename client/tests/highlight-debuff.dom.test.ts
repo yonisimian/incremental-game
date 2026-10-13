@@ -51,6 +51,7 @@ function makeState(highlight: string | null, debuffs: Modifier[]): GameState {
     resigning: false,
     vsBot: false,
     matchId: null,
+    seatToken: null,
     upgrades: modeDef.upgrades,
     countdown: 0,
     endData: null,

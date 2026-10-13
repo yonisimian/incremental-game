@@ -66,6 +66,7 @@ function makeState(locks?: PurchaseLock[]): GameState {
     resigning: false,
     vsBot: false,
     matchId: null,
+    seatToken: null,
     upgrades: [FREE],
     countdown: 0,
     endData: null,

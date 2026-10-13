@@ -94,6 +94,7 @@ function makeState(opts: {
     resigning: false,
     vsBot: false,
     matchId: null,
+    seatToken: null,
     upgrades: base.upgrades,
     countdown: 0,
     endData: null,

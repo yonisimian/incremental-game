@@ -1,10 +1,10 @@
 import { test, expect } from './fixtures/test.js'
 import {
   finishTargetMatch,
+  rematchRoomMatch,
   startBotMatch,
   startRoomMatch,
   waitForEnded,
-  waitForPlaying,
 } from './fixtures/journeys.js'
 import { extendedTimeout } from './fixtures/time.js'
 
@@ -53,9 +53,7 @@ test('EXT-02 repeated rematches do not duplicate lifecycle work', async ({ playe
     await waitForEnded(second)
     await expect(first.page.locator('.end-screen')).toHaveCount(1)
     if (round === 2) break
-    await first.page.locator('#rematch-btn').click()
-    await second.page.locator('#rematch-btn').click()
-    await Promise.all([waitForPlaying(first), waitForPlaying(second)])
+    await rematchRoomMatch(first, second)
     // Fresh round: the score reset to a single digit against the same `/ 10`
     // goal. Asserting the exact transient `0` would race base production, which
     // starts climbing the score on the first tick.

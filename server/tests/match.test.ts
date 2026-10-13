@@ -217,6 +217,14 @@ describe('Match', () => {
       expect(msg.serverTime).toBeGreaterThan(0)
     })
 
+    it("sends each player their own seat's token in ROUND_START", () => {
+      const m = startMatch()
+      const [t1, t2] = m.getSeatTokens()
+      expect(t1).not.toBe(t2)
+      expect(sentOfType(ws1, 'ROUND_START')[0].seatToken).toBe(t1)
+      expect(sentOfType(ws2, 'ROUND_START')[0].seatToken).toBe(t2)
+    })
+
     it('ignores actions during countdown', () => {
       const m = startMatch()
       m.grantResourcesForTest('p1', { r0: 100 }) // afford sh-unlock, isolating the phase gate

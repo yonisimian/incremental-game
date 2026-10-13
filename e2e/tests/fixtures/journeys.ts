@@ -6,6 +6,7 @@ export type GoalSetup =
   | { readonly type: 'target-score'; readonly target?: number }
   | { readonly type: 'timed'; readonly durationSec?: number }
   | { readonly type: 'buy-upgrade' }
+  | { readonly type: 'random' }
 
 export async function createRoom(player: GamePlayer, goal?: GoalSetup): Promise<string> {
   await player.page.getByRole('button', { name: /Create Room/u }).click()
@@ -36,6 +37,11 @@ export async function joinRoom(player: GamePlayer, code: string): Promise<void> 
   await player.page.getByRole('button', { name: 'Join', exact: true }).click()
 }
 
+/** The creator's Start button, shown once the second player is in. */
+export async function startRoom(creator: GamePlayer): Promise<void> {
+  await creator.page.locator('#room-start-btn').click()
+}
+
 export async function waitForPlaying(player: GamePlayer, timeout = 12_000): Promise<void> {
   await expect(player.page.locator('.playing-screen')).toBeVisible({ timeout })
 }
@@ -51,8 +57,21 @@ export async function startRoomMatch(
 ): Promise<string> {
   const code = await createRoom(creator, goal)
   await joinRoom(joiner, code)
+  await startRoom(creator)
   await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
   return code
+}
+
+/**
+ * Both players rematch from the end screen of a room match: they land back in
+ * their room, and the creator starts the next round.
+ */
+export async function rematchRoomMatch(creator: GamePlayer, joiner: GamePlayer): Promise<void> {
+  await creator.page.locator('#rematch-btn').click()
+  await joiner.page.locator('#rematch-btn').click()
+  await expect(creator.page.locator('#room-start-btn')).toBeVisible()
+  await startRoom(creator)
+  await Promise.all([waitForPlaying(creator), waitForPlaying(joiner)])
 }
 
 export async function startBotMatch(player: GamePlayer, goal: GoalSetup): Promise<void> {

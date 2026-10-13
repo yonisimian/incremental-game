@@ -12,9 +12,11 @@ import type {
   GameMode,
   GeneratorDefinition,
   Goal,
+  GoalChoice,
   PlayerState,
   PurchaseLock,
   PurchaseTarget,
+  RandomGoalChoice,
   UpgradeDefinition,
 } from '../types.js'
 import type { ModeDefinition, ModeFlavor } from './types.js'
@@ -1105,6 +1107,57 @@ export function isAvailableMode(mode: unknown): mode is GameMode {
 /** Get the default goal for a mode (first in the goals array). */
 export function getDefaultGoal(mode: GameMode): Goal {
   return getModeDefinition(mode).goals[0]
+}
+
+/** The creator's "roll a goal at match start" pick, offered beside the mode's goals. */
+export const RANDOM_GOAL: RandomGoalChoice = { type: 'random', label: '🎲 Random' }
+
+/**
+ * The choice `type` names on `mode`: one of the mode's goals, or `RANDOM_GOAL`
+ * when there is more than one goal to roll between. `undefined` otherwise.
+ */
+export function findGoalChoice(mode: GameMode, type: string): GoalChoice | undefined {
+  const goals = getModeDefinition(mode).goals
+  if (type === 'random') return goals.length > 1 ? RANDOM_GOAL : undefined
+  return goals.find((g) => g.type === type)
+}
+
+/**
+ * The authoritative choice for an untrusted goal payload: `null` when it names
+ * nothing `mode` offers; otherwise our own `RANDOM_GOAL`, or the predefined goal
+ * with the client's tunable clamped onto it (see `customizeGoal`). The label,
+ * safety cap and any extra fields come from our data, never from the payload.
+ */
+export function sanitizeGoalChoice(mode: GameMode, requested: unknown): GoalChoice | null {
+  if (!requested || typeof requested !== 'object' || !('type' in requested)) return null
+  if (typeof requested.type !== 'string') return null
+  const base = findGoalChoice(mode, requested.type)
+  if (!base) return null
+  if (base.type === 'random') return base
+  // Same `type` as `base`, so it reads as that goal; only its tunable is used.
+  return customizeGoal(base, requested as Goal)
+}
+
+/**
+ * Whether `choice` names something a room on `mode` may hold. Only the `type`
+ * matters — use `sanitizeGoalChoice` to get a goal whose every field is ours.
+ */
+export function isAvailableGoalChoice(mode: GameMode, choice: unknown): choice is GoalChoice {
+  return sanitizeGoalChoice(mode, choice) !== null
+}
+
+/**
+ * The concrete goal a match plays for a room's pick: a goal passes through,
+ * `random` rolls one of the mode's goals. `random` is injectable for tests.
+ */
+export function resolveGoal(
+  mode: GameMode,
+  choice: GoalChoice,
+  random: () => number = Math.random,
+): Goal {
+  if (choice.type !== 'random') return choice
+  const goals = getModeDefinition(mode).goals
+  return goals[Math.min(goals.length - 1, Math.floor(random() * goals.length))]
 }
 
 /**

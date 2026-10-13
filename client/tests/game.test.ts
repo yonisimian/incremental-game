@@ -26,12 +26,14 @@ vi.mock('../src/network.js', () => {
     sendQuickMatch: vi.fn(() => true),
     sendRoomCreate: vi.fn(() => true),
     sendRoomJoin: vi.fn(() => true),
+    sendRoomStart: vi.fn(),
     sendRoomUpdate: vi.fn(),
     sendQuit: vi.fn(() => true),
     flushBatch: vi.fn(),
     sendPause: vi.fn(),
     sendUnpause: vi.fn(),
     sendBotRequest: vi.fn(),
+    sendRematch: vi.fn(() => true),
   }
 })
 
@@ -56,6 +58,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
+    seatToken: 'test-seat',
     config: { mode: 'idler', goal: defaultTimedGoal },
     opponentName: '',
     vsBot: false,
@@ -1072,6 +1075,49 @@ describe('game.ts', () => {
       game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
       expect(vi.mocked(sendQuit)).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── startRoomMatch ───────────────────────────────────────────────
+
+  describe('startRoomMatch', () => {
+    const settings = { mode: 'idler' as const, goal: defaultTimedGoal }
+
+    it('asks the server to start once the room is full', async () => {
+      const { sendRoomStart } = await import('../src/network.js')
+      game.handleServerMessage({ type: 'ROOM_CREATED', code: 'ABCDEF', settings, players: ['Me'] })
+      game.handleServerMessage({ type: 'ROOM_PLAYER_JOINED', name: 'Them' })
+      game.startRoomMatch()
+      expect(sendRoomStart).toHaveBeenCalledOnce()
+      // The match begins on ROUND_START, not on the click.
+      expect(game.getState().screen).toBe('room')
+    })
+
+    it('does nothing while alone or as the joiner', async () => {
+      const { sendRoomStart } = await import('../src/network.js')
+      vi.mocked(sendRoomStart).mockClear() // the mock instance outlives loadGame()
+      game.handleServerMessage({ type: 'ROOM_CREATED', code: 'ABCDEF', settings, players: ['Me'] })
+      game.startRoomMatch()
+      game.handleServerMessage({
+        type: 'ROOM_JOINED',
+        code: 'ABCDEF',
+        settings,
+        players: ['Them', 'Me'],
+      })
+      game.startRoomMatch()
+      expect(sendRoomStart).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── rematch ──────────────────────────────────────────────────────
+
+  describe('rematch', () => {
+    it('re-sends the match id and seat token of the match just played', async () => {
+      const { sendRematch } = await import('../src/network.js')
+      game.handleServerMessage(makeRoundStart({ matchId: 'm-fixed', seatToken: 'seat-1' }))
+      game.handleServerMessage(makeRoundEnd({ matchId: 'm-fixed' }))
+      game.rematch()
+      expect(sendRematch).toHaveBeenCalledWith(expect.any(String), 'm-fixed', 'seat-1')
     })
   })
 

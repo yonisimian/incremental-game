@@ -4,6 +4,7 @@ import {
   openPanel,
   opponentScore,
   ownScore,
+  rematchRoomMatch,
   startRoomMatch,
   unlockClicking,
 } from './fixtures/journeys.js'
@@ -267,12 +268,7 @@ test('ACT-08 Data telemetry records actions and resets for a rematch', async ({ 
     expect(observer.page.locator('.end-screen')).toBeVisible(),
   ])
 
-  await actor.page.locator('#rematch-btn').click()
-  await observer.page.locator('#rematch-btn').click()
-  await Promise.all([
-    expect(actor.page.locator('.playing-screen')).toBeVisible({ timeout: 12_000 }),
-    expect(observer.page.locator('.playing-screen')).toBeVisible({ timeout: 12_000 }),
-  ])
+  await rematchRoomMatch(actor, observer)
   await openPanel(actor.page, 6)
   await expect(actor.page.locator('#data-click-total')).toHaveText('0')
   await expect(actor.page.locator('#data-inv-generators')).toHaveText('0')

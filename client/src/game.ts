@@ -1,6 +1,7 @@
 import {
   type GameMode,
   type Goal,
+  type GoalChoice,
   type IncomingAttack,
   type ModeDefinition,
   type Modifier,
@@ -21,6 +22,7 @@ import {
   COUNTDOWN_SEC,
   createInitialState,
   getDefaultGoal,
+  isAvailableGoalChoice,
   getModeDefinition,
   getAvailableUpgrades,
   collectModifiers,
@@ -66,6 +68,7 @@ import {
   sendRematch,
   sendRoomCreate,
   sendRoomJoin,
+  sendRoomStart,
   sendRoomUpdate,
   flushBatch,
   sendQuit,
@@ -168,6 +171,8 @@ export interface GameState {
   vsBot: boolean
   /** Current match ID. */
   matchId: string | null
+  /** This player's seat token for the current match, echoed in a rematch. */
+  seatToken: string | null
   /** Upgrade definitions for this round. */
   upgrades: readonly UpgradeDefinition[]
   /** Countdown value (3, 2, 1, GO). */
@@ -251,6 +256,7 @@ const state: GameState = {
   resigning: false,
   vsBot: false,
   matchId: null,
+  seatToken: null,
   upgrades: [],
   countdown: COUNTDOWN_SEC,
   endData: null,
@@ -284,7 +290,6 @@ let countdownTimer: ReturnType<typeof setInterval> | null = null
  * (each click action already carries its own resource).
  */
 let clickTarget: string | null = null
-
 /** The highlight as of the last `STATE_UPDATE`, before unacked actions are replayed. */
 let confirmedHighlight: string | null = null
 
@@ -434,9 +439,9 @@ export function quickMatch(): void {
 /** Request a rematch with the same opponent from the end screen. */
 export function rematch(): void {
   if (state.screen !== 'ended') return
-  const { mode, goal, matchId } = state
-  if (!mode || !goal || !matchId) return
-  if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
+  const { matchId, seatToken } = state
+  if (!matchId || !seatToken) return
+  if (!sendRematch(state.playerName, matchId, seatToken)) return // not connected
   resetForMatch()
   state.screen = 'waiting'
   notify()
@@ -459,7 +464,7 @@ export function joinRoom(code: string): void {
 }
 
 /** Update room settings (creator only). Optimistically updates local state. */
-export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): void {
+export function updateRoomSettings(update: { mode?: GameMode; goal?: GoalChoice }): void {
   if (state.screen !== 'room') return
   if (!state.isRoomCreator) return
   if (!state.roomSettings) return
@@ -468,10 +473,8 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
   // Optimistic local update — mirrors server-side updateRoomSettings logic
   if (update.mode !== undefined) {
     state.roomSettings = { ...state.roomSettings, mode: update.mode }
-    // If the current goal is no longer valid for the new mode, reset it
-    const modeDef = getModeDefinition(update.mode)
-    const goalStillValid = modeDef.goals.some((g) => g.type === state.roomSettings!.goal.type)
-    if (!goalStillValid) {
+    // If the current goal pick is no longer valid for the new mode, reset it
+    if (!isAvailableGoalChoice(update.mode, state.roomSettings.goal)) {
       state.roomSettings.goal = getDefaultGoal(update.mode)
     }
   }
@@ -479,6 +482,14 @@ export function updateRoomSettings(update: { mode?: GameMode; goal?: Goal }): vo
     state.roomSettings = { ...state.roomSettings, goal: update.goal }
   }
   notify()
+}
+
+/** Start the room's match (creator only, once the second player is in). */
+export function startRoomMatch(): void {
+  if (state.screen !== 'room' || !state.isRoomCreator) return
+  if (state.roomPlayers.length < 2) return
+  sendRoomStart()
+  // The screen changes when ROUND_START arrives.
 }
 
 /**
@@ -772,6 +783,7 @@ export function resetForMatch(): void {
   clearIncomingAttackToasts()
   state.timeLeft = 0
   state.matchId = null
+  state.seatToken = null
   state.upgrades = []
   state.countdown = COUNTDOWN_SEC
   state.endData = null
@@ -799,6 +811,7 @@ function resetRoom(): void {
 function handleRoundStart(msg: RoundStartMessage): void {
   state.screen = 'countdown'
   state.matchId = msg.matchId
+  state.seatToken = msg.seatToken
   state.mode = msg.config.mode
   state.goal = msg.config.goal
   const modeDef = getModeDefinition(msg.config.mode)

@@ -76,7 +76,7 @@ export function renderEndScreen(state: Readonly<GameState>): void {
       </div>
       <div class="end-actions">
         <button id="rematch-btn">Rematch</button>
-        <button id="lobby-btn">Back to Lobby</button>
+        <button id="lobby-btn">Return to main menu</button>
       </div>
     </div>
   `

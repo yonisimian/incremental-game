@@ -212,6 +212,11 @@ export class Match {
   private broadcastTimer: ReturnType<typeof setInterval> | null = null
   private paused = false
   private onEndCallback: (() => void) | null = null
+  /**
+   * One secret per seat, sent to that seat's player in `ROUND_START`. A
+   * rematch identifies seats by these, since a reconnect changes player ids.
+   */
+  private readonly seatTokens: [string, string] = [randomUUID(), randomUUID()]
 
   constructor(
     p1: { id: string; ws: WebSocket; name?: string },
@@ -242,6 +247,11 @@ export class Match {
     return [this.players[0].id, this.players[1].id]
   }
 
+  /** Get both seat tokens, in seat order (player 1 first). */
+  getSeatTokens(): readonly [string, string] {
+    return this.seatTokens
+  }
+
   /**
    * Test-only seam: add to a player's resource balances. Used by tests to set up
    * scenarios that are impractical to reach through passive income alone (e.g.
@@ -262,10 +272,7 @@ export class Match {
 
   /** Send ROUND_START to both, then begin the game loop after countdown. */
   start(): void {
-    const config = {
-      mode: this.mode,
-      goal: this.goal,
-    }
+    const config = { mode: this.mode, goal: this.goal }
 
     for (let i = 0; i < this.players.length; i++) {
       const player = this.players[i]
@@ -273,6 +280,7 @@ export class Match {
       this.send(player, {
         type: 'ROUND_START',
         matchId: this.id,
+        seatToken: this.seatTokens[i],
         config,
         opponentName: opponent.name,
         vsBot: this.bot !== null,

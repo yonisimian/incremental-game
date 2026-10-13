@@ -1,7 +1,7 @@
 import { AxeBuilder } from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures/test.js'
-import { createRoom, openPanel, waitForEnded } from './fixtures/journeys.js'
+import { createRoom, openPanel, startRoom, waitForEnded } from './fixtures/journeys.js'
 
 async function expectNoSeriousViolations(page: Page, state: string): Promise<void> {
   const results = await new AxeBuilder({ page }).analyze()
@@ -34,6 +34,11 @@ test('A11Y-01 major player screens have no serious or critical axe violations @c
   const code = (await first.page.locator('#room-code').textContent())!
   await second.page.locator('#room-code-input').fill(code)
   await second.page.locator('#join-room-btn').click()
+  // A full room waits for the host: axe both sides of that state, then start.
+  await expect(first.page.locator('#room-start-btn')).toBeVisible()
+  await expectNoSeriousViolations(first.page, 'room-full-creator')
+  await expectNoSeriousViolations(second.page, 'room-full-joiner')
+  await startRoom(first)
   await Promise.all([
     expect(first.page.locator('.playing-screen')).toBeVisible({ timeout: 12_000 }),
     expect(second.page.locator('.playing-screen')).toBeVisible({ timeout: 12_000 }),
@@ -72,6 +77,7 @@ test('A11Y-02 waiting, countdown, and load-error states pass axe @chromium-only'
   const room = await createRoom(first, { type: 'timed', durationSec: 10 })
   await second.page.locator('#room-code-input').fill(room)
   await second.page.locator('#join-room-btn').click()
+  await startRoom(first)
   await expect(second.page.locator('.countdown-screen')).toBeVisible()
   await expectNoSeriousViolations(second.page, 'countdown')
 

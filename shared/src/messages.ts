@@ -1,6 +1,14 @@
 import type { Modifier } from './modifiers/types.js'
 import type { PactBonus } from './pacts.js'
-import type { ActivePact, GameMode, Goal, MatchWinner, PlayerAction, PlayerState } from './types.js'
+import type {
+  ActivePact,
+  GameMode,
+  Goal,
+  GoalChoice,
+  MatchWinner,
+  PlayerAction,
+  PlayerState,
+} from './types.js'
 
 // ─── Client → Server ────────────────────────────────────────────────
 
@@ -39,7 +47,12 @@ export interface RoomJoinMessage {
 export interface RoomUpdateMessage {
   type: 'ROOM_UPDATE'
   mode?: GameMode
-  goal?: Goal
+  goal?: GoalChoice
+}
+
+/** Sent by the room creator to start the match once the second player is in. */
+export interface RoomStartMessage {
+  type: 'ROOM_START'
 }
 
 /** Sent by client to voluntarily quit the current match, room, or queue. */
@@ -62,17 +75,23 @@ export interface BotRequestMessage {
   type: 'BOT_REQUEST'
 }
 
-/** Sent by client on end screen to request a rematch with the same opponent. */
+/**
+ * Sent by client on end screen to request a rematch with the same opponent.
+ * Once both ask: a room match reopens its room (`ROOM_CREATED`/`ROOM_JOINED`)
+ * for the host to start again; a quick match starts straight away. Either way
+ * the settings come from the server's record of the match.
+ */
 export interface RematchMessage {
   type: 'REMATCH'
   /** Player's display name. */
   name: string
   /** Match ID from the just-finished match (pairs only the same two players). */
   matchId: string
-  /** Mode from the just-finished match. */
-  mode: GameMode
-  /** Goal from the just-finished match. */
-  goal: Goal
+  /**
+   * This player's seat token from that match's `ROUND_START`. Survives a
+   * reconnect (unlike the player id), so a room's host keeps the host seat.
+   */
+  seatToken: string
 }
 
 export type ClientMessage =
@@ -81,6 +100,7 @@ export type ClientMessage =
   | RoomCreateMessage
   | RoomJoinMessage
   | RoomUpdateMessage
+  | RoomStartMessage
   | QuitMessage
   | PauseMessage
   | UnpauseMessage
@@ -301,6 +321,8 @@ export interface StateUpdateMessage {
 export interface RoundStartMessage {
   type: 'ROUND_START'
   matchId: string
+  /** Secret token for this player's seat, echoed back in `REMATCH`. */
+  seatToken: string
   /** Game configuration for this round. */
   config: {
     mode: GameMode
@@ -352,10 +374,13 @@ export interface RoundEndMessage {
 /** Room settings payload. */
 export interface RoomSettings {
   mode: GameMode
-  goal: Goal
+  goal: GoalChoice
 }
 
-/** Confirms room creation, provides the code and initial player list. */
+/**
+ * Confirms room creation, provides the code and initial player list. Also
+ * sent to the host when a rematch reopens a room, then with both players.
+ */
 export interface RoomCreatedMessage {
   type: 'ROOM_CREATED'
   code: string
@@ -364,7 +389,10 @@ export interface RoomCreatedMessage {
   players: string[]
 }
 
-/** Confirms join, provides current room state (players = display names). */
+/**
+ * Confirms join, provides current room state (players = display names). Also
+ * sent to the guest when a rematch reopens a room.
+ */
 export interface RoomJoinedMessage {
   type: 'ROOM_JOINED'
   code: string
@@ -401,7 +429,13 @@ export interface RoomClosedMessage {
 }
 
 /** Error response for room/join/create operations. */
-export type RoomErrorReason = 'full' | 'not_found' | 'already_in_room' | 'room_limit'
+export type RoomErrorReason =
+  | 'full'
+  | 'not_found'
+  | 'already_in_room'
+  | 'room_limit'
+  /** The match's rematch window (one room TTL after it ended) closed. */
+  | 'rematch_expired'
 
 export interface RoomErrorMessage {
   type: 'ROOM_ERROR'
