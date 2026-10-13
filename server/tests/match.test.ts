@@ -846,6 +846,25 @@ describe('Match', () => {
       expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(10, 0)
     })
 
+    it('counts time before a pause and after a resume, but not the pause itself', () => {
+      const m = enterPlayingVsBot()
+      vi.advanceTimersByTime(10_000)
+      m.handleMessage('p1', pauseMsg())
+      vi.advanceTimersByTime(30_000)
+      m.handleMessage('p1', unpauseMsg())
+      vi.advanceTimersByTime(5_000)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      expect(sentOfType(ws1, 'ROUND_END')[0].durationSec).toBeCloseTo(15, 0)
+    })
+
+    it('rounds the elapsed duration to the millisecond', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(1234.5678)
+      m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
+      const { durationSec } = sentOfType(ws1, 'ROUND_END')[0]
+      expect(durationSec).toBe(Math.round(durationSec! * 1000) / 1000)
+    })
+
     it('stamps ROUND_END with the match id', () => {
       const m = enterPlaying()
       m.handleMessage('p1', JSON.stringify({ type: 'QUIT' }))
@@ -887,6 +906,13 @@ describe('Match', () => {
       const p2End = sentOfType(ws2, 'ROUND_END')[0]
       expect(p2End.winner).toBe('player')
       expect(p2End.reason).toBe('forfeit')
+    })
+
+    it('reports the elapsed time to the remaining player', () => {
+      const m = enterPlaying()
+      vi.advanceTimersByTime(10_000)
+      m.handleDisconnect('p1')
+      expect(sentOfType(ws2, 'ROUND_END')[0].durationSec).toBeCloseTo(10, 0)
     })
 
     it('fires the onEnd callback on forfeit', () => {

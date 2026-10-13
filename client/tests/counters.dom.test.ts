@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { COUNTDOWN_SEC, getModeDefinition } from '@game/shared'
 import type { GameState } from '../src/game.js'
 import {
@@ -53,6 +53,7 @@ function makeState(): GameState {
 
 afterEach(() => {
   document.body.innerHTML = ''
+  vi.restoreAllMocks()
 })
 
 describe('paintCounters', () => {
@@ -82,5 +83,28 @@ describe('paintCounters', () => {
     syncCounters(makeState(), getModeDefinition('idler'), {})
     paintCounters()
     expect(document.getElementById('unknown')?.textContent).toBe('kept')
+  })
+
+  it('holds values and the clock where they stand while a resign is in flight', () => {
+    let now = 1_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    document.body.innerHTML = `
+      <span id="own-r0"${counterAttr('own', 'r0')}>?</span>
+      <span id="timer"${TIME_LEFT_ATTR}>?</span>
+    `
+    const modeDef = getModeDefinition('idler')
+    const live = { ...makeState(), matchId: 'counters-resign', paused: false, timeLeft: 5 }
+    syncCounters(live, modeDef, { r0: 10 })
+
+    now += 200
+    syncCounters({ ...live, resigning: true }, modeDef, { r0: 10 })
+    paintCounters()
+    const text = (id: string) => document.getElementById(id)?.textContent
+    const held = { r0: text('own-r0'), timer: text('timer') }
+    expect(held.r0).toBe('7') // 5 + 10/s × 0.2s, then held
+
+    now += 200
+    paintCounters()
+    expect({ r0: text('own-r0'), timer: text('timer') }).toEqual(held)
   })
 })

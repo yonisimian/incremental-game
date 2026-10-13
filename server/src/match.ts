@@ -1212,12 +1212,14 @@ export class Match {
    * up to one tick. The callers flip `phase` to 'ended' before building the
    * ROUND_END, so key off the anchor (set when the countdown ends) rather
    * than the phase. Read once per round end so both players get the same
-   * value — two reads would straddle a clock step.
+   * value — two reads would straddle a clock step. Rounded to the
+   * millisecond so float noise (5.000000000000004) can't tip the end
+   * screen's whole-second readout up by one.
    */
   private elapsedSec(): number {
     const clockRunning = this.endAtMs > 0 && !this.paused
     const left = clockRunning ? this.remainingSecFromAnchor() : this.timeLeftSec
-    return Math.max(0, this.initialSec - left)
+    return Math.max(0, Math.round((this.initialSec - left) * 1000) / 1000)
   }
 
   /** Game seconds left per the monotonic anchor, clamped at zero. */

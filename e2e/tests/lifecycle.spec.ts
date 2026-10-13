@@ -85,11 +85,11 @@ test('LIFE-04 bot request works from rematch waiting', async ({ players }) => {
     .toBe('Bot')
 })
 
-test('LIFE-05 quit during countdown and play yields correct terminal states', async ({
+test('LIFE-05 resigning mid-match shows both players the resign end screen', async ({
   players,
 }) => {
-  const first = await players.create('Quit-A')
-  const second = await players.create('Quit-B')
+  const first = await players.create('Resign-A')
+  const second = await players.create('Resign-B')
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'timed', durationSec: 35 })
 

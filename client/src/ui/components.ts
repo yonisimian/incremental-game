@@ -46,7 +46,6 @@ export function renderSlotCostBadge(cost: number, kind: string, capped: boolean)
 
 // ─── Goal Header Components ─────────────────────────────────────────
 
-/** The timer element — styled as a safety-cap timer for non-timed goals. */
 /** The Resign button; frozen with a pending label once a QUIT is in flight. */
 export function renderResignButton(state: Readonly<GameState>): string {
   return `<button class="quit-btn" id="resign-btn"${state.resigning ? ' disabled' : ''}>${resignLabel(state)}</button>`
@@ -81,16 +80,19 @@ export function syncPauseButton(state: Readonly<GameState>): void {
   const btn = document.getElementById('pause-btn') as HTMLButtonElement | null
   if (!btn) return
   const { label, icon } = pauseFace(state)
-  btn.textContent = icon
-  btn.setAttribute('aria-label', label)
-  btn.setAttribute('title', label)
-  btn.disabled = state.resigning
+  if (btn.textContent !== icon) {
+    btn.textContent = icon
+    btn.setAttribute('aria-label', label)
+    btn.setAttribute('title', label)
+  }
+  if (btn.disabled !== state.resigning) btn.disabled = state.resigning
 }
 
 function pauseFace(state: Readonly<GameState>): { label: string; icon: string } {
   return state.paused ? { label: 'Resume match', icon: '▶' } : { label: 'Pause match', icon: '⏸' }
 }
 
+/** The timer element — styled as a safety-cap timer for non-timed goals. */
 export function renderTimer(state: Readonly<GameState>): string {
   const isSafetyCap = state.goal?.type === 'target-score' || state.goal?.type === 'buy-upgrade'
   const cls = isSafetyCap ? 'timer safety-timer' : 'timer'
