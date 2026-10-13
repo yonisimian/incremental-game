@@ -219,11 +219,10 @@ wss.on('connection', (ws: WebSocket) => {
       if (getRoomByPlayerId(data.id)) return // already in a room
       if (!isAvailableMode(msg.mode)) return
       if (!msg.matchId || typeof msg.matchId !== 'string') return
+      if (typeof msg.seatToken !== 'string') return
       // Only the type and tunable survive from the payload; everything else is ours.
       const goal = sanitizeGoalChoice(msg.mode, msg.goal)
       if (!goal) return
-
-      if (typeof msg.seatToken !== 'string') return
 
       const result = requestRematch(msg.matchId, {
         id: data.id,
