@@ -7,6 +7,7 @@ import {
   startBotMatch,
   startRoomMatch,
   unlockClicking,
+  waitForEnded,
 } from './fixtures/journeys.js'
 import { expectUnchanged } from './fixtures/assertions.js'
 import { WireObserver } from './fixtures/wire-observer.js'
@@ -87,7 +88,8 @@ test('INPUT-03 C, P, F6, and Escape execute their context-specific behavior', as
   await player.page.keyboard.press('Escape')
   await expect(player.page.locator('#upgrade-detail')).toHaveCount(0)
   await player.page.keyboard.press('Escape')
-  await expect(player.page.locator('.lobby-screen')).toBeVisible()
+  await waitForEnded(player)
+  await expect(player.page.locator('.result')).toContainText('You Resigned')
 })
 
 test('INPUT-04 tablist arrows, Home, and End move focus and selection', async ({ players }) => {

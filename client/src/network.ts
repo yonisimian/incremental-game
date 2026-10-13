@@ -166,10 +166,11 @@ export function sendRoomUpdate(update: { mode?: GameMode; goal?: Goal }): void {
   ws.send(JSON.stringify(msg))
 }
 
-/** Send a quit message to voluntarily leave the current match. */
-export function sendQuit(): void {
-  if (ws?.readyState !== WebSocket.OPEN) return
+/** Send a quit message to voluntarily leave the current match. Returns false if not connected. */
+export function sendQuit(): boolean {
+  if (ws?.readyState !== WebSocket.OPEN) return false
   ws.send(JSON.stringify({ type: 'QUIT' }))
+  return true
 }
 
 /** Send a pause request for the current match. */
@@ -264,7 +265,12 @@ function stopBatching(): void {
   }
 }
 
-function flushBatch(): void {
+/**
+ * Send any actions queued since the last batch right now instead of waiting
+ * for the batch timer. Used before QUIT so the server scores the clicks the
+ * player already saw counted.
+ */
+export function flushBatch(): void {
   if (pendingActions.length === 0) return
   if (ws?.readyState !== WebSocket.OPEN) return
 

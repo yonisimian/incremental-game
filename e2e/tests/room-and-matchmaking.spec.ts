@@ -83,7 +83,7 @@ test('ROOM-05 HTML-like names remain text at every public DOM sink', async ({ pl
 
   await expect(joiner.page.locator('.scoreboard')).toContainText('<img src=x>')
   await expect(joiner.page.locator('img')).toHaveCount(0)
-  await creator.page.locator('#quit-btn').click()
+  await creator.page.locator('#resign-btn').click()
   await expect(joiner.page.locator('.end-screen')).toContainText('<img src=x>')
   await expect(joiner.page.locator('img')).toHaveCount(0)
 })

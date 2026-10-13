@@ -183,12 +183,16 @@ export function syncCounters(
   const fresh = newMatch || count !== lastSnapshot
   lastSnapshot = count
 
+  // A resign in flight holds everything where it stands until the server's
+  // ROUND_END settles it: zero rates stop the values, and the clocks freeze.
+  const holding = state.resigning
   const track = (key: string, value: number, rate: number): void => {
     const prev = own.get(key)
+    const heldRate = holding ? 0 : rate
     const anchor =
       !prev || fresh
-        ? anchorSnapshot(prev, value, rate, state.paused, now)
-        : bendRate(prev.anchor, rate, now)
+        ? anchorSnapshot(prev, value, heldRate, state.paused, now)
+        : bendRate(prev.anchor, heldRate, now)
     own.set(key, { value, anchor })
   }
   for (const key of modeDef.resources) {
@@ -202,11 +206,20 @@ export function syncCounters(
       gameSec: readGameSec(state.player),
       timeLeft: state.timeLeft,
       atMs: now,
-      paused: state.paused,
+      paused: state.paused || holding,
     }
     theirs.set(SCORE_KEY, retarget(theirs.get(SCORE_KEY), state.opponent.score ?? 0, now))
     for (const [key, value] of Object.entries(state.opponent.resources)) {
       theirs.set(key, retarget(theirs.get(key), value, now))
+    }
+  } else if (holding && !snapshot.paused) {
+    // Stop the clocks at what they show now, not at the last snapshot.
+    const lead = snapshotLeadSec(snapshot.atMs, false, now)
+    snapshot = {
+      gameSec: snapshot.gameSec + lead,
+      timeLeft: snapshot.timeLeft - lead,
+      atMs: now,
+      paused: true,
     }
   }
 

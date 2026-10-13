@@ -27,7 +27,10 @@ vi.mock('../src/network.js', () => {
     sendRoomCreate: vi.fn(() => true),
     sendRoomJoin: vi.fn(() => true),
     sendRoomUpdate: vi.fn(),
-    sendQuit: vi.fn(),
+    sendQuit: vi.fn(() => true),
+    flushBatch: vi.fn(),
+    sendPause: vi.fn(),
+    sendUnpause: vi.fn(),
     sendBotRequest: vi.fn(),
   }
 })
@@ -95,7 +98,9 @@ function makeRoundEnd(overrides: Partial<RoundEndMessage> = {}): RoundEndMessage
     type: 'ROUND_END',
     winner: 'player',
     reason: 'complete',
+    matchId: 'test-match',
     finalScores: { player: 42, opponent: 10 },
+    durationSec: 60,
     stats: { totalClicks: 30, peakCps: 8, upgradesPurchased: [] },
     ...overrides,
   }
@@ -931,42 +936,153 @@ describe('game.ts', () => {
     })
   })
 
-  // ── quitMatch ──────────────────────────────────────────────────────
+  // ── resignMatch ──────────────────────────────────────────────────────
 
-  describe('quitMatch', () => {
-    it('transitions to lobby from playing', async () => {
+  describe('resignMatch', () => {
+    it('sends QUIT and stays in the match until the server ends the round', async () => {
       enterPlaying(game)
       const { sendQuit } = await import('../src/network.js')
       vi.mocked(sendQuit).mockClear()
-      game.quitMatch()
+      game.resignMatch()
+      expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
+      expect(game.getState().screen).toBe('playing')
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().screen).toBe('ended')
+      expect(game.getState().endData!.reason).toBe('quit')
+      expect(game.getState().endData!.winner).toBe('opponent')
+    })
+
+    it('shows the end screen when resigning during countdown', () => {
+      game.handleServerMessage(makeRoundStart())
+      expect(game.getState().screen).toBe('countdown')
+      game.resignMatch()
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().screen).toBe('ended')
+    })
+
+    it('falls back to lobby when the socket is not connected', async () => {
+      enterPlaying(game)
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockReturnValueOnce(false)
+      game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
+    })
+
+    it('falls back to lobby when no ROUND_END arrives in time', async () => {
+      // A socket drop mid-match leaves the client on 'playing' with a match
+      // the server no longer has; the QUIT then gets no answer.
+      enterPlaying(game)
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      expect(game.getState().resigning).toBe(true)
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS - 1)
+      expect(game.getState().screen).toBe('playing')
+      vi.advanceTimersByTime(1)
+      expect(game.getState().screen).toBe('lobby')
+      expect(game.getState().resigning).toBe(false)
+    })
+
+    it('flushes queued actions before sending QUIT', async () => {
+      enterPlaying(game)
+      const { flushBatch, sendQuit } = await import('../src/network.js')
+      vi.mocked(flushBatch).mockClear()
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      expect(vi.mocked(flushBatch)).toHaveBeenCalledOnce()
+      expect(vi.mocked(flushBatch).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(sendQuit).mock.invocationCallOrder[0],
+      )
+    })
+
+    it('ignores a ROUND_END that arrives after the fallback already left the match', () => {
+      enterPlaying(game)
+      game.resignMatch()
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      expect(game.getState().screen).toBe('lobby')
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().screen).toBe('lobby')
+      expect(game.getState().endData).toBeNull()
+    })
+
+    it('ignores a ROUND_END stamped for a match other than the current one', () => {
+      // The fallback left the old match and a new one started; the old
+      // verdict then arrives late.
+      enterPlaying(game)
+      game.resignMatch()
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      game.handleServerMessage(makeRoundStart({ matchId: 'next-match' }))
+      advancePastCountdown()
+      game.handleServerMessage(
+        makeRoundEnd({ matchId: 'test-match', reason: 'quit', winner: 'opponent' }),
+      )
+      expect(game.getState().screen).toBe('playing')
+      expect(game.getState().matchId).toBe('next-match')
+    })
+
+    it('still accepts a ROUND_END from an older server that sends no matchId', () => {
+      enterPlaying(game)
+      game.handleServerMessage(makeRoundEnd({ matchId: undefined }))
+      expect(game.getState().screen).toBe('ended')
+    })
+
+    it('does not fall back once the server has answered', () => {
+      enterPlaying(game)
+      game.resignMatch()
+      game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
+      expect(game.getState().resigning).toBe(false)
+      vi.advanceTimersByTime(game.RESIGN_TIMEOUT_MS)
+      expect(game.getState().screen).toBe('ended')
+    })
+
+    it('sends QUIT only once while the answer is pending', async () => {
+      enterPlaying(game)
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
+      game.resignMatch()
       expect(vi.mocked(sendQuit)).toHaveBeenCalledOnce()
     })
 
-    it('transitions to lobby from countdown', () => {
-      game.handleServerMessage(makeRoundStart())
-      expect(game.getState().screen).toBe('countdown')
-      game.quitMatch()
-      expect(game.getState().screen).toBe('lobby')
+    it('ignores pause while the answer is pending', async () => {
+      game.handleServerMessage(makeRoundStart({ vsBot: true }))
+      advancePastCountdown()
+      const { sendPause } = await import('../src/network.js')
+      vi.mocked(sendPause).mockClear()
+      game.resignMatch()
+      game.togglePause()
+      expect(vi.mocked(sendPause)).not.toHaveBeenCalled()
     })
 
-    it('is a no-op on lobby screen', () => {
-      game.quitMatch()
+    it('ignores input while the answer is pending', async () => {
+      enterPlaying(game)
+      const { queueAction } = await import('../src/network.js')
+      vi.mocked(queueAction).mockClear()
+      const scoreBefore = game.getState().player.score
+      game.resignMatch()
+      game.doClick()
+      game.doBuyGenerator('g0')
+      expect(vi.mocked(queueAction)).not.toHaveBeenCalled()
+      expect(game.getState().player.score).toBe(scoreBefore)
+    })
+
+    it('is a no-op on lobby screen', async () => {
+      const { sendQuit } = await import('../src/network.js')
+      vi.mocked(sendQuit).mockClear()
+      game.resignMatch()
       expect(game.getState().screen).toBe('lobby')
+      expect(vi.mocked(sendQuit)).not.toHaveBeenCalled()
     })
   })
 
   // ── ROUND_END reason handling ──────────────────────────────────────
 
   describe('ROUND_END reason', () => {
-    it('ignores quit message when user is the quitter', () => {
+    it('shows ended screen when user resigned', () => {
       enterPlaying(game)
-      // Simulate: we quit, server tells us we lost
       game.handleServerMessage(makeRoundEnd({ reason: 'quit', winner: 'opponent' }))
-      // Should be ignored since quitMatch() already moved us to lobby
-      // Here we test that handleRoundEnd doesn't move to ended screen
-      // (in real flow, quitMatch resets to lobby before this arrives)
-      expect(game.getState().screen).toBe('playing') // not ended
+      expect(game.getState().screen).toBe('ended')
+      expect(game.getState().endData!.winner).toBe('opponent')
     })
 
     it('shows ended screen when opponent quits', () => {

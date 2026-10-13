@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { externalModifiers, quitMatch, togglePause } from '../game.js'
+import { externalModifiers, resignMatch, togglePause } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
@@ -7,7 +7,14 @@ import {
   getModeFlavor,
 } from '@game/shared'
 import type { ModeDefinition, ModeFlavor } from '@game/shared'
-import { renderTimer, renderProgressBars } from './components.js'
+import {
+  renderTimer,
+  renderProgressBars,
+  renderResignButton,
+  syncResignButton,
+  renderPauseButton,
+  syncPauseButton,
+} from './components.js'
 import { app, setText, formatScore, playerDisplayName, opponentDisplayName } from './helpers.js'
 import { formatNumber } from './format-number.js'
 import { bumpScore } from './vfx/index.js'
@@ -80,17 +87,6 @@ function renderResourceBar(state: Readonly<GameState>): string {
 }
 
 /**
- * Pause/resume button — only rendered in bot matches, where pausing is allowed.
- * The icon doubles as a play triangle while paused so the same control resumes.
- */
-function renderPauseButton(state: Readonly<GameState>): string {
-  if (!state.vsBot) return ''
-  const label = state.paused ? 'Resume match' : 'Pause match'
-  const icon = state.paused ? '▶' : '⏸'
-  return `<button class="pause-btn" id="pause-btn" aria-label="${label}" title="${label}">${icon}</button>`
-}
-
-/**
  * Whether the head-to-head scoreboard applies to this goal. 'target-score' uses
  * progress bars instead, and 'buy-upgrade' (Race to Buy) is won by buying the
  * goal upgrade, not by score — neither shows a score race.
@@ -131,7 +127,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          <button class="quit-btn" id="quit-btn">← Quit</button>
+          ${renderResignButton(state)}
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -150,7 +146,7 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     </div>
   `
 
-  document.getElementById('quit-btn')!.addEventListener('click', quitMatch)
+  document.getElementById('resign-btn')!.addEventListener('click', resignMatch)
   document.getElementById('pause-btn')?.addEventListener('click', togglePause)
   bindTabEvents()
   renderActivePanel(state)
@@ -177,14 +173,8 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBanner.textContent = state.paused ? 'PAUSED' : ''
   }
 
-  // Update pause button icon/label to reflect the current state.
-  const pauseBtn = document.getElementById('pause-btn')
-  if (pauseBtn) {
-    const label = state.paused ? 'Resume match' : 'Pause match'
-    pauseBtn.textContent = state.paused ? '▶' : '⏸'
-    pauseBtn.setAttribute('aria-label', label)
-    pauseBtn.setAttribute('title', label)
-  }
+  syncResignButton(state)
+  syncPauseButton(state)
 
   // Amounts, scores and the timer are painted by the counters; only the rates are written here.
   if (activeFlavor && activeModeDef) {

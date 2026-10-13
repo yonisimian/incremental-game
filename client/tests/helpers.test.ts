@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { ModeFlavor, UpgradeDefinition } from '@game/shared'
 import { COUNTDOWN_SEC, ROUND_DURATION_SEC } from '@game/shared'
 import type { GameState } from '../src/game.js'
-import { canBuy, formatTime, formatUpgradesPurchased, isUnlocked } from '../src/ui/helpers.js'
+import {
+  canBuy,
+  formatDuration,
+  formatTime,
+  formatUpgradesPurchased,
+  isUnlocked,
+} from '../src/ui/helpers.js'
 
 // ─── Test fixture helpers ────────────────────────────────────────────
 
@@ -43,6 +49,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: 'test-match',
     upgrades: [],
@@ -84,6 +91,25 @@ describe('formatTime', () => {
   it('clamps negatives to 0:00', () => {
     expect(formatTime(0)).toBe('0:00')
     expect(formatTime(-5)).toBe('0:00')
+  })
+})
+
+// ─── formatDuration ──────────────────────────────────────────────────
+
+describe('formatDuration', () => {
+  it('formats whole seconds as m:ss', () => {
+    expect(formatDuration(95)).toBe('1:35')
+    expect(formatDuration(600)).toBe('10:00')
+    expect(formatDuration(0)).toBe('0:00')
+  })
+
+  it('never shows centiseconds, even under 10s (unlike the live timer)', () => {
+    expect(formatDuration(9.99)).toBe('0:09')
+    expect(formatDuration(1.5)).toBe('0:01')
+  })
+
+  it('clamps negative spans to zero', () => {
+    expect(formatDuration(-5)).toBe('0:00')
   })
 })
 

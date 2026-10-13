@@ -40,7 +40,12 @@ export function formatTime(seconds: number): string {
     const centi = Math.floor((clamped - sec) * 100)
     return `${sec}:${centi.toString().padStart(2, '0')}`
   }
-  const total = Math.floor(clamped)
+  return formatDuration(clamped)
+}
+
+/** Whole-second `m:ss` for elapsed spans (no centiseconds, unlike the live timer below 10s). */
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
   const min = Math.floor(total / 60)
   const sec = total % 60
   return `${min}:${sec.toString().padStart(2, '0')}`

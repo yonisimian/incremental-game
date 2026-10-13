@@ -70,6 +70,7 @@ function makeState(incoming?: EnemyCostFactor[], discounts?: PactCostFactor[]): 
     debuffs: [],
     timeLeft: 60,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: null,
     upgrades: modeDef.upgrades,

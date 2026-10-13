@@ -30,7 +30,7 @@ test('MOB-02 primary controls remain usable in portrait and landscape', async ({
   ]) {
     await player.page.setViewportSize(viewport)
     for (const locator of [
-      player.page.locator('#quit-btn'),
+      player.page.locator('#resign-btn'),
       player.page.locator('#tab-grid'),
       player.page.locator('#panel-container'),
     ]) {

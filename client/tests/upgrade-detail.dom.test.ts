@@ -69,6 +69,7 @@ function makeState(owned: Record<string, number>): GameState {
     debuffs: [],
     timeLeft: ROUND_DURATION_SEC,
     paused: false,
+    resigning: false,
     vsBot: false,
     matchId: 'test-match',
     upgrades: mode.upgrades,

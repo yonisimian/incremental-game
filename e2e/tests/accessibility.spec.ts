@@ -45,7 +45,7 @@ test('A11Y-01 major player screens have no serious or critical axe violations @c
   await expectNoSeriousViolations(first.page, 'upgrade detail')
   await first.page.locator('#upgrade-detail-cancel').click()
 
-  await second.page.locator('#quit-btn').click()
+  await second.page.locator('#resign-btn').click()
   await waitForEnded(first)
   await first.page.mouse.move(0, 0)
   await first.page.locator('.end-actions').evaluate(async (actions) => {

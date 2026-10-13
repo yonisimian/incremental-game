@@ -15,7 +15,7 @@ const updateRoomSettings = vi.fn()
 
 vi.mock('../src/game.js', () => ({
   cancelQueue: vi.fn(),
-  quitMatch: vi.fn(),
+  resignMatch: vi.fn(),
   requestBot: vi.fn(),
   updateRoomSettings,
 }))
