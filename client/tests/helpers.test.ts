@@ -45,6 +45,7 @@ function makeState(overrides: Partial<GameState['player']> = {}): GameState {
     paused: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: [],
     countdown: COUNTDOWN_SEC,
     endData: null,

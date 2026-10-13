@@ -72,6 +72,7 @@ function makeState(incoming?: EnemyCostFactor[], discounts?: PactCostFactor[]): 
     paused: false,
     vsBot: false,
     matchId: null,
+    seatToken: null,
     upgrades: modeDef.upgrades,
     countdown: 0,
     endData: null,

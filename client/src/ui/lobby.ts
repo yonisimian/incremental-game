@@ -102,6 +102,8 @@ function errorMessage(reason: string): string {
       return 'You are already in a room'
     case 'room_limit':
       return 'Server is busy — try again later'
+    case 'rematch_expired':
+      return 'Rematch expired — start a new game'
     default:
       return 'Something went wrong'
   }

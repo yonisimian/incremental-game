@@ -47,6 +47,7 @@ function makeIdlerState(playerOverrides: Partial<GameState['player']> = {}): Gam
     paused: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: [...upgrades],
     countdown: COUNTDOWN_SEC,
     endData: null,

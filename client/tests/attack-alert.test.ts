@@ -63,6 +63,7 @@ async function loadGame(): Promise<GameModule> {
 const roundStart: RoundStartMessage = {
   type: 'ROUND_START',
   matchId: 'test-match',
+  seatToken: 'test-seat',
   config: {
     mode: 'idler',
     goal: { type: 'timed', label: '⏱ Timed', durationSec: ROUND_DURATION_SEC },
@@ -205,6 +206,7 @@ describe('espionage panel — incoming strikes', () => {
       paused: false,
       vsBot: false,
       matchId: null,
+      seatToken: null,
       upgrades: [],
       countdown: 0,
       endData: null,

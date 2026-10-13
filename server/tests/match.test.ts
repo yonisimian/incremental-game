@@ -224,6 +224,14 @@ describe('Match', () => {
       expect(msg.serverTime).toBeGreaterThan(0)
     })
 
+    it("sends each player their own seat's token in ROUND_START", () => {
+      const m = startMatch()
+      const [t1, t2] = m.getSeatTokens()
+      expect(t1).not.toBe(t2)
+      expect(sentOfType(ws1, 'ROUND_START')[0].seatToken).toBe(t1)
+      expect(sentOfType(ws2, 'ROUND_START')[0].seatToken).toBe(t2)
+    })
+
     it('rolls a concrete goal for the random pick and sends it in ROUND_START', () => {
       const m = new Match({ id: 'p1', ws: ws1 }, { id: 'p2', ws: ws2 }, 'idler', RANDOM_GOAL)
       m.start()

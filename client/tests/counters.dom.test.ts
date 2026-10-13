@@ -36,6 +36,7 @@ function makeState(): GameState {
     paused: true,
     vsBot: false,
     matchId: 'counters-dom',
+    seatToken: null,
     upgrades: [],
     countdown: COUNTDOWN_SEC,
     endData: null,

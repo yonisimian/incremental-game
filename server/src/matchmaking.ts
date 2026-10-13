@@ -142,7 +142,6 @@ export function createRoom(player: QueuedPlayer, onExpire: (room: Room) => void)
 /** What a room looked like when its match started — enough to reopen it. */
 export interface RoomSnapshot {
   code: string
-  creatorId: string
   mode: GameMode
   goal: GoalChoice
 }

@@ -107,6 +107,7 @@ function makeState(wood: number, stats: Record<string, number> = {}): GameState 
     paused: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: modeDef.upgrades,
     countdown: COUNTDOWN_SEC,
     endData: null,

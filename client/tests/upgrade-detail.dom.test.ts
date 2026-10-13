@@ -71,6 +71,7 @@ function makeState(owned: Record<string, number>): GameState {
     paused: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: mode.upgrades,
     countdown: COUNTDOWN_SEC,
     endData: null,

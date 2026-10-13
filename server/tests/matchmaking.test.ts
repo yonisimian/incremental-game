@@ -97,7 +97,7 @@ describe('rooms', () => {
   })
 
   describe('reopenRoom', () => {
-    const snapshot = { code: 'ABCDEF', creatorId: 'p1', mode: 'idler' as const, goal: RANDOM_GOAL }
+    const snapshot = { code: 'ABCDEF', mode: 'idler' as const, goal: RANDOM_GOAL }
 
     it('seats both players back in a room with the old code, host seat and settings', () => {
       const res = reopenRoom(player('p1'), player('p2'), snapshot, noop)

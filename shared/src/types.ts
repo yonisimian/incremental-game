@@ -525,8 +525,9 @@ export type Goal = TimedGoal | TargetScoreGoal | BuyUpgradeGoal
 
 /**
  * Room-only "surprise me" pick: the server rolls one of the mode's goals when
- * the match starts (and again on every rematch). Never reaches a `Match`,
- * which always plays a concrete `Goal`.
+ * the match starts. A room rematch keeps the pick, so it rolls again; a quick
+ * rematch replays the goal that was rolled. A `Match` resolves it in its
+ * constructor and always plays a concrete `Goal`.
  */
 export interface RandomGoalChoice {
   readonly type: 'random'

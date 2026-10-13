@@ -164,6 +164,8 @@ export interface GameState {
   vsBot: boolean
   /** Current match ID. */
   matchId: string | null
+  /** This player's seat token for the current match, echoed in a rematch. */
+  seatToken: string | null
   /** Upgrade definitions for this round. */
   upgrades: readonly UpgradeDefinition[]
   /** Countdown value (3, 2, 1, GO). */
@@ -246,6 +248,7 @@ const state: GameState = {
   paused: false,
   vsBot: false,
   matchId: null,
+  seatToken: null,
   upgrades: [],
   countdown: COUNTDOWN_SEC,
   endData: null,
@@ -419,11 +422,11 @@ export function quickMatch(): void {
 /** Request a rematch with the same opponent from the end screen. */
 export function rematch(): void {
   if (state.screen !== 'ended') return
-  const { mode, goal, matchId } = state
-  if (!mode || !goal || !matchId) return
+  const { mode, goal, matchId, seatToken } = state
+  if (!mode || !goal || !matchId || !seatToken) return
   // A quick match replays this mode and goal straight away. A room match
   // ignores them: the server reopens the room from its own record of it.
-  if (!sendRematch(state.playerName, matchId, mode, goal)) return // not connected
+  if (!sendRematch(state.playerName, matchId, seatToken, mode, goal)) return // not connected
   resetForMatch()
   state.screen = 'waiting'
   notify()
@@ -728,6 +731,7 @@ export function resetForMatch(): void {
   clearIncomingAttackToasts()
   state.timeLeft = 0
   state.matchId = null
+  state.seatToken = null
   state.upgrades = []
   state.countdown = COUNTDOWN_SEC
   state.endData = null
@@ -754,6 +758,7 @@ function resetRoom(): void {
 function handleRoundStart(msg: RoundStartMessage): void {
   state.screen = 'countdown'
   state.matchId = msg.matchId
+  state.seatToken = msg.seatToken
   state.mode = msg.config.mode
   state.goal = msg.config.goal
   const modeDef = getModeDefinition(msg.config.mode)

@@ -86,14 +86,20 @@ export interface RematchMessage {
   name: string
   /** Match ID from the just-finished match (pairs only the same two players). */
   matchId: string
+  /**
+   * This player's seat token from that match's `ROUND_START`. Survives a
+   * reconnect (unlike the player id), so a room's host keeps the host seat.
+   */
+  seatToken: string
   /** Mode from the just-finished match. Replayed by a quick match; ignored by a room match. */
   mode: GameMode
   /**
    * Goal from the just-finished match. A quick match replays it (a rolled
    * goal stays rolled); a room match ignores it and reopens the room with
-   * the server's own record of the pick.
+   * the server's own record of the pick. Re-sanitized against the mode, so
+   * any choice the mode offers is accepted.
    */
-  goal: Goal
+  goal: GoalChoice
 }
 
 export type ClientMessage =
@@ -323,6 +329,8 @@ export interface StateUpdateMessage {
 export interface RoundStartMessage {
   type: 'ROUND_START'
   matchId: string
+  /** Secret token for this player's seat, echoed back in `REMATCH`. */
+  seatToken: string
   /** Game configuration for this round. */
   config: {
     mode: GameMode
@@ -416,7 +424,13 @@ export interface RoomClosedMessage {
 }
 
 /** Error response for room/join/create operations. */
-export type RoomErrorReason = 'full' | 'not_found' | 'already_in_room' | 'room_limit'
+export type RoomErrorReason =
+  | 'full'
+  | 'not_found'
+  | 'already_in_room'
+  | 'room_limit'
+  /** The match's rematch window (one room TTL after it ended) closed. */
+  | 'rematch_expired'
 
 export interface RoomErrorMessage {
   type: 'ROOM_ERROR'

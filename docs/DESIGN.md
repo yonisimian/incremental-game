@@ -156,7 +156,8 @@ ModeDefinition (mechanics)          ModeFlavor (display)
    ├─► Server declares winner based on final scores
    ├─► Stats screen (clicks, CPS peak, upgrades purchased, etc.)
    ├─► Rematch (once both ask): a room match returns both players to their room — same code,
-   │   mode and goal pick, host starts again; a quick match restarts with the same settings
+   │   mode and goal pick, host starts again; a quick match restarts with the same settings.
+   │   The rematch window lasts one room TTL (10 min) after the match ends
    └─► Or return to the main menu
 ```
 

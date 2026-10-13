@@ -93,6 +93,7 @@ function makeState(opts: {
     paused: false,
     vsBot: false,
     matchId: null,
+    seatToken: null,
     upgrades: base.upgrades,
     countdown: 0,
     endData: null,

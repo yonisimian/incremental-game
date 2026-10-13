@@ -55,6 +55,7 @@ function makeRoundStart(overrides: Partial<RoundStartMessage> = {}): RoundStartM
   return {
     type: 'ROUND_START',
     matchId: 'test-match',
+    seatToken: 'test-seat',
     config: { mode: 'idler', goal: defaultTimedGoal },
     opponentName: '',
     vsBot: false,
@@ -992,14 +993,15 @@ describe('game.ts', () => {
   // ── rematch ──────────────────────────────────────────────────────
 
   describe('rematch', () => {
-    it('re-sends the mode and goal of the match just played', async () => {
+    it('re-sends the mode, goal and seat token of the match just played', async () => {
       const { sendRematch } = await import('../src/network.js')
-      game.handleServerMessage(makeRoundStart({ matchId: 'm-fixed' }))
+      game.handleServerMessage(makeRoundStart({ matchId: 'm-fixed', seatToken: 'seat-1' }))
       game.handleServerMessage(makeRoundEnd())
       game.rematch()
       expect(sendRematch).toHaveBeenCalledWith(
         expect.any(String),
         'm-fixed',
+        'seat-1',
         'idler',
         defaultTimedGoal,
       )

@@ -38,6 +38,7 @@ function makeState(
     paused: false,
     vsBot: false,
     matchId: 'test-match',
+    seatToken: null,
     upgrades: [],
     countdown: COUNTDOWN_SEC,
     endData: null,
