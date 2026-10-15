@@ -555,7 +555,13 @@ describe('game.ts', () => {
         ],
         upgrades: [
           ...base.upgrades,
-          { id: SIGN, cost: {}, purchaseLimit: 1, effects: [{ type: 'unlockPact', pact: PACT }] },
+          {
+            id: SIGN,
+            category: base.upgrades[0].category,
+            cost: {},
+            purchaseLimit: 1,
+            effects: [{ type: 'unlockPact', pact: PACT }],
+          },
         ],
       })
     }

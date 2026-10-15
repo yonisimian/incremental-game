@@ -1797,6 +1797,7 @@ describe('relativeModifier mode validation', () => {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uBad',
+      category: base.upgrades[0].category,
       cost: { r0: { baseCost: 1 } },
       purchaseLimit: 1,
       effects: [effect],
@@ -1860,6 +1861,7 @@ describe('production field mode validation', () => {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uProd',
+      category: base.upgrades[0].category,
       cost: { r0: { baseCost: 1 } },
       purchaseLimit: 1,
       effects: [effect],
@@ -1989,6 +1991,7 @@ describe('accessEnemyData mode validation', () => {
     const base = getModeDefinition('idler')
     const u: UpgradeDefinition = {
       id: 'uIntel',
+      category: base.upgrades[0].category,
       cost: { r0: { baseCost: 1 } },
       purchaseLimit: 1,
       effects: [{ type: 'accessEnemyData', data }],

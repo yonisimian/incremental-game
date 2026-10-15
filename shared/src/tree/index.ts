@@ -2,5 +2,5 @@
 // The single validated boundary between on-disk tree data and the engine.
 
 export { CURRENT_TREE_VERSION, TreeFileSchema } from './schema.js'
-export type { TreeFile, TreeUpgradeNode } from './schema.js'
+export type { TreeCategory, TreeFile, TreeUpgradeNode } from './schema.js'
 export { loadTree, parseTree, parseTreeFile, serializeTree, toModeDefinition } from './codec.js'

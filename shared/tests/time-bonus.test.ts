@@ -45,7 +45,9 @@ function clockMode(payout: Partial<Record<string, unknown>> = {}): ModeDefinitio
       effects: [{ type: 'timeRetroactive', clock: 'clock' }],
     },
   ]
-  const idler = getModeDefinition('idler')
+  // Without the idler's categories: these upgrades replace its tree, so the
+  // mode is one uncategorized tree, like any mode built in code.
+  const { categories: _categories, ...idler } = getModeDefinition('idler')
   return {
     ...idler,
     upgrades,
@@ -56,6 +58,7 @@ function clockMode(payout: Partial<Record<string, unknown>> = {}): ModeDefinitio
       {
         ...idler.flavors[0],
         upgrades: upgrades.map((u) => ({ id: u.id, name: u.id, icon: '⏳', description: u.id })),
+        categories: [],
       },
     ],
   }
