@@ -1,6 +1,21 @@
 # 52 — Per-category upgrade sub-trees
 
-## Status: Planned
+## Status: Implemented
+
+Built as planned, with these differences:
+
+- **Migrations removed.** With no v5 → v6 step, the old v1 → v5 steps
+  could only ever lead to a rejected v5 file, so they were deleted with their
+  tests. `parseTreeFile` checks the version and nothing else.
+- **One client commit.** As in 51, knip refused the setting's exports until
+  the panel used them, so steps 3 and 4 landed together.
+- **Setting name.** The settings section is titled "Upgrade Categories", to
+  sit clearly next to "Upgrade Tree".
+- **Editor.** It opens on the first category. Rename is the name field in
+  the bar, written to every flavor. Dragging still moves nodes within their
+  category; changing category goes through the inspector's Category field.
+- **Docs.** `docs/DESIGN.md` doesn't describe the tree file, so only
+  `CLAUDE.md` changed.
 
 Builds on [51 — tree visibility modes](51-tree-visibility-modes.md) (PR #177):
 it adds a second tree setting next to 51's, and scopes 51's rendering to one
