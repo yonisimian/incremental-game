@@ -4,7 +4,7 @@
 // buttons, a click whose pointerdown hit the old button would never reach the
 // canvas listener. DOM tier because the failure is element identity in a live tree.
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
@@ -135,5 +135,63 @@ describe('upgrade tree panel visibility modes', () => {
     mountTree(makeState(0))
     expect(nodeOf('g1-dp')).not.toBeNull()
     expect(stubs()).toBe(0)
+  })
+})
+
+// The panel remembers what it has shown per match, so each test starts its own.
+describe('upgrade tree panel reveal pulse', () => {
+  let match = 0
+  const inMatch = (state: GameState): GameState => ({ ...state, matchId: `pulse-${match}` })
+  const pulsing = (id: string) => nodeOf(id).classList.contains('revealed')
+
+  beforeEach(() => {
+    match++
+    vi.useFakeTimers()
+    setTreeVisibility('hidden')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not pulse nodes visible at round start', () => {
+    mountTree(inMatch(makeState(0)))
+    expect(pulsing('g1-g2')).toBe(false)
+  })
+
+  it('pulses a node revealed mid-round until the pulse ends', () => {
+    mountTree(inMatch(makeState(0)))
+
+    current = inMatch(makeState(0, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(pulsing('g1-af')).toBe(true)
+
+    // Later updates inside the pulse keep the class, or the animation is cut short.
+    vi.advanceTimersByTime(500)
+    current = inMatch(makeState(10, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(pulsing('g1-af')).toBe(true)
+
+    vi.advanceTimersByTime(500)
+    current = inMatch(makeState(20, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(pulsing('g1-af')).toBe(false)
+  })
+
+  it('treats what is visible at the next round start as already seen', () => {
+    mountTree(inMatch(makeState(0)))
+    document.body.innerHTML = ''
+    match++
+    // The next round starts with g1-af already reachable.
+    mountTree(inMatch(makeState(0, { 'g1-g2': 1 })))
+    expect(pulsing('g1-af')).toBe(false)
+  })
+
+  it('never pulses in Full mode', () => {
+    setTreeVisibility('full')
+    mountTree(inMatch(makeState(0)))
+    current = inMatch(makeState(0, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(document.querySelectorAll('.tree-node.revealed')).toHaveLength(0)
   })
 })

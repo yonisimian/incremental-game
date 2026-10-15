@@ -16,6 +16,9 @@ const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
 
+/** How long a newly revealed node keeps its `revealed` class — the CSS `tree-reveal` length. */
+const PULSE_MS = 900
+
 // ─── Module-local pan/zoom state ─────────────────────────────────────
 //
 // Persists pan/zoom across tab switches within a match (good UX), and resets
@@ -26,14 +29,46 @@ let lastPanZoomState: PanZoomState | null = null
 let lastMatchId: string | null = null
 let prevHtml = ''
 
+// ─── Module-local reveal state ───────────────────────────────────────
+//
+// Upgrades the player has already seen this match, and when each fresh reveal
+// stops pulsing. Seeded at the match boundary so round-start nodes never pulse.
+// The class must outlive many update() calls: `syncNodes` copies attributes
+// from fresh markup, so dropping it on the next tick would cut the pulse short.
+
+let seenIds = new Set<string>()
+const pulseUntil = new Map<string, number>()
+
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+/** The upgrades the player's visibility setting shows. */
+function visibleIds(state: Readonly<GameState>): ReadonlySet<string> {
+  return visibleUpgradeIds(state.upgrades, state.player, getTreeVisibility())
+}
+
+/** Record newly visible upgrades and return the ones still pulsing. */
+function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
+  const now = Date.now()
+  for (const id of visible) {
+    if (seenIds.has(id)) continue
+    seenIds.add(id)
+    pulseUntil.set(id, now + PULSE_MS)
+  }
+  const pulsing = new Set<string>()
+  for (const [id, until] of pulseUntil) {
+    if (until > now) pulsing.add(id)
+    else pulseUntil.delete(id)
+  }
+  return pulsing
+}
 
 /** Render the tree as the player's visibility setting shows it. */
 function renderVisibleTree(state: Readonly<GameState>) {
-  const mode = getTreeVisibility()
+  const visible = visibleIds(state)
   return renderUpgradeTree(state, {
-    visible: visibleUpgradeIds(state.upgrades, state.player, mode),
-    stubs: mode === 'hidden',
+    visible,
+    stubs: getTreeVisibility() === 'hidden',
+    pulsing: trackReveals(visible),
   })
 }
 
@@ -88,10 +123,13 @@ export const upgradeTreePanel: Panel = {
     }
 
     // 2. Match boundary → discard the snapshot we just took. Pan/zoom resets
-    //    to centered defaults at the start of every new game.
+    //    to centered defaults at the start of every new game, and what's
+    //    visible now counts as already seen, so nothing pulses at round start.
     if (state.matchId !== lastMatchId) {
       lastPanZoomState = null
       lastMatchId = state.matchId
+      seenIds = new Set(visibleIds(state))
+      pulseUntil.clear()
     }
 
     // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail

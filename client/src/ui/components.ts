@@ -282,7 +282,8 @@ export function renderUpgradeTree(
       const maxed = isMaxed(u, state.player.upgrades[u.id] ?? 0)
       const reason = upgradeBlockReason(state, u.id)
       const stateClass = reason === null ? '' : NODE_STATE_CLASS[reason]
-      const revealedClass = options.pulsing?.has(u.id) ? ' revealed' : ''
+      // Just became visible — pulses once (see the panel's reveal tracking).
+      const cls = options.pulsing?.has(u.id) ? ' revealed' : ''
 
       const costLabel = formatUpgradeCost(state, u, flavor)
       const name = getUpgradeName(flavor, u.id)
@@ -293,7 +294,7 @@ export function renderUpgradeTree(
 
       return `
         <button
-          class="upgrade-btn tree-node ${stateClass}${revealedClass}"
+          class="upgrade-btn tree-node ${stateClass}${cls}"
           data-upgrade="${u.id}"
           style="left: ${u.position.x}px; top: ${u.position.y}px"
           aria-label="${escapeAttr(title)}"

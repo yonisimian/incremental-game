@@ -1259,6 +1259,43 @@ body {
   box-shadow: 0 0 0 2px var(--danger);
 }
 
+/* A node that just became visible (Hidden / Peek visibility modes) pops in
+   with an accent ring, so the player notices it. The node is centered by its
+   transform, so every keyframe repeats the translate or the node would jump.
+   Length matches PULSE_MS in upgrade-tree-panel.ts. */
+.upgrade-btn.tree-node.revealed {
+  animation: tree-reveal 0.9s ease-out;
+}
+
+@keyframes tree-reveal {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 0 16px rgba(56, 189, 248, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-btn.tree-node.revealed {
+    animation-name: tree-reveal-ring;
+  }
+
+  @keyframes tree-reveal-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+    }
+    100% {
+      box-shadow: 0 0 0 16px rgba(56, 189, 248, 0);
+    }
+  }
+}
+
 /* Upgrade detail popup — overlays the tree viewport with Buy/Cancel actions. */
 .upgrade-detail-backdrop {
   position: absolute;
