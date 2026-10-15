@@ -41,11 +41,6 @@ const pulseUntil = new Map<string, number>()
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-/** The upgrades the player's visibility setting shows. */
-function visibleIds(state: Readonly<GameState>): ReadonlySet<string> {
-  return visibleUpgradeIds(state.upgrades, state.player, getTreeVisibility())
-}
-
 /** Record newly visible upgrades and return the ones still pulsing. */
 function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
   const now = Date.now()
@@ -62,12 +57,20 @@ function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
   return pulsing
 }
 
-/** Render the tree as the player's visibility setting shows it. */
-function renderVisibleTree(state: Readonly<GameState>) {
-  const visible = visibleIds(state)
+/**
+ * Render the tree as the player's visibility setting shows it. On a new match,
+ * what's visible now counts as already seen, so nothing pulses at round start.
+ */
+function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
+  const mode = getTreeVisibility()
+  const visible = visibleUpgradeIds(state, mode)
+  if (newMatch) {
+    seenIds = new Set(visible)
+    pulseUntil.clear()
+  }
   return renderUpgradeTree(state, {
     visible,
-    stubs: getTreeVisibility() === 'hidden',
+    stubs: mode === 'hidden',
     pulsing: trackReveals(visible),
   })
 }
@@ -123,19 +126,18 @@ export const upgradeTreePanel: Panel = {
     }
 
     // 2. Match boundary → discard the snapshot we just took. Pan/zoom resets
-    //    to centered defaults at the start of every new game, and what's
-    //    visible now counts as already seen, so nothing pulses at round start.
-    if (state.matchId !== lastMatchId) {
+    //    to centered defaults at the start of every new game, and the reveal
+    //    tracking re-seeds in renderVisibleTree.
+    const newMatch = state.matchId !== lastMatchId
+    if (newMatch) {
       lastPanZoomState = null
       lastMatchId = state.matchId
-      seenIds = new Set(visibleIds(state))
-      pulseUntil.clear()
     }
 
     // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
     //    popup mounted inside the viewport), so clear popup state to match.
     resetUpgradeDetail()
-    const { edgesSvg, nodes, bounds } = renderVisibleTree(state)
+    const { edgesSvg, nodes, bounds } = renderVisibleTree(state, newMatch)
     prevHtml = edgesSvg + nodes
     container.innerHTML = renderShell(edgesSvg, nodes, bounds)
 

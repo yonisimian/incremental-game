@@ -4,12 +4,9 @@
 // reach, or those plus one step ahead. A player setting, persisted to
 // localStorage and read synchronously. Display-only — the server never sees it.
 
-import {
-  getPrerequisiteUpgradeIds,
-  isPrerequisiteSatisfied,
-  type PlayerState,
-  type UpgradeDefinition,
-} from '@game/shared'
+import { getPrerequisiteUpgradeIds } from '@game/shared'
+import type { GameState } from '../game.js'
+import { isUnlocked } from './helpers.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -24,19 +21,20 @@ export type TreeVisibility = 'full' | 'hidden' | 'peek'
 
 /**
  * Ids of the upgrades the tree shows for this player under `mode`. Parent and
- * child follow prerequisite edges, not layout nesting. Cost doesn't matter: an
- * upgrade the player can't afford is still shown once it's reachable.
+ * child follow prerequisite edges, not layout nesting. Reachable means
+ * `isUnlocked`, the same test the tree's edge styling uses. Cost doesn't
+ * matter: an upgrade the player can't afford is still shown once it's reachable.
  */
 export function visibleUpgradeIds(
-  upgrades: readonly UpgradeDefinition[],
-  player: PlayerState,
+  state: Readonly<Pick<GameState, 'upgrades' | 'player'>>,
   mode: TreeVisibility,
 ): ReadonlySet<string> {
+  const { upgrades } = state
   if (mode === 'full') return new Set(upgrades.map((u) => u.id))
 
   const revealed = new Set<string>()
   for (const u of upgrades) {
-    if (isPrerequisiteSatisfied(u.prerequisites, player)) revealed.add(u.id)
+    if (isUnlocked(state, u)) revealed.add(u.id)
   }
   if (mode === 'hidden') return revealed
 

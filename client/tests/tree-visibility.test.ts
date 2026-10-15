@@ -46,17 +46,23 @@ const sorted = (ids: ReadonlySet<string>) => [...ids].sort()
 
 describe('visibleUpgradeIds', () => {
   it('full shows every upgrade', () => {
-    expect(sorted(visibleUpgradeIds(tree, player(), 'full'))).toEqual(tree.map((u) => u.id).sort())
+    expect(sorted(visibleUpgradeIds({ upgrades: tree, player: player() }, 'full'))).toEqual(
+      tree.map((u) => u.id).sort(),
+    )
   })
 
   it('hidden shows only upgrades whose prerequisites are met', () => {
     // a is a root; b and or are met by owning a. c needs b, and needs b,
     // lvl needs a at level 2, meta needs an attack.
-    expect(sorted(visibleUpgradeIds(tree, player(), 'hidden'))).toEqual(['a', 'b', 'or'])
+    expect(sorted(visibleUpgradeIds({ upgrades: tree, player: player() }, 'hidden'))).toEqual([
+      'a',
+      'b',
+      'or',
+    ])
   })
 
   it('peek adds the children of revealed upgrades, but not their grandchildren', () => {
-    const visible = visibleUpgradeIds(tree, player(), 'peek')
+    const visible = visibleUpgradeIds({ upgrades: tree, player: player() }, 'peek')
     // c is a child of the revealed b; and and lvl each have a revealed parent.
     expect(sorted(visible)).toEqual(['a', 'and', 'b', 'c', 'lvl', 'or'])
     expect(visible.has('d')).toBe(false)
@@ -65,21 +71,23 @@ describe('visibleUpgradeIds', () => {
   it('peeks an AND child with one parent still unmet', () => {
     const onlyA = tree.filter((u) => u.id !== 'b')
     // With b gone, `and` can never be met, but its revealed parent a still peeks it.
-    expect(visibleUpgradeIds(onlyA, player(), 'hidden').has('and')).toBe(false)
-    expect(visibleUpgradeIds(onlyA, player(), 'peek').has('and')).toBe(true)
+    expect(visibleUpgradeIds({ upgrades: onlyA, player: player() }, 'hidden').has('and')).toBe(
+      false,
+    )
+    expect(visibleUpgradeIds({ upgrades: onlyA, player: player() }, 'peek').has('and')).toBe(true)
   })
 
   it('never peeks a meta-gated upgrade, which has no upgrade parent', () => {
-    expect(visibleUpgradeIds(tree, player(), 'peek').has('meta')).toBe(false)
+    expect(visibleUpgradeIds({ upgrades: tree, player: player() }, 'peek').has('meta')).toBe(false)
     const hit = player()
     hit.meta = { ...hit.meta, attacksSuffered: 1 }
-    expect(visibleUpgradeIds(tree, hit, 'hidden').has('meta')).toBe(true)
+    expect(visibleUpgradeIds({ upgrades: tree, player: hit }, 'hidden').has('meta')).toBe(true)
   })
 
   it('reveals a minLevel child once the parent reaches the level', () => {
     const levelled = player()
     levelled.upgrades = { a: 2 }
-    expect(visibleUpgradeIds(tree, levelled, 'hidden').has('lvl')).toBe(true)
+    expect(visibleUpgradeIds({ upgrades: tree, player: levelled }, 'hidden').has('lvl')).toBe(true)
   })
 })
 
