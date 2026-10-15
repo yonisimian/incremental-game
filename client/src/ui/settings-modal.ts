@@ -1,8 +1,8 @@
 // ─── Settings Modal ──────────────────────────────────────────────────
 //
 // A full-screen overlay accessible from the lobby via the gear icon.
-// Manages number display preferences (notation + decimal separator) and how
-// much of the upgrade tree is shown.
+// Manages number display preferences (notation + decimal separator), how much
+// of the upgrade tree is shown, and whether it's split into categories.
 
 import {
   type NotationMode,
@@ -15,6 +15,7 @@ import {
 } from './format-number.js'
 import { openModal } from './modal.js'
 import { type TreeVisibility, getTreeVisibility, setTreeVisibility } from './tree-visibility.js'
+import { getTreeCategories, setTreeCategories } from './tree-categories.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
@@ -41,12 +42,18 @@ const TREE_VISIBILITY_OPTIONS: { value: TreeVisibility; label: string; example: 
   { value: 'peek', label: 'Peek', example: 'Reachable + one step ahead' },
 ]
 
+const TREE_CATEGORY_OPTIONS: { value: 'on' | 'off'; label: string; example: string }[] = [
+  { value: 'off', label: 'Off', example: 'The whole tree' },
+  { value: 'on', label: 'On', example: 'One category at a time' },
+]
+
 // ─── Render ──────────────────────────────────────────────────────────
 
 function renderBody(): string {
   const settings = getNumberFormatSettings()
   const preview = formatNumber(SAMPLE_VALUE)
   const treeVisibility = getTreeVisibility()
+  const treeCategories = getTreeCategories() ? 'on' : 'off'
 
   return `
         <div class="modal-body">
@@ -96,6 +103,20 @@ function renderBody(): string {
               ).join('')}
             </div>
           </section>
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">Upgrade Categories</h3>
+            <div class="settings-chips settings-chips--two" id="tree-categories-chips">
+              ${TREE_CATEGORY_OPTIONS.map(
+                (opt) => `
+                <button class="settings-chip${treeCategories === opt.value ? ' selected' : ''}"
+                        data-tree-categories="${opt.value}">
+                  <span class="chip-label">${opt.label}</span>
+                  <span class="chip-example chip-text">${opt.example}</span>
+                </button>`,
+              ).join('')}
+            </div>
+          </section>
         </div>
   `
 }
@@ -124,6 +145,13 @@ export function openSettings(): void {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tree-visibility]')
     if (!btn) return
     setTreeVisibility(btn.dataset.treeVisibility as TreeVisibility)
+    refreshModal(overlay)
+  })
+
+  document.getElementById('tree-categories-chips')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tree-categories]')
+    if (!btn) return
+    setTreeCategories(btn.dataset.treeCategories === 'on')
     refreshModal(overlay)
   })
 }
@@ -157,6 +185,10 @@ function refreshModal(modal: HTMLElement): void {
   const treeVisibility = getTreeVisibility()
   for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-tree-visibility]')) {
     chip.classList.toggle('selected', chip.dataset.treeVisibility === treeVisibility)
+  }
+  const treeCategories = getTreeCategories() ? 'on' : 'off'
+  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-tree-categories]')) {
+    chip.classList.toggle('selected', chip.dataset.treeCategories === treeCategories)
   }
 
   // Update preview

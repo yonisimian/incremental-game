@@ -153,12 +153,15 @@ interface UpgradeTreeRender {
  * - `pulsing` — ids that just became visible; they get the `revealed` class.
  * - `unlocked` — ids whose prerequisites are met, when the caller already
  *   computed them (`unlockedUpgradeIds`); absent = checked per upgrade here.
+ * - `scope` — the ids of the category being shown. Bounds, nodes and edges
+ *   cover only these; absent = the whole tree.
  */
 export interface UpgradeTreeOptions {
   readonly visible?: ReadonlySet<string>
   readonly stubs?: boolean
   readonly pulsing?: ReadonlySet<string>
   readonly unlocked?: ReadonlySet<string>
+  readonly scope?: ReadonlySet<string>
 }
 
 /**
@@ -200,7 +203,10 @@ export function renderUpgradeTree(
 ): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
-  const tree = state.upgrades
+  // Only the drawn set is narrowed. `state` stays whole, so purchase checks
+  // (upgradeBlockReason) still see every upgrade in the round.
+  const { scope } = options
+  const tree = scope ? state.upgrades.filter((u) => scope.has(u.id)) : state.upgrades
 
   // Bounds — initialize with sentinels so the first node defines the box (not
   // 0,0). Otherwise a tree whose nodes all sit far from origin gets bogus
