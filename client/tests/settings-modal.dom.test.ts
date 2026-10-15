@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { openSettings } from '../src/ui/settings-modal.js'
 import { getTreeVisibility, setTreeVisibility } from '../src/ui/tree-visibility.js'
+import { getTreeCategories, setTreeCategories } from '../src/ui/tree-categories.js'
 import { resetDom } from './dom-harness.js'
 
 const chip = (mode: string) =>
@@ -13,6 +14,7 @@ const chip = (mode: string) =>
 
 afterEach(() => {
   setTreeVisibility('full')
+  setTreeCategories(false)
   resetDom()
 })
 
@@ -32,5 +34,26 @@ describe('settings modal — upgrade tree visibility', () => {
     expect(localStorage.getItem('tree-visibility')).toBe('peek')
     expect(chip('peek').classList.contains('selected')).toBe(true)
     expect(chip('full').classList.contains('selected')).toBe(false)
+  })
+})
+
+describe('settings modal — upgrade categories', () => {
+  const categoryChip = (value: 'on' | 'off') =>
+    document.querySelector<HTMLButtonElement>(`[data-tree-categories="${value}"]`)!
+
+  it('selects Off by default', () => {
+    openSettings()
+    expect(categoryChip('off').classList.contains('selected')).toBe(true)
+    expect(categoryChip('on').classList.contains('selected')).toBe(false)
+  })
+
+  it('turns categories on and stores it', () => {
+    openSettings()
+    categoryChip('on').click()
+
+    expect(getTreeCategories()).toBe(true)
+    expect(localStorage.getItem('tree-categories')).toBe('on')
+    expect(categoryChip('on').classList.contains('selected')).toBe(true)
+    expect(categoryChip('off').classList.contains('selected')).toBe(false)
   })
 })
