@@ -78,6 +78,8 @@ function withFixtureAttack(attack: Omit<AttackDefinition, 'id'>): ModeDefinition
       ...base.upgrades,
       {
         id: FIXTURE_UNLOCK,
+        // Its parent's category: prerequisites can't cross categories.
+        category: base.upgrades.find((u) => u.id === 'a-unlock')!.category,
         cost: {},
         purchaseLimit: 1,
         prerequisites: { type: 'upgrade', id: 'a-unlock' },
@@ -1821,6 +1823,7 @@ describe('Match', () => {
           ...def.upgrades,
           {
             id: FIXTURE_REST,
+            category: def.upgrades.find((u) => u.id === 'a-unlock')!.category,
             cost: {},
             purchaseLimit: 1,
             prerequisites: { type: 'upgrade', id: 'a-unlock' },
@@ -2074,6 +2077,7 @@ describe('Match', () => {
         const base = getModeDefinition('idler')
         const node = (id: string, effects: ModeDefinition['upgrades'][number]['effects']) => ({
           id,
+          category: base.upgrades[0].category,
           cost: {},
           purchaseLimit: 1,
           effects,

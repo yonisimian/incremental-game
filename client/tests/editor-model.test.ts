@@ -97,10 +97,18 @@ function node(
   return { id, cost: {}, purchaseLimit: 1, offset, ...extra }
 }
 
+/** Put `roots` in the first category and empty the rest. */
+function setRoots(tree: TreeFile, roots: TreeUpgradeNode[]): void {
+  tree.categories = tree.categories.map((c, i) => ({ id: c.id, upgrades: i === 0 ? roots : [] }))
+}
+
+/** Every category's top-level node ids. */
+const rootIds = (tree: TreeFile) => tree.categories.flatMap((c) => c.upgrades).map((n) => n.id)
+
 /** A tree with known offsets: A→B→C plus a sibling D, all under the idler shell. */
 function makeTree(): TreeFile {
   const tree = cloneTree(parseTreeFile(idlerTreeFile))
-  tree.upgrades = [
+  setRoots(tree, [
     node(
       'a',
       { x: 0, y: 0 },
@@ -109,7 +117,7 @@ function makeTree(): TreeFile {
       },
     ),
     node('d', { x: -40, y: 20 }, { prerequisites: { type: 'upgrade', id: 'a' } }),
-  ]
+  ])
   return tree
 }
 
@@ -159,7 +167,7 @@ describe('uniqueId', () => {
 
   it('suffixes a counter when the base collides', () => {
     const tree = makeTree()
-    tree.upgrades.push(node('node', { x: 0, y: 0 }))
+    tree.categories[0].upgrades.push(node('node', { x: 0, y: 0 }))
     expect(uniqueId(tree, 'node')).toBe('node-2')
   })
 })
@@ -170,7 +178,7 @@ describe('addNode', () => {
   it('appends a new root when parentId is null', () => {
     const tree = makeTree()
     addNode(tree, null, createNode('root2', { x: 0, y: 0 }))
-    expect(tree.upgrades.map((n) => n.id)).toContain('root2')
+    expect(rootIds(tree)).toContain('root2')
   })
 
   it('appends a child to the named parent', () => {
@@ -183,7 +191,7 @@ describe('addNode', () => {
   it('falls back to a root when the parent is missing', () => {
     const tree = makeTree()
     addNode(tree, 'ghost', createNode('orphan', { x: 0, y: 0 }))
-    expect(tree.upgrades.map((n) => n.id)).toContain('orphan')
+    expect(rootIds(tree)).toContain('orphan')
   })
 
   it('seeds a default flavor entry for the new node in every flavor', () => {
@@ -570,7 +578,7 @@ describe('renderCanvas', () => {
 
   it('escapes html in node ids', () => {
     const tree = cloneTree(parseTreeFile(idlerTreeFile))
-    tree.upgrades = [node('<script>', { x: 0, y: 0 })]
+    setRoots(tree, [node('<script>', { x: 0, y: 0 })])
     expect(renderCanvas(tree, null).nodes).not.toContain('<script>')
   })
 })

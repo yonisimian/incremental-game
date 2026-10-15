@@ -70,6 +70,11 @@ function childrenOf(node: TreeUpgradeNode): readonly TreeUpgradeNode[] {
   return (node.children ?? []) as unknown as readonly TreeUpgradeNode[]
 }
 
+/** Every category's top-level nodes, in file order. */
+function rootsOf(tree: TreeFile): readonly TreeUpgradeNode[] {
+  return tree.categories.flatMap((c) => c.upgrades)
+}
+
 /**
  * Walk every node depth-first, resolving each node's absolute position by
  * accumulating offsets (`abs = parentAbs + offset`; roots offset from origin).
@@ -90,13 +95,26 @@ export function walkPositioned(tree: TreeFile): PositionedNode[] {
       if (children.length > 0) visit(children, x, y, node)
     }
   }
-  visit(tree.upgrades, 0, 0, null)
+  visit(rootsOf(tree), 0, 0, null)
   return out
+}
+
+/** The id of the category a node sits in, or `null` if the id is unknown. */
+function categoryOf(tree: TreeFile, id: string): string | null {
+  for (const c of tree.categories) {
+    const stack = [...c.upgrades]
+    while (stack.length > 0) {
+      const node = stack.pop()!
+      if (node.id === id) return c.id
+      stack.push(...childrenOf(node))
+    }
+  }
+  return null
 }
 
 /** Find a node by id anywhere in the nested tree, or `null`. */
 export function findNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
-  const stack = [...tree.upgrades]
+  const stack = [...rootsOf(tree)]
   while (stack.length > 0) {
     const node = stack.pop()!
     if (node.id === id) return node
@@ -178,17 +196,24 @@ export function uniqueId(tree: TreeFile, base = 'node'): string {
 }
 
 /**
- * Append `node` as a child of `parentId`, or as a new root when `parentId` is
- * `null` (or the parent can't be found). Mutates the tree in place. Also seeds a
+ * Append `node` as a child of `parentId`, or as a new root of `categoryId` (the
+ * first category by default) when `parentId` is `null` (or the parent can't be
+ * found). Mutates the tree in place. Also seeds a
  * default flavor entry for the node so the tree stays loadable (the runtime
  * requires every upgrade to have one); idempotent, so re-parenting won't
  * duplicate it.
  */
-export function addNode(tree: TreeFile, parentId: string | null, node: TreeUpgradeNode): void {
+export function addNode(
+  tree: TreeFile,
+  parentId: string | null,
+  node: TreeUpgradeNode,
+  categoryId: string = tree.categories[0].id,
+): void {
   ensureNodeFlavor(tree, node.id)
   const parent = parentId === null ? null : findNode(tree, parentId)
   if (!parent) {
-    tree.upgrades.push(node)
+    const category = tree.categories.find((c) => c.id === categoryId) ?? tree.categories[0]
+    category.upgrades.push(node)
     return
   }
   setChildren(parent, [...childrenOf(parent), node])
@@ -375,7 +400,7 @@ export function removeNode(tree: TreeFile, id: string): string[] {
     }
     return false
   }
-  removeFrom(tree.upgrades)
+  tree.categories.some((c) => removeFrom(c.upgrades))
   if (removed.length > 0) {
     const removedSet = new Set(removed)
     pruneFlavors(tree, removedSet)
@@ -415,7 +440,7 @@ function detachNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
     }
     return false
   }
-  removeFrom(tree.upgrades)
+  tree.categories.some((c) => removeFrom(c.upgrades))
   return found
 }
 
@@ -435,6 +460,8 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
 
   const abs = nodePosition(tree, id)
   if (!abs) return false
+  // A node made a root stays in its own category.
+  const category = categoryOf(tree, id) ?? undefined
 
   detachNode(tree, id)
 
@@ -442,7 +469,7 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
   const base =
     newParentId === null ? { x: 0, y: 0 } : (nodePosition(tree, newParentId) ?? { x: 0, y: 0 })
   node.offset = { x: abs.x - base.x, y: abs.y - base.y }
-  addNode(tree, newParentId, node)
+  addNode(tree, newParentId, node, category)
   return true
 }
 
