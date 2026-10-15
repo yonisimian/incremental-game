@@ -23,12 +23,14 @@ vi.mock('../src/game.js', async (importOriginal) => ({
 
 const { upgradeTreePanel } = await import('../src/ui/panels/upgrade-tree-panel.js')
 const { closeUpgradeDetail } = await import('../src/ui/upgrade-detail.js')
+const { setTreeVisibility } = await import('../src/ui/tree-visibility.js')
 
 const mode = getModeDefinition('idler')
 
-function makeState(wood: number): GameState {
+function makeState(wood: number, owned: Record<string, number> = {}): GameState {
   const player = createInitialState(mode)
   player.resources.r0 = wood
+  player.upgrades = { ...player.upgrades, ...owned }
   return {
     screen: 'playing',
     mode: 'idler',
@@ -74,6 +76,7 @@ const nodeOf = (id: string) => document.querySelector<HTMLButtonElement>(`[data-
 
 afterEach(() => {
   closeUpgradeDetail()
+  setTreeVisibility('full')
   document.body.innerHTML = ''
 })
 
@@ -99,5 +102,38 @@ describe('upgrade tree panel update', () => {
     pressed.click()
 
     expect(document.getElementById('upgrade-detail-buy')).not.toBeNull()
+  })
+})
+
+// g1-g2 is a root; g1-af requires it, and g1-dp requires g1-af.
+describe('upgrade tree panel visibility modes', () => {
+  const stubs = () => document.querySelectorAll('.tree-edges line.stub').length
+
+  it('hidden: shows a child only once its prerequisites are met', () => {
+    setTreeVisibility('hidden')
+    mountTree(makeState(0))
+    expect(nodeOf('g1-g2')).not.toBeNull()
+    expect(document.querySelector('[data-upgrade="g1-af"]')).toBeNull()
+    expect(stubs()).toBeGreaterThan(0)
+
+    current = makeState(0, { 'g1-g2': 1 })
+    upgradeTreePanel.update!(current)
+
+    expect(nodeOf('g1-af')).not.toBeNull()
+    expect(document.querySelector('[data-upgrade="g1-dp"]')).toBeNull()
+  })
+
+  it('peek: shows the children of reachable upgrades, but not grandchildren, with no stubs', () => {
+    setTreeVisibility('peek')
+    mountTree(makeState(0))
+    expect(nodeOf('g1-af').classList.contains('locked')).toBe(true)
+    expect(document.querySelector('[data-upgrade="g1-dp"]')).toBeNull()
+    expect(stubs()).toBe(0)
+  })
+
+  it('full: shows every upgrade, as before', () => {
+    mountTree(makeState(0))
+    expect(nodeOf('g1-dp')).not.toBeNull()
+    expect(stubs()).toBe(0)
   })
 })

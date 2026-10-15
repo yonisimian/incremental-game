@@ -1,5 +1,7 @@
 import type { Panel } from '../panels.js'
+import type { GameState } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
+import { getTreeVisibility, visibleUpgradeIds } from '../tree-visibility.js'
 import { bindUpgradeEvents } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
@@ -25,6 +27,15 @@ let lastMatchId: string | null = null
 let prevHtml = ''
 
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+/** Render the tree as the player's visibility setting shows it. */
+function renderVisibleTree(state: Readonly<GameState>) {
+  const mode = getTreeVisibility()
+  return renderUpgradeTree(state, {
+    visible: visibleUpgradeIds(state.upgrades, state.player, mode),
+    stubs: mode === 'hidden',
+  })
+}
 
 /** Compute centered initial pan so the tree's bounding-box center aligns with viewport center at INITIAL_ZOOM. */
 function computeCenteredInitialState(viewport: HTMLElement, bounds: TreeBounds): PanZoomState {
@@ -86,7 +97,7 @@ export const upgradeTreePanel: Panel = {
     // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
     //    popup mounted inside the viewport), so clear popup state to match.
     resetUpgradeDetail()
-    const { edgesSvg, nodes, bounds } = renderUpgradeTree(state)
+    const { edgesSvg, nodes, bounds } = renderVisibleTree(state)
     prevHtml = edgesSvg + nodes
     container.innerHTML = renderShell(edgesSvg, nodes, bounds)
 
@@ -111,7 +122,7 @@ export const upgradeTreePanel: Panel = {
   update(state) {
     // Keep the open detail popup's live fields (cost / Buy-enabled) in sync.
     updateUpgradeDetail(state)
-    const { edgesSvg, nodes } = renderUpgradeTree(state)
+    const { edgesSvg, nodes } = renderVisibleTree(state)
     const html = edgesSvg + nodes
     if (html === prevHtml) return
     prevHtml = html

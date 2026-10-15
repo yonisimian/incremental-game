@@ -144,6 +144,21 @@ interface UpgradeTreeRender {
 }
 
 /**
+ * Which part of the tree to draw, from the panel. Every field is optional, so a
+ * bare call renders the full tree.
+ *
+ * - `visible` — ids to render (see `visibleUpgradeIds`); absent = every upgrade.
+ * - `stubs` — draw a short dashed stub from each visible parent toward each
+ *   hidden child, hinting that something is behind it.
+ * - `pulsing` — ids that just became visible; they get the `revealed` class.
+ */
+export interface UpgradeTreeOptions {
+  readonly visible?: ReadonlySet<string>
+  readonly stubs?: boolean
+  readonly pulsing?: ReadonlySet<string>
+}
+
+/**
  * Tree-node class per purchase block reason. Every permanent block reads as
  * `locked` — no amount of income opens it, so `too-expensive` would promise the
  * wrong fix. An enemy purchase lock gets its own class: it lifts by itself in a
@@ -172,8 +187,14 @@ const NODE_STATE_CLASS: Record<PurchaseBlockReason, string> = {
  * so nodes are **never** `disabled` — even locked ones open the popup, which
  * explains why they can't be bought yet. Each node's class comes from
  * {@link NODE_STATE_CLASS}.
+ *
+ * `options` hides part of the tree. Bounds still cover every upgrade, so a
+ * hidden node appears in its final spot and the canvas never re-centers.
  */
-export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender {
+export function renderUpgradeTree(
+  state: Readonly<GameState>,
+  options: UpgradeTreeOptions = {},
+): UpgradeTreeRender {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
   const tree = state.upgrades
@@ -211,14 +232,22 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
   // centers and never visually pass "behind" a node body (even when locked
   // styling reduces background opacity).
   const NODE_CLEARANCE = 40
+  // How far a stub reaches toward its hidden child — enough to read as "there's
+  // more this way" without showing where it ends.
+  const STUB_LENGTH = 50
+  const isVisible = (id: string) => !options.visible || options.visible.has(id)
   const edgeLines: string[] = []
   for (const u of tree) {
     if (!u.position) continue
+    const childVisible = isVisible(u.id)
     const childUnlocked = isUnlocked(state, u) && !u.comingSoon
     const cls = childUnlocked ? 'unlocked' : ''
     for (const pid of getPrerequisiteUpgradeIds(u.prerequisites)) {
       const parent = positionById.get(pid)
       if (!parent) continue
+      const parentVisible = isVisible(pid)
+      const stub = !childVisible && parentVisible && options.stubs === true
+      if (!(childVisible && parentVisible) && !stub) continue
       const dx = u.position.x - parent.x
       const dy = u.position.y - parent.y
       const len = Math.hypot(dx, dy)
@@ -227,6 +256,13 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
       const uy = dy / len
       const x1 = parent.x + ux * NODE_CLEARANCE
       const y1 = parent.y + uy * NODE_CLEARANCE
+      if (stub) {
+        const reach = Math.min(STUB_LENGTH, len - 2 * NODE_CLEARANCE)
+        edgeLines.push(
+          `<line class="stub" x1="${x1}" y1="${y1}" x2="${x1 + ux * reach}" y2="${y1 + uy * reach}" vector-effect="non-scaling-stroke" />`,
+        )
+        continue
+      }
       const x2 = u.position.x - ux * NODE_CLEARANCE
       const y2 = u.position.y - uy * NODE_CLEARANCE
       edgeLines.push(
@@ -242,10 +278,11 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
   // nodes are still clickable so the popup can explain why they're locked.
   const nodes = tree
     .map((u) => {
-      if (!u.position) return ''
+      if (!u.position || !isVisible(u.id)) return ''
       const maxed = isMaxed(u, state.player.upgrades[u.id] ?? 0)
       const reason = upgradeBlockReason(state, u.id)
       const stateClass = reason === null ? '' : NODE_STATE_CLASS[reason]
+      const revealedClass = options.pulsing?.has(u.id) ? ' revealed' : ''
 
       const costLabel = formatUpgradeCost(state, u, flavor)
       const name = getUpgradeName(flavor, u.id)
@@ -256,7 +293,7 @@ export function renderUpgradeTree(state: Readonly<GameState>): UpgradeTreeRender
 
       return `
         <button
-          class="upgrade-btn tree-node ${stateClass}"
+          class="upgrade-btn tree-node ${stateClass}${revealedClass}"
           data-upgrade="${u.id}"
           style="left: ${u.position.x}px; top: ${u.position.y}px"
           aria-label="${escapeAttr(title)}"

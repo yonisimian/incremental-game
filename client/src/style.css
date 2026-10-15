@@ -1196,6 +1196,12 @@ body {
   stroke: var(--accent);
 }
 
+/* A short dashed stub toward a hidden upgrade (Hidden visibility mode): there's
+   more this way, but not where it ends. */
+.tree-edges line.stub {
+  stroke-dasharray: 4 6;
+}
+
 /* Tree nodes — fixed-size, icon-only buttons centered on their coords.
    Clicking opens the detail popup (Buy/Cancel), so nodes are never disabled. */
 .upgrade-btn.tree-node {
@@ -2315,8 +2321,17 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.settings-section:last-of-type {
+.settings-section:has(+ .settings-preview) {
   margin-bottom: 1rem;
+}
+
+/* A section after the number preview (Upgrade Tree) needs its own gap above. */
+.settings-preview + .settings-section {
+  margin-top: 1.5rem;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
 }
 
 .settings-section-title {
@@ -2374,6 +2389,12 @@ body {
   font-size: 0.75rem;
   font-family: monospace;
   color: var(--text-dim);
+}
+
+/* A worded example (not a formatted number) reads better in the body font. */
+.chip-example.chip-text {
+  font-family: inherit;
+  text-align: center;
 }
 
 .settings-chip.selected .chip-example {

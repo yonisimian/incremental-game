@@ -212,6 +212,46 @@ describe('renderUpgradeTree', () => {
   })
 })
 
+// ─── renderUpgradeTree — visibility options ─────────────────────────
+
+describe('renderUpgradeTree with visibility options', () => {
+  // uh2 (0,150) requires uh (0,0); hide uh2, keep its parent.
+  const visible = new Set(['uh', 'u1'])
+
+  it('keeps the full tree bounds when nodes are hidden', () => {
+    const state = makeIdlerState()
+    expect(renderUpgradeTree(state, { visible }).bounds).toEqual(renderUpgradeTree(state).bounds)
+  })
+
+  it('renders no button and no edge for a hidden node', () => {
+    const { nodes, edgesSvg } = renderUpgradeTree(makeIdlerState(), { visible })
+    expect(nodes).not.toContain('data-upgrade="uh2"')
+    expect(nodes).toContain('data-upgrade="uh"')
+    expect(edgesSvg).toBe('')
+  })
+
+  it('draws a short dashed stub from a visible parent toward a hidden child', () => {
+    const { edgesSvg } = renderUpgradeTree(makeIdlerState(), { visible, stubs: true })
+    expect(edgesSvg.match(/<line\b/g)).toHaveLength(1)
+    // Starts 40px (node clearance) below uh and reaches 50px toward uh2.
+    expect(edgesSvg).toMatch(/class="stub" x1="0" y1="40" x2="0" y2="90"/)
+  })
+
+  it('draws no stub between two hidden nodes', () => {
+    const { edgesSvg } = renderUpgradeTree(makeIdlerState(), {
+      visible: new Set(['u1']),
+      stubs: true,
+    })
+    expect(edgesSvg).toBe('')
+  })
+
+  it('marks pulsing nodes with the `revealed` class', () => {
+    const { nodes } = renderUpgradeTree(makeIdlerState(), { pulsing: new Set(['u1']) })
+    expect(nodes).toMatch(/class="upgrade-btn tree-node [^"]*revealed"[^>]*data-upgrade="u1"/)
+    expect(nodes).not.toMatch(/revealed"[^>]*data-upgrade="uh"/)
+  })
+})
+
 // ─── attackPanel ─────────────────────────────────────────────────────
 
 describe('attackPanel', () => {
