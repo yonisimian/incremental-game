@@ -36,6 +36,11 @@ let prevHtml = ''
 // stops pulsing. Seeded with what the round's starting state shows, so
 // round-start nodes never pulse, but a reveal that happened while another tab
 // was open still pulses when the tree first renders.
+//
+// Seen upgrades stay drawn for the rest of the match, so a node never vanishes
+// when the server rejects the optimistic purchase that revealed it. It reads as
+// locked instead, as in Peek.
+//
 // The class must outlive many update() calls: `syncNodes` copies attributes
 // from fresh markup, so dropping it on the next tick would cut the pulse short.
 
@@ -61,8 +66,9 @@ function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
 }
 
 /**
- * Render the tree as the player's visibility setting shows it. On a new match,
- * what the round started with counts as already seen, so it never pulses.
+ * Render the tree as the player's visibility setting shows it, plus anything
+ * already shown this match. On a new match, what the round started with counts
+ * as already seen, so it never pulses.
  */
 function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
   const mode = getTreeVisibility()
@@ -72,10 +78,12 @@ function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
     seenIds = new Set(visibleUpgradeIds({ upgrades: state.upgrades, player: start }, mode))
     pulseUntil.clear()
   }
+  const pulsing = trackReveals(visible)
   return renderUpgradeTree(state, {
-    visible,
+    // Now a superset of `visible`: everything shown this match stays shown.
+    visible: seenIds,
     stubs: mode === 'hidden',
-    pulsing: trackReveals(visible),
+    pulsing,
   })
 }
 

@@ -197,9 +197,11 @@ In [`style.css`](../../client/src/style.css), next to the tree rules:
 - **Goal trophy node.** It goes through the same filter. With prerequisites it
   can be hidden like any other upgrade, and the existing timed-goal exclusion
   is unchanged.
-- **Open detail popup.** The popup only opens from a visible node. Nodes never
-  become hidden mid-round, because prerequisites only get met, never unmet. So
-  a popup can't point at a node that disappears.
+- **Rejected optimistic purchase.** Prerequisites can become unmet again
+  when the server rejects a purchase and the client rolls it back. As built,
+  a node shown once stays shown for the rest of the match and reads as locked,
+  as in Peek. It doesn't vanish, and an open detail popup never points at a
+  node that's gone.
 
 ---
 
