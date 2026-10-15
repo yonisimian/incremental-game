@@ -1,6 +1,14 @@
 # 51 — Upgrade tree visibility modes
 
-## Status: Planned
+## Status: Implemented
+
+Built as planned, with three differences. The Upgrade Tree section sits below
+the number preview rather than between it and Decimal Separator, so the
+preview stays next to the settings it previews. The node's pulse class goes
+through a `cls` variable so `lint:css` sees it. The five commits became two:
+knip refuses the setting's exports until something in the app uses them, so
+the rule, the rendering and the settings section landed together, followed by
+the pulse.
 
 Alternative to
 [52 — Per-category upgrade sub-trees](52-upgrade-category-subtrees.md).
