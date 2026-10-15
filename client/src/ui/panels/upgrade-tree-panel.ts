@@ -1,3 +1,4 @@
+import { createInitialState, getModeDefinition } from '@game/shared'
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
@@ -32,7 +33,9 @@ let prevHtml = ''
 // ─── Module-local reveal state ───────────────────────────────────────
 //
 // Upgrades the player has already seen this match, and when each fresh reveal
-// stops pulsing. Seeded at the match boundary so round-start nodes never pulse.
+// stops pulsing. Seeded with what the round's starting state shows, so
+// round-start nodes never pulse, but a reveal that happened while another tab
+// was open still pulses when the tree first renders.
 // The class must outlive many update() calls: `syncNodes` copies attributes
 // from fresh markup, so dropping it on the next tick would cut the pulse short.
 
@@ -59,13 +62,14 @@ function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
 
 /**
  * Render the tree as the player's visibility setting shows it. On a new match,
- * what's visible now counts as already seen, so nothing pulses at round start.
+ * what the round started with counts as already seen, so it never pulses.
  */
 function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
   const mode = getTreeVisibility()
   const visible = visibleUpgradeIds(state, mode)
   if (newMatch) {
-    seenIds = new Set(visible)
+    const start = createInitialState(getModeDefinition(state.mode!))
+    seenIds = new Set(visibleUpgradeIds({ upgrades: state.upgrades, player: start }, mode))
     pulseUntil.clear()
   }
   return renderUpgradeTree(state, {
@@ -178,7 +182,9 @@ export const upgradeTreePanel: Panel = {
 
 /**
  * Patch the node buttons in place from freshly rendered markup. Replacing them
- * would drop any click whose pointerdown landed on the old button.
+ * would drop any click whose pointerdown landed on the old button. A node that
+ * wasn't there before (a reveal in the Hidden / Peek modes) goes in at its tree
+ * position, so DOM order still matches a full render.
  */
 function syncNodes(canvas: HTMLElement, nodesHtml: string): void {
   const template = document.createElement('template')
@@ -187,14 +193,19 @@ function syncNodes(canvas: HTMLElement, nodesHtml: string): void {
   for (const node of canvas.querySelectorAll<HTMLButtonElement>('.tree-node')) {
     current.set(node.dataset.upgrade ?? '', node)
   }
+  // The element the next new node goes after: the edges layer, then each node in turn.
+  let prev: Element | null = canvas.querySelector('.tree-edges')
   for (const next of template.content.querySelectorAll<HTMLButtonElement>('.tree-node')) {
     const id = next.dataset.upgrade ?? ''
     const node = current.get(id)
     current.delete(id)
     if (!node) {
-      canvas.append(next)
+      if (prev) prev.after(next)
+      else canvas.prepend(next)
+      prev = next
       continue
     }
+    prev = node
     for (const { name } of [...node.attributes]) {
       if (!next.hasAttribute(name)) node.removeAttribute(name)
     }

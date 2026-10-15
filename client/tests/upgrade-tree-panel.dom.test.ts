@@ -178,13 +178,25 @@ describe('upgrade tree panel reveal pulse', () => {
     expect(pulsing('g1-af')).toBe(false)
   })
 
-  it('treats what is visible at the next round start as already seen', () => {
+  it('pulses an upgrade revealed before the tree tab first opened', () => {
+    // The round started on another tab; g1-g2 was bought before the tree rendered.
+    mountTree(inMatch(makeState(0, { 'g1-g2': 1 })))
+    expect(pulsing('g1-af')).toBe(true)
+    expect(pulsing('g1-g2')).toBe(false)
+  })
+
+  it('forgets the previous match when a new one starts', () => {
     mountTree(inMatch(makeState(0)))
+    current = inMatch(makeState(0, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    vi.advanceTimersByTime(1000)
+
     document.body.innerHTML = ''
     match++
-    // The next round starts with g1-af already reachable.
-    mountTree(inMatch(makeState(0, { 'g1-g2': 1 })))
-    expect(pulsing('g1-af')).toBe(false)
+    mountTree(inMatch(makeState(0)))
+    current = inMatch(makeState(0, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(pulsing('g1-af')).toBe(true)
   })
 
   it('never pulses in Full mode', () => {
@@ -193,5 +205,25 @@ describe('upgrade tree panel reveal pulse', () => {
     current = inMatch(makeState(0, { 'g1-g2': 1 }))
     upgradeTreePanel.update!(current)
     expect(document.querySelectorAll('.tree-node.revealed')).toHaveLength(0)
+  })
+})
+
+describe('upgrade tree panel node order', () => {
+  afterEach(() => {
+    setTreeVisibility('full')
+  })
+
+  it('inserts a revealed node at its tree position, not at the end', () => {
+    setTreeVisibility('hidden')
+    mountTree({ ...makeState(0), matchId: 'order' })
+    current = { ...makeState(0, { 'g1-g2': 1 }), matchId: 'order' }
+    upgradeTreePanel.update!(current)
+
+    const domOrder = [...document.querySelectorAll<HTMLElement>('.tree-node')].map(
+      (n) => n.dataset.upgrade,
+    )
+    const treeOrder = current.upgrades.map((u) => u.id).filter((id) => domOrder.includes(id))
+    expect(domOrder).toContain('g1-af')
+    expect(domOrder).toEqual(treeOrder)
   })
 })
