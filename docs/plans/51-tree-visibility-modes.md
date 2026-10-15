@@ -24,9 +24,6 @@ Changes after review, which supersede §5 and §6 where they differ:
   rule and the edge styling.
 - A newly revealed node is inserted at its tree position in the DOM.
 
-Alternative to
-[52 — Per-category upgrade sub-trees](52-upgrade-category-subtrees.md).
-
 ---
 
 ## Problem
