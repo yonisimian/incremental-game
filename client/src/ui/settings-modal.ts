@@ -1,7 +1,8 @@
 // ─── Settings Modal ──────────────────────────────────────────────────
 //
 // A full-screen overlay accessible from the lobby via the gear icon.
-// Manages number display preferences (notation + decimal separator).
+// Manages number display preferences (notation + decimal separator) and how
+// much of the upgrade tree is shown.
 
 import {
   type NotationMode,
@@ -13,6 +14,7 @@ import {
   formatNumberAs,
 } from './format-number.js'
 import { openModal } from './modal.js'
+import { type TreeVisibility, getTreeVisibility, setTreeVisibility } from './tree-visibility.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
@@ -33,11 +35,18 @@ const DECIMAL_SEPARATOR_OPTIONS: { value: DecimalSeparator; label: string }[] = 
   { value: 'comma', label: 'Comma' },
 ]
 
+const TREE_VISIBILITY_OPTIONS: { value: TreeVisibility; label: string; example: string }[] = [
+  { value: 'full', label: 'Full', example: 'Every upgrade' },
+  { value: 'hidden', label: 'Hidden', example: 'Only what you can reach' },
+  { value: 'peek', label: 'Peek', example: 'Reachable + one step ahead' },
+]
+
 // ─── Render ──────────────────────────────────────────────────────────
 
 function renderBody(): string {
   const settings = getNumberFormatSettings()
   const preview = formatNumber(SAMPLE_VALUE)
+  const treeVisibility = getTreeVisibility()
 
   return `
         <div class="modal-body">
@@ -73,6 +82,20 @@ function renderBody(): string {
             <span class="preview-label">Preview</span>
             <span class="preview-value" id="settings-preview">${preview}</span>
           </div>
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">Upgrade Tree</h3>
+            <div class="settings-chips" id="tree-visibility-chips">
+              ${TREE_VISIBILITY_OPTIONS.map(
+                (opt) => `
+                <button class="settings-chip${treeVisibility === opt.value ? ' selected' : ''}"
+                        data-tree-visibility="${opt.value}">
+                  <span class="chip-label">${opt.label}</span>
+                  <span class="chip-example chip-text">${opt.example}</span>
+                </button>`,
+              ).join('')}
+            </div>
+          </section>
         </div>
   `
 }
@@ -94,6 +117,13 @@ export function openSettings(): void {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-decimal]')
     if (!btn) return
     setDecimalSeparator(btn.dataset.decimal as DecimalSeparator)
+    refreshModal(overlay)
+  })
+
+  document.getElementById('tree-visibility-chips')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tree-visibility]')
+    if (!btn) return
+    setTreeVisibility(btn.dataset.treeVisibility as TreeVisibility)
     refreshModal(overlay)
   })
 }
@@ -122,6 +152,11 @@ function refreshModal(modal: HTMLElement): void {
     if (example) {
       example.textContent = formatNumberAs(SAMPLE_VALUE, settings.notation, separator)
     }
+  }
+
+  const treeVisibility = getTreeVisibility()
+  for (const chip of modal.querySelectorAll<HTMLButtonElement>('[data-tree-visibility]')) {
+    chip.classList.toggle('selected', chip.dataset.treeVisibility === treeVisibility)
   }
 
   // Update preview

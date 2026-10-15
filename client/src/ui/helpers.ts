@@ -161,7 +161,10 @@ function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFla
 }
 
 /** Are this upgrade's prerequisites all owned? Empty / missing prereqs = always unlocked. */
-export function isUnlocked(state: Readonly<GameState>, u: UpgradeDefinition): boolean {
+export function isUnlocked(
+  state: Readonly<Pick<GameState, 'player'>>,
+  u: UpgradeDefinition,
+): boolean {
   return isPrerequisiteSatisfied(u.prerequisites, state.player)
 }
 
