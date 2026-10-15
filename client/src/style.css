@@ -1261,8 +1261,9 @@ body {
 
 /* A node that just became visible (Hidden / Peek visibility modes) pops in
    with an accent ring, so the player notices it. Two animations: the pop
-   (scale) and the ring. Reduced motion drops the pop. The ring always runs,
-   and its `animationend` ends the pulse in upgrade-tree-panel.ts.
+   (scale) and the ring. Reduced motion drops the pop and redefines the ring
+   to fade in place instead of growing. The ring always runs, and its
+   `animationend` ends the pulse in upgrade-tree-panel.ts.
    The node is centered by its transform, so the pop's keyframes repeat the
    translate or the node would jump. The ring is an outline, not a box-shadow,
    so it doesn't hide the `locked-by-attack` danger ring. */
@@ -1298,6 +1299,18 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .upgrade-btn.tree-node.revealed {
     animation-name: tree-reveal-ring;
+  }
+
+  /* Same name, so it replaces the growing ring above and still ends the pulse. */
+  @keyframes tree-reveal-ring {
+    0% {
+      outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      outline-offset: 4px;
+    }
+    100% {
+      outline: 3px solid color-mix(in srgb, var(--accent) 0%, transparent);
+      outline-offset: 4px;
+    }
   }
 }
 
