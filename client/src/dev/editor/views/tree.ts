@@ -1,8 +1,12 @@
 /**
  * Upgrade-tree section — the canvas + inspector editor. Owns the selection,
- * pan/zoom, node drag, and add/delete behavior. The canvas must mount while its
- * host is visible so pan/zoom sees real dimensions — the shell guarantees this
- * by mounting on section-switch.
+ * pan/zoom, node drag, add/delete behavior, and the category being edited. The
+ * canvas must mount while its host is visible so pan/zoom sees real dimensions
+ * — the shell guarantees this by mounting on section-switch.
+ *
+ * Like the game with categories on, the canvas shows one category at a time,
+ * stepped through with arrows; "All" shows the whole tree, as the game does
+ * with categories off.
  */
 
 import type { TreeFile } from '@game/shared'
@@ -19,6 +23,14 @@ import {
   parentOf,
   subtreeIdsOf,
   reparentNode,
+  walkPositioned,
+  categoryOf,
+  listCategories,
+  addCategory,
+  renameCategory,
+  moveCategory,
+  removeCategory,
+  moveToCategory,
 } from '../model.js'
 import { renderCanvas, GRID, type CanvasBounds } from '../canvas.js'
 import { renderInspector, renderInspectorEmpty, type Currency } from '../inspector.js'
@@ -46,6 +58,17 @@ function buildLayout(): string {
       <div class="ed-tree-toolbar">
         <button id="ed-add-btn" class="ed-btn">➕ Add node</button>
         <button id="ed-delete-btn" class="ed-btn">🗑 Delete</button>
+      </div>
+      <div class="ed-tree-toolbar ed-category-bar">
+        <button id="ed-cat-prev" class="ed-btn" title="Previous category">◀</button>
+        <input id="ed-cat-name" class="ed-input ed-category-name" type="text"
+               aria-label="Category name" />
+        <button id="ed-cat-next" class="ed-btn" title="Next category">▶</button>
+        <label class="ed-checkbox"><input id="ed-cat-all" type="checkbox" /> All</label>
+        <button id="ed-cat-add" class="ed-btn">➕ Category</button>
+        <button id="ed-cat-earlier" class="ed-btn" title="Move this category earlier">⇠ Move</button>
+        <button id="ed-cat-later" class="ed-btn" title="Move this category later">Move ⇢</button>
+        <button id="ed-cat-delete" class="ed-btn" title="Delete this (empty) category">🗑 Category</button>
       </div>
       <div class="ed-body">
         <div class="ed-canvas-viewport" id="ed-viewport">
@@ -93,6 +116,12 @@ function centeredState(viewport: HTMLElement, bounds: CanvasBounds): PanZoomStat
 export function createTreeView(): EditorView {
   let panZoom: PanZoomHandle | null = null
   let selectedId: string | null = null
+  // The category on the canvas, or `null` for All. `lastCategory` is where the
+  // All toggle returns to. Both survive a re-mount when the category still exists.
+  let categoryId: string | null = null
+  let lastCategory: string | null = null
+  // The first mount opens on the first category rather than All.
+  let mounted = false
   let onKeyDown: ((e: KeyboardEvent) => void) | null = null
   let onDragMove: ((e: PointerEvent) => void) | null = null
   let onDragEnd: (() => void) | null = null
@@ -107,15 +136,74 @@ export function createTreeView(): EditorView {
       const inspector = host.querySelector<HTMLElement>('#ed-inspector')!
       const addBtn = host.querySelector<HTMLButtonElement>('#ed-add-btn')!
       const deleteBtn = host.querySelector<HTMLButtonElement>('#ed-delete-btn')!
+      const catPrev = host.querySelector<HTMLButtonElement>('#ed-cat-prev')!
+      const catNext = host.querySelector<HTMLButtonElement>('#ed-cat-next')!
+      const catName = host.querySelector<HTMLInputElement>('#ed-cat-name')!
+      const catAll = host.querySelector<HTMLInputElement>('#ed-cat-all')!
+      const catAdd = host.querySelector<HTMLButtonElement>('#ed-cat-add')!
+      const catEarlier = host.querySelector<HTMLButtonElement>('#ed-cat-earlier')!
+      const catLater = host.querySelector<HTMLButtonElement>('#ed-cat-later')!
+      const catDelete = host.querySelector<HTMLButtonElement>('#ed-cat-delete')!
 
-      // Delete acts on the current selection, so it's only enabled when there is one.
+      // Keep the shown category valid across a re-mount (import / reset).
+      const ids = (): string[] => tree.categories.map((c) => c.id)
+      if (lastCategory === null || !ids().includes(lastCategory)) lastCategory = ids()[0]
+      if (categoryId !== null && !ids().includes(categoryId)) categoryId = lastCategory
+
+      // Delete acts on the current selection, so it's only enabled when there is
+      // one. A new root needs a category to go in, so Add with nothing selected
+      // is off in All.
       const syncToolbar = (): void => {
         deleteBtn.disabled = selectedId === null
+        addBtn.disabled = categoryId === null && selectedId === null
+      }
+
+      const syncCategoryBar = (): void => {
+        const rows = listCategories(tree)
+        const i = rows.findIndex((r) => r.id === categoryId)
+        const row = i >= 0 ? rows[i] : null
+        catAll.checked = categoryId === null
+        catName.disabled = row === null
+        catName.value = row ? row.name : 'All categories'
+        catPrev.disabled = catNext.disabled = row === null || rows.length < 2
+        catEarlier.disabled = row === null || i === 0
+        catLater.disabled = row === null || i === rows.length - 1
+        catDelete.disabled = row === null || row.size > 0 || rows.length < 2
+        catDelete.title =
+          row !== null && row.size > 0
+            ? 'Move or delete its nodes first'
+            : 'Delete this (empty) category'
       }
 
       const renderCanvasOnly = (): void => {
-        const { edgesSvg, nodes, bounds } = renderCanvas(tree, selectedId)
+        const { edgesSvg, nodes, bounds } = renderCanvas(tree, selectedId, categoryId)
         canvas.innerHTML = canvasInnerHtml(edgesSvg, nodes, bounds)
+      }
+
+      // Center pan/zoom on what's shown. The handle can't be moved, so it's rebuilt.
+      const recenter = (): void => {
+        panZoom?.cleanup()
+        panZoom = setupPanZoom(viewport, canvas, {
+          initialState: centeredState(viewport, renderCanvas(tree, null, categoryId).bounds),
+          minZoom: MIN_ZOOM,
+          maxZoom: MAX_ZOOM,
+          // Pan with the right button so the left button is free for selecting,
+          // dragging nodes, and double-click-to-create on the grid.
+          mousePanButton: 2,
+        })
+      }
+
+      /** Show `next` (a category id, or `null` for All), dropping a selection it hides. */
+      const showCategory = (next: string | null): void => {
+        categoryId = next
+        if (next !== null) lastCategory = next
+        if (next !== null && selectedId !== null && categoryOf(tree, selectedId) !== next) {
+          selectedId = null
+        }
+        syncCategoryBar()
+        renderCanvasOnly()
+        recenter()
+        renderInspectorOnly()
       }
 
       const renderInspectorOnly = (): void => {
@@ -138,6 +226,21 @@ export function createTreeView(): EditorView {
           currencies: treeCurrencies(tree),
           parentId: parentOf(tree, node.id),
           descendantIds: subtreeIdsOf(tree, node.id),
+          categories: listCategories(tree),
+          categoryById: new Map(walkPositioned(tree).map((p) => [p.node.id, p.category])),
+          onMoveCategory: (target) => {
+            if (!moveToCategory(tree, node.id, target)) return
+            ctx.markDirty()
+            ctx.setStatus(`Moved ${node.id} to ${target}`)
+            // Follow the node unless the whole tree is on screen.
+            if (categoryId === null) {
+              syncCategoryBar()
+              renderCanvasOnly()
+              renderInspectorOnly()
+            } else {
+              showCategory(target)
+            }
+          },
           onReparent: (parentId) => {
             if (!reparentNode(tree, node.id, parentId)) return
             ctx.markDirty()
@@ -157,17 +260,73 @@ export function createTreeView(): EditorView {
       }
 
       // Full mount: rebuild canvas + center pan/zoom.
-      panZoom?.cleanup()
+      if (!mounted) {
+        categoryId = lastCategory
+        mounted = true
+      }
+      syncCategoryBar()
       renderCanvasOnly()
-      panZoom = setupPanZoom(viewport, canvas, {
-        initialState: centeredState(viewport, renderCanvas(tree, selectedId).bounds),
-        minZoom: MIN_ZOOM,
-        maxZoom: MAX_ZOOM,
-        // Pan with the right button so the left button is free for selecting,
-        // dragging nodes, and double-click-to-create on the grid.
-        mousePanButton: 2,
-      })
+      recenter()
       renderInspectorOnly()
+
+      // ── Categories ──
+      const step = (by: 1 | -1): void => {
+        if (categoryId === null) return
+        const all = ids()
+        showCategory(all[(all.indexOf(categoryId) + by + all.length) % all.length])
+      }
+      catPrev.addEventListener('click', () => {
+        step(-1)
+      })
+      catNext.addEventListener('click', () => {
+        step(1)
+      })
+      catAll.addEventListener('change', () => {
+        showCategory(catAll.checked ? null : lastCategory)
+      })
+
+      catName.addEventListener('change', () => {
+        if (categoryId === null) return
+        renameCategory(tree, categoryId, catName.value.trim() || categoryId)
+        ctx.markDirty()
+        ctx.setStatus(`Renamed ${categoryId}`)
+        syncCategoryBar()
+      })
+
+      catAdd.addEventListener('click', () => {
+        const id = addCategory(tree)
+        ctx.markDirty()
+        ctx.setStatus(`Added category ${id}`)
+        showCategory(id)
+        catName.select()
+      })
+
+      const move = (by: 1 | -1): void => {
+        if (categoryId === null || !moveCategory(tree, categoryId, by)) return
+        ctx.markDirty()
+        ctx.setStatus(`Moved category ${categoryId}`)
+        syncCategoryBar()
+      }
+      catEarlier.addEventListener('click', () => {
+        move(-1)
+      })
+      catLater.addEventListener('click', () => {
+        move(1)
+      })
+
+      catDelete.addEventListener('click', () => {
+        if (categoryId === null) return
+        const i = ids().indexOf(categoryId)
+        const result = removeCategory(tree, categoryId)
+        if (!result.ok) {
+          ctx.setStatus(result.reason, true)
+          return
+        }
+        ctx.markDirty()
+        ctx.setStatus(`Deleted category ${categoryId}`)
+        const left = ids()
+        showCategory(left[Math.min(i, left.length - 1)])
+      })
 
       // ── Selection + drag-to-move (grid-snapped) ──
       // A pointerdown on a node selects it and begins a drag. We stop propagation
@@ -259,12 +418,17 @@ export function createTreeView(): EditorView {
       // cursor position and selects it for immediate editing.
       viewport.addEventListener('dblclick', (e) => {
         if ((e.target as HTMLElement).closest('.ed-node')) return
+        if (categoryId === null) {
+          ctx.setStatus('Pick a category to add a root node', true)
+          return
+        }
         const { x, y } = canvasPoint(e)
         const node = createNode(uniqueId(tree), { x: snap(x), y: snap(y) })
-        addNode(tree, null, node)
+        addNode(tree, null, node, categoryId)
         selectedId = node.id
         ctx.markDirty()
         ctx.setStatus(`Added ${node.id}`)
+        syncCategoryBar()
         renderCanvasOnly()
         renderInspectorOnly()
       })
@@ -278,10 +442,11 @@ export function createTreeView(): EditorView {
           x: 0,
           y: selectedId === null ? 0 : 120,
         })
-        addNode(tree, selectedId, node)
+        addNode(tree, selectedId, node, categoryId ?? undefined)
         selectedId = node.id
         ctx.markDirty()
         ctx.setStatus(`Added ${node.id}`)
+        syncCategoryBar()
         renderCanvasOnly()
         renderInspectorOnly()
       })
@@ -297,6 +462,7 @@ export function createTreeView(): EditorView {
             ? `Deleted ${removed[0]}`
             : `Deleted ${removed[0]} (+${removed.length - 1} descendant${removed.length > 2 ? 's' : ''})`,
         )
+        syncCategoryBar()
         renderCanvasOnly()
         renderInspectorOnly()
       }

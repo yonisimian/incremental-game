@@ -546,6 +546,17 @@ body {
   gap: 8px;
 }
 
+/* Second toolbar row: the category on the canvas, and its management buttons. */
+.ed-category-bar {
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.ed-category-name {
+  width: 14rem;
+  font-weight: 600;
+}
+
 /* ─── Form sections (resources, generators) ───────────────────────── */
 
 .ed-form-root,

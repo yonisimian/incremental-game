@@ -28,7 +28,7 @@ import { ATTACK_STATS, attackStatsFor, collectAttackParams } from '../attacks.js
 import { scaleCostFactor, scaleDebuffValue } from '../modifiers/value-guard.js'
 import { recordPurchaseTime } from '../game-clock.js'
 import { isTimeEffectType, timedUpgradeIds } from '../time-bonus.js'
-import { validateUpgradePrerequisites } from '../prerequisites.js'
+import { getPrerequisiteUpgradeIds, validateUpgradePrerequisites } from '../prerequisites.js'
 import { validateUpgradeChoiceGroups } from '../upgrade-groups.js'
 import { getUpgradeNextCost, upgradeCostFactors } from '../upgrade-costs.js'
 import { anchorGeneratorCurves, collectGeneratorCostFactors } from '../generators.js'
@@ -157,6 +157,49 @@ function validateFlavor(id: string, def: ModeDefinition, f: ModeFlavor): void {
   for (const fp of f.pacts) {
     if (!def.pacts.some((p) => p.id === fp.id))
       throw new Error(`[${id}] ${where}: references unknown pact '${fp.id}'`)
+  }
+
+  // Categories: a name for each, none for an unknown one
+  const mechCategories = new Set((def.categories ?? []).map((c) => c.id))
+  const flavorCategories = f.categories ?? []
+  for (const c of mechCategories) {
+    if (!flavorCategories.some((fc) => fc.id === c))
+      throw new Error(`[${id}] ${where}: missing flavor for category '${c}'`)
+  }
+  for (const fc of flavorCategories) {
+    if (!mechCategories.has(fc.id))
+      throw new Error(`[${id}] ${where}: references unknown category '${fc.id}'`)
+  }
+}
+
+/**
+ * Validate a mode's upgrade categories, when it has any: unique ids, every
+ * upgrade in a declared category, and no prerequisite reaching into another
+ * category, since the tree panel shows one category at a time and the edge
+ * would point off-screen. Whether such links should ever be allowed is still
+ * open (plan 52). A category may be empty: goal filtering empties the trophy's
+ * category in most rounds, and the panel skips it.
+ */
+function validateCategories(id: string, def: ModeDefinition): void {
+  if (!def.categories) return
+  if (def.categories.length === 0) throw new Error(`[${id}] mode has an empty category list`)
+  const categories = new Set<string>()
+  for (const c of def.categories) {
+    if (categories.has(c.id)) throw new Error(`[${id}] duplicate category id '${c.id}'`)
+    categories.add(c.id)
+  }
+
+  const categoryOf = new Map(def.upgrades.map((u) => [u.id, u.category]))
+  for (const u of def.upgrades) {
+    if (u.category === undefined || !categories.has(u.category))
+      throw new Error(`[${id}] upgrade '${u.id}' is in unknown category '${String(u.category)}'`)
+    for (const req of getPrerequisiteUpgradeIds(u.prerequisites)) {
+      const reqCategory = categoryOf.get(req)
+      if (reqCategory !== undefined && reqCategory !== u.category)
+        throw new Error(
+          `[${id}] upgrade '${u.id}' (category '${u.category}') requires '${req}' from category '${reqCategory}' — prerequisites can't cross categories`,
+        )
+    }
   }
 }
 
@@ -325,6 +368,7 @@ export function validateModeDefinition(id: string, def: ModeDefinition): void {
   // Prerequisite expression validation
   validateUpgradePrerequisites(def.upgrades)
   validateUpgradeChoiceGroups(def.upgrades)
+  validateCategories(id, def)
 
   // highlightEnabled ↔ initialMeta consistency. The *key* must be present, but
   // `null` is a valid value — it means the round opens with nothing highlighted

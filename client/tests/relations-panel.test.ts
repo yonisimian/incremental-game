@@ -236,6 +236,7 @@ describe('relations panel', () => {
           ...base.upgrades,
           {
             id: SIGN_DRUMS,
+            category: base.upgrades[0].category,
             cost: {},
             purchaseLimit: 1,
             effects: [{ type: 'unlockPact', pact: DRUMS }],

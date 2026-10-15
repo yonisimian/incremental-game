@@ -252,6 +252,22 @@ describe('renderUpgradeTree with visibility options', () => {
     expect(edgesSvg).toContain('<line class="unlocked"')
   })
 
+  it('draws only the scoped category, with bounds to match', () => {
+    // u1 (200,0) alone: uh and uh2 (and their edge) fall outside the scope.
+    const { nodes, edgesSvg, bounds } = renderUpgradeTree(makeIdlerState(), {
+      scope: new Set(['u1']),
+    })
+    expect(nodes).toContain('data-upgrade="u1"')
+    expect(nodes).not.toContain('data-upgrade="uh"')
+    expect(edgesSvg).toBe('')
+    expect(bounds).toEqual({ minX: 200, maxX: 200, minY: 0, maxY: 0 })
+  })
+
+  it('keeps edges inside the scope', () => {
+    const { edgesSvg } = renderUpgradeTree(makeIdlerState(), { scope: new Set(['uh', 'uh2']) })
+    expect(edgesSvg.match(/<line\b/g)).toHaveLength(1)
+  })
+
   it('marks pulsing nodes with the `revealed` class', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState(), { pulsing: new Set(['u1']) })
     expect(nodes).toMatch(/class="upgrade-btn tree-node [^"]*revealed"[^>]*data-upgrade="u1"/)

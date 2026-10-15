@@ -1158,6 +1158,70 @@ body {
 
 /* Upgrade Tree Panel — pan/zoom viewport + canvas + edges + nodes */
 
+/* Category bar above the tree (Upgrade Categories setting on): the title in
+   the middle, an arrow at each side with the neighbouring category's name
+   above it. A three-column grid keeps the title centered with or without
+   arrows. Names truncate so the bar fits at phone width. */
+.tree-category-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tree-category-title {
+  grid-column: 2;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tree-category-arrow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tree-category-arrow:first-child {
+  grid-column: 1;
+  justify-self: start;
+  align-items: flex-start;
+}
+
+.tree-category-arrow:last-child {
+  grid-column: 3;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+.tree-category-arrow:hover {
+  border-color: var(--accent);
+}
+
+.tree-category-target {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-category-glyph {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 .tree-viewport {
   position: relative;
   width: 100%;
@@ -2402,6 +2466,10 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
+}
+
+.settings-chips--two {
+  grid-template-columns: 1fr 1fr;
 }
 
 .settings-chip {
