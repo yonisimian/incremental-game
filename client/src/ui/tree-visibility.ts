@@ -20,22 +20,30 @@ export type TreeVisibility = 'full' | 'hidden' | 'peek'
 // ─── Rule ────────────────────────────────────────────────────────────
 
 /**
+ * Ids of the upgrades whose prerequisites are met (`isUnlocked`). Computed once
+ * per render and shared by the visibility rule and the tree's edge styling.
+ */
+export function unlockedUpgradeIds(
+  state: Readonly<Pick<GameState, 'upgrades' | 'player'>>,
+): ReadonlySet<string> {
+  return new Set(state.upgrades.filter((u) => isUnlocked(state, u)).map((u) => u.id))
+}
+
+/**
  * Ids of the upgrades the tree shows for this player under `mode`. Parent and
- * child follow prerequisite edges, not layout nesting. Reachable means
- * `isUnlocked`, the same test the tree's edge styling uses. Cost doesn't
- * matter: an upgrade the player can't afford is still shown once it's reachable.
+ * child follow prerequisite edges, not layout nesting. Cost doesn't matter: an
+ * upgrade the player can't afford is still shown once it's reachable. Pass
+ * `unlocked` when the caller already has {@link unlockedUpgradeIds}.
  */
 export function visibleUpgradeIds(
   state: Readonly<Pick<GameState, 'upgrades' | 'player'>>,
   mode: TreeVisibility,
+  unlocked?: ReadonlySet<string>,
 ): ReadonlySet<string> {
   const { upgrades } = state
   if (mode === 'full') return new Set(upgrades.map((u) => u.id))
 
-  const revealed = new Set<string>()
-  for (const u of upgrades) {
-    if (isUnlocked(state, u)) revealed.add(u.id)
-  }
+  const revealed = unlocked ?? unlockedUpgradeIds(state)
   if (mode === 'hidden') return revealed
 
   // One pass over the revealed set, never recursing, so grandchildren stay hidden.

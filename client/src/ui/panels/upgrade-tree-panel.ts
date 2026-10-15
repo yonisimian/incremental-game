@@ -1,8 +1,8 @@
-import { createInitialState, getModeDefinition } from '@game/shared'
+import { getModeDefinition } from '@game/shared'
 import type { Panel } from '../panels.js'
-import type { GameState } from '../../game.js'
+import { type GameState, startingPlayer } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
-import { getTreeVisibility, visibleUpgradeIds } from '../tree-visibility.js'
+import { getTreeVisibility, unlockedUpgradeIds, visibleUpgradeIds } from '../tree-visibility.js'
 import { bindUpgradeEvents } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
@@ -17,8 +17,8 @@ const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
 
-/** How long a newly revealed node keeps its `revealed` class — the CSS `tree-reveal` length. */
-const PULSE_MS = 900
+/** The reveal animation that always runs (reduced motion too); its end clears the pulse. */
+const REVEAL_RING_ANIMATION = 'tree-reveal-ring'
 
 // ─── Module-local pan/zoom state ─────────────────────────────────────
 //
@@ -32,59 +32,69 @@ let prevHtml = ''
 
 // ─── Module-local reveal state ───────────────────────────────────────
 //
-// Upgrades the player has already seen this match, and when each fresh reveal
-// stops pulsing. Seeded with what the round's starting state shows, so
-// round-start nodes never pulse, but a reveal that happened while another tab
-// was open still pulses when the tree first renders.
+// Upgrades the player has already seen this match, and the ones whose reveal
+// pulse is still playing. Seeded with what the round's starting state shows,
+// so round-start nodes never pulse, but a reveal that happened while another
+// tab was open still pulses when the tree first renders.
 //
 // Seen upgrades stay drawn for the rest of the match, so a node never vanishes
 // when the server rejects the optimistic purchase that revealed it. It reads as
 // locked instead, as in Peek.
 //
-// The class must outlive many update() calls: `syncNodes` copies attributes
-// from fresh markup, so dropping it on the next tick would cut the pulse short.
+// A pulse ends on the ring animation's `animationend` (see bind()), so its
+// length lives only in the CSS. Until then every render keeps the `revealed`
+// class, because `syncNodes` copies attributes from fresh markup.
 
 let seenIds = new Set<string>()
-const pulseUntil = new Map<string, number>()
+const pulsing = new Set<string>()
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-/** Record newly visible upgrades and return the ones still pulsing. */
-function trackReveals(visible: ReadonlySet<string>): ReadonlySet<string> {
-  const now = Date.now()
+/** Record upgrades that became visible since the last render; each starts a pulse. */
+function trackReveals(visible: ReadonlySet<string>): void {
   for (const id of visible) {
     if (seenIds.has(id)) continue
     seenIds.add(id)
-    pulseUntil.set(id, now + PULSE_MS)
+    pulsing.add(id)
   }
-  const pulsing = new Set<string>()
-  for (const [id, until] of pulseUntil) {
-    if (until > now) pulsing.add(id)
-    else pulseUntil.delete(id)
-  }
-  return pulsing
 }
 
 /**
  * Render the tree as the player's visibility setting shows it, plus anything
  * already shown this match. On a new match, what the round started with counts
- * as already seen, so it never pulses.
+ * as already seen, so it never pulses. Full mode can't hide or pulse anything,
+ * so it renders the plain tree.
  */
 function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
   const mode = getTreeVisibility()
-  const visible = visibleUpgradeIds(state, mode)
   if (newMatch) {
-    const start = createInitialState(getModeDefinition(state.mode!))
-    seenIds = new Set(visibleUpgradeIds({ upgrades: state.upgrades, player: start }, mode))
-    pulseUntil.clear()
+    const start = {
+      upgrades: state.upgrades,
+      player: startingPlayer(getModeDefinition(state.mode!)),
+    }
+    seenIds = new Set(visibleUpgradeIds(start, mode))
+    pulsing.clear()
   }
-  const pulsing = trackReveals(visible)
+  if (mode === 'full') return renderUpgradeTree(state)
+
+  const unlocked = unlockedUpgradeIds(state)
+  trackReveals(visibleUpgradeIds(state, mode, unlocked))
   return renderUpgradeTree(state, {
-    // Now a superset of `visible`: everything shown this match stays shown.
+    // A superset of what's visible now: everything shown this match stays shown.
     visible: seenIds,
     stubs: mode === 'hidden',
     pulsing,
+    unlocked,
   })
+}
+
+/** End a node's reveal pulse when its ring animation finishes. */
+function endPulse(e: AnimationEvent): void {
+  if (e.animationName !== REVEAL_RING_ANIMATION) return
+  const node = e.target as HTMLElement
+  const id = node.dataset.upgrade
+  if (id) pulsing.delete(id)
+  node.classList.remove('revealed')
 }
 
 /** Compute centered initial pan so the tree's bounding-box center aligns with viewport center at INITIAL_ZOOM. */
@@ -169,6 +179,7 @@ export const upgradeTreePanel: Panel = {
   bind() {
     // Tree nodes open a detail popup (with Buy/Cancel) instead of buying on click.
     bindUpgradeEvents('tree-canvas', openUpgradeDetail)
+    document.getElementById('tree-canvas')?.addEventListener('animationend', endPulse)
   },
 
   update(state) {

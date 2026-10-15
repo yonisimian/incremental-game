@@ -806,6 +806,15 @@ function resetRoom(): void {
   state.roomError = null
 }
 
+/**
+ * The player state a round starts from. One definition for the round-start
+ * handler and for the upgrade tree, which needs to know what was visible at
+ * round start without having rendered then.
+ */
+export function startingPlayer(modeDef: ModeDefinition): PlayerState {
+  return createInitialState(modeDef)
+}
+
 // ─── Private: message handlers ───────────────────────────────────────
 
 function handleRoundStart(msg: RoundStartMessage): void {
@@ -817,7 +826,7 @@ function handleRoundStart(msg: RoundStartMessage): void {
   const modeDef = getModeDefinition(msg.config.mode)
   state.upgrades = getAvailableUpgrades(modeDef, msg.config.goal)
   state.opponentName = msg.opponentName
-  state.player = createInitialState(modeDef)
+  state.player = startingPlayer(modeDef)
   state.opponent = emptyOpponentView()
   state.opponentPurchaseFeed = []
   state.debuffs = []

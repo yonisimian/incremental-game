@@ -10,6 +10,20 @@ knip refuses the setting's exports until something in the app uses them, so
 the rule, the rendering and the settings section landed together, followed by
 the pulse.
 
+Changes after review, which supersede §5 and §6 where they differ:
+
+- A node shown once stays shown for the rest of the match (see Edge cases).
+- The already-seen set is seeded from the round's starting player
+  (`startingPlayer` in `game.ts`), not from the first render of the tab.
+- There's no `PULSE_MS` timer. The pulse is two CSS animations, a pop and a
+  ring; reduced motion drops the pop. The ring's `animationend` ends the
+  pulse, so its length lives only in the CSS. The ring is an outline colored
+  from `--accent`, so it doesn't hide the `locked-by-attack` ring.
+- Full mode skips the visibility work and renders the plain tree.
+- The unlocked set is computed once per render and shared by the visibility
+  rule and the edge styling.
+- A newly revealed node is inserted at its tree position in the DOM.
+
 Alternative to
 [52 — Per-category upgrade sub-trees](52-upgrade-category-subtrees.md).
 

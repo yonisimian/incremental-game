@@ -245,6 +245,13 @@ describe('renderUpgradeTree with visibility options', () => {
     expect(edgesSvg).toBe('')
   })
 
+  it('lights edges from a precomputed unlocked set when one is passed', () => {
+    // uh2 requires uh, which nobody owns, so per-upgrade checking leaves its edge unlit.
+    expect(renderUpgradeTree(makeIdlerState()).edgesSvg).toContain('<line class=""')
+    const { edgesSvg } = renderUpgradeTree(makeIdlerState(), { unlocked: new Set(['uh2']) })
+    expect(edgesSvg).toContain('<line class="unlocked"')
+  })
+
   it('marks pulsing nodes with the `revealed` class', () => {
     const { nodes } = renderUpgradeTree(makeIdlerState(), { pulsing: new Set(['u1']) })
     expect(nodes).toMatch(/class="upgrade-btn tree-node [^"]*revealed"[^>]*data-upgrade="u1"/)

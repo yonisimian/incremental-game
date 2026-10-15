@@ -151,11 +151,14 @@ interface UpgradeTreeRender {
  * - `stubs` — draw a short dashed stub from each visible parent toward each
  *   hidden child, hinting that something is behind it.
  * - `pulsing` — ids that just became visible; they get the `revealed` class.
+ * - `unlocked` — ids whose prerequisites are met, when the caller already
+ *   computed them (`unlockedUpgradeIds`); absent = checked per upgrade here.
  */
 export interface UpgradeTreeOptions {
   readonly visible?: ReadonlySet<string>
   readonly stubs?: boolean
   readonly pulsing?: ReadonlySet<string>
+  readonly unlocked?: ReadonlySet<string>
 }
 
 /**
@@ -240,7 +243,8 @@ export function renderUpgradeTree(
   for (const u of tree) {
     if (!u.position) continue
     const childVisible = isVisible(u.id)
-    const childUnlocked = isUnlocked(state, u) && !u.comingSoon
+    const childUnlocked =
+      (options.unlocked ? options.unlocked.has(u.id) : isUnlocked(state, u)) && !u.comingSoon
     const cls = childUnlocked ? 'unlocked' : ''
     for (const pid of getPrerequisiteUpgradeIds(u.prerequisites)) {
       const parent = positionById.get(pid)

@@ -160,15 +160,13 @@ describe('upgrade tree panel reveal pulse', () => {
   let match = 0
   const inMatch = (state: GameState): GameState => ({ ...state, matchId: `pulse-${match}` })
   const pulsing = (id: string) => nodeOf(id).classList.contains('revealed')
+  // happy-dom runs no CSS animations, so the test fires their end by hand.
+  const finish = (id: string, animationName: string) =>
+    nodeOf(id).dispatchEvent(new AnimationEvent('animationend', { animationName, bubbles: true }))
 
   beforeEach(() => {
     match++
-    vi.useFakeTimers()
     setTreeVisibility('hidden')
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   it('does not pulse nodes visible at round start', () => {
@@ -176,7 +174,7 @@ describe('upgrade tree panel reveal pulse', () => {
     expect(pulsing('g1-g2')).toBe(false)
   })
 
-  it('pulses a node revealed mid-round until the pulse ends', () => {
+  it('pulses a node revealed mid-round until its ring animation ends', () => {
     mountTree(inMatch(makeState(0)))
 
     current = inMatch(makeState(0, { 'g1-g2': 1 }))
@@ -184,12 +182,16 @@ describe('upgrade tree panel reveal pulse', () => {
     expect(pulsing('g1-af')).toBe(true)
 
     // Later updates inside the pulse keep the class, or the animation is cut short.
-    vi.advanceTimersByTime(500)
     current = inMatch(makeState(10, { 'g1-g2': 1 }))
     upgradeTreePanel.update!(current)
     expect(pulsing('g1-af')).toBe(true)
 
-    vi.advanceTimersByTime(500)
+    // The pop ending alone doesn't end the pulse; the ring (which always runs) does.
+    finish('g1-af', 'tree-reveal-pop')
+    expect(pulsing('g1-af')).toBe(true)
+    finish('g1-af', 'tree-reveal-ring')
+    expect(pulsing('g1-af')).toBe(false)
+
     current = inMatch(makeState(20, { 'g1-g2': 1 }))
     upgradeTreePanel.update!(current)
     expect(pulsing('g1-af')).toBe(false)
@@ -206,7 +208,7 @@ describe('upgrade tree panel reveal pulse', () => {
     mountTree(inMatch(makeState(0)))
     current = inMatch(makeState(0, { 'g1-g2': 1 }))
     upgradeTreePanel.update!(current)
-    vi.advanceTimersByTime(1000)
+    finish('g1-af', 'tree-reveal-ring')
 
     document.body.innerHTML = ''
     match++
@@ -226,10 +228,6 @@ describe('upgrade tree panel reveal pulse', () => {
 })
 
 describe('upgrade tree panel node order', () => {
-  afterEach(() => {
-    setTreeVisibility('full')
-  })
-
   it('inserts a revealed node at its tree position, not at the end', () => {
     setTreeVisibility('hidden')
     mountTree({ ...makeState(0), matchId: 'order' })
