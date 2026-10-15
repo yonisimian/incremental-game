@@ -27,6 +27,13 @@ import {
   parentOf,
   subtreeIdsOf,
   reparentNode,
+  categoryOf,
+  listCategories,
+  addCategory,
+  renameCategory,
+  moveCategory,
+  removeCategory,
+  moveToCategory,
   nodeFlavor,
   setNodeFlavor,
   renameNode,
@@ -1450,5 +1457,103 @@ describe('pacts', () => {
     })
     expect({ attacks: tree.attacks, pacts: tree.pacts }).toEqual(before)
     expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+})
+
+// ─── Categories ──────────────────────────────────────────────────────
+
+describe('categories', () => {
+  /** makeTree's a→b→c and d in the first category, plus e (at 300, 0) in the second. */
+  function twoCategories(): TreeFile {
+    const tree = makeTree()
+    tree.categories[1].upgrades = [node('e', { x: 300, y: 0 })]
+    return tree
+  }
+  const [first, second] = twoCategories().categories.map((c) => c.id)
+  const flavorNames = (tree: TreeFile) => tree.flavors.map((f) => f.categories.map((c) => c.id))
+
+  it('records each node’s category while walking', () => {
+    const byId = new Map(walkPositioned(twoCategories()).map((p) => [p.node.id, p.category]))
+    expect(byId.get('c')).toBe(first)
+    expect(byId.get('e')).toBe(second)
+    expect(categoryOf(twoCategories(), 'e')).toBe(second)
+  })
+
+  it('lists categories in order, named from the flavor, with their sizes', () => {
+    const rows = listCategories(twoCategories())
+    expect(rows[0]).toMatchObject({ id: first, size: 4 })
+    expect(rows[1]).toMatchObject({ id: second, size: 1 })
+    expect(rows[1].name).toBe(twoCategories().flavors[0].categories[1].name)
+  })
+
+  it('adds an empty category with a free id and a flavor name in every flavor', () => {
+    const tree = twoCategories()
+    const id = addCategory(tree)
+    expect(tree.categories.at(-1)).toEqual({ id, upgrades: [] })
+    expect(flavorNames(tree).every((ids) => ids.includes(id))).toBe(true)
+    expect(addCategory(tree)).not.toBe(id)
+  })
+
+  it('renames a category in every flavor', () => {
+    const tree = twoCategories()
+    renameCategory(tree, second, 'Defence')
+    expect(
+      tree.flavors.every((f) => f.categories.find((c) => c.id === second)?.name === 'Defence'),
+    ).toBe(true)
+  })
+
+  it('moves a category within the order, but not past either end', () => {
+    const tree = twoCategories()
+    expect(moveCategory(tree, second, -1)).toBe(true)
+    expect(tree.categories[0].id).toBe(second)
+    expect(moveCategory(tree, second, -1)).toBe(false)
+  })
+
+  it('deletes only an empty category', () => {
+    const tree = twoCategories()
+    expect(removeCategory(tree, second)).toMatchObject({ ok: false })
+    const empty = addCategory(tree)
+    expect(removeCategory(tree, empty)).toEqual({ ok: true })
+    expect(tree.categories.some((c) => c.id === empty)).toBe(false)
+    expect(flavorNames(tree).some((ids) => ids.includes(empty))).toBe(false)
+  })
+
+  it('moves a node with its subtree to another category, keeping its place', () => {
+    const tree = twoCategories()
+    expect(moveToCategory(tree, 'b', second)).toBe(true)
+    expect(categoryOf(tree, 'b')).toBe(second)
+    expect(categoryOf(tree, 'c')).toBe(second)
+    expect(parentOf(tree, 'b')).toBeNull()
+    expect(nodePosition(tree, 'b')).toEqual({ x: 100, y: 50 })
+    expect(nodePosition(tree, 'c')).toEqual({ x: 110, y: 60 })
+    expect(moveToCategory(tree, 'b', second)).toBe(false)
+  })
+
+  it('refuses a parent in another category', () => {
+    const tree = twoCategories()
+    expect(reparentNode(tree, 'e', 'a')).toBe(false)
+    expect(categoryOf(tree, 'e')).toBe(second)
+  })
+
+  it('keeps a node made a root in its own category', () => {
+    const tree = twoCategories()
+    tree.categories[1].upgrades = [
+      node('e', { x: 300, y: 0 }, { children: [node('f', { x: 0, y: 100 })] }),
+    ]
+    expect(reparentNode(tree, 'f', null)).toBe(true)
+    expect(categoryOf(tree, 'f')).toBe(second)
+  })
+
+  it('adds a root to the given category', () => {
+    const tree = twoCategories()
+    addNode(tree, null, createNode('g', { x: 0, y: 0 }), second)
+    expect(categoryOf(tree, 'g')).toBe(second)
+  })
+
+  it('draws one category on the canvas, or all of them', () => {
+    const tree = twoCategories()
+    expect(renderCanvas(tree, null, second).nodes).toContain('data-node-id="e"')
+    expect(renderCanvas(tree, null, second).nodes).not.toContain('data-node-id="a"')
+    expect(renderCanvas(tree, null).nodes).toContain('data-node-id="a"')
   })
 })
