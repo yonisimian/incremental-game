@@ -1160,11 +1160,13 @@ body {
 
 /* Category bar above the tree (Upgrade Categories setting on): the title in
    the middle, an arrow at each side with the neighbouring category's name
-   above it. A three-column grid keeps the title centered with or without
-   arrows. Names truncate so the bar fits at phone width. */
+   above it. The three columns have fixed shares of the width, so the title
+   and arrows keep their size and place whatever the names; names truncate. */
 .tree-category-bar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* The panel centers its children, which would shrink the bar to its text. */
+  align-self: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
   align-items: end;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
@@ -1172,18 +1174,20 @@ body {
 
 .tree-category-title {
   grid-column: 2;
+  overflow: hidden;
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
   text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tree-category-arrow {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
   padding: 0.25rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1194,13 +1198,11 @@ body {
 
 .tree-category-arrow:first-child {
   grid-column: 1;
-  justify-self: start;
   align-items: flex-start;
 }
 
 .tree-category-arrow:last-child {
   grid-column: 3;
-  justify-self: end;
   align-items: flex-end;
 }
 
