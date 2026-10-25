@@ -9,7 +9,7 @@ describe('roundCategories', () => {
   it('lists the categories in order, skipping one empty this round', () => {
     // A timed round drops the buy-upgrade trophy, the only upgrade in c0.
     const timed = getAvailableUpgrades(idler, { type: 'timed', label: 'T', durationSec: 60 })
-    expect(roundCategories(idler, timed)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7'])
+    expect(roundCategories(idler, timed)).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'])
   })
 
   it('keeps the trophy category when the goal includes it', () => {

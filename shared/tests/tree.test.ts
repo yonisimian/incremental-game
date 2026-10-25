@@ -205,7 +205,7 @@ describe('tree codec — categories', () => {
     expect(() => toModeDefinition(tree)).toThrow(/unknown category 'c9'/u)
   })
 
-  it('gives the idler its 8 categories', () => {
+  it('gives the idler its 9 categories', () => {
     const def = getModeDefinition('idler')
     const flavor = getModeFlavor(def)
     expect(def.categories?.map((c) => getCategoryName(flavor, c.id))).toEqual([
@@ -214,6 +214,7 @@ describe('tree codec — categories', () => {
       'Global Production',
       'Generators',
       'Click',
+      'Highlight',
       'Attack',
       'Diplomacy',
       'Espionage',

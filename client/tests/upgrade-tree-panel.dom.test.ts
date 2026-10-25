@@ -249,7 +249,7 @@ describe('upgrade tree panel node order', () => {
 
 // Categories on. Arrow clicks re-render through the panel router, so the tree
 // is mounted as the router's only panel, in #panel-container. A timed round
-// drops the trophy, leaving c1 (Base Production) … c7 (Espionage).
+// drops the trophy, leaving c1 (Base Production) … c8 (Espionage).
 describe('upgrade tree panel categories', () => {
   let match = 0
   const timed = getAvailableUpgrades(mode, {

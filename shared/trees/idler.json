@@ -1075,14 +1075,18 @@
         },
         {
           "id": "c5",
-          "name": "Attack"
+          "name": "Highlight"
         },
         {
           "id": "c6",
-          "name": "Diplomacy"
+          "name": "Attack"
         },
         {
           "id": "c7",
+          "name": "Diplomacy"
+        },
+        {
+          "id": "c8",
           "name": "Espionage"
         }
       ]
@@ -2121,247 +2125,6 @@
               }
             },
             {
-              "id": "sh-unlock",
-              "cost": {
-                "r0": {
-                  "baseCost": 50
-                }
-              },
-              "purchaseLimit": 1,
-              "effects": [
-                {
-                  "type": "highlightMultiplier",
-                  "multiplier": 2
-                },
-                {
-                  "type": "systemUnlock",
-                  "system": "highlight"
-                }
-              ],
-              "offset": {
-                "x": 96,
-                "y": 288
-              },
-              "children": [
-                {
-                  "id": "sh-mf-hp",
-                  "cost": {
-                    "r0": {
-                      "baseCost": 50,
-                      "scaleType": "exponential",
-                      "scaleFactor": 1.15
-                    }
-                  },
-                  "purchaseLimit": null,
-                  "prerequisites": {
-                    "type": "upgrade",
-                    "id": "sh-unlock"
-                  },
-                  "effects": [
-                    {
-                      "type": "highlightMultiplier",
-                      "multiplier": 1.1
-                    }
-                  ],
-                  "offset": {
-                    "x": 96,
-                    "y": 96
-                  }
-                },
-                {
-                  "id": "shb-unlock",
-                  "cost": {
-                    "r0": {
-                      "baseCost": 100
-                    }
-                  },
-                  "purchaseLimit": 1,
-                  "prerequisites": {
-                    "type": "upgrade",
-                    "id": "sh-unlock"
-                  },
-                  "effects": [
-                    {
-                      "type": "systemUnlock",
-                      "system": "highlightBattery"
-                    }
-                  ],
-                  "offset": {
-                    "x": 0,
-                    "y": 96
-                  },
-                  "children": [
-                    {
-                      "id": "shb-bp",
-                      "cost": {
-                        "r0": {
-                          "baseCost": 100,
-                          "scaleType": "exponential",
-                          "scaleFactor": 1.2
-                        }
-                      },
-                      "purchaseLimit": null,
-                      "prerequisites": {
-                        "type": "upgrade",
-                        "id": "shb-unlock"
-                      },
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "factor",
-                          "op": "add",
-                          "value": 0.25
-                        }
-                      ],
-                      "offset": {
-                        "x": 96,
-                        "y": 96
-                      }
-                    },
-                    {
-                      "id": "shb-mc",
-                      "cost": {
-                        "r0": {
-                          "baseCost": 75,
-                          "scaleType": "exponential",
-                          "scaleFactor": 1.15
-                        }
-                      },
-                      "purchaseLimit": null,
-                      "prerequisites": {
-                        "type": "upgrade",
-                        "id": "shb-unlock"
-                      },
-                      "effects": [
-                        {
-                          "type": "batteryStat",
-                          "stat": "maxCharge",
-                          "op": "add",
-                          "value": 5
-                        }
-                      ],
-                      "offset": {
-                        "x": 0,
-                        "y": 96
-                      },
-                      "children": [
-                        {
-                          "id": "shb-mf-cs",
-                          "cost": {
-                            "r0": {
-                              "baseCost": 75,
-                              "scaleType": "exponential",
-                              "scaleFactor": 1.15
-                            }
-                          },
-                          "purchaseLimit": null,
-                          "prerequisites": {
-                            "type": "upgrade",
-                            "id": "shb-mc"
-                          },
-                          "effects": [
-                            {
-                              "type": "batteryStat",
-                              "stat": "chargeRate",
-                              "op": "add",
-                              "value": 0.5
-                            }
-                          ],
-                          "offset": {
-                            "x": 48,
-                            "y": 96
-                          },
-                          "children": [
-                            {
-                              "id": "shb-lcp",
-                              "cost": {
-                                "r0": {
-                                  "baseCost": 250
-                                }
-                              },
-                              "purchaseLimit": 1,
-                              "choiceGroup": "battery-choice",
-                              "prerequisites": {
-                                "type": "upgrade",
-                                "id": "shb-mf-cs"
-                              },
-                              "effects": [
-                                {
-                                  "type": "batteryBand",
-                                  "band": "low",
-                                  "threshold": 0.25,
-                                  "bonus": 0.5
-                                }
-                              ],
-                              "offset": {
-                                "x": 0,
-                                "y": 96
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "id": "shb-mf-ds",
-                          "cost": {
-                            "r0": {
-                              "baseCost": 75,
-                              "scaleType": "exponential",
-                              "scaleFactor": 1.15
-                            }
-                          },
-                          "purchaseLimit": null,
-                          "prerequisites": {
-                            "type": "upgrade",
-                            "id": "shb-mc"
-                          },
-                          "effects": [
-                            {
-                              "type": "batteryStat",
-                              "stat": "drainRate",
-                              "op": "mult",
-                              "value": 0.9
-                            }
-                          ],
-                          "offset": {
-                            "x": -48,
-                            "y": 96
-                          },
-                          "children": [
-                            {
-                              "id": "shb-hcp",
-                              "cost": {
-                                "r0": {
-                                  "baseCost": 250
-                                }
-                              },
-                              "purchaseLimit": 1,
-                              "choiceGroup": "battery-choice",
-                              "prerequisites": {
-                                "type": "upgrade",
-                                "id": "shb-mf-ds"
-                              },
-                              "effects": [
-                                {
-                                  "type": "batteryBand",
-                                  "band": "high",
-                                  "threshold": 0.75,
-                                  "bonus": 0.5
-                                }
-                              ],
-                              "offset": {
-                                "x": 0,
-                                "y": 96
-                              }
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            {
               "id": "sb-unlock",
               "cost": {
                 "r0": {
@@ -2407,6 +2170,252 @@
     },
     {
       "id": "c5",
+      "upgrades": [
+        {
+          "id": "sh-unlock",
+          "cost": {
+            "r0": {
+              "baseCost": 50
+            }
+          },
+          "purchaseLimit": 1,
+          "effects": [
+            {
+              "type": "highlightMultiplier",
+              "multiplier": 2
+            },
+            {
+              "type": "systemUnlock",
+              "system": "highlight"
+            }
+          ],
+          "offset": {
+            "x": 888,
+            "y": 432
+          },
+          "children": [
+            {
+              "id": "sh-mf-hp",
+              "cost": {
+                "r0": {
+                  "baseCost": 50,
+                  "scaleType": "exponential",
+                  "scaleFactor": 1.15
+                }
+              },
+              "purchaseLimit": null,
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sh-unlock"
+              },
+              "effects": [
+                {
+                  "type": "highlightMultiplier",
+                  "multiplier": 1.1
+                }
+              ],
+              "offset": {
+                "x": 96,
+                "y": 96
+              }
+            },
+            {
+              "id": "shb-unlock",
+              "cost": {
+                "r0": {
+                  "baseCost": 100
+                }
+              },
+              "purchaseLimit": 1,
+              "prerequisites": {
+                "type": "upgrade",
+                "id": "sh-unlock"
+              },
+              "effects": [
+                {
+                  "type": "systemUnlock",
+                  "system": "highlightBattery"
+                }
+              ],
+              "offset": {
+                "x": 0,
+                "y": 96
+              },
+              "children": [
+                {
+                  "id": "shb-bp",
+                  "cost": {
+                    "r0": {
+                      "baseCost": 100,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.2
+                    }
+                  },
+                  "purchaseLimit": null,
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "shb-unlock"
+                  },
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "factor",
+                      "op": "add",
+                      "value": 0.25
+                    }
+                  ],
+                  "offset": {
+                    "x": 96,
+                    "y": 96
+                  }
+                },
+                {
+                  "id": "shb-mc",
+                  "cost": {
+                    "r0": {
+                      "baseCost": 75,
+                      "scaleType": "exponential",
+                      "scaleFactor": 1.15
+                    }
+                  },
+                  "purchaseLimit": null,
+                  "prerequisites": {
+                    "type": "upgrade",
+                    "id": "shb-unlock"
+                  },
+                  "effects": [
+                    {
+                      "type": "batteryStat",
+                      "stat": "maxCharge",
+                      "op": "add",
+                      "value": 5
+                    }
+                  ],
+                  "offset": {
+                    "x": 0,
+                    "y": 96
+                  },
+                  "children": [
+                    {
+                      "id": "shb-mf-cs",
+                      "cost": {
+                        "r0": {
+                          "baseCost": 75,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
+                      "purchaseLimit": null,
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "shb-mc"
+                      },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "chargeRate",
+                          "op": "add",
+                          "value": 0.5
+                        }
+                      ],
+                      "offset": {
+                        "x": 48,
+                        "y": 96
+                      },
+                      "children": [
+                        {
+                          "id": "shb-lcp",
+                          "cost": {
+                            "r0": {
+                              "baseCost": 250
+                            }
+                          },
+                          "purchaseLimit": 1,
+                          "choiceGroup": "battery-choice",
+                          "prerequisites": {
+                            "type": "upgrade",
+                            "id": "shb-mf-cs"
+                          },
+                          "effects": [
+                            {
+                              "type": "batteryBand",
+                              "band": "low",
+                              "threshold": 0.25,
+                              "bonus": 0.5
+                            }
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "shb-mf-ds",
+                      "cost": {
+                        "r0": {
+                          "baseCost": 75,
+                          "scaleType": "exponential",
+                          "scaleFactor": 1.15
+                        }
+                      },
+                      "purchaseLimit": null,
+                      "prerequisites": {
+                        "type": "upgrade",
+                        "id": "shb-mc"
+                      },
+                      "effects": [
+                        {
+                          "type": "batteryStat",
+                          "stat": "drainRate",
+                          "op": "mult",
+                          "value": 0.9
+                        }
+                      ],
+                      "offset": {
+                        "x": -48,
+                        "y": 96
+                      },
+                      "children": [
+                        {
+                          "id": "shb-hcp",
+                          "cost": {
+                            "r0": {
+                              "baseCost": 250
+                            }
+                          },
+                          "purchaseLimit": 1,
+                          "choiceGroup": "battery-choice",
+                          "prerequisites": {
+                            "type": "upgrade",
+                            "id": "shb-mf-ds"
+                          },
+                          "effects": [
+                            {
+                              "type": "batteryBand",
+                              "band": "high",
+                              "threshold": 0.75,
+                              "bonus": 0.5
+                            }
+                          ],
+                          "offset": {
+                            "x": 0,
+                            "y": 96
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c6",
       "upgrades": [
         {
           "id": "a-unlock",
@@ -2784,7 +2793,7 @@
       ]
     },
     {
-      "id": "c6",
+      "id": "c7",
       "upgrades": [
         {
           "id": "ir-unlock",
@@ -2930,7 +2939,7 @@
       ]
     },
     {
-      "id": "c7",
+      "id": "c8",
       "upgrades": [
         {
           "id": "e-se-mr",

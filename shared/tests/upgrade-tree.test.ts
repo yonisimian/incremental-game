@@ -141,7 +141,7 @@ describe('idler tree conversion (golden)', () => {
     expect(positionById.get('sh-unlock')).toEqual({ x: 888, y: 432 })
   })
 
-  it('puts each top-level branch in its own category', () => {
+  it('groups the tree into its categories, with Highlight apart from Click', () => {
     const def = getModeDefinition('idler')
     const categoryById = new Map(def.upgrades.map((u) => [u.id, u.category]))
     expect(def.categories?.map((c) => c.id)).toEqual([
@@ -153,9 +153,15 @@ describe('idler tree conversion (golden)', () => {
       'c5',
       'c6',
       'c7',
+      'c8',
     ])
     expect(categoryById.get('goal')).toBe('c0')
     expect(categoryById.get('sc-unlock')).toBe('c4')
     expect(categoryById.get('sc-af-cp')).toBe('c4')
+    expect(categoryById.get('sb-unlock')).toBe('c4')
+    expect(categoryById.get('sh-unlock')).toBe('c5')
+    expect(categoryById.get('shb-hcp')).toBe('c5')
+    expect(categoryById.get('a-unlock')).toBe('c6')
+    expect(categoryById.get('e-se-mr')).toBe('c8')
   })
 })
