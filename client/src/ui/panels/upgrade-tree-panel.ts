@@ -30,10 +30,16 @@ const REVEAL_RING_ANIMATION = 'tree-reveal-ring'
 // ─── Module-local pan/zoom state ─────────────────────────────────────
 //
 // Persists pan/zoom across tab switches within a match (good UX), and resets
-// on match boundary (avoid stale state leaking into a fresh run).
+// on match boundary (avoid stale state leaking into a fresh run). Each
+// category keeps its own view, so returning to one finds it as it was left;
+// the whole tree is one more view under `WHOLE_TREE`. `shownView` is the key of
+// the view on screen, which the next render saves under.
+
+const WHOLE_TREE = '*'
 
 let panZoomHandle: PanZoomHandle | null = null
-let lastPanZoomState: PanZoomState | null = null
+const savedViews = new Map<string, PanZoomState>()
+let shownView = WHOLE_TREE
 let lastMatchId: string | null = null
 let prevHtml = ''
 
@@ -59,11 +65,9 @@ const pulsing = new Set<string>()
 //
 // The category on screen when the player shows one at a time. Reset to the
 // round's first at the match boundary and kept across tab switches, like
-// pan/zoom. `recenter` makes the next render center on a newly picked category
-// instead of restoring the previous one's pan/zoom.
+// pan/zoom.
 
 let currentCategory: string | null = null
-let recenter = false
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -177,7 +181,6 @@ function onCategoryArrow(e: Event): void {
   if (!ids) return
   // Future: hotkeys and swipe (on mobile) could step categories the same way.
   currentCategory = stepCategory(ids, currentCategory, btn.dataset.categoryStep === '1' ? 1 : -1)
-  recenter = true
   renderActivePanel(state)
 }
 
@@ -241,27 +244,24 @@ export const upgradeTreePanel: Panel = {
   icon: '🌳',
 
   render(container, state) {
-    // 1. Snapshot the previous incarnation's pan/zoom BEFORE tearing it down.
-    //    (Order matters: must come before the match-boundary reset, otherwise
-    //    a fresh match would receive the previous match's pan/zoom.)
+    // 1. Save the previous incarnation's pan/zoom under the view it showed,
+    //    BEFORE tearing it down. (Order matters: must come before the
+    //    match-boundary reset, otherwise a fresh match would receive the
+    //    previous match's pan/zoom.)
     if (panZoomHandle) {
-      lastPanZoomState = { ...panZoomHandle.getState() }
+      savedViews.set(shownView, { ...panZoomHandle.getState() })
       panZoomHandle.cleanup()
       panZoomHandle = null
     }
 
-    // 2. Match boundary → discard the snapshot we just took. Pan/zoom resets
-    //    to centered defaults at the start of every new game, and the reveal
+    // 2. Match boundary → discard every saved view. Pan/zoom resets to
+    //    centered defaults at the start of every new game, and the reveal
     //    tracking re-seeds in renderVisibleTree.
-    //    A newly picked category also starts centered.
     const newMatch = state.matchId !== lastMatchId
     if (newMatch) {
       lastMatchId = state.matchId
       currentCategory = null
-    }
-    if (newMatch || recenter) {
-      lastPanZoomState = null
-      recenter = false
+      savedViews.clear()
     }
 
     // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
@@ -271,12 +271,15 @@ export const upgradeTreePanel: Panel = {
     prevHtml = edgesSvg + nodes
     container.innerHTML = renderShell(edgesSvg, nodes, bounds, renderCategoryBar(state))
 
-    // 4. Wire pan/zoom on the new DOM, seeded from saved state or centered defaults.
+    // 4. Wire pan/zoom on the new DOM, seeded from this view's saved state or
+    //    centered defaults on its first visit.
     const viewport = document.getElementById('tree-viewport')
     const canvas = document.getElementById('tree-canvas')
+    const fit = shownCategories(state) !== null
+    shownView = fit && currentCategory !== null ? currentCategory : WHOLE_TREE
     if (viewport && canvas) {
-      const fit = shownCategories(state) !== null
-      const initialState = lastPanZoomState ?? computeCenteredInitialState(viewport, bounds, fit)
+      const initialState =
+        savedViews.get(shownView) ?? computeCenteredInitialState(viewport, bounds, fit)
       panZoomHandle = setupPanZoom(viewport, canvas, {
         initialState,
         minZoom: MIN_ZOOM,

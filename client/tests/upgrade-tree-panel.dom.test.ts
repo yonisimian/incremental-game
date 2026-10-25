@@ -331,11 +331,30 @@ describe('upgrade tree panel categories', () => {
 
   it('zooms a category to fit the viewport', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
-      DOMRect.fromRect({ width: 800, height: 600 }),
+      new DOMRect(0, 0, 800, 600),
     )
     mountRouted(inRound(makeState(0)))
     expect(zoom()).toBeGreaterThan(0.2)
     expect(zoom()).toBeLessThanOrEqual(1)
+  })
+
+  it("returns to a category's view as it was left", () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 800, 600),
+    )
+    mountRouted(inRound(makeState(0)))
+    const viewport = document.getElementById('tree-viewport')!
+    // happy-dom's WheelEvent drops clientX/Y, which the zoom anchors on.
+    const wheel = new WheelEvent('wheel', { deltaY: -100 })
+    Object.defineProperties(wheel, { clientX: { value: 10 }, clientY: { value: 10 } })
+    viewport.dispatchEvent(wheel)
+    const left = document.getElementById('tree-canvas')!.style.transform
+    expect(left).not.toContain('NaN')
+
+    arrow(1).click()
+    expect(document.getElementById('tree-canvas')!.style.transform).not.toBe(left)
+    arrow(-1).click()
+    expect(document.getElementById('tree-canvas')!.style.transform).toBe(left)
   })
 
   it('shows the trophy category in a buy-upgrade round', () => {
