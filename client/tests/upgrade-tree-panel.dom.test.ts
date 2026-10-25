@@ -78,6 +78,7 @@ function mountTree(state: GameState): void {
 const nodeOf = (id: string) => document.querySelector<HTMLButtonElement>(`[data-upgrade="${id}"]`)!
 
 afterEach(() => {
+  vi.restoreAllMocks()
   closeUpgradeDetail()
   setTreeVisibility('full')
   setTreeCategories(false)
@@ -269,6 +270,10 @@ describe('upgrade tree panel categories', () => {
     document.querySelector<HTMLButtonElement>(`[data-category-step="${step}"]`)!
   const drawn = () =>
     [...document.querySelectorAll<HTMLElement>('.tree-node')].map((n) => n.dataset.upgrade)
+  const zoom = () => {
+    const transform = document.getElementById('tree-canvas')!.style.transform
+    return Number(/scale\((.+)\)/.exec(transform)![1])
+  }
 
   function mountRouted(state: GameState): void {
     current = state
@@ -322,6 +327,15 @@ describe('upgrade tree panel categories', () => {
     match++
     mountRouted(inRound(makeState(0)))
     expect(title()).toBe('Base Production')
+  })
+
+  it('zooms a category to fit the viewport', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ width: 800, height: 600 }),
+    )
+    mountRouted(inRound(makeState(0)))
+    expect(zoom()).toBeGreaterThan(0.2)
+    expect(zoom()).toBeLessThanOrEqual(1)
   })
 
   it('shows the trophy category in a buy-upgrade round', () => {

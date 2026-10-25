@@ -27,6 +27,22 @@ export function stepCategory(ids: readonly string[], current: string, step: 1 | 
   return ids[(i + step + ids.length) % ids.length]
 }
 
+interface Size {
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * The zoom that fits a world-space box of size `content` inside `viewport`
+ * (both in pixels), clamped to [`min`, `max`]. `min` when the viewport has no
+ * size yet (not laid out, or hidden).
+ */
+export function fitZoom(content: Size, viewport: Size, min: number, max: number): number {
+  if (viewport.width <= 0 || viewport.height <= 0) return min
+  const zoom = Math.min(viewport.width / content.width, viewport.height / content.height)
+  return Math.min(max, Math.max(min, zoom))
+}
+
 // ─── Setting ─────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'tree-categories'

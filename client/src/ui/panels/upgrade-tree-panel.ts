@@ -3,7 +3,7 @@ import { type Panel, renderActivePanel } from '../panels.js'
 import { type GameState, getState, startingPlayer } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
 import { getTreeVisibility, unlockedUpgradeIds, visibleUpgradeIds } from '../tree-visibility.js'
-import { getTreeCategories, roundCategories, stepCategory } from '../tree-categories.js'
+import { fitZoom, getTreeCategories, roundCategories, stepCategory } from '../tree-categories.js'
 import { bindUpgradeEvents, escapeAttr } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
@@ -17,6 +17,12 @@ import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
+
+// A category opens zoomed to fit the viewport, but no closer than
+// `FIT_MAX_ZOOM`, so a one-node category isn't blown up. `FIT_MARGIN` is the
+// world-space room around the nodes' centers: half a node plus some air.
+const FIT_MAX_ZOOM = 1
+const FIT_MARGIN = 64
 
 /** The reveal animation that always runs (reduced motion too); its end clears the pulse. */
 const REVEAL_RING_ANIMATION = 'tree-reveal-ring'
@@ -175,15 +181,28 @@ function onCategoryArrow(e: Event): void {
   renderActivePanel(state)
 }
 
-/** Compute centered initial pan so the tree's bounding-box center aligns with viewport center at INITIAL_ZOOM. */
-function computeCenteredInitialState(viewport: HTMLElement, bounds: TreeBounds): PanZoomState {
+/**
+ * Compute centered initial pan so the tree's bounding-box center aligns with
+ * viewport center. The whole tree starts at INITIAL_ZOOM; a category is zoomed
+ * to fit.
+ */
+function computeCenteredInitialState(
+  viewport: HTMLElement,
+  bounds: TreeBounds,
+  fit: boolean,
+): PanZoomState {
   const treeCx = (bounds.minX + bounds.maxX) / 2
   const treeCy = (bounds.minY + bounds.maxY) / 2
   const vp = viewport.getBoundingClientRect()
+  const content = {
+    width: bounds.maxX - bounds.minX + 2 * FIT_MARGIN,
+    height: bounds.maxY - bounds.minY + 2 * FIT_MARGIN,
+  }
+  const zoom = fit ? fitZoom(content, vp, INITIAL_ZOOM, FIT_MAX_ZOOM) : INITIAL_ZOOM
   return {
-    panX: vp.width / 2 - treeCx * INITIAL_ZOOM,
-    panY: vp.height / 2 - treeCy * INITIAL_ZOOM,
-    zoom: INITIAL_ZOOM,
+    panX: vp.width / 2 - treeCx * zoom,
+    panY: vp.height / 2 - treeCy * zoom,
+    zoom,
   }
 }
 
@@ -256,7 +275,8 @@ export const upgradeTreePanel: Panel = {
     const viewport = document.getElementById('tree-viewport')
     const canvas = document.getElementById('tree-canvas')
     if (viewport && canvas) {
-      const initialState = lastPanZoomState ?? computeCenteredInitialState(viewport, bounds)
+      const fit = shownCategories(state) !== null
+      const initialState = lastPanZoomState ?? computeCenteredInitialState(viewport, bounds, fit)
       panZoomHandle = setupPanZoom(viewport, canvas, {
         initialState,
         minZoom: MIN_ZOOM,
