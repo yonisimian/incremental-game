@@ -357,6 +357,40 @@ describe('upgrade tree panel categories', () => {
     expect(document.getElementById('tree-canvas')!.style.transform).toBe(left)
   })
 
+  it('rules every round category with its icon, marking the current one', () => {
+    mountRouted(inRound(makeState(0)))
+    const stops = [...document.querySelectorAll<HTMLButtonElement>('.tree-category-stop')]
+    expect(stops.map((s) => s.dataset.category)).toEqual([
+      'c1',
+      'c2',
+      'c3',
+      'c4',
+      'c5',
+      'c6',
+      'c7',
+      'c8',
+    ])
+    expect(stops[0].textContent.trim()).toBe('🌱')
+    expect(stops[0].getAttribute('aria-label')).toBe('Base Production')
+    expect(stops.filter((s) => s.getAttribute('aria-current') === 'true')).toEqual([stops[0]])
+  })
+
+  it('jumps to a category from the ruler', () => {
+    mountRouted(inRound(makeState(0)))
+    document.querySelector<HTMLButtonElement>('[data-category="c6"]')!.click()
+    expect(title()).toBe('Attack')
+    expect(drawn()).toContain('a-unlock')
+    expect(document.querySelector('[data-category="c6"]')!.getAttribute('aria-current')).toBe(
+      'true',
+    )
+  })
+
+  it('draws no ruler with categories off', () => {
+    setTreeCategories(false)
+    mountRouted(inRound(makeState(0)))
+    expect(document.querySelector('.tree-category-ruler')).toBeNull()
+  })
+
   it('shows the trophy category in a buy-upgrade round', () => {
     mountRouted({ ...makeState(0), upgrades: mode.upgrades, matchId: `cat-${match}` })
     expect(title()).toBe('Goal')

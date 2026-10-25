@@ -1,4 +1,4 @@
-import { getCategoryName, getModeDefinition, getModeFlavor } from '@game/shared'
+import { getCategoryIcon, getCategoryName, getModeDefinition, getModeFlavor } from '@game/shared'
 import { type Panel, renderActivePanel } from '../panels.js'
 import { type GameState, getState, startingPlayer } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
@@ -172,16 +172,48 @@ function renderCategoryBar(state: Readonly<GameState>): string {
     </div>`
 }
 
+/**
+ * The ruler under the tree when categories are on: one icon button per round
+ * category, in arrow order, the current one marked. Not drawn when the round
+ * has one category. Call after `renderVisibleTree`, like the bar.
+ */
+function renderCategoryRuler(state: Readonly<GameState>): string {
+  const ids = shownCategories(state)
+  if (!ids || ids.length < 2) return ''
+  const flavor = getModeFlavor(getModeDefinition(state.mode!))
+  const buttons = ids.map((id) => {
+    const name = escapeAttr(getCategoryName(flavor, id))
+    const current = id === currentCategory ? ' aria-current="true"' : ''
+    return `
+      <button class="tree-category-stop" type="button" data-category="${escapeAttr(id)}"
+              title="${name}" aria-label="${name}"${current}>
+        ${escapeAttr(getCategoryIcon(flavor, id))}
+      </button>`
+  })
+  return `<nav class="tree-category-ruler" aria-label="Upgrade categories">${buttons.join('')}</nav>`
+}
+
+/** Show category `id`, if it's one of the round's. */
+function showCategory(id: string): void {
+  const state = getState()
+  if (id === currentCategory || !shownCategories(state)?.includes(id)) return
+  currentCategory = id
+  renderActivePanel(state)
+}
+
 /** Show the neighbouring category the clicked arrow points at. */
 function onCategoryArrow(e: Event): void {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-category-step]')
-  if (!btn || currentCategory === null) return
-  const state = getState()
-  const ids = shownCategories(state)
-  if (!ids) return
+  const ids = shownCategories(getState())
+  if (!btn || !ids || currentCategory === null) return
   // Future: hotkeys and swipe (on mobile) could step categories the same way.
-  currentCategory = stepCategory(ids, currentCategory, btn.dataset.categoryStep === '1' ? 1 : -1)
-  renderActivePanel(state)
+  showCategory(stepCategory(ids, currentCategory, btn.dataset.categoryStep === '1' ? 1 : -1))
+}
+
+/** Jump to the category whose ruler button was clicked. */
+function onCategoryStop(e: Event): void {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-category]')
+  if (btn?.dataset.category) showCategory(btn.dataset.category)
 }
 
 /**
@@ -215,6 +247,7 @@ function renderShell(
   nodes: string,
   bounds: TreeBounds,
   categoryBar: string,
+  categoryRuler: string,
 ): string {
   // Size SVG to encompass all node positions; +200px slack handles bounding-box edges.
   // Shift via CSS left/top if any coords go negative so SVG-local (0,0) aligns with canvas (0,0).
@@ -233,6 +266,7 @@ function renderShell(
         ${nodes}
       </div>
     </div>
+    ${categoryRuler}
   `
 }
 
@@ -269,7 +303,13 @@ export const upgradeTreePanel: Panel = {
     resetUpgradeDetail()
     const { edgesSvg, nodes, bounds } = renderVisibleTree(state, newMatch)
     prevHtml = edgesSvg + nodes
-    container.innerHTML = renderShell(edgesSvg, nodes, bounds, renderCategoryBar(state))
+    container.innerHTML = renderShell(
+      edgesSvg,
+      nodes,
+      bounds,
+      renderCategoryBar(state),
+      renderCategoryRuler(state),
+    )
 
     // 4. Wire pan/zoom on the new DOM, seeded from this view's saved state or
     //    centered defaults on its first visit.
@@ -293,6 +333,7 @@ export const upgradeTreePanel: Panel = {
     bindUpgradeEvents('tree-canvas', openUpgradeDetail)
     document.getElementById('tree-canvas')?.addEventListener('animationend', endPulse)
     document.querySelector('.tree-category-bar')?.addEventListener('click', onCategoryArrow)
+    document.querySelector('.tree-category-ruler')?.addEventListener('click', onCategoryStop)
   },
 
   update(state) {
