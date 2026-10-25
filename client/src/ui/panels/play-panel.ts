@@ -33,14 +33,14 @@ function renderClickButtons(state: Readonly<GameState>): string {
       const isTarget = key === clickTarget
       return `
       <button class="click-card" id="click-btn-${key}" aria-label="Click for ${getResourceName(flavor, key)}">
-        <span class="click-card-hotkey" aria-hidden="true"${isTarget ? '' : ' hidden'}>Space</span>
+        <kbd class="click-card-hotkey" aria-hidden="true"${isTarget ? '' : ' hidden'}>Space</kbd>
         <span class="click-card-emoji" aria-hidden="true">${getResourceIcon(flavor, key)}</span>
         <span class="click-card-name">${getResourceName(flavor, key)}</span>
       </button>`
     })
     .join('')
 
-  return `<div class="click-cards">${showCycleHint ? '<span class="click-cards-hotkey" aria-hidden="true">Z to switch</span>' : ''}${cards}</div>`
+  return `<div class="click-cards">${showCycleHint ? '<kbd class="click-cards-hotkey" aria-hidden="true">Z to switch</kbd>' : ''}${cards}</div>`
 }
 
 /**
@@ -70,7 +70,7 @@ function renderCurrencyCards(state: Readonly<GameState>): string {
 
   return `
     <div class="currency-cards">
-      <span class="cards-hotkey" aria-hidden="true">Tab</span>
+      <kbd class="cards-hotkey" aria-hidden="true">Tab</kbd>
       ${cards}
     </div>
   `
