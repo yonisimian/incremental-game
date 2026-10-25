@@ -249,7 +249,7 @@ describe('upgrade tree panel node order', () => {
 
 // Categories on. Arrow clicks re-render through the panel router, so the tree
 // is mounted as the router's only panel, in #panel-container. A timed round
-// drops the trophy, leaving c1 (Axe Handling) … c7 (First Spy).
+// drops the trophy, leaving c1 (Base Production) … c7 (Espionage).
 describe('upgrade tree panel categories', () => {
   let match = 0
   const timed = getAvailableUpgrades(mode, {
@@ -295,9 +295,9 @@ describe('upgrade tree panel categories', () => {
 
   it('on: opens the first non-empty category, titled, with its neighbours named', () => {
     mountRouted(inRound(makeState(0)))
-    expect(title()).toBe('Axe Handling')
+    expect(title()).toBe('Base Production')
     // Left wraps to the last category; right is the next one.
-    expect(targets()).toEqual(['First Spy', 'Work Optimization'])
+    expect(targets()).toEqual(['Espionage', 'Global Production'])
     expect(drawn()).toContain('be-af-mr')
     expect(drawn()).not.toContain('g1-g2')
   })
@@ -305,10 +305,10 @@ describe('upgrade tree panel categories', () => {
   it('steps through the categories with the arrows, wrapping around', () => {
     mountRouted(inRound(makeState(0)))
     arrow(1).click()
-    expect(title()).toBe('Work Optimization')
+    expect(title()).toBe('Global Production')
     arrow(-1).click()
     arrow(-1).click()
-    expect(title()).toBe('First Spy')
+    expect(title()).toBe('Espionage')
     expect(drawn()).toContain('e-se-mr')
   })
 
@@ -316,30 +316,30 @@ describe('upgrade tree panel categories', () => {
     mountRouted(inRound(makeState(0)))
     arrow(1).click()
     upgradeTreePanel.render(document.getElementById('panel-container')!, current)
-    expect(title()).toBe('Work Optimization')
+    expect(title()).toBe('Global Production')
 
     document.body.innerHTML = ''
     match++
     mountRouted(inRound(makeState(0)))
-    expect(title()).toBe('Axe Handling')
+    expect(title()).toBe('Base Production')
   })
 
   it('shows the trophy category in a buy-upgrade round', () => {
     mountRouted({ ...makeState(0), upgrades: mode.upgrades, matchId: `cat-${match}` })
-    expect(title()).toBe('Royal Throne')
+    expect(title()).toBe('Goal')
   })
 
   it('plays a pulse from another category when that category opens', () => {
     setTreeVisibility('hidden')
     mountRouted(inRound(makeState(0)))
-    // g1-g2 (First Generation) is bought while Axe Handling is on screen.
+    // g1-g2 (in Generators) is bought while Base Production is on screen.
     current = inRound(makeState(0, { 'g1-g2': 1 }))
     upgradeTreePanel.update!(current)
     expect(drawn()).not.toContain('g1-af')
 
-    arrow(1).click() // Work Optimization
-    arrow(1).click() // First Generation
-    expect(title()).toBe('First Generation')
+    arrow(1).click() // Global Production
+    arrow(1).click() // Generators
+    expect(title()).toBe('Generators')
     expect(nodeOf('g1-af').classList.contains('revealed')).toBe(true)
   })
 })

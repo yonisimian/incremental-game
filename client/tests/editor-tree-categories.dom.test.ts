@@ -44,17 +44,17 @@ afterEach(() => {
 describe('tree editor categories', () => {
   it('opens on the first category and draws only its nodes', () => {
     mount()
-    expect(nameField().value).toBe('Royal Throne')
+    expect(nameField().value).toBe('Goal')
     expect(drawn()).toEqual(['goal'])
   })
 
   it('steps through categories with the arrows, wrapping around', () => {
     mount()
     button('ed-cat-next').click()
-    expect(nameField().value).toBe('Axe Handling')
+    expect(nameField().value).toBe('Base Production')
     button('ed-cat-prev').click()
     button('ed-cat-prev').click()
-    expect(nameField().value).toBe('First Spy')
+    expect(nameField().value).toBe('Espionage')
   })
 
   it('shows the whole tree under All, and returns to the category after', () => {
@@ -66,7 +66,7 @@ describe('tree editor categories', () => {
     expect(drawn()).toContain('g1-g2')
     expect(button('ed-cat-next').disabled).toBe(true)
     all.click()
-    expect(nameField().value).toBe('Axe Handling')
+    expect(nameField().value).toBe('Base Production')
   })
 
   it('adds a root to the category on screen', () => {

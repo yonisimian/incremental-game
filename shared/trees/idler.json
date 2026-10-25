@@ -1055,19 +1055,19 @@
       "categories": [
         {
           "id": "c0",
-          "name": "Royal Throne"
+          "name": "Goal"
         },
         {
           "id": "c1",
-          "name": "Axe Handling"
+          "name": "Base Production"
         },
         {
           "id": "c2",
-          "name": "Work Optimization"
+          "name": "Global Production"
         },
         {
           "id": "c3",
-          "name": "First Generation"
+          "name": "Generators"
         },
         {
           "id": "c4",
@@ -1075,7 +1075,7 @@
         },
         {
           "id": "c5",
-          "name": "Warfare"
+          "name": "Attack"
         },
         {
           "id": "c6",
@@ -1083,7 +1083,7 @@
         },
         {
           "id": "c7",
-          "name": "First Spy"
+          "name": "Espionage"
         }
       ]
     }

@@ -209,14 +209,14 @@ describe('tree codec — categories', () => {
     const def = getModeDefinition('idler')
     const flavor = getModeFlavor(def)
     expect(def.categories?.map((c) => getCategoryName(flavor, c.id))).toEqual([
-      'Royal Throne',
-      'Axe Handling',
-      'Work Optimization',
-      'First Generation',
+      'Goal',
+      'Base Production',
+      'Global Production',
+      'Generators',
       'Click',
-      'Warfare',
+      'Attack',
       'Diplomacy',
-      'First Spy',
+      'Espionage',
     ])
   })
 })
