@@ -766,11 +766,8 @@ body {
   position: relative;
 }
 
-.cards-hotkey {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+/* Keyboard-hint badge (Space / Tab / Z) */
+kbd {
   font-size: 0.55rem;
   font-weight: 600;
   font-family: monospace;
@@ -781,6 +778,13 @@ body {
   padding: 0.1rem 0.35rem;
   line-height: 1;
   box-shadow: 0 1px 0 var(--border);
+}
+
+.cards-hotkey {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 1;
 }
 
@@ -895,15 +899,6 @@ body {
   position: absolute;
   top: 0.35rem;
   right: 0.35rem;
-  font-size: 0.55rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
 }
 
 .click-cards-hotkey {
@@ -911,16 +906,6 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 0.55rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
-  box-shadow: 0 1px 0 var(--border);
   z-index: 1;
 }
 
@@ -1132,7 +1117,7 @@ body {
 
 /* Hide keyboard hints on touch devices (no physical keyboard) */
 @media (pointer: coarse) {
-  .cards-hotkey {
+  kbd {
     display: none;
   }
 }
