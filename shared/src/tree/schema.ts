@@ -147,8 +147,8 @@ const AttackFlavorSchema = z.strictObject({
   description: z.string(),
 })
 
-/** Display data for an upgrade category: the name shown as the tree panel's title. */
-const CategoryFlavorSchema = z.strictObject({ id: z.string(), name: z.string() })
+/** Display data for an upgrade category: the tree panel's title and the ruler's icon. */
+const CategoryFlavorSchema = z.strictObject({ id: z.string(), name: z.string(), icon: z.string() })
 
 const PactFlavorSchema = z.strictObject({
   id: z.string(),

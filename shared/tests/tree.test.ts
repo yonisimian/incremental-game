@@ -50,7 +50,7 @@ function minimalTree(): TreeFile {
         generators: [],
         attacks: [],
         pacts: [],
-        categories: [{ id: 'c0', name: 'C0' }],
+        categories: [{ id: 'c0', name: 'C0', icon: '📁' }],
       },
     ],
     categories: [{ id: 'c0', upgrades: [] }],
@@ -145,8 +145,8 @@ describe('tree codec — categories', () => {
     ]
     tree.flavors[0].upgrades = [flavorFor('a'), flavorFor('b')]
     tree.flavors[0].categories = [
-      { id: 'c0', name: 'First' },
-      { id: 'c1', name: 'Second' },
+      { id: 'c0', name: 'First', icon: '📁' },
+      { id: 'c1', name: 'Second', icon: '📁' },
     ]
     return tree
   }
@@ -164,7 +164,7 @@ describe('tree codec — categories', () => {
   it('accepts an empty category', () => {
     const tree = twoCategories()
     tree.categories.push({ id: 'c2', upgrades: [] })
-    tree.flavors[0].categories.push({ id: 'c2', name: 'Empty' })
+    tree.flavors[0].categories.push({ id: 'c2', name: 'Empty', icon: '📁' })
     expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
@@ -175,7 +175,7 @@ describe('tree codec — categories', () => {
   it('rejects a duplicate category id', () => {
     const tree = twoCategories()
     tree.categories[1].id = 'c0'
-    tree.flavors[0].categories = [{ id: 'c0', name: 'First' }]
+    tree.flavors[0].categories = [{ id: 'c0', name: 'First', icon: '📁' }]
     expect(() => toModeDefinition(tree)).toThrow(/duplicate category id 'c0'/u)
   })
 
@@ -195,13 +195,13 @@ describe('tree codec — categories', () => {
 
   it('rejects a flavor missing a category name', () => {
     const tree = twoCategories()
-    tree.flavors[0].categories = [{ id: 'c0', name: 'First' }]
+    tree.flavors[0].categories = [{ id: 'c0', name: 'First', icon: '📁' }]
     expect(() => toModeDefinition(tree)).toThrow(/missing flavor for category 'c1'/u)
   })
 
   it('rejects a flavor naming an unknown category', () => {
     const tree = twoCategories()
-    tree.flavors[0].categories.push({ id: 'c9', name: 'Ghost' })
+    tree.flavors[0].categories.push({ id: 'c9', name: 'Ghost', icon: '📁' })
     expect(() => toModeDefinition(tree)).toThrow(/unknown category 'c9'/u)
   })
 

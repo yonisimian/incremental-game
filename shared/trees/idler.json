@@ -1055,39 +1055,48 @@
       "categories": [
         {
           "id": "c0",
-          "name": "Goal"
+          "name": "Goal",
+          "icon": "👑"
         },
         {
           "id": "c1",
-          "name": "Base Production"
+          "name": "Base Production",
+          "icon": "🌱"
         },
         {
           "id": "c2",
-          "name": "Global Production"
+          "name": "Global Production",
+          "icon": "🌳"
         },
         {
           "id": "c3",
-          "name": "Generators"
+          "name": "Generators",
+          "icon": "⚙️"
         },
         {
           "id": "c4",
-          "name": "Click"
+          "name": "Click",
+          "icon": "🖱️"
         },
         {
           "id": "c5",
-          "name": "Highlight"
+          "name": "Highlight",
+          "icon": "🔎"
         },
         {
           "id": "c6",
-          "name": "Attack"
+          "name": "Attack",
+          "icon": "💥"
         },
         {
           "id": "c7",
-          "name": "Diplomacy"
+          "name": "Diplomacy",
+          "icon": "🌍"
         },
         {
           "id": "c8",
-          "name": "Espionage"
+          "name": "Espionage",
+          "icon": "🕵"
         }
       ]
     }

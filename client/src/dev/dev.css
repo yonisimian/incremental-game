@@ -552,6 +552,11 @@ body {
   margin-top: 6px;
 }
 
+.ed-category-icon {
+  width: 3rem;
+  text-align: center;
+}
+
 .ed-category-name {
   width: 14rem;
   font-weight: 600;

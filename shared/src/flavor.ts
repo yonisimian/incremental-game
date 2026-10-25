@@ -36,6 +36,7 @@ const pactNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const pactIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const pactDescCache = new WeakMap<ModeFlavor, Map<string, string>>()
 const categoryNameCache = new WeakMap<ModeFlavor, Map<string, string>>()
+const categoryIconCache = new WeakMap<ModeFlavor, Map<string, string>>()
 
 function getOrBuild<K extends object>(
   wm: WeakMap<K, Map<string, string>>,
@@ -221,5 +222,17 @@ export function getCategoryName(flavor: ModeFlavor, id: string): string {
   )
   const v = m.get(id)
   if (v === undefined) warnMissing('category name', id)
+  return v ?? id
+}
+
+/** Return the icon for a category id within the given flavor. */
+export function getCategoryIcon(flavor: ModeFlavor, id: string): string {
+  const m = getOrBuild(
+    categoryIconCache,
+    flavor,
+    () => new Map((flavor.categories ?? []).map((c) => [c.id, c.icon])),
+  )
+  const v = m.get(id)
+  if (v === undefined) warnMissing('category icon', id)
   return v ?? id
 }

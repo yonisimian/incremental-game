@@ -32,6 +32,7 @@ function mount(): { tree: TreeFile; status: string[] } {
 
 const button = (id: string) => document.querySelector<HTMLButtonElement>(`#${id}`)!
 const nameField = () => document.querySelector<HTMLInputElement>('#ed-cat-name')!
+const iconField = () => document.querySelector<HTMLInputElement>('#ed-cat-icon')!
 const drawn = () =>
   [...document.querySelectorAll<HTMLElement>('.ed-node')].map((n) => n.dataset.nodeId)
 
@@ -84,11 +85,20 @@ describe('tree editor categories', () => {
     expect(tree.flavors[0].categories[0].name).toBe('Throne')
   })
 
+  it('sets the icon of the category on screen', () => {
+    const { tree } = mount()
+    expect(iconField().value).toBe('👑')
+    iconField().value = '🏆'
+    iconField().dispatchEvent(new Event('change'))
+    expect(tree.flavors[0].categories[0].icon).toBe('🏆')
+  })
+
   it('adds a category, switches to it, and deletes it while empty', () => {
     const { tree } = mount()
     const before = tree.categories.length
     button('ed-cat-add').click()
     expect(tree.categories).toHaveLength(before + 1)
+    expect(iconField().value).toBe('📁')
     expect(drawn()).toEqual([])
     expect(button('ed-cat-delete').disabled).toBe(false)
     button('ed-cat-delete').click()

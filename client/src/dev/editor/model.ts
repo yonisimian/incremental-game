@@ -473,26 +473,31 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
 
 // ─── Categories ──────────────────────────────────────────────────────
 //
-// Categories group the top-level nodes; their names live in every flavor's
-// `categories` table, kept in sync with the mechanics list so the tree stays
+// Categories group the top-level nodes; their names and icons live in every
+// flavor's `categories` table, kept in sync with the mechanics list so the tree stays
 // loadable (the runtime rejects a missing or orphaned name). Array order is the
 // order the game's arrows step through.
 
-/** An editable category row: id + primary-flavor name + how many nodes it holds. */
+/** An editable category row: id + primary-flavor name and icon + how many nodes it holds. */
 export interface CategoryRow {
   readonly id: string
   readonly name: string
+  readonly icon: string
   readonly size: number
 }
 
+/** The icon a new category starts with. */
+export const DEFAULT_CATEGORY_ICON = '📁'
+
 /** Every category in order, named from the primary flavor. */
 export function listCategories(tree: TreeFile): CategoryRow[] {
-  const names = new Map((tree.flavors[0]?.categories ?? []).map((c) => [c.id, c.name]))
+  const flavor = new Map((tree.flavors[0]?.categories ?? []).map((c) => [c.id, c]))
   const sizes = new Map<string, number>()
   for (const p of walkPositioned(tree)) sizes.set(p.category, (sizes.get(p.category) ?? 0) + 1)
   return tree.categories.map((c) => ({
     id: c.id,
-    name: names.get(c.id) ?? c.id,
+    name: flavor.get(c.id)?.name ?? c.id,
+    icon: flavor.get(c.id)?.icon ?? DEFAULT_CATEGORY_ICON,
     size: sizes.get(c.id) ?? 0,
   }))
 }
@@ -504,7 +509,9 @@ export function addCategory(tree: TreeFile): string {
   while (taken.has(`c${n}`)) n++
   const id = `c${n}`
   tree.categories.push({ id, upgrades: [] })
-  for (const flavor of tree.flavors) flavor.categories.push({ id, name: id })
+  for (const flavor of tree.flavors) {
+    flavor.categories.push({ id, name: id, icon: DEFAULT_CATEGORY_ICON })
+  }
   return id
 }
 
@@ -513,7 +520,16 @@ export function renameCategory(tree: TreeFile, id: string, name: string): void {
   for (const flavor of tree.flavors) {
     const entry = flavor.categories.find((c) => c.id === id)
     if (entry) entry.name = name
-    else flavor.categories.push({ id, name })
+    else flavor.categories.push({ id, name, icon: DEFAULT_CATEGORY_ICON })
+  }
+}
+
+/** Set a category's icon in every flavor. */
+export function setCategoryIcon(tree: TreeFile, id: string, icon: string): void {
+  for (const flavor of tree.flavors) {
+    const entry = flavor.categories.find((c) => c.id === id)
+    if (entry) entry.icon = icon
+    else flavor.categories.push({ id, name: id, icon })
   }
 }
 

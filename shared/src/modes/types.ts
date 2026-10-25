@@ -71,8 +71,10 @@ export interface PactFlavor {
 export interface CategoryFlavor {
   /** Category id (matches CategoryDefinition.id). */
   readonly id: string
-  /** Display name, shown as the upgrade tree's title (e.g. 'Warfare'). */
+  /** Display name, shown as the upgrade tree's title (e.g. 'Attack'). */
   readonly name: string
+  /** Icon on the category's button in the tree's ruler. */
+  readonly icon: string
 }
 
 /** Cosmetic skin for a mode — all display strings, icons, labels. */

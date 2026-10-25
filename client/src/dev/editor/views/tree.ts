@@ -28,6 +28,8 @@ import {
   listCategories,
   addCategory,
   renameCategory,
+  setCategoryIcon,
+  DEFAULT_CATEGORY_ICON,
   moveCategory,
   removeCategory,
   moveToCategory,
@@ -61,6 +63,8 @@ function buildLayout(): string {
       </div>
       <div class="ed-tree-toolbar ed-category-bar">
         <button id="ed-cat-prev" class="ed-btn" title="Previous category">◀</button>
+        <input id="ed-cat-icon" class="ed-input ed-category-icon" type="text"
+               aria-label="Category icon" />
         <input id="ed-cat-name" class="ed-input ed-category-name" type="text"
                aria-label="Category name" />
         <button id="ed-cat-next" class="ed-btn" title="Next category">▶</button>
@@ -138,6 +142,7 @@ export function createTreeView(): EditorView {
       const deleteBtn = host.querySelector<HTMLButtonElement>('#ed-delete-btn')!
       const catPrev = host.querySelector<HTMLButtonElement>('#ed-cat-prev')!
       const catNext = host.querySelector<HTMLButtonElement>('#ed-cat-next')!
+      const catIcon = host.querySelector<HTMLInputElement>('#ed-cat-icon')!
       const catName = host.querySelector<HTMLInputElement>('#ed-cat-name')!
       const catAll = host.querySelector<HTMLInputElement>('#ed-cat-all')!
       const catAdd = host.querySelector<HTMLButtonElement>('#ed-cat-add')!
@@ -163,8 +168,9 @@ export function createTreeView(): EditorView {
         const i = rows.findIndex((r) => r.id === categoryId)
         const row = i >= 0 ? rows[i] : null
         catAll.checked = categoryId === null
-        catName.disabled = row === null
+        catName.disabled = catIcon.disabled = row === null
         catName.value = row ? row.name : 'All categories'
+        catIcon.value = row ? row.icon : ''
         catPrev.disabled = catNext.disabled = row === null || rows.length < 2
         catEarlier.disabled = row === null || i === 0
         catLater.disabled = row === null || i === rows.length - 1
@@ -290,6 +296,14 @@ export function createTreeView(): EditorView {
         renameCategory(tree, categoryId, catName.value.trim() || categoryId)
         ctx.markDirty()
         ctx.setStatus(`Renamed ${categoryId}`)
+        syncCategoryBar()
+      })
+
+      catIcon.addEventListener('change', () => {
+        if (categoryId === null) return
+        setCategoryIcon(tree, categoryId, catIcon.value.trim() || DEFAULT_CATEGORY_ICON)
+        ctx.markDirty()
+        ctx.setStatus(`Set ${categoryId}'s icon`)
         syncCategoryBar()
       })
 
