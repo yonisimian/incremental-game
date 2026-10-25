@@ -1196,6 +1196,12 @@ body {
   stroke: var(--accent);
 }
 
+/* A short dashed stub toward a hidden upgrade (Hidden visibility mode): there's
+   more this way, but not where it ends. */
+.tree-edges line.stub {
+  stroke-dasharray: 4 6;
+}
+
 /* Tree nodes — fixed-size, icon-only buttons centered on their coords.
    Clicking opens the detail popup (Buy/Cancel), so nodes are never disabled. */
 .upgrade-btn.tree-node {
@@ -1251,6 +1257,61 @@ body {
 .upgrade-btn.tree-node.locked-by-attack {
   filter: grayscale(0.4) brightness(0.7);
   box-shadow: 0 0 0 2px var(--danger);
+}
+
+/* A node that just became visible (Hidden / Peek visibility modes) pops in
+   with an accent ring, so the player notices it. Two animations: the pop
+   (scale) and the ring. Reduced motion drops the pop and redefines the ring
+   to fade in place instead of growing. The ring always runs, and its
+   `animationend` ends the pulse in upgrade-tree-panel.ts.
+   The node is centered by its transform, so the pop's keyframes repeat the
+   translate or the node would jump. The ring is an outline, not a box-shadow,
+   so it doesn't hide the `locked-by-attack` danger ring. */
+.upgrade-btn.tree-node.revealed {
+  animation-name: tree-reveal-pop, tree-reveal-ring;
+  animation-duration: 0.9s;
+  animation-timing-function: ease-out;
+}
+
+@keyframes tree-reveal-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes tree-reveal-ring {
+  0% {
+    outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 0;
+  }
+  100% {
+    outline: 3px solid color-mix(in srgb, var(--accent) 0%, transparent);
+    outline-offset: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-btn.tree-node.revealed {
+    animation-name: tree-reveal-ring;
+  }
+
+  /* Same name, so it replaces the growing ring above and still ends the pulse. */
+  @keyframes tree-reveal-ring {
+    0% {
+      outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      outline-offset: 4px;
+    }
+    100% {
+      outline: 3px solid color-mix(in srgb, var(--accent) 0%, transparent);
+      outline-offset: 4px;
+    }
+  }
 }
 
 /* Upgrade detail popup — overlays the tree viewport with Buy/Cancel actions. */
@@ -2315,8 +2376,17 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.settings-section:last-of-type {
+.settings-section:has(+ .settings-preview) {
   margin-bottom: 1rem;
+}
+
+/* A section after the number preview (Upgrade Tree) needs its own gap above. */
+.settings-preview + .settings-section {
+  margin-top: 1.5rem;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
 }
 
 .settings-section-title {
@@ -2374,6 +2444,12 @@ body {
   font-size: 0.75rem;
   font-family: monospace;
   color: var(--text-dim);
+}
+
+/* A worded example (not a formatted number) reads better in the body font. */
+.chip-example.chip-text {
+  font-family: inherit;
+  text-align: center;
 }
 
 .settings-chip.selected .chip-example {
