@@ -1,6 +1,18 @@
 # 53 — Category navigation and names
 
-## Status: Planned
+## Status: Implemented
+
+Built as planned, with these differences:
+
+- **Fit margin.** The fit adds `FIT_MARGIN` (64 world px) around the nodes'
+  centers instead of a separate node size and padding.
+- **Bar.** The columns are `1fr 1.5fr 1fr`. The bar also stretches to the
+  panel's full width, because the panel centers its children and the bar
+  would otherwise shrink to its text.
+- **Ruler.** It wraps instead of scrolling: a horizontal scroll container
+  also clipped the buttons vertically.
+- **Tests.** The tree-file test of the categories' roots lives in
+  `shared/tests/upgrade-tree.test.ts`, next to the existing category test.
 
 Follows [52 — per-category upgrade sub-trees](52-upgrade-category-subtrees.md)
 (PR #178). Lands on the same branch, `feat/upgrade-category-subtrees`.
