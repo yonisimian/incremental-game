@@ -78,3 +78,14 @@ test('PREF-04 Web Share receives the exact invite payload', async ({ players }) 
     url: `http://127.0.0.1:4173/?room=${code}`,
   })
 })
+
+test('PREF-05 about dialog opens from the lobby and closes', async ({ players }) => {
+  const player = await players.create('About')
+  await player.open()
+
+  await player.page.getByRole('button', { name: 'About', exact: true }).click()
+  await expect(player.page.getByRole('heading', { name: 'About' })).toBeVisible()
+  await expect(player.page.locator('#about-overlay')).toContainText('head-to-head')
+  await player.page.getByRole('button', { name: 'Close' }).click()
+  await expect(player.page.locator('#about-overlay')).toHaveCount(0)
+})

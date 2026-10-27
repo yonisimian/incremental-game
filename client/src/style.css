@@ -2157,7 +2157,7 @@ kbd {
   color: var(--accent);
 }
 
-/* ─── Modal (settings, report a bug) ───────────────────────────────── */
+/* ─── Modal (settings, report a bug, about) ────────────────────────── */
 
 .modal-overlay {
   position: fixed;
@@ -2235,11 +2235,13 @@ kbd {
 
 /* ─── Report a Bug Modal ───────────────────────────────────────────── */
 
-.report-body {
+.report-body,
+.about-body {
   text-align: left;
 }
 
-.report-body p {
+.report-body p,
+.about-body p {
   margin: 0 0 0.75rem;
   font-size: 0.95rem;
   line-height: 1.5;
@@ -2321,6 +2323,42 @@ kbd {
 /* Scoped per-theme overrides. Add theme-specific rules here. */
 .theme-medieval {
   /* idler mode */
+}
+
+/* ─── About Button ─────────────────────────────────────────────────── */
+
+.about-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    transform 0.2s;
+}
+
+.about-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--accent);
+}
+
+.about-btn:active {
+  transform: scale(0.92);
 }
 
 /* ─── Settings Gear Button ─────────────────────────────────────────── */
