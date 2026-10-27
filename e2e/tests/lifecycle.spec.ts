@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures/test.js'
 import {
   finishTargetMatch,
+  resign,
   startBotMatch,
   startRoom,
   startRoomMatch,
@@ -103,7 +104,7 @@ test('LIFE-05 resigning mid-match shows both players the resign end screen', asy
   await Promise.all([first.open(), second.open()])
   await startRoomMatch(first, second, { type: 'timed', durationSec: 35 })
 
-  await first.page.locator('#resign-btn').click()
+  await resign(first.page)
   await waitForEnded(first)
   await expect(first.page.locator('.result')).toContainText('You Resigned')
   await expect(first.page.locator('#rematch-btn')).toBeVisible()
@@ -135,7 +136,7 @@ test('LIFE-08 concurrent matches never cross names, scores, or quits', async ({ 
 
   await expect(a1.page.locator('.playing-screen')).toContainText('Iso-A2')
   await expect(a1.page.locator('.playing-screen')).not.toContainText('Iso-B2')
-  await b1.page.locator('#resign-btn').click()
+  await resign(b1.page)
   await waitForEnded(b2)
   await expect(a1.page.locator('.playing-screen')).toBeVisible()
   await expect(a2.page.locator('.playing-screen')).toBeVisible()

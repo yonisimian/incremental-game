@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { test, expect } from './fixtures/test.js'
-import { buyUpgrade, startBotMatch } from './fixtures/journeys.js'
+import { buyUpgrade, resign, startBotMatch } from './fixtures/journeys.js'
 
 const TREE_PATH = resolve(import.meta.dirname, '../../shared/trees/idler.json')
 
@@ -116,7 +116,7 @@ test('DEV-05 real BroadcastChannel streams a live game into the dev tab', async 
 
   await expect(dev.page.locator('#live-status')).toContainText(/Recording|Round/u)
   await expect(dev.page.locator('#live-chart-score canvas')).not.toHaveCount(0)
-  await game.page.locator('#resign-btn').click()
+  await resign(game.page)
   await expect(dev.page.locator('#live-status')).toContainText(/ended|final/iu)
 })
 

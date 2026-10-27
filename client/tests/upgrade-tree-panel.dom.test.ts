@@ -148,6 +148,19 @@ describe('upgrade tree panel visibility modes', () => {
     expect(stubs()).toBe(0)
   })
 
+  it('re-seeds when the setting changes mid-match, so Full → Hidden actually hides', () => {
+    mountTree(inMatch('switch', makeState(0)))
+    expect(nodeOf('g1-dp')).not.toBeNull()
+
+    // Changed from the in-match Settings panel; the tree re-renders on tab switch.
+    setTreeVisibility('hidden')
+    document.body.innerHTML = ''
+    mountTree(inMatch('switch', makeState(0)))
+
+    expect(document.querySelector('[data-upgrade="g1-af"]')).toBeNull()
+    expect(nodeOf('g1-g2').classList.contains('revealed')).toBe(false)
+  })
+
   it('full: shows every upgrade, as before', () => {
     mountTree(inMatch('full', makeState(0)))
     expect(nodeOf('g1-dp')).not.toBeNull()

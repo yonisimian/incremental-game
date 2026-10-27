@@ -4,6 +4,7 @@ import {
   createRoom,
   earn,
   openPanel,
+  resign,
   startBotMatch,
   startRoomMatch,
   unlockClicking,
@@ -87,7 +88,11 @@ test('INPUT-03 C, P, F6, and Escape execute their context-specific behavior', as
   await player.page.locator('[data-upgrade="be-mf-mr"]').click()
   await player.page.keyboard.press('Escape')
   await expect(player.page.locator('#upgrade-detail')).toHaveCount(0)
+  // Escape opens the Settings panel; resigning still takes the explicit two clicks.
   await player.page.keyboard.press('Escape')
+  await expect(player.page.locator('#tab-9')).toHaveAttribute('aria-selected', 'true')
+  await expect(player.page.locator('.playing-screen')).toBeVisible()
+  await resign(player.page)
   await waitForEnded(player)
   await expect(player.page.locator('.result')).toContainText('You Resigned')
 })
@@ -103,9 +108,10 @@ test('INPUT-04 tablist arrows, Home, and End move focus and selection', async ({
   await first.press('ArrowRight')
   await expect(actor.page.locator('#tab-1')).toBeFocused()
   await expect(actor.page.locator('#tab-1')).toHaveAttribute('aria-selected', 'true')
+  // End reaches the Settings tab, pinned bottom-right past the empty slots.
   await actor.page.locator('#tab-1').press('End')
-  await expect(actor.page.locator('#tab-6')).toBeFocused()
-  await actor.page.locator('#tab-6').press('Home')
+  await expect(actor.page.locator('#tab-9')).toBeFocused()
+  await actor.page.locator('#tab-9').press('Home')
   await expect(first).toBeFocused()
 })
 

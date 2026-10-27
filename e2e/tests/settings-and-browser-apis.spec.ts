@@ -13,7 +13,7 @@ test('PREF-01 number settings persist through close and reload', async ({ player
 
   await player.page.locator('[data-notation="name"]').click()
   await player.page.locator('[data-decimal="comma"]').click()
-  await expect(player.page.locator('#settings-preview')).toContainText(',')
+  await expect(player.page.locator('#settings-overlay .preview-value')).toContainText(',')
   await player.page.getByRole('button', { name: 'Close' }).click()
   await expect(player.page.locator('#settings-overlay')).toHaveCount(0)
 

@@ -2,7 +2,12 @@ import { getModeDefinition } from '@game/shared'
 import type { Panel } from '../panels.js'
 import { type GameState, startingPlayer } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
-import { getTreeVisibility, unlockedUpgradeIds, visibleUpgradeIds } from '../tree-visibility.js'
+import {
+  type TreeVisibility,
+  getTreeVisibility,
+  unlockedUpgradeIds,
+  visibleUpgradeIds,
+} from '../tree-visibility.js'
 import { bindUpgradeEvents } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
@@ -47,6 +52,8 @@ let prevHtml = ''
 
 let seenIds = new Set<string>()
 const pulsing = new Set<string>()
+/** The visibility mode `seenIds` was seeded under; a mid-match change re-seeds it. */
+let seenMode: TreeVisibility | null = null
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -62,17 +69,19 @@ function trackReveals(visible: ReadonlySet<string>): void {
 /**
  * Render the tree as the player's visibility setting shows it, plus anything
  * already shown this match. On a new match, what the round started with counts
- * as already seen, so it never pulses. Full mode can't hide or pulse anything,
- * so it renders the plain tree.
+ * as already seen, so it never pulses. Changing the setting mid-match (from the
+ * Settings panel) re-seeds from what the new mode shows right now, so switching
+ * Full → Hidden actually hides, and nothing pulses. Full mode can't hide or
+ * pulse anything, so it renders the plain tree.
  */
 function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
   const mode = getTreeVisibility()
-  if (newMatch) {
-    const start = {
-      upgrades: state.upgrades,
-      player: startingPlayer(getModeDefinition(state.mode!)),
-    }
-    seenIds = new Set(visibleUpgradeIds(start, mode))
+  if (newMatch || mode !== seenMode) {
+    const source = newMatch
+      ? { upgrades: state.upgrades, player: startingPlayer(getModeDefinition(state.mode!)) }
+      : state
+    seenIds = new Set(visibleUpgradeIds(source, mode))
+    seenMode = mode
     pulsing.clear()
   }
   if (mode === 'full') return renderUpgradeTree(state)

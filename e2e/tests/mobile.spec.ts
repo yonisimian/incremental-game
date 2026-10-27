@@ -29,6 +29,8 @@ test('MOB-02 primary controls remain usable in portrait and landscape', async ({
     { width: 915, height: 412 },
   ]) {
     await player.page.setViewportSize(viewport)
+    // Resign lives in the Settings panel (bottom-right tab).
+    await openPanel(player.page, 9)
     for (const locator of [
       player.page.locator('#resign-btn'),
       player.page.locator('#tab-grid'),

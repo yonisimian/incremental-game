@@ -8,6 +8,7 @@ import { upgradeTreePanel } from './panels/upgrade-tree-panel.js'
 import { attackPanel } from './panels/attack-panel.js'
 import { internationalRelationshipPanel } from './panels/international-relationship-panel.js'
 import { espionagePanel } from './panels/espionage-panel.js'
+import { settingsPanel } from './panels/settings-panel.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -26,6 +27,12 @@ export const ALL_PANELS = [
   internationalRelationshipPanel,
   espionagePanel,
 ] as const
+
+/**
+ * The Settings panel's fixed slot: the bottom-right tab of the 5×2 grid, so it
+ * sits in the same place in every mode (and Ctrl+0 / Escape reach it).
+ */
+export const SETTINGS_PANEL_INDEX = 9
 
 // ─── Public API ──────────────────────────────────────────────────────
 
@@ -61,6 +68,13 @@ export function getModeUI(mode: GameMode): ModeUI {
 
   // Analytics panel — always available (no gate), placed last.
   panels.push({ index: panels.length, panel: dataPanel })
+
+  // Settings — always available, pinned to its own slot. Deliberately not in
+  // ALL_PANELS: no upgrade may gate it.
+  if (panels.length > SETTINGS_PANEL_INDEX) {
+    throw new Error(`Mode "${mode}" has too many panels: slot ${SETTINGS_PANEL_INDEX} is Settings`)
+  }
+  panels.push({ index: SETTINGS_PANEL_INDEX, panel: settingsPanel })
 
   return { panels }
 }

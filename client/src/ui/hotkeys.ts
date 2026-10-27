@@ -10,6 +10,7 @@ import {
 } from '../game.js'
 import { canBuy } from './helpers.js'
 import { switchToPanel, switchToPanelRelative } from './panels.js'
+import { SETTINGS_PANEL_INDEX } from './mode-ui.js'
 import { isUpgradeDetailOpen, closeUpgradeDetail } from './upgrade-detail.js'
 import {
   getModeDefinition,
@@ -36,17 +37,27 @@ export function initHotkeys(): void {
 
     // Don't intercept keystrokes while typing in an input
     const target = e.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-      return
+    if (isTextEntry(target)) return
 
-    // ── Escape — context-sensitive resign/back (screen-agnostic) ──
+    // ── Escape — context-sensitive settings/resign/back (screen-agnostic) ──
     if (e.key === 'Escape') {
-      // An open upgrade-detail popup takes priority — close it, don't resign.
+      // An open upgrade-detail popup takes priority — close it first.
       if (isUpgradeDetailOpen()) {
         closeUpgradeDetail()
         return
       }
-      if (state.screen === 'playing' || state.screen === 'countdown') {
+      if (state.screen === 'playing') {
+        // Resign lives in the Settings panel, behind a confirm — Escape only gets you there.
+        // Tab is blocked game-wide, so a second Escape (Settings already open) focuses
+        // Resign itself: Enter then arms and confirms it without a mouse.
+        const resignBtn = document.getElementById('resign-btn')
+        if (resignBtn) {
+          resignBtn.focus()
+        } else {
+          switchToPanel(SETTINGS_PANEL_INDEX)
+          document.getElementById(`tab-${SETTINGS_PANEL_INDEX}`)?.focus()
+        }
+      } else if (state.screen === 'countdown') {
         resignMatch()
       } else if (state.screen === 'waiting' || state.screen === 'room') {
         cancelQueue()
@@ -146,4 +157,16 @@ export function initHotkeys(): void {
       return
     }
   })
+}
+
+const NON_TEXT_INPUT_TYPES = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset'])
+
+/**
+ * Whether `el` takes typed text, so hotkeys must leave its keystrokes alone.
+ * Sliders, checkboxes and the like don't — a focused volume slider must not
+ * swallow Space or Escape.
+ */
+function isTextEntry(el: HTMLElement): boolean {
+  if (el.tagName === 'TEXTAREA' || el.isContentEditable) return true
+  return el.tagName === 'INPUT' && !NON_TEXT_INPUT_TYPES.has((el as HTMLInputElement).type)
 }
