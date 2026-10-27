@@ -367,6 +367,9 @@ Files: `boot.spec.ts`, `settings-and-browser-apis.spec.ts`.
 Share button, and verify the exact title/URL payload. This proves the capability branch;
 the native operating-system chooser remains outside browser automation.
 
+**PREF-05 — About dialog:** open it from the lobby's "i" button, see its heading and text,
+and close it.
+
 Formatter edge cases and storage-schema migration remain unit tests; E2E proves only the
 browser persistence and event wiring.
 

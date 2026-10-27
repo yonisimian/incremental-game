@@ -1,5 +1,6 @@
 import { quickMatch, createRoom, joinRoom, getState, setPlayerName } from '../game.js'
 import { app, escapeAttr } from './helpers.js'
+import { openAbout } from './about-modal.js'
 import { openSettings } from './settings-modal.js'
 
 export function renderLobbyScreen(): void {
@@ -11,6 +12,7 @@ export function renderLobbyScreen(): void {
 
   app.innerHTML = `
     <div class="screen lobby-screen">
+      <button class="about-btn" id="about-btn" aria-label="About" title="About">i</button>
       <button class="settings-gear" id="settings-btn" aria-label="Settings">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -58,6 +60,7 @@ export function renderLobbyScreen(): void {
     setPlayerName((e.target as HTMLInputElement).value)
   })
 
+  document.getElementById('about-btn')!.addEventListener('click', openAbout)
   document.getElementById('settings-btn')!.addEventListener('click', openSettings)
 
   document.getElementById('quick-match-btn')!.addEventListener('click', (e) => {
