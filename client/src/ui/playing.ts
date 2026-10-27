@@ -1,5 +1,5 @@
 import type { GameState } from '../game.js'
-import { externalModifiers, resignMatch, togglePause } from '../game.js'
+import { externalModifiers, togglePause } from '../game.js'
 import {
   collectModifiers,
   computePassiveRates,
@@ -10,8 +10,6 @@ import type { ModeDefinition, ModeFlavor } from '@game/shared'
 import {
   renderTimer,
   renderProgressBars,
-  renderResignButton,
-  syncResignButton,
   renderPauseButton,
   syncPauseButton,
 } from './components.js'
@@ -127,7 +125,6 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     <div class="screen playing-screen ${themeClass}">
       <div class="playing-top">
         <header class="game-header">
-          ${renderResignButton(state)}
           ${renderPauseButton(state)}
           ${renderTimer(state)}
           ${renderProgressBars(state)}
@@ -146,7 +143,6 @@ export function renderPlayingScreen(state: Readonly<GameState>): void {
     </div>
   `
 
-  document.getElementById('resign-btn')!.addEventListener('click', resignMatch)
   document.getElementById('pause-btn')?.addEventListener('click', togglePause)
   bindTabEvents()
   renderActivePanel(state)
@@ -173,7 +169,6 @@ export function updatePlaying(state: Readonly<GameState>): void {
     pauseBanner.textContent = state.paused ? 'PAUSED' : ''
   }
 
-  syncResignButton(state)
   syncPauseButton(state)
 
   // Amounts, scores and the timer are painted by the counters; only the rates are written here.

@@ -2466,6 +2466,65 @@ kbd {
   color: var(--accent);
 }
 
+.settings-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-slider {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 3rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-slider input {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.slider-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.slider-value {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* ─── Settings Panel (in-match) ────────────────────────────────────── */
+
+.settings-panel {
+  width: 100%;
+  max-width: 32rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+/* Resign leads the panel, set apart from the preferences by a divider. */
+.settings-match {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-match .quit-btn {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* Armed: the next click resigns. */
+.settings-match .quit-btn.confirming {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
 /* ─── Data Panel ─────────────────────────────────────────────────────── */
 
 .data-panel {

@@ -1,7 +1,7 @@
 import { AxeBuilder } from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures/test.js'
-import { createRoom, openPanel, startRoom, waitForEnded } from './fixtures/journeys.js'
+import { createRoom, openPanel, resign, startRoom, waitForEnded } from './fixtures/journeys.js'
 
 async function expectNoSeriousViolations(page: Page, state: string): Promise<void> {
   const results = await new AxeBuilder({ page }).analyze()
@@ -50,7 +50,10 @@ test('A11Y-01 major player screens have no serious or critical axe violations @c
   await expectNoSeriousViolations(first.page, 'upgrade detail')
   await first.page.locator('#upgrade-detail-cancel').click()
 
-  await second.page.locator('#resign-btn').click()
+  await openPanel(first.page, 9)
+  await expectNoSeriousViolations(first.page, 'settings panel')
+
+  await resign(second.page)
   await waitForEnded(first)
   await first.page.mouse.move(0, 0)
   await first.page.locator('.end-actions').evaluate(async (actions) => {
