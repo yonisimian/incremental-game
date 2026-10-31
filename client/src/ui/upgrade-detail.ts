@@ -11,7 +11,7 @@ import {
   readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
-import { formatUpgradeCost, escapeAttr, purchaseLockCountdown } from './helpers.js'
+import { formatUpgradeCost, escapeAttr, purchaseLockCountdown, treeGateReason } from './helpers.js'
 import { countdownAttrs } from './counters.js'
 import { formatCountdown } from './format-number.js'
 import type { Countdown } from './format-number.js'
@@ -19,12 +19,13 @@ import type { Countdown } from './format-number.js'
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
 // A modal detail view for a single upgrade, opened by clicking a tree node.
-// Shows name / cost / description / lock reason with Buy + Cancel actions.
-// Mounted inside `#tree-viewport` (which is `position: relative; overflow:
+// Shows name / cost / description / lock reason with Buy + Cancel actions, or
+// just Close when opened read-only from the pre-game tree reader.
+// Mounted inside the tree viewport (which is `position: relative; overflow:
 // hidden`), so it overlays the tree and is wiped automatically when the panel
 // re-renders. `resetUpgradeDetail()` clears module state for that case.
 
-/** Host element the popup mounts into. The tree viewport overlays the canvas. */
+/** The in-game tree's viewport — the default host the popup mounts into. */
 const HOST_ID = 'tree-viewport'
 
 let openId: string | null = null
@@ -47,11 +48,29 @@ function findUpgrade(state: Readonly<GameState>, id: string): UpgradeDefinition 
   return state.upgrades.find((u) => u.id === id)
 }
 
-function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailView {
+/** How {@link openUpgradeDetail} describes the upgrade. */
+export interface UpgradeDetailOptions {
+  /** The state to describe; absent = the live game's. */
+  readonly state?: Readonly<GameState>
+  /**
+   * Describe the upgrade without offering to buy it (the pre-game tree reader):
+   * no Buy button, and only the gating that holds for every player
+   * (`treeGateReason`).
+   */
+  readonly readOnly?: boolean
+  /** The tree viewport to overlay; absent = the in-game tree's. */
+  readonly host?: HTMLElement
+}
+
+function computeView(
+  state: Readonly<GameState>,
+  u: UpgradeDefinition,
+  readOnly = false,
+): DetailView {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
   const owned = state.player.upgrades[u.id] ?? 0
-  const reason = upgradeBlockReason(state, u.id)
+  const reason = readOnly ? treeGateReason(u) : upgradeBlockReason(state, u.id)
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -95,7 +114,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   }
 }
 
-function renderMarkup(v: DetailView): string {
+function renderMarkup(v: DetailView, readOnly: boolean): string {
   const level = v.levelLabel
     ? `<span class="upgrade-detail-level">${escapeAttr(v.levelLabel)}</span>`
     : ''
@@ -103,6 +122,9 @@ function renderMarkup(v: DetailView): string {
     ? `<p class="upgrade-detail-lock" id="upgrade-detail-lock"${countdownAttrs(v.lockCountdown)}>${escapeAttr(v.lockReason)}</p>`
     : ''
   const buyDisabled = v.buyable ? '' : 'disabled'
+  const buy = readOnly
+    ? ''
+    : `<button class="upgrade-detail-buy" id="upgrade-detail-buy" ${buyDisabled}>Buy</button>`
   return `
     <div class="upgrade-detail-backdrop" id="upgrade-detail-backdrop">
       <div class="upgrade-detail" id="upgrade-detail" role="dialog" aria-modal="true"
@@ -118,8 +140,8 @@ function renderMarkup(v: DetailView): string {
         <p class="upgrade-detail-desc">${escapeAttr(v.description)}</p>
         ${lock}
         <div class="upgrade-detail-actions">
-          <button class="upgrade-detail-buy" id="upgrade-detail-buy" ${buyDisabled}>Buy</button>
-          <button class="upgrade-detail-cancel" id="upgrade-detail-cancel">Cancel</button>
+          ${buy}
+          <button class="upgrade-detail-cancel" id="upgrade-detail-cancel">${readOnly ? 'Close' : 'Cancel'}</button>
         </div>
       </div>
     </div>
@@ -153,10 +175,10 @@ function onBackdropKeydown(e: KeyboardEvent): void {
 }
 
 /** Open the detail popup for the given upgrade id. No-op if host is absent. */
-export function openUpgradeDetail(upgradeId: string): void {
-  const host = document.getElementById(HOST_ID)
+export function openUpgradeDetail(upgradeId: string, options: UpgradeDetailOptions = {}): void {
+  const host = options.host ?? document.getElementById(HOST_ID)
   if (!host) return
-  const state = getState()
+  const { state = getState(), readOnly = false } = options
   const u = findUpgrade(state, upgradeId)
   if (!u) return
 
@@ -165,7 +187,7 @@ export function openUpgradeDetail(upgradeId: string): void {
   openId = upgradeId
   lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
-  host.insertAdjacentHTML('beforeend', renderMarkup(computeView(state, u)))
+  host.insertAdjacentHTML('beforeend', renderMarkup(computeView(state, u, readOnly), readOnly))
 
   const backdrop = document.getElementById('upgrade-detail-backdrop')
   const dialog = document.getElementById('upgrade-detail')

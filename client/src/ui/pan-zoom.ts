@@ -42,6 +42,32 @@ export interface PanZoomHandle {
   getState: () => Readonly<PanZoomState>
 }
 
+/** A world-space box, e.g. the tree's node positions. */
+interface WorldBounds {
+  readonly minX: number
+  readonly maxX: number
+  readonly minY: number
+  readonly maxY: number
+}
+
+/**
+ * The pan that puts `bounds`' center in the middle of `viewport` at `zoom`.
+ * Measures with client sizes, not the bounding rect: they ignore transforms on
+ * ancestors (a dialog's opening scale), and they exclude the border, as the
+ * canvas's origin does.
+ */
+export function centeredPanZoom(
+  viewport: HTMLElement,
+  bounds: WorldBounds,
+  zoom: number,
+): PanZoomState {
+  return {
+    panX: viewport.clientWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom,
+    panY: viewport.clientHeight / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom,
+    zoom,
+  }
+}
+
 /** Drag distance threshold in screen pixels — beyond this, suppress the trailing click. */
 const DRAG_CLICK_THRESHOLD = 5
 

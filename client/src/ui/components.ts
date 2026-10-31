@@ -4,6 +4,7 @@ import {
   escapeAttr,
   formatUpgradeCost,
   isUnlocked,
+  treeGateReason,
   formatTime,
   formatScore,
   playerDisplayName,
@@ -137,7 +138,7 @@ export interface TreeBounds {
 }
 
 /** Output of `renderUpgradeTree` — separate edges and nodes layers + bounds. */
-interface UpgradeTreeRender {
+export interface UpgradeTreeRender {
   readonly edgesSvg: string
   readonly nodes: string
   readonly bounds: TreeBounds
@@ -153,12 +154,17 @@ interface UpgradeTreeRender {
  * - `pulsing` — ids that just became visible; they get the `revealed` class.
  * - `unlocked` — ids whose prerequisites are met, when the caller already
  *   computed them (`unlockedUpgradeIds`); absent = checked per upgrade here.
+ * - `plain` — style nodes by `treeGateReason` instead of a player's purchase
+ *   state (the pre-game reader has no player to judge against). Only
+ *   coming-soon reads as locked: prerequisites already show as edges, and
+ *   dimming every gated node would make the tree hard to read.
  */
 export interface UpgradeTreeOptions {
   readonly visible?: ReadonlySet<string>
   readonly stubs?: boolean
   readonly pulsing?: ReadonlySet<string>
   readonly unlocked?: ReadonlySet<string>
+  readonly plain?: boolean
 }
 
 /**
@@ -284,8 +290,9 @@ export function renderUpgradeTree(
     .map((u) => {
       if (!u.position || !isVisible(u.id)) return ''
       const maxed = isMaxed(u, state.player.upgrades[u.id] ?? 0)
-      const reason = upgradeBlockReason(state, u.id)
-      const stateClass = reason === null ? '' : NODE_STATE_CLASS[reason]
+      const reason = options.plain ? treeGateReason(u) : upgradeBlockReason(state, u.id)
+      const dimmed = reason !== null && !(options.plain && reason === 'prerequisite')
+      const stateClass = dimmed ? NODE_STATE_CLASS[reason] : ''
       // Just became visible — pulses once (see the panel's reveal tracking).
       const cls = options.pulsing?.has(u.id) ? ' revealed' : ''
 

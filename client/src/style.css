@@ -2277,6 +2277,66 @@ kbd {
   cursor: default;
 }
 
+/* ─── About Modal + Upgrade Tree Reader ────────────────────────────── */
+
+.about-tree-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.about-tree-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The tree needs the room: a near-full-screen dialog whose stage takes
+   whatever height the header, chips and hint leave. */
+.modal.modal-wide {
+  width: 95%;
+  max-width: 1100px;
+  height: 85dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tree-reader-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.tree-reader-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.tree-reader-stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.tree-reader-stage .tree-viewport {
+  height: 100%;
+}
+
 /* ─── Disconnected ─────────────────────────────────────────────────── */
 
 .disconnected-screen h1 {

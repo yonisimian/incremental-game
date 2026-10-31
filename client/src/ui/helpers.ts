@@ -13,7 +13,7 @@ import {
   TIMER_CENTISECONDS_BELOW_SEC,
 } from '@game/shared'
 import type { GameState } from '../game.js'
-import { doBuy, upgradeBlockReason } from '../game.js'
+import { upgradeBlockReason } from '../game.js'
 import { formatNumber } from './format-number.js'
 import type { Countdown } from './format-number.js'
 
@@ -169,6 +169,16 @@ export function isUnlocked(
 }
 
 /**
+ * What gates this upgrade for every player, before any round: coming soon, or
+ * behind prerequisites. The pre-game tree reader's stand-in for
+ * `upgradeBlockReason`, which needs a player's slots, picks and wallet.
+ */
+export function treeGateReason(u: UpgradeDefinition): 'coming-soon' | 'prerequisite' | null {
+  if (u.comingSoon) return 'coming-soon'
+  return u.prerequisites ? 'prerequisite' : null
+}
+
+/**
  * The `🔒 Locked Ns` countdown a buy control shows under an enemy purchase lock —
  * one wording for the detail popup and the generator card, so the two agree.
  * `null` when no lock is stamped.
@@ -200,24 +210,4 @@ export function formatUpgradesPurchased(purchased: readonly string[], flavor: Mo
       return n > 1 ? `${name} ×${n}` : name
     })
     .join(', ')
-}
-
-/**
- * Bind click handler via event delegation on the given container. Defaults to
- * '#upgrades' and buying directly. Pass `onActivate` to handle node clicks
- * differently (e.g. the tree panel opens a detail popup instead of buying).
- */
-export function bindUpgradeEvents(
-  containerId = 'upgrades',
-  onActivate: (upgradeId: string) => void = doBuy,
-): void {
-  const container = document.getElementById(containerId)
-  if (!container || container.dataset.delegated) return
-  container.dataset.delegated = 'true'
-  container.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.upgrade-btn')
-    if (!btn || btn.disabled) return
-    const uid = btn.dataset.upgrade
-    if (uid) onActivate(uid)
-  })
 }

@@ -1,25 +1,23 @@
 import { getModeDefinition } from '@game/shared'
 import type { Panel } from '../panels.js'
 import { type GameState, startingPlayer } from '../../game.js'
-import { renderUpgradeTree, type TreeBounds } from '../components.js'
+import { renderUpgradeTree } from '../components.js'
 import {
   type TreeVisibility,
   getTreeVisibility,
   unlockedUpgradeIds,
   visibleUpgradeIds,
 } from '../tree-visibility.js'
-import { bindUpgradeEvents } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
-import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
+import { centeredPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
+import { MIN_ZOOM, mountTreeView } from '../tree-view.js'
 
 // ─── Tunables ────────────────────────────────────────────────────────
 //
-// Tweak these to change how the tree starts and how far the user can zoom.
+// Tweak this to change how the tree starts; the zoom range lives in tree-view.ts.
 // `INITIAL_ZOOM` is clamped to [MIN_ZOOM, MAX_ZOOM], so make sure it sits
 // inside the range or it'll snap to the nearest bound on mount.
 
-const MIN_ZOOM = 0.2
-const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
 
 /** The reveal animation that always runs (reduced motion too); its end clears the pulse. */
@@ -106,39 +104,6 @@ function endPulse(e: AnimationEvent): void {
   node.classList.remove('revealed')
 }
 
-/** Compute centered initial pan so the tree's bounding-box center aligns with viewport center at INITIAL_ZOOM. */
-function computeCenteredInitialState(viewport: HTMLElement, bounds: TreeBounds): PanZoomState {
-  const treeCx = (bounds.minX + bounds.maxX) / 2
-  const treeCy = (bounds.minY + bounds.maxY) / 2
-  const vp = viewport.getBoundingClientRect()
-  return {
-    panX: vp.width / 2 - treeCx * INITIAL_ZOOM,
-    panY: vp.height / 2 - treeCy * INITIAL_ZOOM,
-    zoom: INITIAL_ZOOM,
-  }
-}
-
-/** Build the static markup wrapper. Inner edges+nodes are recomputed on update(). */
-function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): string {
-  // Size SVG to encompass all node positions; +200px slack handles bounding-box edges.
-  // Shift via CSS left/top if any coords go negative so SVG-local (0,0) aligns with canvas (0,0).
-  const svgOffsetX = Math.min(0, bounds.minX)
-  const svgOffsetY = Math.min(0, bounds.minY)
-  const svgW = bounds.maxX - svgOffsetX + 200
-  const svgH = bounds.maxY - svgOffsetY + 200
-  return `
-    <div class="tree-viewport" id="tree-viewport">
-      <div class="tree-canvas" id="tree-canvas">
-        <svg class="tree-edges" width="${svgW}" height="${svgH}" overflow="visible"
-             style="left: ${svgOffsetX}px; top: ${svgOffsetY}px">
-          ${edgesSvg}
-        </svg>
-        ${nodes}
-      </div>
-    </div>
-  `
-}
-
 // ─── Panel ───────────────────────────────────────────────────────────
 
 export const upgradeTreePanel: Panel = {
@@ -165,29 +130,21 @@ export const upgradeTreePanel: Panel = {
       lastMatchId = state.matchId
     }
 
-    // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
-    //    popup mounted inside the viewport), so clear popup state to match.
+    // 3. Build fresh DOM and wire pan/zoom, seeded from saved state or
+    //    centered defaults. Re-rendering wipes the container (and any open
+    //    detail popup mounted inside the viewport), so clear popup state to match.
     resetUpgradeDetail()
-    const { edgesSvg, nodes, bounds } = renderVisibleTree(state, newMatch)
-    prevHtml = edgesSvg + nodes
-    container.innerHTML = renderShell(edgesSvg, nodes, bounds)
-
-    // 4. Wire pan/zoom on the new DOM, seeded from saved state or centered defaults.
-    const viewport = document.getElementById('tree-viewport')
-    const canvas = document.getElementById('tree-canvas')
-    if (viewport && canvas) {
-      const initialState = lastPanZoomState ?? computeCenteredInitialState(viewport, bounds)
-      panZoomHandle = setupPanZoom(viewport, canvas, {
-        initialState,
-        minZoom: MIN_ZOOM,
-        maxZoom: MAX_ZOOM,
-      })
-    }
+    const tree = renderVisibleTree(state, newMatch)
+    prevHtml = tree.edgesSvg + tree.nodes
+    panZoomHandle = mountTreeView(container, tree, {
+      initialState: (viewport) =>
+        lastPanZoomState ?? centeredPanZoom(viewport, tree.bounds, INITIAL_ZOOM),
+      // Tree nodes open a detail popup (with Buy/Cancel) instead of buying on click.
+      onActivate: openUpgradeDetail,
+    }).panZoom
   },
 
   bind() {
-    // Tree nodes open a detail popup (with Buy/Cancel) instead of buying on click.
-    bindUpgradeEvents('tree-canvas', openUpgradeDetail)
     document.getElementById('tree-canvas')?.addEventListener('animationend', endPulse)
   },
 
