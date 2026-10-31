@@ -11,7 +11,7 @@ import {
   readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
-import { formatUpgradeCost, escapeAttr, purchaseLockCountdown } from './helpers.js'
+import { formatUpgradeCost, escapeAttr, purchaseLockCountdown, treeGateReason } from './helpers.js'
 import { countdownAttrs } from './counters.js'
 import { formatCountdown } from './format-number.js'
 import type { Countdown } from './format-number.js'
@@ -21,11 +21,11 @@ import type { Countdown } from './format-number.js'
 // A modal detail view for a single upgrade, opened by clicking a tree node.
 // Shows name / cost / description / lock reason with Buy + Cancel actions, or
 // just Close when opened read-only from the pre-game tree reader.
-// Mounted inside `#tree-viewport` (which is `position: relative; overflow:
+// Mounted inside the tree viewport (which is `position: relative; overflow:
 // hidden`), so it overlays the tree and is wiped automatically when the panel
 // re-renders. `resetUpgradeDetail()` clears module state for that case.
 
-/** Host element the popup mounts into. The tree viewport overlays the canvas. */
+/** The in-game tree's viewport — the default host the popup mounts into. */
 const HOST_ID = 'tree-viewport'
 
 let openId: string | null = null
@@ -54,9 +54,12 @@ export interface UpgradeDetailOptions {
   readonly state?: Readonly<GameState>
   /**
    * Describe the upgrade without offering to buy it (the pre-game tree reader):
-   * no Buy button, and only the lock reasons that hold for every player.
+   * no Buy button, and only the gating that holds for every player
+   * (`treeGateReason`).
    */
   readonly readOnly?: boolean
+  /** The tree viewport to overlay; absent = the in-game tree's. */
+  readonly host?: HTMLElement
 }
 
 function computeView(
@@ -67,11 +70,7 @@ function computeView(
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
   const owned = state.player.upgrades[u.id] ?? 0
-  const reason = upgradeBlockReason(state, u.id)
-  const requires = (): string => {
-    const expr = formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))
-    return expr ? `Requires ${expr}` : ''
-  }
+  const reason = readOnly ? treeGateReason(u) : upgradeBlockReason(state, u.id)
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -80,13 +79,12 @@ function computeView(
 
   // Without a stated reason a blocked node looks affordable and does nothing on
   // click, which reads as a bug. Maxed and unaffordable need no words: the cost
-  // label already says it. Read-only, there's no player whose slots or picks
-  // could block it, so only the tree's own gating is worth saying.
+  // label already says it.
   let lockReason = ''
   let lockCountdown: Countdown | null = null
   if (reason === 'coming-soon') lockReason = 'Not available yet — planned for a later update'
-  else if (readOnly) lockReason = requires()
-  else if (reason === 'prerequisite') lockReason = requires()
+  else if (reason === 'prerequisite')
+    lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
   else if (reason === 'choice-group')
     lockReason = 'Another choice in this group has already been selected'
   else if (reason === 'attack-slots') lockReason = 'No attack slots left'
@@ -178,7 +176,7 @@ function onBackdropKeydown(e: KeyboardEvent): void {
 
 /** Open the detail popup for the given upgrade id. No-op if host is absent. */
 export function openUpgradeDetail(upgradeId: string, options: UpgradeDetailOptions = {}): void {
-  const host = document.getElementById(HOST_ID)
+  const host = options.host ?? document.getElementById(HOST_ID)
   if (!host) return
   const { state = getState(), readOnly = false } = options
   const u = findUpgrade(state, upgradeId)

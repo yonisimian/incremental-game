@@ -2,32 +2,55 @@
 //
 // The About dialog opens the whole upgrade tree for reading before a match. It
 // must show every upgrade at full strength, describe one without offering to
-// buy it, and close back to About rather than closing both dialogs at once.
+// buy it, and close one layer per Escape (popup, then reader, then About), and
+// closing it must not leave a popup behind that swallows a later Escape.
 // DOM tier because the failures are what the lobby player actually meets:
-// dimmed nodes, a Buy button, one Escape tearing down two dialogs.
+// dimmed nodes, a Buy button, one Escape tearing down two dialogs, an Escape
+// that no longer leaves the matchmaking queue. The global hotkeys run too,
+// since they also handle Escape.
 
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getModeDefinition, getPrerequisiteUpgradeIds } from '@game/shared'
+
+let current: { screen: string; playerName: string; roomError: null }
+const doBuy = vi.fn<(id: string) => void>()
+const cancelQueue = vi.fn<() => void>()
 
 vi.mock('../src/game.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/game.js')>()),
-  getState: () => ({ playerName: '', roomError: null }),
-  doBuy: vi.fn(),
+  getState: () => current,
+  doBuy: (id: string) => {
+    doBuy(id)
+  },
+  cancelQueue: () => {
+    cancelQueue()
+  },
 }))
 
 let renderLobbyScreen: (typeof import('../src/ui/lobby.js'))['renderLobbyScreen']
-let doBuy: (typeof import('../src/game.js'))['doBuy']
 
 beforeAll(async () => {
   // `ui/helpers.ts` resolves `#app` at import time, so it must exist first.
   document.body.innerHTML = '<div id="app"></div>'
   ;({ renderLobbyScreen } = await import('../src/ui/lobby.js'))
-  ;({ doBuy } = await import('../src/game.js'))
+  const { initHotkeys } = await import('../src/ui/hotkeys.js')
+  initHotkeys()
+})
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  current = { screen: 'lobby', playerName: '', roomError: null }
+  doBuy.mockClear()
+  cancelQueue.mockClear()
 })
 
 afterEach(() => {
-  document.getElementById('tree-reader-overlay')?.remove()
-  document.getElementById('about-overlay')?.remove()
+  // Close through ✕, topmost first, so the modal stack is empty for the next test.
+  for (const id of ['tree-reader-overlay', 'about-overlay']) {
+    document.querySelector<HTMLButtonElement>(`#${id} .modal-close`)?.click()
+    vi.runAllTimers()
+  }
+  vi.useRealTimers()
 })
 
 const mode = getModeDefinition('idler')
@@ -36,15 +59,23 @@ function openReader(): HTMLElement {
   renderLobbyScreen()
   document.querySelector<HTMLButtonElement>('#about-btn')!.click()
   document.querySelector<HTMLButtonElement>('#about-tree-btn')!.click()
+  vi.runAllTimers()
   return document.getElementById('tree-reader-overlay')!
 }
 
-const escape = (target: EventTarget = document): void => {
-  target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+function openPopup(overlay: HTMLElement, id = mode.upgrades[0].id): void {
+  overlay.querySelector<HTMLButtonElement>(`.tree-node[data-upgrade="${id}"]`)!.click()
 }
 
+function escape(target: EventTarget = document.body): void {
+  target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  vi.runAllTimers()
+}
+
+const isOpen = (id: string): boolean => document.getElementById(id) !== null
+
 describe('upgrade tree reader (DOM)', () => {
-  it('shows every upgrade, goal-specific ones included, none dimmed', () => {
+  it('shows every upgrade, goal-specific ones included, dimming only coming-soon ones', () => {
     const overlay = openReader()
     const nodes = [...overlay.querySelectorAll<HTMLElement>('.tree-node')]
 
@@ -64,7 +95,7 @@ describe('upgrade tree reader (DOM)', () => {
     const gated = mode.upgrades.find(
       (u) => u.position && !u.comingSoon && getPrerequisiteUpgradeIds(u.prerequisites).length > 0,
     )!
-    overlay.querySelector<HTMLButtonElement>(`.tree-node[data-upgrade="${gated.id}"]`)!.click()
+    openPopup(overlay, gated.id)
 
     const popup = overlay.querySelector('#upgrade-detail')!
     expect(popup.querySelector('#upgrade-detail-buy')).toBeNull()
@@ -73,20 +104,39 @@ describe('upgrade tree reader (DOM)', () => {
     expect(doBuy).not.toHaveBeenCalled()
   })
 
-  it('closes one layer per Escape: popup, then reader, leaving About open', () => {
-    vi.useFakeTimers()
+  it('closes one layer per Escape while focus is in the popup', () => {
     const overlay = openReader()
-    vi.runAllTimers()
-    overlay.querySelector<HTMLButtonElement>('.tree-node')!.click()
+    openPopup(overlay)
 
     escape(document.getElementById('upgrade-detail-cancel')!)
     expect(overlay.querySelector('#upgrade-detail')).toBeNull()
-    expect(document.getElementById('tree-reader-overlay')).not.toBeNull()
+    expect(isOpen('tree-reader-overlay')).toBe(true)
 
     escape()
+    expect(isOpen('tree-reader-overlay')).toBe(false)
+    expect(isOpen('about-overlay')).toBe(true)
+  })
+
+  it('closes only the popup on Escape while focus is elsewhere', () => {
+    const overlay = openReader()
+    openPopup(overlay)
+    ;(document.activeElement as HTMLElement).blur()
+
+    escape()
+    expect(overlay.querySelector('#upgrade-detail')).toBeNull()
+    expect(isOpen('tree-reader-overlay')).toBe(true)
+  })
+
+  it('leaves no popup behind when closed with one open', () => {
+    const overlay = openReader()
+    openPopup(overlay)
+    overlay.querySelector<HTMLButtonElement>('.modal-close')!.click()
+    document.querySelector<HTMLButtonElement>('#about-overlay .modal-close')!.click()
     vi.runAllTimers()
-    expect(document.getElementById('tree-reader-overlay')).toBeNull()
-    expect(document.getElementById('about-overlay')).not.toBeNull()
-    vi.useRealTimers()
+
+    // In the matchmaking queue, the next Escape must leave it.
+    current.screen = 'waiting'
+    escape()
+    expect(cancelQueue).toHaveBeenCalledOnce()
   })
 })

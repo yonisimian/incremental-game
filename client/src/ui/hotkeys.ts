@@ -41,9 +41,12 @@ export function initHotkeys(): void {
 
     // ── Escape — context-sensitive settings/resign/back (screen-agnostic) ──
     if (e.key === 'Escape') {
-      // An open upgrade-detail popup takes priority — close it first.
+      // An open upgrade-detail popup takes priority — close it first, and only
+      // it: a dialog it sits in (the tree reader) has its own Escape listener,
+      // registered after this one.
       if (isUpgradeDetailOpen()) {
         closeUpgradeDetail()
+        e.stopImmediatePropagation()
         return
       }
       if (state.screen === 'playing') {

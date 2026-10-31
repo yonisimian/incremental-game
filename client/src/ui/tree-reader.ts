@@ -1,10 +1,10 @@
 // ─── Upgrade Tree Reader ─────────────────────────────────────────────
 //
 // The whole upgrade tree, readable before playing — opened from the About
-// dialog. It is the in-game tree (same renderer, pan/zoom and detail popup)
-// minus buying: every node draws at full strength, and its popup has Close
-// instead of Buy. Costs are a round's starting costs. It shows the full tree
-// whatever the tree visibility setting: the player asked to see it.
+// dialog. It is the in-game tree (same mount, pan/zoom and detail popup)
+// minus buying: nodes are styled only by what gates every player, and the
+// popup has Close instead of Buy. Costs are a round's starting costs. It shows
+// the full tree whatever the tree visibility setting: the player asked to see it.
 
 import {
   DEFAULT_MODE,
@@ -16,10 +16,10 @@ import {
 } from '@game/shared'
 import { type GameState, getState, startingPlayer } from '../game.js'
 import { renderUpgradeTree, type TreeBounds } from './components.js'
-import { bindUpgradeEvents, escapeAttr } from './helpers.js'
+import { escapeAttr } from './helpers.js'
 import { openModal } from './modal.js'
-import { setupPanZoom, type PanZoomHandle, type PanZoomState } from './pan-zoom.js'
-import { MAX_ZOOM, MIN_ZOOM, renderTreeShell } from './panels/upgrade-tree-panel.js'
+import { centeredPanZoom, type PanZoomHandle, type PanZoomState } from './pan-zoom.js'
+import { MIN_ZOOM, mountTreeView } from './tree-view.js'
 import { openUpgradeDetail, resetUpgradeDetail } from './upgrade-detail.js'
 
 /** Room kept around the tree when fitting it to the viewport: half a node plus a gap. */
@@ -44,39 +44,33 @@ function readerState(mode: GameMode): Readonly<GameState> {
 
 /** Center the tree and zoom so all of it fits, never past 1:1. */
 function fitToView(viewport: HTMLElement, bounds: TreeBounds): PanZoomState {
-  // client* sizes, not the bounding rect: they ignore the dialog's opening scale.
-  const { clientWidth: vw, clientHeight: vh } = viewport
   const fit = Math.min(
-    vw / (bounds.maxX - bounds.minX + 2 * FIT_MARGIN),
-    vh / (bounds.maxY - bounds.minY + 2 * FIT_MARGIN),
+    viewport.clientWidth / (bounds.maxX - bounds.minX + 2 * FIT_MARGIN),
+    viewport.clientHeight / (bounds.maxY - bounds.minY + 2 * FIT_MARGIN),
   )
-  const zoom = Math.min(1, Math.max(MIN_ZOOM, fit))
-  return {
-    panX: vw / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom,
-    panY: vh / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom,
-    zoom,
-  }
+  return centeredPanZoom(viewport, bounds, Math.min(1, Math.max(MIN_ZOOM, fit)))
+}
+
+/** Drop the current tree's pan/zoom listeners and popup state. */
+function teardown(): void {
+  panZoom?.cleanup()
+  panZoom = null
+  resetUpgradeDetail()
 }
 
 /** Draw `mode`'s tree into the stage, replacing whatever was there. */
 function showMode(stage: HTMLElement, mode: GameMode): void {
-  panZoom?.cleanup()
-  resetUpgradeDetail()
+  teardown()
   const state = readerState(mode)
-  const { edgesSvg, nodes, bounds } = renderUpgradeTree(state, { plain: true })
+  const tree = renderUpgradeTree(state, { plain: true })
   stage.className = `tree-reader-stage ${getModeFlavor(getModeDefinition(mode)).themeClass}`
-  stage.innerHTML = renderTreeShell(edgesSvg, nodes, bounds)
-
-  const viewport = stage.querySelector<HTMLElement>('.tree-viewport')!
-  const canvas = stage.querySelector<HTMLElement>('.tree-canvas')!
-  panZoom = setupPanZoom(viewport, canvas, {
-    initialState: fitToView(viewport, bounds),
-    minZoom: MIN_ZOOM,
-    maxZoom: MAX_ZOOM,
+  const view = mountTreeView(stage, tree, {
+    initialState: (viewport) => fitToView(viewport, tree.bounds),
+    onActivate: (id) => {
+      openUpgradeDetail(id, { state, readOnly: true, host: view.viewport })
+    },
   })
-  bindUpgradeEvents(canvas.id, (id) => {
-    openUpgradeDetail(id, { state, readOnly: true })
-  })
+  panZoom = view.panZoom
 }
 
 /** One chip per mode, like the room's picker; nothing when there's only one. */
@@ -105,9 +99,9 @@ export function openTreeReader(): void {
       </p>
       <div class="tree-reader-stage" id="tree-reader-stage"></div>
     </div>`,
+    { wide: true, onClose: teardown },
   )
   if (!overlay) return
-  overlay.querySelector('.modal')!.classList.add('modal-wide')
 
   const stage = overlay.querySelector<HTMLElement>('#tree-reader-stage')!
   showMode(stage, DEFAULT_MODE)

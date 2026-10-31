@@ -17,17 +17,29 @@ const CLOSE_FALLBACK_MS = 250
  */
 const openStack: HTMLElement[] = []
 
+interface ModalOptions {
+  /** A near-full-screen dialog, for content that needs the room (the upgrade tree). */
+  readonly wide?: boolean
+  /** Runs once when the dialog starts closing, however it was closed. */
+  readonly onClose?: () => void
+}
+
 /**
  * Mount a modal with overlay id `id`, a `title` heading and `body` HTML (both
  * trusted — interpolated as markup). Returns the overlay, or `null` if already open.
  */
-export function openModal(id: string, title: string, body: string): HTMLElement | null {
+export function openModal(
+  id: string,
+  title: string,
+  body: string,
+  options: ModalOptions = {},
+): HTMLElement | null {
   if (document.getElementById(id)) return null
 
   document.body.insertAdjacentHTML(
     'beforeend',
     `<div class="modal-overlay" id="${id}">
-      <div class="modal" role="dialog" aria-modal="true" aria-label="${title}">
+      <div class="modal${options.wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true" aria-label="${title}">
         <header class="modal-header">
           <h2>${title}</h2>
           <button class="modal-close" aria-label="Close">${CLOSE_ICON}</button>
@@ -53,6 +65,7 @@ export function openModal(id: string, title: string, body: string): HTMLElement 
     const index = openStack.indexOf(overlay)
     if (index === -1) return
     openStack.splice(index, 1)
+    options.onClose?.()
     if (openingFrame !== null) {
       cancelAnimationFrame(openingFrame)
       openingFrame = null

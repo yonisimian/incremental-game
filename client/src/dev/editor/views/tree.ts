@@ -6,7 +6,7 @@
  */
 
 import type { TreeFile } from '@game/shared'
-import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../../../ui/pan-zoom.js'
+import { centeredPanZoom, setupPanZoom, type PanZoomHandle } from '../../../ui/pan-zoom.js'
 import {
   findNode,
   collectIds,
@@ -76,17 +76,6 @@ function canvasInnerHtml(edgesSvg: string, nodes: string, bounds: CanvasBounds):
       ${edgesSvg}
     </svg>
     ${nodes}`
-}
-
-function centeredState(viewport: HTMLElement, bounds: CanvasBounds): PanZoomState {
-  const cx = (bounds.minX + bounds.maxX) / 2
-  const cy = (bounds.minY + bounds.maxY) / 2
-  const rect = viewport.getBoundingClientRect()
-  return {
-    panX: rect.width / 2 - cx * INITIAL_ZOOM,
-    panY: rect.height / 2 - cy * INITIAL_ZOOM,
-    zoom: INITIAL_ZOOM,
-  }
 }
 
 /** The upgrade-tree editor section. */
@@ -160,7 +149,11 @@ export function createTreeView(): EditorView {
       panZoom?.cleanup()
       renderCanvasOnly()
       panZoom = setupPanZoom(viewport, canvas, {
-        initialState: centeredState(viewport, renderCanvas(tree, selectedId).bounds),
+        initialState: centeredPanZoom(
+          viewport,
+          renderCanvas(tree, selectedId).bounds,
+          INITIAL_ZOOM,
+        ),
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
         // Pan with the right button so the left button is free for selecting,
