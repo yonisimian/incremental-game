@@ -2,12 +2,7 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { roundStats } from '../../stats/round-stats.js'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
-import {
-  describePurchaseTarget,
-  formatCostEntries,
-  formatPercentChange,
-  setText,
-} from '../helpers.js'
+import { describePurchaseTarget, formatCostSum, formatPercentChange, setText } from '../helpers.js'
 import { attackLifecycle, pactLifecycle } from '../lifecycle.js'
 import { modifierTargetLabel } from '../modifier-label.js'
 import { countdownSpan } from '../counters.js'
@@ -16,6 +11,7 @@ import { attackPanel } from './attack-panel.js'
 import { internationalRelationshipPanel } from './international-relationship-panel.js'
 import {
   type AttackDefinition,
+  type AttackBlockReason,
   type AttackKind,
   type AttackParams,
   type DynamicBonus,
@@ -24,6 +20,7 @@ import {
   type ModeFlavor,
   type Modifier,
   type PactDefinition,
+  type PactBlockReason,
   type PactKind,
   type PlayerState,
   type ResourceRateBreakdown,
@@ -336,11 +333,6 @@ function formatSec(sec: number): string {
   return `${formatDecimal(sec, 1)}s`
 }
 
-/** A per-currency price with resource icons ("1K 🪵 + 40 🪨"), empty when free. */
-function formatCost(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {
-  return formatCostEntries(cost, flavor).join(' + ')
-}
-
 /**
  * What a strike haul moved, as parts ("1.2K 🪵", "×2 🪚"), resources first in
  * mode order, then generators.
@@ -410,6 +402,14 @@ function attackStatus(
   const reason = attackBlockReason(state.player, def.id, modeDef, params)
   const life = attackLifecycle(state.player, def.id, reason)
   if (life) return countdownSpan(life, readGameSec(state.player))
+  return readinessLabel(reason)
+}
+
+/**
+ * The status of an activation in no timed phase, from its block reason —
+ * attacks and pacts share these reasons and their wording.
+ */
+function readinessLabel(reason: AttackBlockReason | PactBlockReason | null): string {
   switch (reason) {
     case null:
       return 'Ready'
@@ -430,7 +430,7 @@ function attackStatus(
 function attackStatsLine(flavor: ModeFlavor, def: AttackDefinition, params: AttackParams): string {
   const parts: string[] = []
   if (def.kind === 'active') {
-    const cost = formatCost(getAttackPrepareCost(def, params), flavor)
+    const cost = formatCostSum(getAttackPrepareCost(def, params), flavor)
     if (cost !== '') parts.push(`cost ${cost}`)
     parts.push(`prep ${formatSec(getAttackPrepareTimeSec(def, params))}`)
     if (def.durationSec !== undefined)
@@ -636,16 +636,7 @@ function pactStatus(
   if (pact.kind === 'passive') return 'In force'
   const life = pactLifecycle(state.player, pact.id)
   if (life) return countdownSpan(life, readGameSec(state.player))
-  switch (pactBlockReason(state.player, pact.id, modeDef)) {
-    case null:
-      return 'Ready'
-    case 'unaffordable':
-      return 'Short of cost'
-    case 'no-effects':
-      return 'No effect yet'
-    default:
-      return ''
-  }
+  return readinessLabel(pactBlockReason(state.player, pact.id, modeDef))
 }
 
 /**
@@ -675,7 +666,7 @@ function pactTallyLine(
     `${activations} activation${activations === 1 ? '' : 's'}`,
     `${formatSec(roundStats.pactActiveSec(pact.id, readGameSec(state.player), predicted))} active`,
   ]
-  const cost = formatCost(spent, flavor)
+  const cost = formatCostSum(spent, flavor)
   if (cost !== '') parts.push(`spent ${cost}`)
   return parts.join(' · ')
 }
@@ -710,15 +701,28 @@ function renderPactRows(
     .join('')
 }
 
-/** One row per enemy treaty reaching this player, with its countdown when it is a window. */
+/**
+ * The enemy treaties that have reached this player this round, the ones
+ * reaching them now included even before `roundStats` has seen them.
+ */
+function sharedPactIds(state: Readonly<GameState>): string[] {
+  return [...new Set([...roundStats.sharedPactsSeen, ...state.opponentPacts])]
+}
+
+/**
+ * One row per enemy treaty that has reached this player this round: its
+ * window's countdown, in force (a mutual pact), or ended (a window that closed).
+ */
 function renderSharedPactRows(state: Readonly<GameState>, flavor: ModeFlavor): string {
   const gameSec = readGameSec(state.player)
-  return state.opponentPacts
+  return sharedPactIds(state)
     .map((id) => {
       const window = state.opponentPactWindows.find((w) => w.pact === id)
       const status = window
         ? countdownSpan({ template: 'Active for {}s', untilSec: window.expiresAtSec }, gameSec)
-        : 'In force'
+        : state.opponentPacts.includes(id)
+          ? 'In force'
+          : 'Ended'
       return renderItem(`${getPactIcon(flavor, id)} ${getPactName(flavor, id)}`, status, [])
     })
     .join('')
@@ -757,7 +761,8 @@ function updatePacts(state: Readonly<GameState>, modeDef: ModeDefinition): void 
   if (!document.getElementById('data-pacts')) return
   const player = state.player
   const own = isPanelUnlocked(player, modeDef, internationalRelationshipPanel.id)
-  const inPlay = own || state.opponentPacts.length > 0
+  const reached = sharedPactIds(state)
+  const inPlay = own || reached.length > 0
   setSectionShown('data-pacts', inPlay)
   if (!inPlay) return
 
@@ -775,7 +780,7 @@ function updatePacts(state: Readonly<GameState>, modeDef: ModeDefinition): void 
     }
   }
 
-  setHidden('data-pact-shared', state.opponentPacts.length === 0)
+  setHidden('data-pact-shared', reached.length === 0)
   setListHtml('data-pact-shared-list', renderSharedPactRows(state, flavor))
   setText('data-pact-autoclicks', `+${formatDecimal(state.incomingAutoClicksPerSec, 1)}/s`)
 }

@@ -161,14 +161,17 @@ function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFla
   return formatCostEntries(cost, flavor).join('  ')
 }
 
+/** A cost map as a sum, `"1K 🪵 + 40 🪨"` — an attack or pact price; empty when free. */
+export function formatCostSum(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {
+  return formatCostEntries(cost, flavor).join(' + ')
+}
+
 /**
  * A cost map as one `"<amount> <icon>"` entry per currency, for the caller to
- * join in its own style (an upgrade label spaces them, an attack card adds them).
+ * join in its own style (an upgrade label spaces them, {@link formatCostSum}
+ * adds them).
  */
-export function formatCostEntries(
-  cost: Readonly<Record<string, number>>,
-  flavor: ModeFlavor,
-): string[] {
+function formatCostEntries(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string[] {
   return Object.entries(cost).map(
     ([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`,
   )

@@ -89,7 +89,7 @@ const CLICK_RATE_WINDOW_MS = 3000
  * Owns all client-only, per-round analytics gathering for the data panel — the
  * one place round telemetry accumulates. `game.ts` feeds it events
  * ({@link recordClick}, {@link recordTick}, {@link recordAttackEvents},
- * {@link recordPactWindows}) and the data panel reads its
+ * {@link recordPactWindows}, {@link recordSharedPacts}) and the data panel reads its
  * accessors; nothing here is authoritative or synced to the server.
  *
  * Kept as a standalone module instance (not a field on `GameState`) so the
@@ -105,6 +105,8 @@ class RoundStats {
   private attacks: AttackStats = emptyAttackStats()
   /** Every active-pact window seen this round, keyed by pact id. */
   private pactWindows = new Map<string, TimeWindow[]>()
+  /** Every enemy treaty that has reached this player this round, in arrival order. */
+  private sharedPacts = new Set<string>()
 
   /** Clear all accumulated telemetry for a new round. */
   reset(): void {
@@ -113,6 +115,7 @@ class RoundStats {
     this.lastHighlightGameSec = 0
     this.attacks = emptyAttackStats()
     this.pactWindows.clear()
+    this.sharedPacts.clear()
   }
 
   /**
@@ -208,6 +211,20 @@ class RoundStats {
       seen.push({ startSec: pactWindowOpenedAtSec(w, modeDef), endSec: w.expiresAtSec })
       this.pactWindows.set(w.pact, seen)
     }
+  }
+
+  /**
+   * Note the enemy treaties reaching this player in a snapshot
+   * (`OpponentView.pacts`), so one that has since lapsed — a closed window —
+   * still shows as having reached them this round.
+   */
+  recordSharedPacts(pactIds: readonly string[]): void {
+    for (const id of pactIds) this.sharedPacts.add(id)
+  }
+
+  /** The enemy treaties that have reached this player this round, in arrival order. */
+  get sharedPactsSeen(): readonly string[] {
+    return [...this.sharedPacts]
   }
 
   /** Strike telemetry for one of this player's attacks, or `null` before its first strike. */

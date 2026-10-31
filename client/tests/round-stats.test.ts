@@ -278,6 +278,16 @@ describe('RoundStats', () => {
     })
   })
 
+  describe('recordSharedPacts', () => {
+    it('remembers every enemy treaty that reached the player, once, in arrival order', () => {
+      roundStats.recordSharedPacts(['p1'])
+      roundStats.recordSharedPacts(['p1', 'drum-accord'])
+      roundStats.recordSharedPacts([])
+
+      expect(roundStats.sharedPactsSeen).toEqual(['p1', 'drum-accord'])
+    })
+  })
+
   describe('reset', () => {
     it('clears clicks, dwell, and the dwell clock baseline', () => {
       roundStats.recordClick('r0', 5)
@@ -307,6 +317,10 @@ describe('RoundStats', () => {
       expect(roundStats.outgoingAttack('a0')).toBeNull()
       expect(Object.keys(roundStats.incomingAttacks.resources)).toHaveLength(0)
       expect(roundStats.pactActivations('p0')).toBe(0)
+
+      roundStats.recordSharedPacts(['p1'])
+      roundStats.reset()
+      expect(roundStats.sharedPactsSeen).toEqual([])
     })
   })
 })

@@ -27,7 +27,9 @@ a number since taken by tree visibility modes):
   treaty — even before their own tab unlocks: being hit is in play whatever
   the victim has researched. The player's own blocks (slots, held rows) show
   only once their own tab is unlocked. "On you now" lists enemy cost inflation
-  beside the debuffs and locks.
+  beside the debuffs and locks. An enemy treaty that reached the player stays
+  listed (as ended) after its window closes, so the Pacts section keeps its
+  history the way `meta.attacksSuffered` keeps the Attacks section's.
 - **No "N more locked" footer.** The tree already shows what is locked; the
   panel reports this round's numbers.
 - Shared wording, so the data panel reads like the cards it summarizes:
@@ -35,7 +37,7 @@ a number since taken by tree visibility modes):
   a bonus or debuff lands on, for live bonuses, pact worth and debuffs alike),
   `ui/lifecycle.ts` (an attack's or pact's timed phase and countdown, used by
   both cards), and `describePurchaseTarget` / `formatPercentChange` /
-  `formatCostEntries` in `ui/helpers.ts`.
+  `formatCostSum` in `ui/helpers.ts`.
 - Steps 3 and 4 landed as one commit: both sections share the list
   machinery (`setListHtml`, `renderItem`, slot cells).
 

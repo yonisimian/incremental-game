@@ -883,6 +883,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const shared = msg.opponent.pacts ?? []
   showSharedPactsSigned(state.opponentPacts, shared, modeDefForAlerts)
   state.opponentPacts = shared
+  roundStats.recordSharedPacts(shared)
   state.opponentPactWindows = msg.opponent.pactWindows ?? []
   state.incomingAutoClicksPerSec = msg.incomingAutoClicksPerSec ?? 0
 

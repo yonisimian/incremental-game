@@ -263,6 +263,16 @@ describe('data panel — pacts section', () => {
     expect(row.querySelector('.data-item-detail')?.textContent).toMatch(/^1 activation · 0s active/)
   })
 
+  it('keeps a lapsed enemy treaty listed as ended, the section still shown', () => {
+    // The window closed: the snapshot no longer carries it, but it reached them.
+    roundStats.recordSharedPacts(['drum-accord'])
+    const el = render(withUpgrades({}, 30))
+    expect(sectionOf(el, 'data-pacts').style.display).toBe('')
+    expect(
+      firstRow(el, 'data-pact-shared-list').querySelector('.data-item-status')?.textContent,
+    ).toBe('Ended')
+  })
+
   it('lists the enemy treaties reaching the player, with countdowns and auto-clicks', () => {
     const state = withUpgrades({}, 5)
     state.opponentPacts = ['drum-accord']

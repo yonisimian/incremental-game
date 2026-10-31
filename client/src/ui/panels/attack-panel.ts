@@ -32,7 +32,7 @@ import type {
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
 import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
-import { formatCostEntries } from '../helpers.js'
+import { formatCostSum } from '../helpers.js'
 import { attackLifecycle, type LifecyclePhase } from '../lifecycle.js'
 
 /** The card's classes in each timed phase: the button's state and the status line's. */
@@ -60,9 +60,8 @@ function renderLocked(): string {
  * price the viewer actually pays, `attackStat` discounts included.
  */
 function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackParams): string {
-  const entries = formatCostEntries(getAttackPrepareCost(def, params), flavor)
-  if (entries.length === 0) return ''
-  return `<span class="attack-cost">${entries.join(' + ')}</span>`
+  const cost = formatCostSum(getAttackPrepareCost(def, params), flavor)
+  return cost === '' ? '' : `<span class="attack-cost">${cost}</span>`
 }
 
 /**

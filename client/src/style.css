@@ -2834,6 +2834,11 @@ kbd {
   gap: 0.5rem;
 }
 
+/* `hidden` loses to `display: grid` without this (a block the player hasn't unlocked). */
+.data-stat-grid[hidden] {
+  display: none;
+}
+
 .data-subhead {
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
