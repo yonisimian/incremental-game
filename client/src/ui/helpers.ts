@@ -1,6 +1,9 @@
 import type { CostScope, ModeFlavor, UpgradeDefinition } from '@game/shared'
 import {
+  getGeneratorIcon,
+  getGeneratorName,
   getResourceIcon,
+  getUpgradeIcon,
   getUpgradeName,
   isMaxed,
   isNeutralCostFactors,
@@ -180,6 +183,22 @@ export function purchaseLockCountdown(
 ): Countdown | null {
   const untilSec = purchaseLockUntilSec(state.player, scope, id)
   return untilSec === null ? null : { template: '🔒 Locked {}s', untilSec }
+}
+
+/**
+ * What an incoming cost factor or purchase lock hits: "upgrades" / "generators"
+ * for a whole scope, or the entity's flavor name, so the line matches the card
+ * the player sees it on.
+ */
+export function describePurchaseTarget(
+  flavor: ModeFlavor,
+  scope: CostScope,
+  id: string | undefined,
+): string {
+  if (id === undefined) return scope === 'upgrade' ? 'upgrades' : 'generators'
+  return scope === 'upgrade'
+    ? `${getUpgradeIcon(flavor, id)} ${getUpgradeName(flavor, id)}`
+    : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
 }
 
 /** Can the player buy this upgrade right now, by the server's own rule? */
