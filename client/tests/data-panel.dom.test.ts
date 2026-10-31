@@ -145,6 +145,11 @@ describe('data panel — attacks section', () => {
     expect(el.querySelector('#data-atk-own')?.hasAttribute('hidden')).toBe(true)
   })
 
+  it('reads a malformed strike count as none', () => {
+    const el = render(withUpgrades({ 'a-unlock': 1 }, 0, { meta: { attacksSuffered: 'x' } }))
+    expect(el.querySelector('#data-atk-in-strikes')?.textContent).toBe('0')
+  })
+
   it('shows for enemy cost inflation alone, listing it as on the player now', () => {
     const state = withUpgrades({}, 0, {
       incomingCostFactors: [{ scope: 'upgrade', costFactor: 1.25 }],

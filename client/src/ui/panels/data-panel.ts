@@ -543,7 +543,9 @@ function isAttackedNow(state: Readonly<GameState>): boolean {
 
 /** How many enemy active strikes have landed on this player (`meta.attacksSuffered`). */
 function readAttacksSuffered(player: Readonly<PlayerState>): number {
-  return (player.meta[ATTACKS_SUFFERED_META_KEY] as number | undefined) ?? 0
+  // `meta` is untyped wire data: validated like the game clock (`readGameSec`).
+  const raw = player.meta[ATTACKS_SUFFERED_META_KEY]
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
 }
 
 /** The ⚔️ Attacks section skeleton (filled by {@link updateAttacks}); empty for a mode without attacks. */
@@ -702,8 +704,9 @@ function renderPactRows(
 }
 
 /**
- * The enemy treaties that have reached this player this round, the ones
- * reaching them now included even before `roundStats` has seen them.
+ * The enemy treaties that have reached this player this round. The snapshot's
+ * own list is merged in so the panel never depends on `game.ts` having
+ * recorded it first.
  */
 function sharedPactIds(state: Readonly<GameState>): string[] {
   return [...new Set([...roundStats.sharedPactsSeen, ...state.opponentPacts])]
@@ -713,9 +716,13 @@ function sharedPactIds(state: Readonly<GameState>): string[] {
  * One row per enemy treaty that has reached this player this round: its
  * window's countdown, in force (a mutual pact), or ended (a window that closed).
  */
-function renderSharedPactRows(state: Readonly<GameState>, flavor: ModeFlavor): string {
+function renderSharedPactRows(
+  state: Readonly<GameState>,
+  flavor: ModeFlavor,
+  reached: readonly string[],
+): string {
   const gameSec = readGameSec(state.player)
-  return sharedPactIds(state)
+  return reached
     .map((id) => {
       const window = state.opponentPactWindows.find((w) => w.pact === id)
       const status = window
@@ -781,7 +788,7 @@ function updatePacts(state: Readonly<GameState>, modeDef: ModeDefinition): void 
   }
 
   setHidden('data-pact-shared', reached.length === 0)
-  setListHtml('data-pact-shared-list', renderSharedPactRows(state, flavor))
+  setListHtml('data-pact-shared-list', renderSharedPactRows(state, flavor, reached))
   setText('data-pact-autoclicks', `+${formatDecimal(state.incomingAutoClicksPerSec, 1)}/s`)
 }
 

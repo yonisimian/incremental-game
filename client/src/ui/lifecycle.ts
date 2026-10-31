@@ -4,11 +4,10 @@ import type { Countdown } from './format-number.js'
 
 // Where an activation is in its timed life, and the countdown that phase shows
 // — one reading for the attack and relations cards and the data panel's rows,
-// so their countdowns never disagree. Each card maps the phase to its own
-// classes.
+// so their countdowns never disagree. Each card picks its own classes per phase.
 
 /** A timed phase: striking (attacks only), the window open, or the rest after it. */
-export type LifecyclePhase = 'preparing' | 'active' | 'cooling'
+type LifecyclePhase = 'preparing' | 'active' | 'cooling'
 
 /** A phase and its countdown. */
 export interface LifecycleCountdown<P extends LifecyclePhase = LifecyclePhase> extends Countdown {

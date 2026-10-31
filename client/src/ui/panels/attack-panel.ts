@@ -33,14 +33,7 @@ import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.
 import { countdownSpan } from '../counters.js'
 import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 import { formatCostSum } from '../helpers.js'
-import { attackLifecycle, type LifecyclePhase } from '../lifecycle.js'
-
-/** The card's classes in each timed phase: the button's state and the status line's. */
-const PHASE_CLASSES: Record<LifecyclePhase, { readonly btn: string; readonly status: string }> = {
-  preparing: { btn: 'preparing', status: 'attack-status--preparing' },
-  active: { btn: 'active', status: 'attack-status--active' },
-  cooling: { btn: 'cooling', status: 'attack-status--cooling' },
-}
+import { attackLifecycle } from '../lifecycle.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -161,9 +154,11 @@ function renderActiveAttack(
   const gameSec = readGameSec(state.player)
   const reason = attackBlockReason(state.player, id, modeDef, params)
   const life = attackLifecycle(state.player, id, reason)
+  const phase = life?.phase
   const disabled = reason !== null
+  // Class names spelled out per phase (not built from it) so lint:css sees them.
   const status = life
-    ? `<span class="attack-status ${PHASE_CLASSES[life.phase].status}">${countdownSpan(life, gameSec)}</span>`
+    ? `<span class="attack-status ${phase === 'preparing' ? 'attack-status--preparing' : phase === 'active' ? 'attack-status--active' : 'attack-status--cooling'}">${countdownSpan(life, gameSec)}</span>`
     : reason === 'unaffordable'
       ? renderShortfall(state.player.resources, flavor, def, params)
       : reason
@@ -171,7 +166,7 @@ function renderActiveAttack(
         : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${life ? ` ${PHASE_CLASSES[life.phase].btn}` : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${phase === 'preparing' ? ' preparing' : phase === 'active' ? ' active' : phase === 'cooling' ? ' cooling' : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}

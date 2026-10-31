@@ -36,14 +36,6 @@ const IGNORED_UNUSED = new Set([
   // Slot badge classes passed by name to `renderSlotsBadge` in ui/components.ts
   'attack-slots',
   'pact-slots',
-  // Card classes looked up by timed phase (`PHASE_CLASSES` in the attack and
-  // relations panels, keyed by `LifecyclePhase` from ui/lifecycle.ts)
-  'preparing',
-  'cooling',
-  'attack-status--preparing',
-  'attack-status--active',
-  'attack-status--cooling',
-  'pact-status--cooling',
 ])
 
 const IGNORED_PHANTOM = new Set([
