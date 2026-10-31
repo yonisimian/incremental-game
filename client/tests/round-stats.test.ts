@@ -190,7 +190,7 @@ describe('RoundStats', () => {
       const a0 = roundStats.outgoingAttack('a0')
       expect(a0?.strikes).toBe(2)
       expect(a0?.resources.r0).toBe(80)
-      expect(a0?.debuffSec).toBe(8)
+      expect(roundStats.outgoingDebuffSec('a0', 30)).toBe(8)
     })
 
     it('tallies misses and generator thefts per attack', () => {
@@ -215,8 +215,30 @@ describe('RoundStats', () => {
 
       expect(roundStats.incomingAttacks.resources.r1).toBe(12)
       expect(roundStats.incomingAttacks.generators.g0).toBe(1)
-      expect(roundStats.incomingAttacks.debuffSec).toBe(15)
+      expect(roundStats.incomingDebuffSec(30)).toBe(15)
       expect(roundStats.outgoingAttack('a0')).toBeNull()
+    })
+  })
+
+  describe('debuff time', () => {
+    it('counts only the part of a window that has elapsed', () => {
+      roundStats.recordAttackEvents([
+        { attack: 'a9', direction: 'incoming', kind: 'debuff', durationSec: 30, t: 10 },
+      ])
+
+      expect(roundStats.incomingDebuffSec(15)).toBe(5)
+      expect(roundStats.incomingDebuffSec(100)).toBe(30)
+    })
+
+    it('counts overlapping incoming windows once', () => {
+      roundStats.recordAttackEvents([
+        { attack: 'a8', direction: 'incoming', kind: 'debuff', durationSec: 20, t: 0 },
+        { attack: 'a9', direction: 'incoming', kind: 'debuff', durationSec: 20, t: 10 },
+        { attack: 'a9', direction: 'incoming', kind: 'debuff', durationSec: 5, t: 50 },
+      ])
+
+      // [0, 30) as one stretch, then [50, 55).
+      expect(roundStats.incomingDebuffSec(60)).toBe(35)
     })
   })
 
@@ -241,6 +263,18 @@ describe('RoundStats', () => {
       expect(roundStats.pactActiveSec('p0', 3)).toBeCloseTo(2)
       // A closed window counts its whole length and no more.
       expect(roundStats.pactActiveSec('p0', 25)).toBeCloseTo(10)
+    })
+
+    it('counts a predicted window until the server window for it arrives', () => {
+      const mode = makePactMode(10)
+      const predicted = { startSec: 4.2, endSec: 14.2 }
+      expect(roundStats.pactActivations('p0', predicted)).toBe(1)
+      expect(roundStats.pactActiveSec('p0', 6.2, predicted)).toBeCloseTo(2)
+
+      // The server's window (opened at 4) overlaps the prediction: one activation.
+      roundStats.recordPactWindows(pactSnapshot(5, [14]), mode)
+      expect(roundStats.pactActivations('p0', predicted)).toBe(1)
+      expect(roundStats.pactActiveSec('p0', 6, predicted)).toBeCloseTo(2)
     })
   })
 

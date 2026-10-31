@@ -3,6 +3,7 @@ import {
   type ModeDefinition,
   type PlayerState,
   isHighlightActive,
+  pactWindowOpenedAtSec,
   readGameSec,
   readHighlight,
 } from '@game/shared'
@@ -38,14 +39,21 @@ interface HighlightStats {
   releasedSec: number
 }
 
+/** A span of game seconds — a debuff window, a pact window. */
+interface TimeWindow {
+  readonly startSec: number
+  readonly endSec: number
+}
+
 /**
  * What one side's strikes moved this round: stockpile per resource, generator
- * copies per generator, and the debuff window seconds opened.
+ * copies per generator, and the debuff windows opened — kept as spans, so the
+ * time debuffed is read against the clock (see {@link coveredSec}).
  */
 interface StrikeHaul {
   resources: Record<string, number>
   generators: Record<string, number>
-  debuffSec: number
+  debuffWindows: TimeWindow[]
 }
 
 /**
@@ -74,12 +82,6 @@ interface AttackStats {
   incoming: StrikeHaul
 }
 
-/** One window of an active pact, in the signer's game seconds. */
-interface PactWindow {
-  readonly startSec: number
-  readonly endSec: number
-}
-
 /** Rolling window used to derive the instantaneous clicks/sec (for peak tracking). */
 const CLICK_RATE_WINDOW_MS = 3000
 
@@ -102,7 +104,7 @@ class RoundStats {
   private lastHighlightGameSec = 0
   private attacks: AttackStats = emptyAttackStats()
   /** Every active-pact window seen this round, keyed by pact id. */
-  private pactWindows = new Map<string, PactWindow[]>()
+  private pactWindows = new Map<string, TimeWindow[]>()
 
   /** Clear all accumulated telemetry for a new round. */
   reset(): void {
@@ -186,7 +188,7 @@ class RoundStats {
       } else if (ev.kind === 'generator') {
         haul.generators[ev.generator] = (haul.generators[ev.generator] ?? 0) + ev.count
       } else if (ev.kind === 'debuff') {
-        haul.debuffSec += ev.durationSec
+        haul.debuffWindows.push({ startSec: ev.t, endSec: ev.t + ev.durationSec })
       }
     }
   }
@@ -195,16 +197,15 @@ class RoundStats {
    * Note the active-pact windows open in an **authoritative** snapshot (never
    * the reconciled state: a replayed optimistic activation carries a window the
    * client timed, not the server). A window is identified by its pact and
-   * closing time, so a repeated snapshot never counts it twice. Its opening is
-   * `expiresAtSec − durationSec` — a pact's duration is authored, never scaled —
-   * so time active is exact without sampling every tick.
+   * closing time, so a repeated snapshot never counts it twice. Its opening
+   * comes from `pactWindowOpenedAtSec`, so time active is exact without
+   * sampling every tick.
    */
   recordPactWindows(player: Readonly<PlayerState>, modeDef: ModeDefinition): void {
     for (const w of player.activePacts ?? []) {
       const seen = this.pactWindows.get(w.pact) ?? []
       if (seen.some((s) => s.endSec === w.expiresAtSec)) continue
-      const durationSec = modeDef.pacts.find((p) => p.id === w.pact)?.durationSec ?? 0
-      seen.push({ startSec: w.expiresAtSec - durationSec, endSec: w.expiresAtSec })
+      seen.push({ startSec: pactWindowOpenedAtSec(w, modeDef), endSec: w.expiresAtSec })
       this.pactWindows.set(w.pact, seen)
     }
   }
@@ -214,26 +215,56 @@ class RoundStats {
     return this.attacks.outgoing[attackId] ?? null
   }
 
+  /**
+   * Game seconds attack `attackId`'s debuff windows have held the opponent this
+   * round, as of `gameSec` (the player's `meta.gameSec`).
+   */
+  outgoingDebuffSec(attackId: string, gameSec: number): number {
+    return coveredSec(this.outgoingAttack(attackId)?.debuffWindows ?? [], gameSec)
+  }
+
   /** What the opponent's strikes have taken from this player this round. */
   get incomingAttacks(): Readonly<StrikeHaul> {
     return this.attacks.incoming
   }
 
-  /** How many times this player has activated pact `pactId` this round. */
-  pactActivations(pactId: string): number {
-    return this.pactWindows.get(pactId)?.length ?? 0
+  /**
+   * Game seconds this player has spent under at least one enemy debuff window
+   * this round, as of `gameSec` — overlapping windows count once.
+   */
+  incomingDebuffSec(gameSec: number): number {
+    return coveredSec(this.attacks.incoming.debuffWindows, gameSec)
+  }
+
+  /**
+   * How many times this player has activated pact `pactId` this round.
+   * `predicted` is the reconciled state's open window, if any: counted until
+   * the server's own window for that activation arrives (they overlap), so the
+   * row agrees with the card's "Active" the moment the player clicks.
+   */
+  pactActivations(pactId: string, predicted: TimeWindow | null = null): number {
+    return this.pactWindowsWith(pactId, predicted).length
   }
 
   /**
    * Game seconds pact `pactId` has been in force this round, as of `gameSec`
    * (the player's `meta.gameSec`, so time paused is never counted).
+   * `predicted` as for {@link pactActivations}.
    */
-  pactActiveSec(pactId: string, gameSec: number): number {
-    let total = 0
-    for (const w of this.pactWindows.get(pactId) ?? []) {
-      total += Math.max(0, Math.min(gameSec, w.endSec) - w.startSec)
-    }
-    return total
+  pactActiveSec(pactId: string, gameSec: number, predicted: TimeWindow | null = null): number {
+    return coveredSec(this.pactWindowsWith(pactId, predicted), gameSec)
+  }
+
+  /** The server's windows of `pactId`, plus `predicted` when none of them is its activation. */
+  private pactWindowsWith(pactId: string, predicted: TimeWindow | null): readonly TimeWindow[] {
+    const seen = this.pactWindows.get(pactId) ?? []
+    // A pact's windows never overlap (`already-active`), so overlap means the same activation.
+    if (
+      !predicted ||
+      seen.some((w) => w.startSec < predicted.endSec && predicted.startSec < w.endSec)
+    )
+      return seen
+    return [...seen, predicted]
   }
 
   /** Total manual clicks this round. */
@@ -299,7 +330,23 @@ function emptyHighlightStats(): HighlightStats {
 
 /** A fresh, empty strike haul. */
 function emptyHaul(): StrikeHaul {
-  return { resources: {}, generators: {}, debuffSec: 0 }
+  return { resources: {}, generators: {}, debuffWindows: [] }
+}
+
+/**
+ * Game seconds covered by at least one of `windows` up to `gameSec`: a window
+ * still open counts only what has elapsed, and overlapping ones count once.
+ */
+function coveredSec(windows: readonly TimeWindow[], gameSec: number): number {
+  let total = 0
+  let reached = -Infinity
+  for (const w of [...windows].sort((a, b) => a.startSec - b.startSec)) {
+    const start = Math.max(w.startSec, reached)
+    const end = Math.min(w.endSec, gameSec)
+    if (end > start) total += end - start
+    reached = Math.max(reached, w.endSec)
+  }
+  return total
 }
 
 /** A fresh, zeroed attack-stats record for a new round. */

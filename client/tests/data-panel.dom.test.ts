@@ -4,6 +4,7 @@ import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   getModeDefinition,
+  registerMode,
   type Modifier,
   type PlayerState,
 } from '@game/shared'
@@ -53,6 +54,8 @@ function makeIdlerState(debuffs: Modifier[] = []): GameState {
 }
 
 function render(state: GameState): HTMLElement {
+  // One panel per document: the panel finds its elements by id.
+  document.body.innerHTML = ''
   const container = document.createElement('div')
   document.body.appendChild(container)
   dataPanel.render(container, state)
@@ -82,6 +85,17 @@ function withUpgrades(
     meta: { ...state.player.meta, gameSec, ...player.meta },
   }
   return state
+}
+
+/** Run `fn` with the idler mode stripped of its attacks and pacts. */
+function withoutAttacksOrPacts(fn: () => void): void {
+  const modeDef = getModeDefinition('idler')
+  registerMode('idler', { ...modeDef, attacks: [], pacts: [] })
+  try {
+    fn()
+  } finally {
+    registerMode('idler', modeDef)
+  }
 }
 
 /** The first row of the per-item list `listId`. */
@@ -124,7 +138,29 @@ describe('data panel — attacks section', () => {
   it('is hidden until the attack tab unlocks or an enemy strike lands', () => {
     expect(sectionOf(render(makeIdlerState()), 'data-attacks').style.display).toBe('none')
     const hit = withUpgrades({}, 0, { meta: { attacksSuffered: 1 } })
-    expect(sectionOf(render(hit), 'data-attacks').style.display).toBe('')
+    const el = render(hit)
+    expect(sectionOf(el, 'data-attacks').style.display).toBe('')
+    // Being hit shows the incoming block, not the slots of a system not yet researched.
+    expect(el.querySelector('#data-atk-slots')?.hasAttribute('hidden')).toBe(true)
+    expect(el.querySelector('#data-atk-own')?.hasAttribute('hidden')).toBe(true)
+  })
+
+  it('shows for enemy cost inflation alone, listing it as on the player now', () => {
+    const state = withUpgrades({}, 0, {
+      incomingCostFactors: [{ scope: 'upgrade', costFactor: 1.25 }],
+    })
+    const el = render(state)
+    expect(sectionOf(el, 'data-attacks').style.display).toBe('')
+    const now = el.querySelector('#data-atk-now')!.textContent.replace(/\s+/g, ' ')
+    expect(now).toContain('💸 upgrades +25% cost')
+  })
+
+  it('is left out of a mode without attacks, even with nothing gating the tab', () => {
+    withoutAttacksOrPacts(() => {
+      const el = render(withUpgrades({}, 0, { meta: { attacksSuffered: 1 } }))
+      expect(el.querySelector('#data-attacks')).toBeNull()
+      expect(el.querySelector('#data-pacts')).toBeNull()
+    })
   })
 
   it('shows weighted slots and one row per held attack', () => {
@@ -214,6 +250,17 @@ describe('data panel — pacts section', () => {
     expect(row.querySelector('.data-item-detail')?.textContent).toMatch(
       /^1 activation · 5s active · spent 300 /,
     )
+  })
+
+  it('counts an activation the server has not confirmed yet', () => {
+    // A predicted window in the reconciled state, with no snapshot recorded.
+    const modeDef = getModeDefinition('idler')
+    const accord = modeDef.pacts.find((p) => p.id === 'drum-accord')!
+    const state = withUpgrades({ 'ir-unlock': 1, 'pact-drum-accord': 1 }, 3, {
+      activePacts: [{ pact: 'drum-accord', expiresAtSec: 3 + accord.durationSec! }],
+    })
+    const row = firstRow(render(state), 'data-pact-list')
+    expect(row.querySelector('.data-item-detail')?.textContent).toMatch(/^1 activation · 0s active/)
   })
 
   it('lists the enemy treaties reaching the player, with countdowns and auto-clicks', () => {

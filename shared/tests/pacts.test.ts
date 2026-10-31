@@ -8,6 +8,7 @@ import {
   activePactExpiresAtSec,
   applyGeneratorPurchase,
   applyPactActivation,
+  pactWindowOpenedAtSec,
   applyPurchase,
   collectEnemyCostFactors,
   collectGeneratorCostFactors,
@@ -454,6 +455,12 @@ describe('active pact activation', () => {
       applyPactActivation(state, QUICK.id, mode)
       expect(state.activePacts).toEqual([{ pact: QUICK.id, expiresAtSec: 15 }])
       expect(state).not.toHaveProperty('cooldowns')
+    })
+
+    it('opens the window at the activation, as pactWindowOpenedAtSec reads it back', () => {
+      const state = signer(10)
+      applyPactActivation(state, ACCORD.id, mode)
+      expect(pactWindowOpenedAtSec(state.activePacts![0], mode)).toBe(10)
     })
 
     it('replaces a closed window of the same pact rather than listing it twice', () => {

@@ -420,6 +420,16 @@ export function sweepPactWindows(state: PlayerState, gameSec: number): void {
   else if (open.length !== state.activePacts.length) state.activePacts = open
 }
 
+/**
+ * Game-clock time `window` opened: its close less the pact's authored
+ * `durationSec`. Exact because {@link applyPactActivation} opens every window
+ * for exactly that long — a window carries only its close, so anything that
+ * ever scales a pact's duration must change both together.
+ */
+export function pactWindowOpenedAtSec(window: ActivePact, mode: ModeDefinition): number {
+  return window.expiresAtSec - (pactIndex(mode).get(window.pact)?.durationSec ?? 0)
+}
+
 /** The reason pact `pactId` cannot be activated right now, or `null` if it can. */
 export function pactBlockReason(
   state: Readonly<PlayerState>,

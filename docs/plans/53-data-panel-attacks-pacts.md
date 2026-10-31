@@ -11,21 +11,31 @@ a number since taken by tree visibility modes):
 - **Pact telemetry reads the server snapshot**, `msg.player`, never the
   reconciled state: a replayed optimistic activation carries a window the
   client timed, which would count as a second activation once the server's
-  own window arrives.
-- **Time active comes from the window bounds**, not per-tick deltas. A pact's
-  `durationSec` is authored and never scaled, so a window opened at
-  `expiresAtSec − durationSec`; summing `min(gameSec, end) − start` is exact,
-  counts the seconds before the first snapshot that showed the window, and
-  freezes with a paused clock all the same.
-- **A section also shows when the opponent's side of it reaches the player**
-  — a strike suffered, a debuff or purchase lock on them, an enemy treaty —
-  even before the player's own tab unlocks: being hit is in play whatever the
-  victim has researched.
+  own window arrives. The row still counts the reconciled state's open window
+  until the server's arrives (they overlap, so it is the same activation), so
+  the tally agrees with the card's "Active" the moment the player clicks.
+- **Times are read against the clock, from window bounds**, not per-tick
+  deltas. Debuff windows are kept as spans (`t` to `t + durationSec`), so
+  "Time debuffed" counts only elapsed seconds and overlapping enemy windows
+  once. A pact window's opening comes from `pactWindowOpenedAtSec` in
+  `shared/src/pacts.ts`, beside the `applyPactActivation` that stamps it (a
+  test ties the two), which counts the seconds before the first snapshot that
+  showed the window and freezes with a paused clock all the same.
+- **A section shows when the mode declares its system and the player's tab is
+  unlocked, or when the opponent's side of it reaches the player** — a strike
+  suffered, a debuff, inflated prices or a purchase lock on them, an enemy
+  treaty — even before their own tab unlocks: being hit is in play whatever
+  the victim has researched. The player's own blocks (slots, held rows) show
+  only once their own tab is unlocked. "On you now" lists enemy cost inflation
+  beside the debuffs and locks.
 - **No "N more locked" footer.** The tree already shows what is locked; the
   panel reports this round's numbers.
-- The purchase-target wording (`describePurchaseTarget`) moved from the
-  espionage panel into `ui/helpers.ts` beside the pact wording, so the
-  data panel's lock rows read the same as the espionage warnings.
+- Shared wording, so the data panel reads like the cards it summarizes:
+  `ui/pact-worth.ts` (pact worth and discounts), `ui/modifier-label.ts` (what
+  a bonus or debuff lands on, for live bonuses, pact worth and debuffs alike),
+  `ui/lifecycle.ts` (an attack's or pact's timed phase and countdown, used by
+  both cards), and `describePurchaseTarget` / `formatPercentChange` /
+  `formatCostEntries` in `ui/helpers.ts`.
 - Steps 3 and 4 landed as one commit: both sections share the list
   machinery (`setListHtml`, `renderItem`, slot cells).
 
