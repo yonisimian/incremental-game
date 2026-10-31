@@ -92,6 +92,15 @@ export async function openPanel(page: Page, index: number): Promise<void> {
   await expect(tab).toHaveAttribute('aria-selected', 'true')
 }
 
+/** Resign from the Settings panel (bottom-right tab): one click arms, the second resigns. */
+export async function resign(page: Page): Promise<void> {
+  await openPanel(page, 9)
+  const btn = page.locator('#resign-btn')
+  await btn.click()
+  await expect(btn).toHaveClass(/confirming/u)
+  await btn.click()
+}
+
 export async function buyUpgrade(page: Page, upgradeId: string): Promise<void> {
   await openPanel(page, 1)
   const node = page.locator(`[data-upgrade="${upgradeId}"]`)

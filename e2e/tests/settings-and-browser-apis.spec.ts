@@ -13,7 +13,7 @@ test('PREF-01 number settings persist through close and reload', async ({ player
 
   await player.page.locator('[data-notation="name"]').click()
   await player.page.locator('[data-decimal="comma"]').click()
-  await expect(player.page.locator('#settings-preview')).toContainText(',')
+  await expect(player.page.locator('#settings-overlay .preview-value')).toContainText(',')
   await player.page.getByRole('button', { name: 'Close' }).click()
   await expect(player.page.locator('#settings-overlay')).toHaveCount(0)
 
@@ -77,4 +77,15 @@ test('PREF-04 Web Share receives the exact invite payload', async ({ players }) 
     title: 'Join my game!',
     url: `http://127.0.0.1:4173/?room=${code}`,
   })
+})
+
+test('PREF-05 about dialog opens from the lobby and closes', async ({ players }) => {
+  const player = await players.create('About')
+  await player.open()
+
+  await player.page.getByRole('button', { name: 'About', exact: true }).click()
+  await expect(player.page.getByRole('heading', { name: 'About' })).toBeVisible()
+  await expect(player.page.locator('#about-overlay')).toContainText('head-to-head')
+  await player.page.getByRole('button', { name: 'Close' }).click()
+  await expect(player.page.locator('#about-overlay')).toHaveCount(0)
 })

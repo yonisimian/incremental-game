@@ -766,11 +766,8 @@ body {
   position: relative;
 }
 
-.cards-hotkey {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+/* Keyboard-hint badge (Space / Tab / Z) */
+kbd {
   font-size: 0.55rem;
   font-weight: 600;
   font-family: monospace;
@@ -781,6 +778,13 @@ body {
   padding: 0.1rem 0.35rem;
   line-height: 1;
   box-shadow: 0 1px 0 var(--border);
+}
+
+.cards-hotkey {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 1;
 }
 
@@ -895,15 +899,6 @@ body {
   position: absolute;
   top: 0.35rem;
   right: 0.35rem;
-  font-size: 0.55rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
 }
 
 .click-cards-hotkey {
@@ -911,16 +906,6 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 0.55rem;
-  font-weight: 600;
-  font-family: monospace;
-  color: var(--text-dim);
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 4px;
-  padding: 0.1rem 0.35rem;
-  line-height: 1;
-  box-shadow: 0 1px 0 var(--border);
   z-index: 1;
 }
 
@@ -1132,7 +1117,7 @@ body {
 
 /* Hide keyboard hints on touch devices (no physical keyboard) */
 @media (pointer: coarse) {
-  .cards-hotkey {
+  kbd {
     display: none;
   }
 }
@@ -2274,7 +2259,7 @@ body {
   color: var(--accent);
 }
 
-/* ─── Modal (settings, report a bug) ───────────────────────────────── */
+/* ─── Modal (settings, report a bug, about) ────────────────────────── */
 
 .modal-overlay {
   position: fixed;
@@ -2352,11 +2337,13 @@ body {
 
 /* ─── Report a Bug Modal ───────────────────────────────────────────── */
 
-.report-body {
+.report-body,
+.about-body {
   text-align: left;
 }
 
-.report-body p {
+.report-body p,
+.about-body p {
   margin: 0 0 0.75rem;
   font-size: 0.95rem;
   line-height: 1.5;
@@ -2438,6 +2425,42 @@ body {
 /* Scoped per-theme overrides. Add theme-specific rules here. */
 .theme-medieval {
   /* idler mode */
+}
+
+/* ─── About Button ─────────────────────────────────────────────────── */
+
+.about-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    transform 0.2s;
+}
+
+.about-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--accent);
+}
+
+.about-btn:active {
+  transform: scale(0.92);
 }
 
 /* ─── Settings Gear Button ─────────────────────────────────────────── */
@@ -2585,6 +2608,65 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--accent);
+}
+
+.settings-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-slider {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 3rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-slider input {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.slider-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.slider-value {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* ─── Settings Panel (in-match) ────────────────────────────────────── */
+
+.settings-panel {
+  width: 100%;
+  max-width: 32rem;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+/* Resign leads the panel, set apart from the preferences by a divider. */
+.settings-match {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-match .quit-btn {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* Armed: the next click resigns. */
+.settings-match .quit-btn.confirming {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 /* ─── Data Panel ─────────────────────────────────────────────────────── */

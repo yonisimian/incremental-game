@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GameState } from '../src/game.js'
-import { getModeUI } from '../src/ui/mode-ui.js'
+import { ALL_PANELS, SETTINGS_PANEL_INDEX, getModeUI } from '../src/ui/mode-ui.js'
 
 /** Minimal GameState carrying only the player upgrades an unlock gate reads. */
 function playerWith(upgrades: Record<string, number>): GameState {
@@ -18,7 +18,18 @@ describe('getModeUI', () => {
       'international-relationship',
       'espionage',
       'data',
+      'settings',
     ])
+  })
+
+  it('pins the always-available settings panel to the bottom-right slot', () => {
+    const settings = getModeUI('idler').panels.find((p) => p.panel.id === 'settings')
+    expect(settings?.index).toBe(SETTINGS_PANEL_INDEX)
+    expect(settings?.isUnlocked).toBeUndefined()
+  })
+
+  it('keeps the settings panel out of the panelUnlock picker list', () => {
+    expect(ALL_PANELS.map((p) => p.id)).not.toContain('settings')
   })
 
   it('gates the generators panel on its panelUnlock effect', () => {
