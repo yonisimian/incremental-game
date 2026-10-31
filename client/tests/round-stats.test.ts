@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModeDefinition, PlayerState } from '@game/shared'
+import type { AttackEvent, ModeDefinition, PlayerState } from '@game/shared'
 import { roundStats } from '../src/stats/round-stats.js'
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -23,6 +23,19 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     meta: {},
     ...overrides,
   }
+}
+
+/** A mode declaring one active pact whose window lasts `durationSec`. */
+function makePactMode(durationSec = 10): ModeDefinition {
+  return { pacts: [{ id: 'p0', kind: 'active', durationSec }] } as unknown as ModeDefinition
+}
+
+/** A server snapshot at `gameSec` carrying the given open pact windows. */
+function pactSnapshot(gameSec: number, expiries: number[] = []): PlayerState {
+  return makePlayer({
+    meta: { gameSec },
+    activePacts: expiries.map((expiresAtSec) => ({ pact: 'p0', expiresAtSec })),
+  })
 }
 
 /** A player whose game clock reads `gameSec`, highlighting `highlight`. */
@@ -155,6 +168,82 @@ describe('RoundStats', () => {
     })
   })
 
+  describe('recordAttackEvents', () => {
+    it('counts a strike once however many events it sends', () => {
+      // One landing that stole and opened a window, then a second landing.
+      const events: AttackEvent[] = [
+        { attack: 'a0', direction: 'outgoing', kind: 'resource', resource: 'r0', amount: 50, t: 4 },
+        { attack: 'a0', direction: 'outgoing', kind: 'debuff', durationSec: 8, t: 4 },
+      ]
+      roundStats.recordAttackEvents(events)
+      roundStats.recordAttackEvents([
+        {
+          attack: 'a0',
+          direction: 'outgoing',
+          kind: 'resource',
+          resource: 'r0',
+          amount: 30,
+          t: 20,
+        },
+      ])
+
+      const a0 = roundStats.outgoingAttack('a0')
+      expect(a0?.strikes).toBe(2)
+      expect(a0?.resources.r0).toBe(80)
+      expect(a0?.debuffSec).toBe(8)
+    })
+
+    it('tallies misses and generator thefts per attack', () => {
+      roundStats.recordAttackEvents([
+        { attack: 'a4', direction: 'outgoing', kind: 'none', t: 3 },
+        { attack: 'a4', direction: 'outgoing', kind: 'generator', generator: 'g1', count: 2, t: 9 },
+      ])
+
+      const a4 = roundStats.outgoingAttack('a4')
+      expect(a4?.strikes).toBe(2)
+      expect(a4?.misses).toBe(1)
+      expect(a4?.generators.g1).toBe(2)
+      expect(roundStats.outgoingAttack('a0')).toBeNull()
+    })
+
+    it('pools incoming strikes apart from outgoing ones', () => {
+      roundStats.recordAttackEvents([
+        { attack: 'a0', direction: 'incoming', kind: 'resource', resource: 'r1', amount: 12, t: 2 },
+        { attack: 'a4', direction: 'incoming', kind: 'generator', generator: 'g0', count: 1, t: 5 },
+        { attack: 'a9', direction: 'incoming', kind: 'debuff', durationSec: 15, t: 6 },
+      ])
+
+      expect(roundStats.incomingAttacks.resources.r1).toBe(12)
+      expect(roundStats.incomingAttacks.generators.g0).toBe(1)
+      expect(roundStats.incomingAttacks.debuffSec).toBe(15)
+      expect(roundStats.outgoingAttack('a0')).toBeNull()
+    })
+  })
+
+  describe('recordPactWindows', () => {
+    it('counts each window once across repeated snapshots', () => {
+      const mode = makePactMode()
+      roundStats.recordPactWindows(pactSnapshot(1, [11]), mode)
+      roundStats.recordPactWindows(pactSnapshot(2, [11]), mode)
+      roundStats.recordPactWindows(pactSnapshot(30, [40]), mode)
+
+      expect(roundStats.pactActivations('p0')).toBe(2)
+      expect(roundStats.pactActivations('other')).toBe(0)
+    })
+
+    it('measures time active from the window bounds, only up to the clock', () => {
+      const mode = makePactMode(10)
+      // Opened at 1, first seen at 3 — the opening seconds still count.
+      roundStats.recordPactWindows(pactSnapshot(3, [11]), mode)
+
+      expect(roundStats.pactActiveSec('p0', 3)).toBeCloseTo(2)
+      // A frozen clock (paused match) adds nothing.
+      expect(roundStats.pactActiveSec('p0', 3)).toBeCloseTo(2)
+      // A closed window counts its whole length and no more.
+      expect(roundStats.pactActiveSec('p0', 25)).toBeCloseTo(10)
+    })
+  })
+
   describe('reset', () => {
     it('clears clicks, dwell, and the dwell clock baseline', () => {
       roundStats.recordClick('r0', 5)
@@ -170,6 +259,20 @@ describe('RoundStats', () => {
       // from the pre-reset gameSec (which would yield a negative delta → no accrual).
       roundStats.recordTick(playerAt(3, 'r0'), makeMode())
       expect(roundStats.dwellByResource.r0).toBeCloseTo(3)
+    })
+
+    it('clears attack and pact telemetry', () => {
+      roundStats.recordAttackEvents([
+        { attack: 'a0', direction: 'outgoing', kind: 'none', t: 1 },
+        { attack: 'a0', direction: 'incoming', kind: 'resource', resource: 'r0', amount: 5, t: 1 },
+      ])
+      roundStats.recordPactWindows(pactSnapshot(1, [11]), makePactMode())
+
+      roundStats.reset()
+
+      expect(roundStats.outgoingAttack('a0')).toBeNull()
+      expect(Object.keys(roundStats.incomingAttacks.resources)).toHaveLength(0)
+      expect(roundStats.pactActivations('p0')).toBe(0)
     })
   })
 })
