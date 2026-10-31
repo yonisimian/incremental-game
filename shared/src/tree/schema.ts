@@ -4,10 +4,10 @@ import { PREREQUISITE_META_KEYS } from '../prerequisites.js'
 import type { PrerequisiteExpression } from '../types.js'
 
 /**
- * On-disk schema version. Bump when the file shape changes incompatibly and add
- * a migration step in `migrateTreeFile` (see `codec.ts`).
+ * On-disk schema version. Bump when the file shape changes incompatibly; a file
+ * at any other version is rejected (see `parseTreeFile` in `codec.ts`).
  */
-export const CURRENT_TREE_VERSION = 5
+export const CURRENT_TREE_VERSION = 6
 
 // ─── Leaf schemas ────────────────────────────────────────────────────
 
@@ -147,6 +147,9 @@ const AttackFlavorSchema = z.strictObject({
   description: z.string(),
 })
 
+/** Display data for an upgrade category: the tree panel's title and the ruler's icon. */
+const CategoryFlavorSchema = z.strictObject({ id: z.string(), name: z.string(), icon: z.string() })
+
 const PactFlavorSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
@@ -168,6 +171,8 @@ const ModeFlavorSchema = z.strictObject({
   attacks: z.array(AttackFlavorSchema).default([]),
   /** Pact display data. Optional in the file (defaults to none) for back-compat. */
   pacts: z.array(PactFlavorSchema).default([]),
+  /** Category display data, one entry per category. */
+  categories: z.array(CategoryFlavorSchema),
 })
 
 // ─── Upgrade tree node (serializable authoring form) ─────────────────
@@ -214,6 +219,18 @@ const UpgradeNodeSchema = z
     }
   })
 
+// ─── Category (a group of top-level upgrades) ────────────────────────
+
+/**
+ * A named group of the tree's top-level upgrades, shown as its own sub-tree when
+ * the player turns categories on. `id` is abstract (`c0`, `c1`, …); the name
+ * lives in the flavor. Array order is the order the panel's arrows step through.
+ */
+const CategorySchema = z.strictObject({
+  id: z.string(),
+  upgrades: z.array(UpgradeNodeSchema),
+})
+
 // ─── Top-level tree file ─────────────────────────────────────────────
 
 /**
@@ -253,7 +270,8 @@ export const TreeFileSchema = z.strictObject({
    * players can pick different flavors and still compete in the same match.
    */
   flavors: z.array(ModeFlavorSchema).min(1),
-  upgrades: z.array(UpgradeNodeSchema),
+  /** The upgrade tree, grouped into categories (at least one). */
+  categories: z.array(CategorySchema).min(1),
 })
 
 /** A validated tree file (inferred from {@link TreeFileSchema}). */
@@ -261,3 +279,6 @@ export type TreeFile = z.infer<typeof TreeFileSchema>
 
 /** A serializable authoring node (inferred from its schema). */
 export type TreeUpgradeNode = z.infer<typeof UpgradeNodeSchema>
+
+/** A serializable category: an id plus its top-level upgrade nodes. */
+export type TreeCategory = z.infer<typeof CategorySchema>

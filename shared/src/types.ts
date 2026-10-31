@@ -95,6 +95,8 @@ export interface UpgradeDefinition {
    * so this is the node's canvas anchor.
    */
   readonly position?: UpgradePosition
+  /** Id of the category this upgrade sits in (see `ModeDefinition.categories`). */
+  readonly category?: string
   /**
    * If set, this upgrade only exists when the active goal's type matches.
    * Used for goal-specific "trophy" upgrades (e.g., buy-upgrade goal's win

@@ -67,6 +67,16 @@ export interface PactFlavor {
   readonly description: string
 }
 
+/** Display metadata for an upgrade category. */
+export interface CategoryFlavor {
+  /** Category id (matches CategoryDefinition.id). */
+  readonly id: string
+  /** Display name, shown as the upgrade tree's title (e.g. 'Attack'). */
+  readonly name: string
+  /** Icon on the category's button in the tree's ruler. */
+  readonly icon: string
+}
+
 /** Cosmetic skin for a mode — all display strings, icons, labels. */
 export interface ModeFlavor {
   /** Stable flavor key, unique within the mode (e.g. 'medieval', 'scifi'). */
@@ -89,6 +99,14 @@ export interface ModeFlavor {
   readonly attacks: readonly AttackFlavor[]
   /** Pact display data, looked up by id via helpers. */
   readonly pacts: readonly PactFlavor[]
+  /** Category display data, when the mode has categories. */
+  readonly categories?: readonly CategoryFlavor[]
+}
+
+/** A group of upgrades the tree panel can show on its own. */
+export interface CategoryDefinition {
+  /** Abstract category id (e.g. 'c0'); the name lives in the flavor. */
+  readonly id: string
 }
 
 // ─── Mode Definition ─────────────────────────────────────────────────
@@ -101,6 +119,12 @@ export interface ModeDefinition {
   readonly scoreResource: string
   /** Upgrade definitions for this mode (with modifier data). */
   readonly upgrades: readonly UpgradeDefinition[]
+  /**
+   * Upgrade categories, in the order the tree panel steps through them. Each
+   * upgrade names its own in `UpgradeDefinition.category`. Absent = the mode is
+   * one tree (modes built in code, such as test stubs).
+   */
+  readonly categories?: readonly CategoryDefinition[]
   /** Available win conditions for this mode. */
   readonly goals: readonly Goal[]
   /** Whether manual clicks are allowed. */

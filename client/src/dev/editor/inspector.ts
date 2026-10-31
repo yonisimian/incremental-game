@@ -16,7 +16,7 @@ import {
 } from '@game/shared'
 
 import { buildEffectsSection } from './effects-editor.js'
-import { findNode, nodeFlavor, renameNode, setNodeFlavor } from './model.js'
+import { findNode, nodeFlavor, renameNode, setNodeFlavor, type CategoryRow } from './model.js'
 import { el, field } from './views/dom.js'
 
 export interface InspectorContext {
@@ -30,8 +30,14 @@ export interface InspectorContext {
   readonly parentId: string | null
   /** Ids that can't be the node's parent (itself + its descendants). */
   readonly descendantIds: readonly string[]
+  /** Every category in order, with its name. */
+  readonly categories: readonly CategoryRow[]
+  /** The category of every node, by node id (the selected node's included). */
+  readonly categoryById: ReadonlyMap<string, string>
   /** Re-parent the node (or make it a root when `null`). */
   readonly onReparent: (parentId: string | null) => void
+  /** Move the node, with its subtree, to the top level of another category. */
+  readonly onMoveCategory: (categoryId: string) => void
   /** Called after any edit that changes the working tree. */
   readonly onChange: () => void
 }
@@ -156,6 +162,23 @@ function buildIdSection(ctx: InspectorContext): HTMLElement {
   return field('ID', input)
 }
 
+function buildCategorySection(ctx: InspectorContext): HTMLElement {
+  const select = el('select', 'ed-input')
+  const current = ctx.categoryById.get(ctx.node.id)
+  for (const c of ctx.categories) {
+    const opt = el('option', undefined, c.name)
+    opt.value = c.id
+    if (c.id === current) opt.selected = true
+    select.append(opt)
+  }
+  select.addEventListener('change', () => {
+    ctx.onMoveCategory(select.value)
+  })
+  const wrap = field('Category', select)
+  wrap.append(el('p', 'ed-hint', 'Moves the node and its subtree, as a root, keeping its place.'))
+  return wrap
+}
+
 function buildParentSection(ctx: InspectorContext): HTMLElement {
   const select = el('select', 'ed-input')
   const root = el('option', undefined, '(root)')
@@ -163,10 +186,12 @@ function buildParentSection(ctx: InspectorContext): HTMLElement {
   if (ctx.parentId === null) root.selected = true
   select.append(root)
 
-  // Exclude the node itself and its descendants — those would make a cycle.
+  // Exclude the node itself and its descendants — those would make a cycle —
+  // and nodes in other categories: moving categories is the Category field's job.
   const excluded = new Set(ctx.descendantIds)
+  const category = ctx.categoryById.get(ctx.node.id)
   for (const id of ctx.allIds) {
-    if (excluded.has(id)) continue
+    if (excluded.has(id) || ctx.categoryById.get(id) !== category) continue
     const opt = el('option', undefined, id)
     opt.value = id
     if (id === ctx.parentId) opt.selected = true
@@ -454,6 +479,23 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
   const hitLabel = el('label', 'ed-checkbox')
   hitLabel.append(hitBox, document.createTextNode(' also requires being hit by an enemy attack'))
 
+  // The game shows one category at a time, so a prerequisite in another
+  // category is refused when the tree loads. Options from other categories
+  // carry their category's name, and picking one shows a warning.
+  const ownCategory = ctx.categoryById.get(ctx.node.id)
+  const categoryName = new Map(ctx.categories.map((c) => [c.id, c.name]))
+  const crossWarning = el(
+    'p',
+    'ed-error',
+    'A prerequisite from another category: the game refuses to load this tree.',
+  )
+  const syncCrossWarning = (): void => {
+    const crosses = [...checklist.querySelectorAll<HTMLInputElement>('input[type=checkbox]')].some(
+      (box) => box.checked && ctx.categoryById.get(box.value) !== ownCategory,
+    )
+    crossWarning.hidden = !crosses
+  }
+
   const selected = new Map(simple.items.map((i) => [i.id, i.minLevel ?? 1]))
   for (const id of ctx.allIds) {
     if (id === ctx.node.id) continue
@@ -463,7 +505,12 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
     box.type = 'checkbox'
     box.value = id
     box.checked = selected.has(id)
-    item.append(box, document.createTextNode(` ${id}`))
+    const otherCategory = ctx.categoryById.get(id)
+    const label =
+      otherCategory === ownCategory
+        ? ` ${id}`
+        : ` ${id} (${categoryName.get(otherCategory ?? '') ?? otherCategory})`
+    item.append(box, document.createTextNode(label))
 
     // Per-prerequisite minimum level. Capped at the target's purchase limit so
     // the form can't author a value the loader's validation would reject.
@@ -478,6 +525,7 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
 
     box.addEventListener('change', () => {
       level.disabled = !box.checked
+      syncCrossWarning()
       sync()
     })
     level.addEventListener('change', sync)
@@ -485,8 +533,9 @@ function buildPrerequisitesSection(ctx: InspectorContext): HTMLElement {
     row.append(item, level)
     checklist.append(row)
   }
+  syncCrossWarning()
 
-  section.append(field('Require', modeSelect), checklist, hitLabel)
+  section.append(field('Require', modeSelect), checklist, crossWarning, hitLabel)
   return section
 }
 
@@ -583,6 +632,7 @@ export function renderInspector(container: HTMLElement, ctx: InspectorContext): 
   const cost = buildCostSection(ctx)
   container.append(
     buildIdSection(ctx),
+    buildCategorySection(ctx),
     buildParentSection(ctx),
     cost.element,
     buildPurchaseLimitSection(ctx, cost.refresh),

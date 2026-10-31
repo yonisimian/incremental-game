@@ -9,6 +9,7 @@ import {
   COUNTDOWN_SEC,
   ROUND_DURATION_SEC,
   createInitialState,
+  getAvailableUpgrades,
   getModeDefinition,
 } from '@game/shared'
 import type { GameState } from '../src/game.js'
@@ -24,6 +25,8 @@ vi.mock('../src/game.js', async (importOriginal) => ({
 const { upgradeTreePanel } = await import('../src/ui/panels/upgrade-tree-panel.js')
 const { closeUpgradeDetail } = await import('../src/ui/upgrade-detail.js')
 const { setTreeVisibility } = await import('../src/ui/tree-visibility.js')
+const { setTreeCategories } = await import('../src/ui/tree-categories.js')
+const { configurePanels } = await import('../src/ui/panels.js')
 
 const mode = getModeDefinition('idler')
 
@@ -75,8 +78,10 @@ function mountTree(state: GameState): void {
 const nodeOf = (id: string) => document.querySelector<HTMLButtonElement>(`[data-upgrade="${id}"]`)!
 
 afterEach(() => {
+  vi.restoreAllMocks()
   closeUpgradeDetail()
   setTreeVisibility('full')
+  setTreeCategories(false)
   document.body.innerHTML = ''
 })
 
@@ -253,5 +258,168 @@ describe('upgrade tree panel node order', () => {
     const treeOrder = current.upgrades.map((u) => u.id).filter((id) => domOrder.includes(id))
     expect(domOrder).toContain('g1-af')
     expect(domOrder).toEqual(treeOrder)
+  })
+})
+
+// Categories on. Arrow clicks re-render through the panel router, so the tree
+// is mounted as the router's only panel, in #panel-container. A timed round
+// drops the trophy, leaving c1 (Base Production) … c8 (Espionage).
+describe('upgrade tree panel categories', () => {
+  let match = 0
+  const timed = getAvailableUpgrades(mode, {
+    type: 'timed',
+    label: '⏱ Timed',
+    durationSec: ROUND_DURATION_SEC,
+  })
+  const inRound = (state: GameState): GameState => ({
+    ...state,
+    upgrades: timed,
+    matchId: `cat-${match}`,
+  })
+  const title = () => document.querySelector('.tree-category-title')?.textContent
+  const targets = () =>
+    [...document.querySelectorAll('.tree-category-target')].map((t) => t.textContent)
+  const arrow = (step: 1 | -1) =>
+    document.querySelector<HTMLButtonElement>(`[data-category-step="${step}"]`)!
+  const drawn = () =>
+    [...document.querySelectorAll<HTMLElement>('.tree-node')].map((n) => n.dataset.upgrade)
+  const zoom = () => {
+    const transform = document.getElementById('tree-canvas')!.style.transform
+    return Number(/scale\((.+)\)/.exec(transform)![1])
+  }
+
+  function mountRouted(state: GameState): void {
+    current = state
+    const container = document.createElement('div')
+    container.id = 'panel-container'
+    document.body.appendChild(container)
+    configurePanels([{ index: 0, panel: upgradeTreePanel }])
+    upgradeTreePanel.render(container, state)
+    upgradeTreePanel.bind?.(state)
+  }
+
+  beforeEach(() => {
+    match++
+    setTreeCategories(true)
+  })
+
+  it('off: draws the whole tree with no category bar', () => {
+    setTreeCategories(false)
+    mountRouted(inRound(makeState(0)))
+    expect(document.querySelector('.tree-category-bar')).toBeNull()
+    expect(drawn()).toContain('g1-g2')
+    expect(drawn()).toContain('a-unlock')
+  })
+
+  it('on: opens the first non-empty category, titled, with its neighbours named', () => {
+    mountRouted(inRound(makeState(0)))
+    expect(title()).toBe('Base Production')
+    // Left wraps to the last category; right is the next one.
+    expect(targets()).toEqual(['Espionage', 'Global Production'])
+    expect(drawn()).toContain('be-af-mr')
+    expect(drawn()).not.toContain('g1-g2')
+  })
+
+  it('steps through the categories with the arrows, wrapping around', () => {
+    mountRouted(inRound(makeState(0)))
+    arrow(1).click()
+    expect(title()).toBe('Global Production')
+    arrow(-1).click()
+    arrow(-1).click()
+    expect(title()).toBe('Espionage')
+    expect(drawn()).toContain('e-se-mr')
+  })
+
+  it('keeps the category across a re-render and resets it on a new match', () => {
+    mountRouted(inRound(makeState(0)))
+    arrow(1).click()
+    upgradeTreePanel.render(document.getElementById('panel-container')!, current)
+    expect(title()).toBe('Global Production')
+
+    document.body.innerHTML = ''
+    match++
+    mountRouted(inRound(makeState(0)))
+    expect(title()).toBe('Base Production')
+  })
+
+  it('zooms a category to fit the viewport', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 800, 600),
+    )
+    mountRouted(inRound(makeState(0)))
+    expect(zoom()).toBeGreaterThan(0.2)
+    expect(zoom()).toBeLessThanOrEqual(1)
+  })
+
+  it("returns to a category's view as it was left", () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 800, 600),
+    )
+    mountRouted(inRound(makeState(0)))
+    const viewport = document.getElementById('tree-viewport')!
+    // happy-dom's WheelEvent drops clientX/Y, which the zoom anchors on.
+    const wheel = new WheelEvent('wheel', { deltaY: -100 })
+    Object.defineProperties(wheel, { clientX: { value: 10 }, clientY: { value: 10 } })
+    viewport.dispatchEvent(wheel)
+    const left = document.getElementById('tree-canvas')!.style.transform
+    expect(left).not.toContain('NaN')
+
+    arrow(1).click()
+    expect(document.getElementById('tree-canvas')!.style.transform).not.toBe(left)
+    arrow(-1).click()
+    expect(document.getElementById('tree-canvas')!.style.transform).toBe(left)
+  })
+
+  it('rules every round category with its icon, marking the current one', () => {
+    mountRouted(inRound(makeState(0)))
+    const stops = [...document.querySelectorAll<HTMLButtonElement>('.tree-category-stop')]
+    expect(stops.map((s) => s.dataset.category)).toEqual([
+      'c1',
+      'c2',
+      'c3',
+      'c4',
+      'c5',
+      'c6',
+      'c7',
+      'c8',
+    ])
+    expect(stops[0].textContent.trim()).toBe('🌱')
+    expect(stops[0].getAttribute('aria-label')).toBe('Base Production')
+    expect(stops.filter((s) => s.getAttribute('aria-current') === 'true')).toEqual([stops[0]])
+  })
+
+  it('jumps to a category from the ruler', () => {
+    mountRouted(inRound(makeState(0)))
+    document.querySelector<HTMLButtonElement>('[data-category="c6"]')!.click()
+    expect(title()).toBe('Attack')
+    expect(drawn()).toContain('a-unlock')
+    expect(document.querySelector('[data-category="c6"]')!.getAttribute('aria-current')).toBe(
+      'true',
+    )
+  })
+
+  it('draws no ruler with categories off', () => {
+    setTreeCategories(false)
+    mountRouted(inRound(makeState(0)))
+    expect(document.querySelector('.tree-category-ruler')).toBeNull()
+  })
+
+  it('shows the trophy category in a buy-upgrade round', () => {
+    mountRouted({ ...makeState(0), upgrades: mode.upgrades, matchId: `cat-${match}` })
+    expect(title()).toBe('Goal')
+  })
+
+  it('plays a pulse from another category when that category opens', () => {
+    setTreeVisibility('hidden')
+    mountRouted(inRound(makeState(0)))
+    // g1-g2 (in Generators) is bought while Base Production is on screen.
+    current = inRound(makeState(0, { 'g1-g2': 1 }))
+    upgradeTreePanel.update!(current)
+    expect(drawn()).not.toContain('g1-af')
+
+    arrow(1).click() // Global Production
+    arrow(1).click() // Generators
+    expect(title()).toBe('Generators')
+    expect(nodeOf('g1-af').classList.contains('revealed')).toBe(true)
   })
 })

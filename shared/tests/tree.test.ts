@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CURRENT_TREE_VERSION,
-  collectModifiers,
-  computePassiveRates,
+  getCategoryName,
   getModeDefinition,
+  getModeFlavor,
   parseTree,
   parseTreeFile,
   serializeTree,
   toModeDefinition,
 } from '../src/index.js'
-import type { PlayerState, TreeFile } from '../src/index.js'
+import type { TreeFile, TreeUpgradeNode } from '../src/index.js'
 import idlerTreeFile from '../trees/idler.json' with { type: 'json' }
 
 // ─── Fixtures ────────────────────────────────────────────────────────
@@ -50,10 +50,16 @@ function minimalTree(): TreeFile {
         generators: [],
         attacks: [],
         pacts: [],
+        categories: [{ id: 'c0', name: 'C0', icon: '📁' }],
       },
     ],
-    upgrades: [],
+    categories: [{ id: 'c0', upgrades: [] }],
   }
+}
+
+/** `tree` with `roots` as its only category's upgrades — for invalid-node cases. */
+function withRoots(tree: TreeFile, roots: unknown[]): unknown {
+  return { ...tree, categories: [{ id: 'c0', upgrades: roots }] }
 }
 
 const flavorFor = (id: string) => ({ id, name: id, icon: 'x', description: 'd' })
@@ -82,7 +88,7 @@ describe('tree codec — idler parity', () => {
 describe('tree codec — purchaseLimit sentinel', () => {
   it('maps null to Infinity when assembling the runtime definition', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
@@ -91,12 +97,12 @@ describe('tree codec — purchaseLimit sentinel', () => {
 
   it('preserves the null sentinel across a round-trip (Infinity is not JSON-encodable)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: null, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     const back = parseTreeFile(JSON.parse(serializeTree(tree)) as unknown)
-    expect(back.upgrades[0].purchaseLimit).toBeNull()
+    expect(back.categories[0].upgrades[0].purchaseLimit).toBeNull()
   })
 })
 
@@ -112,142 +118,107 @@ describe('tree codec — versioning', () => {
     expect(() => parseTreeFile({ ...minimalTree(), version: 999 })).toThrow(/version/iu)
   })
 
-  it('migrates v1 per-upgrade modifiers into baseModifier effects', () => {
-    const v1: unknown = {
-      ...minimalTree(),
-      version: 1,
-      upgrades: [
-        {
-          id: 'a',
-          cost: { r0: 5 },
-          purchaseLimit: null,
-          modifiers: [{ stage: 'additive', field: 'r0', value: 3 }],
-          effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-          offset: { x: 0, y: 0 },
-        },
-      ],
-    }
-    const parsed = parseTreeFile(v1)
-    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
-    // Existing effects are kept ahead of the migrated baseModifier.
-    expect(parsed.upgrades[0].effects).toEqual([
-      { type: 'highlightMultiplier', multiplier: 2 },
-      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 3 },
+  it('rejects the previous version (no migration: tree files are converted in the repo)', () => {
+    expect(() => parseTreeFile({ ...minimalTree(), version: CURRENT_TREE_VERSION - 1 })).toThrow(
+      /version/iu,
+    )
+  })
+})
+
+// ─── Categories ──────────────────────────────────────────────────────
+
+describe('tree codec — categories', () => {
+  const leaf = (id: string, extra: Partial<TreeUpgradeNode> = {}): TreeUpgradeNode => ({
+    id,
+    cost: { r0: { baseCost: 1 } },
+    purchaseLimit: 1,
+    offset: { x: 0, y: 0 },
+    ...extra,
+  })
+
+  /** Two categories, `a` in c0 and `b` in c1, with flavor for both. */
+  function twoCategories(b: TreeUpgradeNode = leaf('b')): TreeFile {
+    const tree = minimalTree()
+    tree.categories = [
+      { id: 'c0', upgrades: [leaf('a')] },
+      { id: 'c1', upgrades: [b] },
+    ]
+    tree.flavors[0].upgrades = [flavorFor('a'), flavorFor('b')]
+    tree.flavors[0].categories = [
+      { id: 'c0', name: 'First', icon: '📁' },
+      { id: 'c1', name: 'Second', icon: '📁' },
+    ]
+    return tree
+  }
+
+  it('lists the categories in file order and names them through the flavor', () => {
+    const def = toModeDefinition(twoCategories())
+    expect(def.categories).toEqual([{ id: 'c0' }, { id: 'c1' }])
+    expect(def.upgrades.map((u) => [u.id, u.category])).toEqual([
+      ['a', 'c0'],
+      ['b', 'c1'],
     ])
-    expect('modifiers' in parsed.upgrades[0]).toBe(false)
+    expect(getCategoryName(getModeFlavor(def), 'c1')).toBe('Second')
   })
 
-  it('migrates v2 costs into per-currency CostEntry maps', () => {
-    const v2: unknown = {
-      ...minimalTree(),
-      version: 2,
-      upgrades: [
-        {
-          id: 'a',
-          cost: { r0: 10, r1: 5 },
-          costScaling: { type: 'exponential', baseCost: 10, factor: 1.15 },
-          purchaseLimit: null,
-          offset: { x: 0, y: 0 },
-        },
-      ],
-      generators: [
-        {
-          id: 'g0',
-          baseCost: 20,
-          costScaling: 1.2,
-          costCurrency: 'r1',
-          production: { resource: 'r0', rate: 1 },
-        },
-      ],
-    }
-    const parsed = parseTreeFile(v2)
-    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
-    // The single old costScaling applies to every cost currency.
-    expect(parsed.upgrades[0].cost).toEqual({
-      r0: { baseCost: 10, scaleType: 'exponential', scaleFactor: 1.15 },
-      r1: { baseCost: 5, scaleType: 'exponential', scaleFactor: 1.15 },
-    })
-    // Generator fields collapse into a single-currency exponential entry.
-    expect(parsed.generators[0].cost).toEqual({
-      r1: { baseCost: 20, scaleType: 'exponential', scaleFactor: 1.2 },
-    })
-    expect('baseCost' in parsed.generators[0]).toBe(false)
-    expect('costScaling' in parsed.upgrades[0]).toBe(false)
+  it('accepts an empty category', () => {
+    const tree = twoCategories()
+    tree.categories.push({ id: 'c2', upgrades: [] })
+    tree.flavors[0].categories.push({ id: 'c2', name: 'Empty', icon: '📁' })
+    expect(() => toModeDefinition(tree)).not.toThrow()
   })
 
-  it('drops inert cost scaling from a one-shot upgrade when migrating v2→v3', () => {
-    const v2: unknown = {
-      ...minimalTree(),
-      version: 2,
-      upgrades: [
-        {
-          id: 'a',
-          cost: { r0: 10 },
-          costScaling: { type: 'exponential', baseCost: 10, factor: 1.15 },
-          purchaseLimit: 1,
-          offset: { x: 0, y: 0 },
-        },
-      ],
-    }
-    // Without normalization the migration would emit a scaled one-shot entry,
-    // which the schema's one-shot invariant rejects — so parsing must succeed
-    // and yield a flat cost instead of throwing.
-    const parsed = parseTreeFile(v2)
-    expect(parsed.upgrades[0].cost).toEqual({ r0: { baseCost: 10 } })
+  it('rejects a file with no categories', () => {
+    expect(() => parseTreeFile({ ...minimalTree(), categories: [] })).toThrow()
   })
 
-  it('migrates v3 nativeModifiers into startingEffects, after existing effects', () => {
-    const { startingEffects: _dropped, ...base } = minimalTree()
-    const v3: unknown = {
-      ...base,
-      version: 3,
-      effects: [{ type: 'highlightMultiplier', multiplier: 2 }],
-      nativeModifiers: [
-        { stage: 'additive', field: 'r0', value: 1 },
-        { stage: 'multiplicative', field: 'r0', value: 2 },
-      ],
-    }
-    const parsed = parseTreeFile(v3)
-    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
-    expect(parsed.startingEffects).toEqual([
-      { type: 'highlightMultiplier', multiplier: 2 },
-      { type: 'baseModifier', stage: 'additive', field: 'r0', value: 1 },
-      { type: 'baseModifier', stage: 'multiplicative', field: 'r0', value: 2 },
+  it('rejects a duplicate category id', () => {
+    const tree = twoCategories()
+    tree.categories[1].id = 'c0'
+    tree.flavors[0].categories = [{ id: 'c0', name: 'First', icon: '📁' }]
+    expect(() => toModeDefinition(tree)).toThrow(/duplicate category id 'c0'/u)
+  })
+
+  it('rejects a prerequisite that crosses categories', () => {
+    const tree = twoCategories(leaf('b', { prerequisites: { type: 'upgrade', id: 'a' } }))
+    expect(() => toModeDefinition(tree)).toThrow(/can't cross categories/u)
+  })
+
+  it('accepts a prerequisite inside one category', () => {
+    const tree = twoCategories()
+    tree.categories[0].upgrades = [
+      leaf('a', { children: [leaf('a2', { prerequisites: { type: 'upgrade', id: 'a' } })] }),
+    ]
+    tree.flavors[0].upgrades.push(flavorFor('a2'))
+    expect(() => toModeDefinition(tree)).not.toThrow()
+  })
+
+  it('rejects a flavor missing a category name', () => {
+    const tree = twoCategories()
+    tree.flavors[0].categories = [{ id: 'c0', name: 'First', icon: '📁' }]
+    expect(() => toModeDefinition(tree)).toThrow(/missing flavor for category 'c1'/u)
+  })
+
+  it('rejects a flavor naming an unknown category', () => {
+    const tree = twoCategories()
+    tree.flavors[0].categories.push({ id: 'c9', name: 'Ghost', icon: '📁' })
+    expect(() => toModeDefinition(tree)).toThrow(/unknown category 'c9'/u)
+  })
+
+  it('gives the idler its 9 categories', () => {
+    const def = getModeDefinition('idler')
+    const flavor = getModeFlavor(def)
+    expect(def.categories?.map((c) => getCategoryName(flavor, c.id))).toEqual([
+      'Goal',
+      'Base Production',
+      'Global Production',
+      'Generators',
+      'Click',
+      'Highlight',
+      'Attack',
+      'Diplomacy',
+      'Espionage',
     ])
-    expect('nativeModifiers' in parsed).toBe(false)
-    expect('effects' in parsed).toBe(false)
-  })
-
-  it('migrates a v3 tree with neither nativeModifiers nor effects to empty startingEffects', () => {
-    const { startingEffects: _dropped, ...base } = minimalTree()
-    const parsed = parseTreeFile({ ...base, version: 3 })
-    expect(parsed.startingEffects).toEqual([])
-  })
-
-  it('drops the top-level id when migrating v4 → v5 (the file name is the mode id)', () => {
-    const parsed = parseTreeFile({ ...minimalTree(), version: 4, id: 'old-id' })
-    expect(parsed.version).toBe(CURRENT_TREE_VERSION)
-    expect(parsed).not.toHaveProperty('id')
-  })
-
-  it('preserves the rate a v3 nativeModifier produced after migrating it', () => {
-    const { startingEffects: _dropped, ...base } = minimalTree()
-    const v3: unknown = {
-      ...base,
-      id: 'v3-parity',
-      version: 3,
-      nativeModifiers: [{ stage: 'additive', field: 'r0', value: 3 }],
-    }
-    const def = toModeDefinition(parseTreeFile(v3))
-    const state: PlayerState = {
-      score: 0,
-      resources: { r0: 0 },
-      upgrades: {},
-      generators: {},
-      pendingAttacks: [],
-      meta: {},
-    }
-    expect(computePassiveRates(collectModifiers(state, def), def.resources).r0).toBe(3)
   })
 })
 
@@ -264,18 +235,18 @@ describe('tree codec — validation failures', () => {
 
   it('rejects an unknown key on an upgrade node (strict schema catches typos)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       { id: 'a', cost: { r0: { baseCost: 5 } }, purchaseLimit: 1, offset: { x: 0, y: 0 } },
     ]
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() =>
-      parseTreeFile({ ...tree, upgrades: [{ ...tree.upgrades[0], modifers: [] }] }),
+      parseTreeFile(withRoots(tree, [{ ...tree.categories[0].upgrades[0], modifers: [] }])),
     ).toThrow()
   })
 
   it('accepts a meta prerequisite with a whitelisted key and rejects an unknown one', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5 } },
@@ -287,26 +258,30 @@ describe('tree codec — validation failures', () => {
     tree.flavors[0].upgrades = [flavorFor('a')]
     expect(() => parseTreeFile(tree)).not.toThrow()
     expect(() =>
-      parseTreeFile({
-        ...tree,
-        upgrades: [
-          { ...tree.upgrades[0], prerequisites: { type: 'meta', key: 'peakCps', min: 1 } },
-        ],
-      }),
+      parseTreeFile(
+        withRoots(tree, [
+          {
+            ...tree.categories[0].upgrades[0],
+            prerequisites: { type: 'meta', key: 'peakCps', min: 1 },
+          },
+        ]),
+      ),
     ).toThrow()
     expect(() =>
-      parseTreeFile({
-        ...tree,
-        upgrades: [
-          { ...tree.upgrades[0], prerequisites: { type: 'meta', key: 'attacksSuffered', min: 0 } },
-        ],
-      }),
+      parseTreeFile(
+        withRoots(tree, [
+          {
+            ...tree.categories[0].upgrades[0],
+            prerequisites: { type: 'meta', key: 'attacksSuffered', min: 0 },
+          },
+        ]),
+      ),
     ).toThrow()
   })
 
   it('rejects a cost entry with scaleType but no scaleFactor (must co-occur)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleType: 'exponential' } },
@@ -320,7 +295,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects a non-positive baseCost', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 0 } },
@@ -334,7 +309,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects a non-positive scaleFactor', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleType: 'exponential', scaleFactor: 0 } },
@@ -369,7 +344,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects a cost entry with scaleFactor but no scaleType (must co-occur)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleFactor: 1.15 } },
@@ -383,7 +358,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects a one-shot upgrade (purchaseLimit 1) that scales its cost', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5, scaleType: 'exponential', scaleFactor: 1.15 } },
@@ -397,7 +372,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects a duplicate upgrade id (via the flattener)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5 } },
@@ -414,7 +389,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects an unknown effect type', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5 } },
@@ -429,7 +404,7 @@ describe('tree codec — validation failures', () => {
 
   it('rejects malformed effect params (unknown highlight key)', () => {
     const tree = minimalTree()
-    tree.upgrades = [
+    tree.categories[0].upgrades = [
       {
         id: 'a',
         cost: { r0: { baseCost: 5 } },

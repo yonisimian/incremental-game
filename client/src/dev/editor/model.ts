@@ -49,6 +49,8 @@ export interface PositionedNode {
   readonly y: number
   /** Absolute position of the layout parent (the origin for roots). */
   readonly parent: TreeUpgradeNode | null
+  /** Id of the category the node sits in. */
+  readonly category: string
 }
 
 /** Deep-clone a tree file so the editor can mutate without touching the source. */
@@ -70,6 +72,11 @@ function childrenOf(node: TreeUpgradeNode): readonly TreeUpgradeNode[] {
   return (node.children ?? []) as unknown as readonly TreeUpgradeNode[]
 }
 
+/** Every category's top-level nodes, in file order. */
+function rootsOf(tree: TreeFile): readonly TreeUpgradeNode[] {
+  return tree.categories.flatMap((c) => c.upgrades)
+}
+
 /**
  * Walk every node depth-first, resolving each node's absolute position by
  * accumulating offsets (`abs = parentAbs + offset`; roots offset from origin).
@@ -81,22 +88,29 @@ export function walkPositioned(tree: TreeFile): PositionedNode[] {
     baseX: number,
     baseY: number,
     parent: TreeUpgradeNode | null,
+    category: string,
   ): void => {
     for (const node of nodes) {
       const x = baseX + node.offset.x
       const y = baseY + node.offset.y
-      out.push({ node, x, y, parent })
+      out.push({ node, x, y, parent, category })
       const children = childrenOf(node)
-      if (children.length > 0) visit(children, x, y, node)
+      if (children.length > 0) visit(children, x, y, node, category)
     }
   }
-  visit(tree.upgrades, 0, 0, null)
+  // Every category's roots offset from the same origin: positions are global.
+  for (const c of tree.categories) visit(c.upgrades, 0, 0, null, c.id)
   return out
+}
+
+/** The id of the category a node sits in, or `null` if the id is unknown. */
+export function categoryOf(tree: TreeFile, id: string): string | null {
+  return walkPositioned(tree).find((p) => p.node.id === id)?.category ?? null
 }
 
 /** Find a node by id anywhere in the nested tree, or `null`. */
 export function findNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
-  const stack = [...tree.upgrades]
+  const stack = [...rootsOf(tree)]
   while (stack.length > 0) {
     const node = stack.pop()!
     if (node.id === id) return node
@@ -178,17 +192,24 @@ export function uniqueId(tree: TreeFile, base = 'node'): string {
 }
 
 /**
- * Append `node` as a child of `parentId`, or as a new root when `parentId` is
- * `null` (or the parent can't be found). Mutates the tree in place. Also seeds a
+ * Append `node` as a child of `parentId`, or as a new root of `categoryId` (the
+ * first category by default) when `parentId` is `null` (or the parent can't be
+ * found). Mutates the tree in place. Also seeds a
  * default flavor entry for the node so the tree stays loadable (the runtime
  * requires every upgrade to have one); idempotent, so re-parenting won't
  * duplicate it.
  */
-export function addNode(tree: TreeFile, parentId: string | null, node: TreeUpgradeNode): void {
+export function addNode(
+  tree: TreeFile,
+  parentId: string | null,
+  node: TreeUpgradeNode,
+  categoryId: string = tree.categories[0].id,
+): void {
   ensureNodeFlavor(tree, node.id)
   const parent = parentId === null ? null : findNode(tree, parentId)
   if (!parent) {
-    tree.upgrades.push(node)
+    const category = tree.categories.find((c) => c.id === categoryId) ?? tree.categories[0]
+    category.upgrades.push(node)
     return
   }
   setChildren(parent, [...childrenOf(parent), node])
@@ -375,7 +396,7 @@ export function removeNode(tree: TreeFile, id: string): string[] {
     }
     return false
   }
-  removeFrom(tree.upgrades)
+  tree.categories.some((c) => removeFrom(c.upgrades))
   if (removed.length > 0) {
     const removedSet = new Set(removed)
     pruneFlavors(tree, removedSet)
@@ -415,7 +436,7 @@ function detachNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
     }
     return false
   }
-  removeFrom(tree.upgrades)
+  tree.categories.some((c) => removeFrom(c.upgrades))
   return found
 }
 
@@ -429,12 +450,16 @@ function detachNode(tree: TreeFile, id: string): TreeUpgradeNode | null {
 export function reparentNode(tree: TreeFile, id: string, newParentId: string | null): boolean {
   if (id === newParentId) return false
   if (parentOf(tree, id) === newParentId) return false
+  // A parent in another category would move the node there; that's moveToCategory's job.
+  if (newParentId !== null && categoryOf(tree, newParentId) !== categoryOf(tree, id)) return false
   const node = findNode(tree, id)
   if (!node) return false
   if (newParentId !== null && subtreeIds(node).includes(newParentId)) return false
 
   const abs = nodePosition(tree, id)
   if (!abs) return false
+  // A node made a root stays in its own category.
+  const category = categoryOf(tree, id) ?? undefined
 
   detachNode(tree, id)
 
@@ -442,7 +467,108 @@ export function reparentNode(tree: TreeFile, id: string, newParentId: string | n
   const base =
     newParentId === null ? { x: 0, y: 0 } : (nodePosition(tree, newParentId) ?? { x: 0, y: 0 })
   node.offset = { x: abs.x - base.x, y: abs.y - base.y }
-  addNode(tree, newParentId, node)
+  addNode(tree, newParentId, node, category)
+  return true
+}
+
+// ─── Categories ──────────────────────────────────────────────────────
+//
+// Categories group the top-level nodes; their names and icons live in every
+// flavor's `categories` table, kept in sync with the mechanics list so the tree stays
+// loadable (the runtime rejects a missing or orphaned name). Array order is the
+// order the game's arrows step through.
+
+/** An editable category row: id + primary-flavor name and icon + how many nodes it holds. */
+export interface CategoryRow {
+  readonly id: string
+  readonly name: string
+  readonly icon: string
+  readonly size: number
+}
+
+/** The icon a new category starts with. */
+export const DEFAULT_CATEGORY_ICON = '📁'
+
+/** Every category in order, named from the primary flavor. */
+export function listCategories(tree: TreeFile): CategoryRow[] {
+  const flavor = new Map((tree.flavors[0]?.categories ?? []).map((c) => [c.id, c]))
+  const sizes = new Map<string, number>()
+  for (const p of walkPositioned(tree)) sizes.set(p.category, (sizes.get(p.category) ?? 0) + 1)
+  return tree.categories.map((c) => ({
+    id: c.id,
+    name: flavor.get(c.id)?.name ?? c.id,
+    icon: flavor.get(c.id)?.icon ?? DEFAULT_CATEGORY_ICON,
+    size: sizes.get(c.id) ?? 0,
+  }))
+}
+
+/** Append an empty category (next free `cN` id, named after it) and return its id. */
+export function addCategory(tree: TreeFile): string {
+  const taken = new Set(tree.categories.map((c) => c.id))
+  let n = tree.categories.length
+  while (taken.has(`c${n}`)) n++
+  const id = `c${n}`
+  tree.categories.push({ id, upgrades: [] })
+  for (const flavor of tree.flavors) {
+    flavor.categories.push({ id, name: id, icon: DEFAULT_CATEGORY_ICON })
+  }
+  return id
+}
+
+/** Rename a category in every flavor. */
+export function renameCategory(tree: TreeFile, id: string, name: string): void {
+  for (const flavor of tree.flavors) {
+    const entry = flavor.categories.find((c) => c.id === id)
+    if (entry) entry.name = name
+    else flavor.categories.push({ id, name, icon: DEFAULT_CATEGORY_ICON })
+  }
+}
+
+/** Set a category's icon in every flavor. */
+export function setCategoryIcon(tree: TreeFile, id: string, icon: string): void {
+  for (const flavor of tree.flavors) {
+    const entry = flavor.categories.find((c) => c.id === id)
+    if (entry) entry.icon = icon
+    else flavor.categories.push({ id, name: id, icon })
+  }
+}
+
+/** Move a category one place earlier (`-1`) or later (`1`). `false` at either end. */
+export function moveCategory(tree: TreeFile, id: string, step: 1 | -1): boolean {
+  const i = tree.categories.findIndex((c) => c.id === id)
+  const j = i + step
+  if (i < 0 || j < 0 || j >= tree.categories.length) return false
+  const [moved] = tree.categories.splice(i, 1)
+  tree.categories.splice(j, 0, moved)
+  return true
+}
+
+/** Delete an empty category. Blocked while it holds nodes, or when it's the last one. */
+export function removeCategory(tree: TreeFile, id: string): MutationResult {
+  const category = tree.categories.find((c) => c.id === id)
+  if (!category) return { ok: false, reason: `No category '${id}'` }
+  if (category.upgrades.length > 0) return { ok: false, reason: 'Move or delete its nodes first' }
+  if (tree.categories.length === 1) return { ok: false, reason: 'A tree needs one category' }
+  tree.categories = tree.categories.filter((c) => c.id !== id)
+  for (const flavor of tree.flavors) {
+    flavor.categories = flavor.categories.filter((c) => c.id !== id)
+  }
+  return { ok: true }
+}
+
+/**
+ * Move a node, with its subtree, to the top level of another category. Its
+ * absolute position is kept (a root's offset is from the origin, which every
+ * category shares). `false` when either id is unknown or nothing changes.
+ */
+export function moveToCategory(tree: TreeFile, nodeId: string, categoryId: string): boolean {
+  if (!tree.categories.some((c) => c.id === categoryId)) return false
+  if (categoryOf(tree, nodeId) === categoryId) return false
+  const abs = nodePosition(tree, nodeId)
+  const node = abs && detachNode(tree, nodeId)
+  if (!node) return false
+  node.offset = { x: abs.x, y: abs.y }
+  addNode(tree, null, node, categoryId)
   return true
 }
 

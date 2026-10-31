@@ -1,6 +1,6 @@
-import { getModeDefinition } from '@game/shared'
-import type { Panel } from '../panels.js'
-import { type GameState, startingPlayer } from '../../game.js'
+import { getCategoryIcon, getCategoryName, getModeDefinition, getModeFlavor } from '@game/shared'
+import { type Panel, renderActivePanel } from '../panels.js'
+import { type GameState, getState, startingPlayer } from '../../game.js'
 import { renderUpgradeTree, type TreeBounds } from '../components.js'
 import {
   type TreeVisibility,
@@ -8,7 +8,8 @@ import {
   unlockedUpgradeIds,
   visibleUpgradeIds,
 } from '../tree-visibility.js'
-import { bindUpgradeEvents } from '../helpers.js'
+import { fitZoom, getTreeCategories, roundCategories, stepCategory } from '../tree-categories.js'
+import { bindUpgradeEvents, escapeAttr } from '../helpers.js'
 import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
 import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
 
@@ -22,16 +23,28 @@ const MIN_ZOOM = 0.2
 const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
 
+// A category opens zoomed to fit the viewport, but no closer than
+// `FIT_MAX_ZOOM`, so a one-node category isn't blown up. `FIT_MARGIN` is the
+// world-space room around the nodes' centers: half a node plus some air.
+const FIT_MAX_ZOOM = 1
+const FIT_MARGIN = 64
+
 /** The reveal animation that always runs (reduced motion too); its end clears the pulse. */
 const REVEAL_RING_ANIMATION = 'tree-reveal-ring'
 
 // ─── Module-local pan/zoom state ─────────────────────────────────────
 //
 // Persists pan/zoom across tab switches within a match (good UX), and resets
-// on match boundary (avoid stale state leaking into a fresh run).
+// on match boundary (avoid stale state leaking into a fresh run). Each
+// category keeps its own view, so returning to one finds it as it was left;
+// the whole tree is one more view under `WHOLE_TREE`. `shownView` is the key of
+// the view on screen, which the next render saves under.
+
+const WHOLE_TREE = '*'
 
 let panZoomHandle: PanZoomHandle | null = null
-let lastPanZoomState: PanZoomState | null = null
+const savedViews = new Map<string, PanZoomState>()
+let shownView = WHOLE_TREE
 let lastMatchId: string | null = null
 let prevHtml = ''
 
@@ -55,7 +68,33 @@ const pulsing = new Set<string>()
 /** The visibility mode `seenIds` was seeded under; a mid-match change re-seeds it. */
 let seenMode: TreeVisibility | null = null
 
+// ─── Module-local category state ─────────────────────────────────────
+//
+// The category on screen when the player shows one at a time. Reset to the
+// round's first at the match boundary and kept across tab switches, like
+// pan/zoom.
+
+let currentCategory: string | null = null
+
 // ─── Helpers ─────────────────────────────────────────────────────────
+
+/** The round's non-empty categories when the player shows one at a time, else `null`. */
+function shownCategories(state: Readonly<GameState>): readonly string[] | null {
+  if (!getTreeCategories()) return null
+  const ids = roundCategories(getModeDefinition(state.mode!), state.upgrades)
+  return ids.length > 0 ? ids : null
+}
+
+/**
+ * The ids of the upgrades in the category on screen, or `undefined` for the
+ * whole tree. Falls back to the round's first category when none is picked yet.
+ */
+function categoryScope(state: Readonly<GameState>): ReadonlySet<string> | undefined {
+  const ids = shownCategories(state)
+  if (!ids) return undefined
+  if (currentCategory === null || !ids.includes(currentCategory)) currentCategory = ids[0]
+  return new Set(state.upgrades.filter((u) => u.category === currentCategory).map((u) => u.id))
+}
 
 /** Record upgrades that became visible since the last render; each starts a pulse. */
 function trackReveals(visible: ReadonlySet<string>): void {
@@ -84,8 +123,12 @@ function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
     seenMode = mode
     pulsing.clear()
   }
-  if (mode === 'full') return renderUpgradeTree(state)
+  const scope = categoryScope(state)
+  if (mode === 'full') return renderUpgradeTree(state, { scope })
 
+  // Reveals are tracked over the whole round, not just the category on screen:
+  // a node revealed in another category keeps its pulse until that category is
+  // drawn, since only a drawn node's animation can end it.
   const unlocked = unlockedUpgradeIds(state)
   trackReveals(visibleUpgradeIds(state, mode, unlocked))
   return renderUpgradeTree(state, {
@@ -94,6 +137,7 @@ function renderVisibleTree(state: Readonly<GameState>, newMatch = false) {
     stubs: mode === 'hidden',
     pulsing,
     unlocked,
+    scope,
   })
 }
 
@@ -106,20 +150,114 @@ function endPulse(e: AnimationEvent): void {
   node.classList.remove('revealed')
 }
 
-/** Compute centered initial pan so the tree's bounding-box center aligns with viewport center at INITIAL_ZOOM. */
-function computeCenteredInitialState(viewport: HTMLElement, bounds: TreeBounds): PanZoomState {
+/**
+ * The bar above the tree when categories are on: the category's name as the
+ * title, with an arrow to each neighbour (wrapping around) and that neighbour's
+ * name above it. No arrows when the round has one category. Call after
+ * `renderVisibleTree`, which settles `currentCategory`.
+ */
+function renderCategoryBar(state: Readonly<GameState>): string {
+  const ids = shownCategories(state)
+  const current = currentCategory
+  if (!ids || current === null) return ''
+  const flavor = getModeFlavor(getModeDefinition(state.mode!))
+  const name = (id: string) => escapeAttr(getCategoryName(flavor, id))
+  const arrow = (step: 1 | -1) => {
+    const target = name(stepCategory(ids, current, step))
+    const glyph = step === 1 ? '▶' : '◀'
+    return `
+      <button class="tree-category-arrow" type="button" data-category-step="${step}"
+              aria-label="${step === 1 ? 'Next' : 'Previous'} category: ${target}">
+        <span class="tree-category-target">${target}</span>
+        <span class="tree-category-glyph" aria-hidden="true">${glyph}</span>
+      </button>`
+  }
+  const arrows = ids.length > 1
+  return `
+    <div class="tree-category-bar">
+      ${arrows ? arrow(-1) : ''}
+      <h3 class="tree-category-title">${name(current)}</h3>
+      ${arrows ? arrow(1) : ''}
+    </div>`
+}
+
+/**
+ * The ruler under the tree when categories are on: one icon button per round
+ * category, in arrow order, the current one marked. Not drawn when the round
+ * has one category. Call after `renderVisibleTree`, like the bar.
+ */
+function renderCategoryRuler(state: Readonly<GameState>): string {
+  const ids = shownCategories(state)
+  if (!ids || ids.length < 2) return ''
+  const flavor = getModeFlavor(getModeDefinition(state.mode!))
+  const buttons = ids.map((id) => {
+    const name = escapeAttr(getCategoryName(flavor, id))
+    const current = id === currentCategory ? ' aria-current="true"' : ''
+    return `
+      <button class="tree-category-stop" type="button" data-category="${escapeAttr(id)}"
+              title="${name}" aria-label="${name}"${current}>
+        ${escapeAttr(getCategoryIcon(flavor, id))}
+      </button>`
+  })
+  return `<nav class="tree-category-ruler" aria-label="Upgrade categories">${buttons.join('')}</nav>`
+}
+
+/** Show category `id`, if it's one of the round's. */
+function showCategory(id: string): void {
+  const state = getState()
+  if (id === currentCategory || !shownCategories(state)?.includes(id)) return
+  currentCategory = id
+  renderActivePanel(state)
+}
+
+/** Show the neighbouring category the clicked arrow points at. */
+function onCategoryArrow(e: Event): void {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-category-step]')
+  const ids = shownCategories(getState())
+  if (!btn || !ids || currentCategory === null) return
+  // Future: hotkeys and swipe (on mobile) could step categories the same way.
+  showCategory(stepCategory(ids, currentCategory, btn.dataset.categoryStep === '1' ? 1 : -1))
+}
+
+/** Jump to the category whose ruler button was clicked. */
+function onCategoryStop(e: Event): void {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-category]')
+  if (btn?.dataset.category) showCategory(btn.dataset.category)
+}
+
+/**
+ * Compute centered initial pan so the tree's bounding-box center aligns with
+ * viewport center. The whole tree starts at INITIAL_ZOOM; a category is zoomed
+ * to fit.
+ */
+function computeCenteredInitialState(
+  viewport: HTMLElement,
+  bounds: TreeBounds,
+  fit: boolean,
+): PanZoomState {
   const treeCx = (bounds.minX + bounds.maxX) / 2
   const treeCy = (bounds.minY + bounds.maxY) / 2
   const vp = viewport.getBoundingClientRect()
+  const content = {
+    width: bounds.maxX - bounds.minX + 2 * FIT_MARGIN,
+    height: bounds.maxY - bounds.minY + 2 * FIT_MARGIN,
+  }
+  const zoom = fit ? fitZoom(content, vp, INITIAL_ZOOM, FIT_MAX_ZOOM) : INITIAL_ZOOM
   return {
-    panX: vp.width / 2 - treeCx * INITIAL_ZOOM,
-    panY: vp.height / 2 - treeCy * INITIAL_ZOOM,
-    zoom: INITIAL_ZOOM,
+    panX: vp.width / 2 - treeCx * zoom,
+    panY: vp.height / 2 - treeCy * zoom,
+    zoom,
   }
 }
 
 /** Build the static markup wrapper. Inner edges+nodes are recomputed on update(). */
-function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): string {
+function renderShell(
+  edgesSvg: string,
+  nodes: string,
+  bounds: TreeBounds,
+  categoryBar: string,
+  categoryRuler: string,
+): string {
   // Size SVG to encompass all node positions; +200px slack handles bounding-box edges.
   // Shift via CSS left/top if any coords go negative so SVG-local (0,0) aligns with canvas (0,0).
   const svgOffsetX = Math.min(0, bounds.minX)
@@ -127,6 +265,7 @@ function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): strin
   const svgW = bounds.maxX - svgOffsetX + 200
   const svgH = bounds.maxY - svgOffsetY + 200
   return `
+    ${categoryBar}
     <div class="tree-viewport" id="tree-viewport">
       <div class="tree-canvas" id="tree-canvas">
         <svg class="tree-edges" width="${svgW}" height="${svgH}" overflow="visible"
@@ -136,6 +275,7 @@ function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): strin
         ${nodes}
       </div>
     </div>
+    ${categoryRuler}
   `
 }
 
@@ -147,22 +287,24 @@ export const upgradeTreePanel: Panel = {
   icon: '🌳',
 
   render(container, state) {
-    // 1. Snapshot the previous incarnation's pan/zoom BEFORE tearing it down.
-    //    (Order matters: must come before the match-boundary reset, otherwise
-    //    a fresh match would receive the previous match's pan/zoom.)
+    // 1. Save the previous incarnation's pan/zoom under the view it showed,
+    //    BEFORE tearing it down. (Order matters: must come before the
+    //    match-boundary reset, otherwise a fresh match would receive the
+    //    previous match's pan/zoom.)
     if (panZoomHandle) {
-      lastPanZoomState = { ...panZoomHandle.getState() }
+      savedViews.set(shownView, { ...panZoomHandle.getState() })
       panZoomHandle.cleanup()
       panZoomHandle = null
     }
 
-    // 2. Match boundary → discard the snapshot we just took. Pan/zoom resets
-    //    to centered defaults at the start of every new game, and the reveal
+    // 2. Match boundary → discard every saved view. Pan/zoom resets to
+    //    centered defaults at the start of every new game, and the reveal
     //    tracking re-seeds in renderVisibleTree.
     const newMatch = state.matchId !== lastMatchId
     if (newMatch) {
-      lastPanZoomState = null
       lastMatchId = state.matchId
+      currentCategory = null
+      savedViews.clear()
     }
 
     // 3. Build fresh DOM. Re-rendering wipes the container (and any open detail
@@ -170,13 +312,23 @@ export const upgradeTreePanel: Panel = {
     resetUpgradeDetail()
     const { edgesSvg, nodes, bounds } = renderVisibleTree(state, newMatch)
     prevHtml = edgesSvg + nodes
-    container.innerHTML = renderShell(edgesSvg, nodes, bounds)
+    container.innerHTML = renderShell(
+      edgesSvg,
+      nodes,
+      bounds,
+      renderCategoryBar(state),
+      renderCategoryRuler(state),
+    )
 
-    // 4. Wire pan/zoom on the new DOM, seeded from saved state or centered defaults.
+    // 4. Wire pan/zoom on the new DOM, seeded from this view's saved state or
+    //    centered defaults on its first visit.
     const viewport = document.getElementById('tree-viewport')
     const canvas = document.getElementById('tree-canvas')
+    const fit = shownCategories(state) !== null
+    shownView = fit && currentCategory !== null ? currentCategory : WHOLE_TREE
     if (viewport && canvas) {
-      const initialState = lastPanZoomState ?? computeCenteredInitialState(viewport, bounds)
+      const initialState =
+        savedViews.get(shownView) ?? computeCenteredInitialState(viewport, bounds, fit)
       panZoomHandle = setupPanZoom(viewport, canvas, {
         initialState,
         minZoom: MIN_ZOOM,
@@ -189,6 +341,8 @@ export const upgradeTreePanel: Panel = {
     // Tree nodes open a detail popup (with Buy/Cancel) instead of buying on click.
     bindUpgradeEvents('tree-canvas', openUpgradeDetail)
     document.getElementById('tree-canvas')?.addEventListener('animationend', endPulse)
+    document.querySelector('.tree-category-bar')?.addEventListener('click', onCategoryArrow)
+    document.querySelector('.tree-category-ruler')?.addEventListener('click', onCategoryStop)
   },
 
   update(state) {

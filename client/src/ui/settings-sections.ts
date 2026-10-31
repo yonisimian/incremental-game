@@ -1,9 +1,10 @@
 // ─── Settings Sections ───────────────────────────────────────────────
 //
 // The player preferences shared by the lobby's settings modal and the in-match
-// Settings panel: audio volumes, number display (notation + decimal separator)
-// and how much of the upgrade tree is shown. Markup is scoped to its root — no
-// ids — so the two hosts can never collide.
+// Settings panel: audio volumes, number display (notation + decimal separator),
+// how much of the upgrade tree is shown, and whether it's split into
+// categories. Markup is scoped to its root — no ids — so the two hosts can
+// never collide.
 
 import {
   type NotationMode,
@@ -16,6 +17,7 @@ import {
 } from './format-number.js'
 import { getAudioSettings, setMusicVolume, setSfxVolume } from './audio-settings.js'
 import { type TreeVisibility, getTreeVisibility, setTreeVisibility } from './tree-visibility.js'
+import { getTreeCategories, setTreeCategories } from './tree-categories.js'
 
 // ─── Options ─────────────────────────────────────────────────────────
 
@@ -49,6 +51,11 @@ const TREE_VISIBILITY_OPTIONS: { value: TreeVisibility; label: string; example: 
   { value: 'peek', label: 'Peek', example: 'Reachable + one step ahead' },
 ]
 
+const TREE_CATEGORY_OPTIONS: { value: 'on' | 'off'; label: string; example: string }[] = [
+  { value: 'off', label: 'Off', example: 'The whole tree' },
+  { value: 'on', label: 'On', example: 'One category at a time' },
+]
+
 // ─── Render ──────────────────────────────────────────────────────────
 
 /** Every settings section, ready to drop into a host container. */
@@ -56,6 +63,7 @@ export function renderSettingsSections(): string {
   const settings = getNumberFormatSettings()
   const audio = getAudioSettings()
   const treeVisibility = getTreeVisibility()
+  const treeCategories = getTreeCategories() ? 'on' : 'off'
 
   return `
           <section class="settings-section">
@@ -119,6 +127,20 @@ export function renderSettingsSections(): string {
               ).join('')}
             </div>
           </section>
+
+          <section class="settings-section">
+            <h3 class="settings-section-title">Upgrade Categories</h3>
+            <div class="settings-chips settings-chips--two">
+              ${TREE_CATEGORY_OPTIONS.map(
+                (opt) => `
+                <button class="settings-chip${treeCategories === opt.value ? ' selected' : ''}"
+                        data-tree-categories="${opt.value}">
+                  <span class="chip-label">${opt.label}</span>
+                  <span class="chip-example chip-text">${opt.example}</span>
+                </button>`,
+              ).join('')}
+            </div>
+          </section>
   `
 }
 
@@ -129,10 +151,12 @@ export function bindSettingsSections(root: HTMLElement): void {
     const notation = target.closest<HTMLButtonElement>('[data-notation]')
     const decimal = target.closest<HTMLButtonElement>('[data-decimal]')
     const treeVisibility = target.closest<HTMLButtonElement>('[data-tree-visibility]')
+    const treeCategories = target.closest<HTMLButtonElement>('[data-tree-categories]')
     if (notation) setNotation(notation.dataset.notation as NotationMode)
     else if (decimal) setDecimalSeparator(decimal.dataset.decimal as DecimalSeparator)
     else if (treeVisibility)
       setTreeVisibility(treeVisibility.dataset.treeVisibility as TreeVisibility)
+    else if (treeCategories) setTreeCategories(treeCategories.dataset.treeCategories === 'on')
     else return
     refreshSections(root)
   })
@@ -177,6 +201,10 @@ function refreshSections(root: HTMLElement): void {
   const treeVisibility = getTreeVisibility()
   for (const chip of root.querySelectorAll<HTMLButtonElement>('[data-tree-visibility]')) {
     chip.classList.toggle('selected', chip.dataset.treeVisibility === treeVisibility)
+  }
+  const treeCategories = getTreeCategories() ? 'on' : 'off'
+  for (const chip of root.querySelectorAll<HTMLButtonElement>('[data-tree-categories]')) {
+    chip.classList.toggle('selected', chip.dataset.treeCategories === treeCategories)
   }
 
   // Update preview

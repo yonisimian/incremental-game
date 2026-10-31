@@ -110,9 +110,17 @@ function renderEdges(positioned: readonly PositionedNode[]): string {
   return lines.join('')
 }
 
-/** Build the canvas inner content (edges + node cards) and its bounds. */
-export function renderCanvas(tree: TreeFile, selectedId: string | null): CanvasRender {
-  const positioned = walkPositioned(tree)
+/**
+ * Build the canvas inner content (edges + node cards) and its bounds, for one
+ * category or, when `categoryId` is `null`, the whole tree.
+ */
+export function renderCanvas(
+  tree: TreeFile,
+  selectedId: string | null,
+  categoryId: string | null = null,
+): CanvasRender {
+  const all = walkPositioned(tree)
+  const positioned = categoryId === null ? all : all.filter((p) => p.category === categoryId)
   const icons = iconMap(tree)
   return {
     edgesSvg: renderEdges(positioned),

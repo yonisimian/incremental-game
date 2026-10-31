@@ -35,4 +35,6 @@ export type {
   GeneratorFlavor,
   AttackFlavor,
   PactFlavor,
+  CategoryDefinition,
+  CategoryFlavor,
 } from './modes/types.js'
