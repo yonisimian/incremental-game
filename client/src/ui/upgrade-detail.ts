@@ -19,7 +19,8 @@ import type { Countdown } from './format-number.js'
 // ─── Upgrade Detail Popup ────────────────────────────────────────────
 //
 // A modal detail view for a single upgrade, opened by clicking a tree node.
-// Shows name / cost / description / lock reason with Buy + Cancel actions.
+// Shows name / cost / description / lock reason with Buy + Cancel actions, or
+// just Close when opened read-only from the pre-game tree reader.
 // Mounted inside `#tree-viewport` (which is `position: relative; overflow:
 // hidden`), so it overlays the tree and is wiped automatically when the panel
 // re-renders. `resetUpgradeDetail()` clears module state for that case.
@@ -47,11 +48,30 @@ function findUpgrade(state: Readonly<GameState>, id: string): UpgradeDefinition 
   return state.upgrades.find((u) => u.id === id)
 }
 
-function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailView {
+/** How {@link openUpgradeDetail} describes the upgrade. */
+export interface UpgradeDetailOptions {
+  /** The state to describe; absent = the live game's. */
+  readonly state?: Readonly<GameState>
+  /**
+   * Describe the upgrade without offering to buy it (the pre-game tree reader):
+   * no Buy button, and only the lock reasons that hold for every player.
+   */
+  readonly readOnly?: boolean
+}
+
+function computeView(
+  state: Readonly<GameState>,
+  u: UpgradeDefinition,
+  readOnly = false,
+): DetailView {
   const modeDef = getModeDefinition(state.mode!)
   const flavor = getModeFlavor(modeDef)
   const owned = state.player.upgrades[u.id] ?? 0
   const reason = upgradeBlockReason(state, u.id)
+  const requires = (): string => {
+    const expr = formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))
+    return expr ? `Requires ${expr}` : ''
+  }
 
   const costLabel = formatUpgradeCost(state, u, flavor)
 
@@ -60,12 +80,13 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
 
   // Without a stated reason a blocked node looks affordable and does nothing on
   // click, which reads as a bug. Maxed and unaffordable need no words: the cost
-  // label already says it.
+  // label already says it. Read-only, there's no player whose slots or picks
+  // could block it, so only the tree's own gating is worth saying.
   let lockReason = ''
   let lockCountdown: Countdown | null = null
   if (reason === 'coming-soon') lockReason = 'Not available yet — planned for a later update'
-  else if (reason === 'prerequisite')
-    lockReason = `Requires ${formatPrerequisiteExpression(u.prerequisites, (id) => getUpgradeName(flavor, id))}`
+  else if (readOnly) lockReason = requires()
+  else if (reason === 'prerequisite') lockReason = requires()
   else if (reason === 'choice-group')
     lockReason = 'Another choice in this group has already been selected'
   else if (reason === 'attack-slots') lockReason = 'No attack slots left'
@@ -95,7 +116,7 @@ function computeView(state: Readonly<GameState>, u: UpgradeDefinition): DetailVi
   }
 }
 
-function renderMarkup(v: DetailView): string {
+function renderMarkup(v: DetailView, readOnly: boolean): string {
   const level = v.levelLabel
     ? `<span class="upgrade-detail-level">${escapeAttr(v.levelLabel)}</span>`
     : ''
@@ -103,6 +124,9 @@ function renderMarkup(v: DetailView): string {
     ? `<p class="upgrade-detail-lock" id="upgrade-detail-lock"${countdownAttrs(v.lockCountdown)}>${escapeAttr(v.lockReason)}</p>`
     : ''
   const buyDisabled = v.buyable ? '' : 'disabled'
+  const buy = readOnly
+    ? ''
+    : `<button class="upgrade-detail-buy" id="upgrade-detail-buy" ${buyDisabled}>Buy</button>`
   return `
     <div class="upgrade-detail-backdrop" id="upgrade-detail-backdrop">
       <div class="upgrade-detail" id="upgrade-detail" role="dialog" aria-modal="true"
@@ -118,8 +142,8 @@ function renderMarkup(v: DetailView): string {
         <p class="upgrade-detail-desc">${escapeAttr(v.description)}</p>
         ${lock}
         <div class="upgrade-detail-actions">
-          <button class="upgrade-detail-buy" id="upgrade-detail-buy" ${buyDisabled}>Buy</button>
-          <button class="upgrade-detail-cancel" id="upgrade-detail-cancel">Cancel</button>
+          ${buy}
+          <button class="upgrade-detail-cancel" id="upgrade-detail-cancel">${readOnly ? 'Close' : 'Cancel'}</button>
         </div>
       </div>
     </div>
@@ -153,10 +177,10 @@ function onBackdropKeydown(e: KeyboardEvent): void {
 }
 
 /** Open the detail popup for the given upgrade id. No-op if host is absent. */
-export function openUpgradeDetail(upgradeId: string): void {
+export function openUpgradeDetail(upgradeId: string, options: UpgradeDetailOptions = {}): void {
   const host = document.getElementById(HOST_ID)
   if (!host) return
-  const state = getState()
+  const { state = getState(), readOnly = false } = options
   const u = findUpgrade(state, upgradeId)
   if (!u) return
 
@@ -165,7 +189,7 @@ export function openUpgradeDetail(upgradeId: string): void {
   openId = upgradeId
   lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
-  host.insertAdjacentHTML('beforeend', renderMarkup(computeView(state, u)))
+  host.insertAdjacentHTML('beforeend', renderMarkup(computeView(state, u, readOnly), readOnly))
 
   const backdrop = document.getElementById('upgrade-detail-backdrop')
   const dialog = document.getElementById('upgrade-detail')

@@ -153,12 +153,16 @@ interface UpgradeTreeRender {
  * - `pulsing` — ids that just became visible; they get the `revealed` class.
  * - `unlocked` — ids whose prerequisites are met, when the caller already
  *   computed them (`unlockedUpgradeIds`); absent = checked per upgrade here.
+ * - `plain` — skip the purchase-state classes, so every node draws at full
+ *   strength (the pre-game reader has no player to judge against). Coming-soon
+ *   upgrades still read as locked: that holds for everyone.
  */
 export interface UpgradeTreeOptions {
   readonly visible?: ReadonlySet<string>
   readonly stubs?: boolean
   readonly pulsing?: ReadonlySet<string>
   readonly unlocked?: ReadonlySet<string>
+  readonly plain?: boolean
 }
 
 /**
@@ -284,7 +288,8 @@ export function renderUpgradeTree(
     .map((u) => {
       if (!u.position || !isVisible(u.id)) return ''
       const maxed = isMaxed(u, state.player.upgrades[u.id] ?? 0)
-      const reason = upgradeBlockReason(state, u.id)
+      let reason = options.plain ? null : upgradeBlockReason(state, u.id)
+      if (options.plain && u.comingSoon) reason = 'coming-soon'
       const stateClass = reason === null ? '' : NODE_STATE_CLASS[reason]
       // Just became visible — pulses once (see the panel's reveal tracking).
       const cls = options.pulsing?.has(u.id) ? ' revealed' : ''

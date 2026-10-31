@@ -18,8 +18,8 @@ import { setupPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom
 // `INITIAL_ZOOM` is clamped to [MIN_ZOOM, MAX_ZOOM], so make sure it sits
 // inside the range or it'll snap to the nearest bound on mount.
 
-const MIN_ZOOM = 0.2
-const MAX_ZOOM = 2.5
+export const MIN_ZOOM = 0.2
+export const MAX_ZOOM = 2.5
 const INITIAL_ZOOM = MIN_ZOOM
 
 /** The reveal animation that always runs (reduced motion too); its end clears the pulse. */
@@ -118,8 +118,11 @@ function computeCenteredInitialState(viewport: HTMLElement, bounds: TreeBounds):
   }
 }
 
-/** Build the static markup wrapper. Inner edges+nodes are recomputed on update(). */
-function renderShell(edgesSvg: string, nodes: string, bounds: TreeBounds): string {
+/**
+ * Build the static markup wrapper. Inner edges+nodes are recomputed on update().
+ * Also the pre-game tree reader's stage (`tree-reader.ts`).
+ */
+export function renderTreeShell(edgesSvg: string, nodes: string, bounds: TreeBounds): string {
   // Size SVG to encompass all node positions; +200px slack handles bounding-box edges.
   // Shift via CSS left/top if any coords go negative so SVG-local (0,0) aligns with canvas (0,0).
   const svgOffsetX = Math.min(0, bounds.minX)
@@ -170,7 +173,7 @@ export const upgradeTreePanel: Panel = {
     resetUpgradeDetail()
     const { edgesSvg, nodes, bounds } = renderVisibleTree(state, newMatch)
     prevHtml = edgesSvg + nodes
-    container.innerHTML = renderShell(edgesSvg, nodes, bounds)
+    container.innerHTML = renderTreeShell(edgesSvg, nodes, bounds)
 
     // 4. Wire pan/zoom on the new DOM, seeded from saved state or centered defaults.
     const viewport = document.getElementById('tree-viewport')

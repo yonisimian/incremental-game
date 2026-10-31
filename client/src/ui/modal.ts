@@ -12,6 +12,12 @@ const CLOSE_ICON = `
 const CLOSE_FALLBACK_MS = 250
 
 /**
+ * Open overlays, oldest first. Escape closes only the last one, so a dialog
+ * opened from another (the upgrade tree over About) closes back to it.
+ */
+const openStack: HTMLElement[] = []
+
+/**
  * Mount a modal with overlay id `id`, a `title` heading and `body` HTML (both
  * trusted — interpolated as markup). Returns the overlay, or `null` if already open.
  */
@@ -31,6 +37,7 @@ export function openModal(id: string, title: string, body: string): HTMLElement 
     </div>`,
   )
   const overlay = document.getElementById(id)!
+  openStack.push(overlay)
 
   let openingFrame: number | null = requestAnimationFrame(() => {
     openingFrame = null
@@ -38,11 +45,14 @@ export function openModal(id: string, title: string, body: string): HTMLElement 
   })
 
   const onKeydown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close()
+    if (e.key === 'Escape' && openStack.at(-1) === overlay) close()
   }
 
   function close(): void {
     document.removeEventListener('keydown', onKeydown)
+    const index = openStack.indexOf(overlay)
+    if (index === -1) return
+    openStack.splice(index, 1)
     if (openingFrame !== null) {
       cancelAnimationFrame(openingFrame)
       openingFrame = null

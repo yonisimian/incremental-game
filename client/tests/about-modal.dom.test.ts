@@ -5,7 +5,9 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../src/game.js', () => ({
+vi.mock('../src/game.js', async (importOriginal) => ({
+  // The About dialog opens the tree reader, which renders through the real helpers.
+  ...(await importOriginal<typeof import('../src/game.js')>()),
   quickMatch: vi.fn(),
   createRoom: vi.fn(),
   joinRoom: vi.fn(),
