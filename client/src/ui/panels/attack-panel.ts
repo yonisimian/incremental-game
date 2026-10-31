@@ -2,13 +2,11 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivateAttack } from '../../game.js'
 import {
-  activeDebuffExpiresAtSec,
   attackBlockReason,
   attackLimit,
   slotCostOf,
   attackSlotsHeld,
   collectAttackParams,
-  cooldownUntilSec,
   getAttackCooldownSec,
   getAttackDescription,
   getAttackDurationSec,
@@ -34,6 +32,15 @@ import type {
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
 import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
+import { formatCostEntries } from '../helpers.js'
+import { attackLifecycle, type LifecyclePhase } from '../lifecycle.js'
+
+/** The card's classes in each timed phase: the button's state and the status line's. */
+const PHASE_CLASSES: Record<LifecyclePhase, { readonly btn: string; readonly status: string }> = {
+  preparing: { btn: 'preparing', status: 'attack-status--preparing' },
+  active: { btn: 'active', status: 'attack-status--active' },
+  cooling: { btn: 'cooling', status: 'attack-status--cooling' },
+}
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -53,12 +60,9 @@ function renderLocked(): string {
  * price the viewer actually pays, `attackStat` discounts included.
  */
 function renderCost(flavor: ModeFlavor, def: AttackDefinition, params: AttackParams): string {
-  const entries = Object.entries(getAttackPrepareCost(def, params))
+  const entries = formatCostEntries(getAttackPrepareCost(def, params), flavor)
   if (entries.length === 0) return ''
-  const parts = entries
-    .map(([res, amt]) => `${formatNumber(amt)} ${getResourceIcon(flavor, res)}`)
-    .join(' + ')
-  return `<span class="attack-cost">${parts}</span>`
+  return `<span class="attack-cost">${entries.join(' + ')}</span>`
 }
 
 /**
@@ -127,11 +131,6 @@ function renderSlotCost(modeDef: ModeDefinition, def: AttackDefinition): string 
   return renderSlotCostBadge(slotCostOf(def), def.kind, isAttackKindCapped(modeDef, def.kind))
 }
 
-/** Game-clock time a pending strike of `id` lands, or `null` when none is pending. */
-function pendingReadyAt(state: Readonly<GameState>, id: string): number | null {
-  return state.player.pendingAttacks.find((p) => p.attack === id)?.readyAtSec ?? null
-}
-
 /** Short label describing why an active attack can't be activated right now. */
 function blockLabel(reason: AttackBlockReason): string {
   switch (reason) {
@@ -161,30 +160,19 @@ function renderActiveAttack(
   if (!def) return ''
   const params = collectAttackParams(state.player, modeDef, id)
   const gameSec = readGameSec(state.player)
-  // `attackBlockReason` already ranks the lifecycle states (preparing, then the
-  // open window, then the rest stamped behind it), so branch on it and look up
-  // only the one countdown the state needs rather than re-testing each list.
   const reason = attackBlockReason(state.player, id, modeDef, params)
-  const readyAt = reason === 'already-preparing' ? pendingReadyAt(state, id) : null
-  const preparing = readyAt !== null
-  const expiresAt = reason === 'already-active' ? activeDebuffExpiresAtSec(state.player, id) : null
-  const coolingUntil =
-    reason === 'cooling-down' ? cooldownUntilSec(state.player, 'attack', id) : null
+  const life = attackLifecycle(state.player, id, reason)
   const disabled = reason !== null
-  const status = preparing
-    ? `<span class="attack-status attack-status--preparing">${countdownSpan({ template: 'Striking in {}s', untilSec: readyAt }, gameSec)}</span>`
-    : expiresAt !== null
-      ? `<span class="attack-status attack-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>`
-      : coolingUntil !== null
-        ? `<span class="attack-status attack-status--cooling">${countdownSpan({ template: 'Ready in {}s', untilSec: coolingUntil }, gameSec)}</span>`
-        : reason === 'unaffordable'
-          ? renderShortfall(state.player.resources, flavor, def, params)
-          : reason
-            ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
-            : renderCost(flavor, def, params)
+  const status = life
+    ? `<span class="attack-status ${PHASE_CLASSES[life.phase].status}">${countdownSpan(life, gameSec)}</span>`
+    : reason === 'unaffordable'
+      ? renderShortfall(state.player.resources, flavor, def, params)
+      : reason
+        ? `<span class="attack-status attack-status--blocked">${blockLabel(reason)}</span>`
+        : renderCost(flavor, def, params)
   return `
     <li class="attack-item" data-attack="${id}">
-      <button class="attack-btn${preparing ? ' preparing' : expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${disabled ? ' disabled' : ''}>
+      <button class="attack-btn${life ? ` ${PHASE_CLASSES[life.phase].btn}` : ''}" type="button"${disabled ? ' disabled' : ''}>
         <span class="attack-icon">${getAttackIcon(flavor, id)}</span>
         <span class="attack-name">${getAttackName(flavor, id)}${renderSlotCost(modeDef, def)}</span>
         ${desc ? `<span class="attack-desc">${desc}</span>` : ''}

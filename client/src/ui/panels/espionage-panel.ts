@@ -1,7 +1,7 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { describePurchaseTarget, formatTime } from '../helpers.js'
+import { describePurchaseTarget, formatPercentChange, formatTime } from '../helpers.js'
 import { countdownSpan, counterAttr } from '../counters.js'
 import {
   enemyDataKeysFor,
@@ -48,18 +48,6 @@ function renderLocked(): string {
       <p>No intel yet — research espionage to reveal enemy data.</p>
     </div>
   `
-}
-
-/**
- * A factor as a whole-or-one-decimal percentage change.
- *
- * Rounds to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
- * truncates to a wrong-looking "9%". A tenth still reads exactly for a
- * compounded pair (×0.9 × ×0.95 → 14.5%).
- */
-function formatPercentChange(factor: number): string {
-  const delta = Math.round(Math.abs(factor - 1) * 1000) / 10
-  return formatNumber(delta, Number.isInteger(delta) ? 0 : 1)
 }
 
 /**

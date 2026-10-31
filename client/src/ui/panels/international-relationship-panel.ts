@@ -2,8 +2,6 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivatePact } from '../../game.js'
 import {
-  activePactExpiresAtSec,
-  cooldownUntilSec,
   getModeDefinition,
   getModeFlavor,
   getPactActivationCost,
@@ -31,7 +29,17 @@ import type {
 import { formatDecimal, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
 import { pactDiscountTexts, pactWorthText } from '../pact-worth.js'
+import { pactLifecycle } from '../lifecycle.js'
 import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
+
+/** The card's classes in each timed phase: the button's state and the status line's. */
+const PHASE_CLASSES: Record<
+  'active' | 'cooling',
+  { readonly btn: string; readonly status: string }
+> = {
+  active: { btn: 'active', status: 'pact-status--active' },
+  cooling: { btn: 'cooling', status: 'pact-status--cooling' },
+}
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
 let prevHtml = ''
@@ -142,21 +150,19 @@ function renderActiveCard(
   const id = pact.id
   const desc = getPactDescription(flavor, id)
   const gameSec = readGameSec(state.player)
-  const expiresAt = activePactExpiresAtSec(state.player, id)
-  const coolingUntil = expiresAt === null ? cooldownUntilSec(state.player, 'pact', id) : null
+  const life = pactLifecycle(state.player, id)
   const reason = pactBlockReason(state.player, id, modeDef)
   const worth = (bonus?.modifiers ?? []).map((m) => worthLine(m, modeDef, flavor)).join('')
-  const status =
-    expiresAt !== null
-      ? `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>${worth ? `<ul class="pact-worth-list">${worth}</ul>` : ''}`
-      : coolingUntil !== null
-        ? `<span class="pact-status pact-status--cooling">${countdownSpan({ template: 'Ready in {}s', untilSec: coolingUntil }, gameSec)}</span>`
-        : reason === 'no-effects'
-          ? `<span class="pact-status pact-status--blocked">No effect yet</span>`
-          : renderPactCost(state.player.resources, flavor, pact, reason === 'unaffordable')
+  const worthList =
+    life?.phase === 'active' && worth ? `<ul class="pact-worth-list">${worth}</ul>` : ''
+  const status = life
+    ? `<span class="pact-status ${PHASE_CLASSES[life.phase].status}">${countdownSpan(life, gameSec)}</span>${worthList}`
+    : reason === 'no-effects'
+      ? `<span class="pact-status pact-status--blocked">No effect yet</span>`
+      : renderPactCost(state.player.resources, flavor, pact, reason === 'unaffordable')
   return `
     <li class="pact-item" data-pact="${id}">
-      <button class="pact-btn${expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
+      <button class="pact-btn${life ? ` ${PHASE_CLASSES[life.phase].btn}` : ''}" type="button"${reason !== null ? ' disabled' : ''}>
         <span class="pact-icon">${getPactIcon(flavor, id)}</span>
         <span class="pact-name">${getPactName(flavor, id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}

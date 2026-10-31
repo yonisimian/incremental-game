@@ -1,18 +1,10 @@
-import { getResourceIcon } from '@game/shared'
 import type { ModeDefinition, ModeFlavor, Modifier } from '@game/shared'
 import type { GameState } from '../game.js'
 import { formatDecimal, formatMultiplier } from './format-number.js'
+import { modifierTargetLabel } from './modifier-label.js'
 
 // What a pact is worth, in words — shared by the relations panel's cards and
 // the data panel's pact rows, so the two can never describe a treaty apart.
-
-/** What a bonus lands on, in flavor terms: a resource icon, or the special tracks. */
-function targetLabel(field: string, modeDef: ModeDefinition, flavor: ModeFlavor): string {
-  if (field === 'clickIncome') return 'per click'
-  if (field === 'highlightFactor') return 'highlight'
-  if (modeDef.resources.includes(field)) return `${getResourceIcon(flavor, field)} production`
-  return field
-}
 
 /**
  * One resolved bonus as a "worth now" line — `+12% 🪵 production`, `+0.4 per
@@ -24,7 +16,7 @@ export function pactWorthText(m: Modifier, modeDef: ModeDefinition, flavor: Mode
     m.stage === 'multiplicative'
       ? `+${formatDecimal((m.value - 1) * 100, 1)}%`
       : `+${formatMultiplier(m.value)}`
-  return `${amount} ${targetLabel(m.field, modeDef, flavor)}`
+  return `${amount} ${modifierTargetLabel(m.field, modeDef, flavor)}`
 }
 
 /**

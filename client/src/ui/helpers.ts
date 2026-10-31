@@ -158,9 +158,20 @@ export function formatUpgradeCost(
  * upgrade price label goes through.
  */
 function formatCostLabel(cost: Readonly<Record<string, number>>, flavor: ModeFlavor): string {
-  return Object.entries(cost)
-    .map(([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`)
-    .join('  ')
+  return formatCostEntries(cost, flavor).join('  ')
+}
+
+/**
+ * A cost map as one `"<amount> <icon>"` entry per currency, for the caller to
+ * join in its own style (an upgrade label spaces them, an attack card adds them).
+ */
+export function formatCostEntries(
+  cost: Readonly<Record<string, number>>,
+  flavor: ModeFlavor,
+): string[] {
+  return Object.entries(cost).map(
+    ([currency, amount]) => `${formatNumber(amount)} ${getResourceIcon(flavor, currency)}`,
+  )
 }
 
 /** Are this upgrade's prerequisites all owned? Empty / missing prereqs = always unlocked. */
@@ -199,6 +210,18 @@ export function describePurchaseTarget(
   return scope === 'upgrade'
     ? `${getUpgradeIcon(flavor, id)} ${getUpgradeName(flavor, id)}`
     : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
+}
+
+/**
+ * A factor as a whole-or-one-decimal percentage change.
+ *
+ * Rounds to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
+ * truncates to a wrong-looking "9%". A tenth still reads exactly for a
+ * compounded pair (×0.9 × ×0.95 → 14.5%).
+ */
+export function formatPercentChange(factor: number): string {
+  const delta = Math.round(Math.abs(factor - 1) * 1000) / 10
+  return formatNumber(delta, Number.isInteger(delta) ? 0 : 1)
 }
 
 /** Can the player buy this upgrade right now, by the server's own rule? */
