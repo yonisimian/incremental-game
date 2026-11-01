@@ -883,6 +883,7 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
   const shared = msg.opponent.pacts ?? []
   showSharedPactsSigned(state.opponentPacts, shared, modeDefForAlerts)
   state.opponentPacts = shared
+  roundStats.recordSharedPacts(shared)
   state.opponentPactWindows = msg.opponent.pactWindows ?? []
   state.incomingAutoClicksPerSec = msg.incomingAutoClicksPerSec ?? 0
 
@@ -966,8 +967,15 @@ function handleStateUpdate(msg: StateUpdateMessage): void {
 
   state.player = reconciled
   snapshotCount++
-  if (msg.attackEvents) showAttackEvents(msg.attackEvents, modeDef)
-  if (modeDef) roundStats.recordTick(reconciled, modeDef)
+  if (msg.attackEvents) {
+    showAttackEvents(msg.attackEvents, modeDef)
+    roundStats.recordAttackEvents(msg.attackEvents)
+  }
+  if (modeDef) {
+    roundStats.recordTick(reconciled, modeDef)
+    // The server's windows, not `reconciled`'s: see `recordPactWindows`.
+    roundStats.recordPactWindows(msg.player, modeDef)
+  }
   recorderTick(reconciled, state.timeLeft)
   notify()
 }

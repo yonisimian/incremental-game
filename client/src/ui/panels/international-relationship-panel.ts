@@ -2,8 +2,6 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doActivatePact } from '../../game.js'
 import {
-  activePactExpiresAtSec,
-  cooldownUntilSec,
   getModeDefinition,
   getModeFlavor,
   getPactActivationCost,
@@ -28,8 +26,10 @@ import type {
   PactDefinition,
   PactKind,
 } from '@game/shared'
-import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
+import { formatDecimal, formatNumber } from '../format-number.js'
 import { countdownSpan } from '../counters.js'
+import { pactDiscountTexts, pactWorthText } from '../pact-worth.js'
+import { pactLifecycle } from '../lifecycle.js'
 import { renderSlotCostBadge, renderSlotsBadge } from '../components.js'
 
 /** Cache of last rendered HTML to avoid unnecessary DOM churn on update(). */
@@ -45,55 +45,16 @@ function renderLocked(): string {
   `
 }
 
-/** What a bonus lands on, in flavor terms: a resource icon, or the special tracks. */
-function targetLabel(field: string, modeDef: ModeDefinition, flavor: ModeFlavor): string {
-  if (field === 'clickIncome') return 'per click'
-  if (field === 'highlightFactor') return 'highlight'
-  if (modeDef.resources.includes(field)) return `${getResourceIcon(flavor, field)} production`
-  return field
-}
-
-/**
- * One resolved bonus as a "worth now" line — `+12% 🪵 production`, `+0.4 per
- * click`. A multiplicative bonus reads as the percentage over 1 (its `cap` is
- * authored in the same terms), an additive one as the flat amount.
- */
+/** One resolved bonus as a "worth now" list item (see `pactWorthText`). */
 function worthLine(m: Modifier, modeDef: ModeDefinition, flavor: ModeFlavor): string {
-  const amount =
-    m.stage === 'multiplicative'
-      ? `+${formatDecimal((m.value - 1) * 100, 1)}%`
-      : `+${formatMultiplier(m.value)}`
-  return `<li class="pact-worth">${amount} ${targetLabel(m.field, modeDef, flavor)}</li>`
+  return `<li class="pact-worth">${pactWorthText(m, modeDef, flavor)}</li>`
 }
 
-/**
- * The discount line for one pact — `−25% on 3 upgrades the enemy already
- * owns` — from the stamped cost factors tagged with it. Entities are counted
- * per scope; a growth-only discount reads as such, since the price the card
- * quotes only moves at the next level.
- */
+/** The discount list items for one pact (see `pactDiscountTexts`). */
 function discountLines(state: Readonly<GameState>, pactId: string): string {
-  const mine = (state.player.pactCostFactors ?? []).filter((f) => f.pact === pactId)
-  if (mine.length === 0) return ''
-  const lines: string[] = []
-  for (const scope of ['upgrade', 'generator'] as const) {
-    const entries = mine.filter((f) => f.scope === scope)
-    if (entries.length === 0) continue
-    const noun = scope === 'upgrade' ? 'upgrade' : 'generator'
-    const what = `${entries.length} ${noun}${entries.length === 1 ? '' : 's'} the enemy already owns`
-    // Every entry of one pact carries the same authored factors, so the first
-    // speaks for all of them.
-    const [first] = entries
-    if (first.costFactor !== undefined && first.costFactor !== 1)
-      lines.push(
-        `<li class="pact-worth">−${formatDecimal((1 - first.costFactor) * 100, 1)}% on ${what}</li>`,
-      )
-    if (first.scalingFactor !== undefined && first.scalingFactor !== 1)
-      lines.push(
-        `<li class="pact-worth">−${formatDecimal((1 - first.scalingFactor) * 100, 1)}% price growth on ${what}</li>`,
-      )
-  }
-  return lines.join('')
+  return pactDiscountTexts(state, pactId)
+    .map((line) => `<li class="pact-worth">${line}</li>`)
+    .join('')
 }
 
 /** The pact's slot-cost badge (see `renderSlotCostBadge`). */
@@ -180,21 +141,21 @@ function renderActiveCard(
   const id = pact.id
   const desc = getPactDescription(flavor, id)
   const gameSec = readGameSec(state.player)
-  const expiresAt = activePactExpiresAtSec(state.player, id)
-  const coolingUntil = expiresAt === null ? cooldownUntilSec(state.player, 'pact', id) : null
+  const life = pactLifecycle(state.player, id)
   const reason = pactBlockReason(state.player, id, modeDef)
   const worth = (bonus?.modifiers ?? []).map((m) => worthLine(m, modeDef, flavor)).join('')
-  const status =
-    expiresAt !== null
-      ? `<span class="pact-status pact-status--active">${countdownSpan({ template: 'Active for {}s', untilSec: expiresAt }, gameSec)}</span>${worth ? `<ul class="pact-worth-list">${worth}</ul>` : ''}`
-      : coolingUntil !== null
-        ? `<span class="pact-status pact-status--cooling">${countdownSpan({ template: 'Ready in {}s', untilSec: coolingUntil }, gameSec)}</span>`
-        : reason === 'no-effects'
-          ? `<span class="pact-status pact-status--blocked">No effect yet</span>`
-          : renderPactCost(state.player.resources, flavor, pact, reason === 'unaffordable')
+  const worthList =
+    life?.phase === 'active' && worth ? `<ul class="pact-worth-list">${worth}</ul>` : ''
+  const phase = life?.phase
+  // Class names spelled out per phase (not built from it) so lint:css sees them.
+  const status = life
+    ? `<span class="pact-status ${phase === 'active' ? 'pact-status--active' : 'pact-status--cooling'}">${countdownSpan(life, gameSec)}</span>${worthList}`
+    : reason === 'no-effects'
+      ? `<span class="pact-status pact-status--blocked">No effect yet</span>`
+      : renderPactCost(state.player.resources, flavor, pact, reason === 'unaffordable')
   return `
     <li class="pact-item" data-pact="${id}">
-      <button class="pact-btn${expiresAt !== null ? ' active' : coolingUntil !== null ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
+      <button class="pact-btn${phase === 'active' ? ' active' : phase === 'cooling' ? ' cooling' : ''}" type="button"${reason !== null ? ' disabled' : ''}>
         <span class="pact-icon">${getPactIcon(flavor, id)}</span>
         <span class="pact-name">${getPactName(flavor, id)}${renderSlotCost(modeDef, pact)}${pact.mutual ? ' <span class="pact-mutual">🤝 mutual</span>' : ''}</span>
         ${desc ? `<span class="pact-desc">${desc}</span>` : ''}

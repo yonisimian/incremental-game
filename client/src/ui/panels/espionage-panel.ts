@@ -1,7 +1,7 @@
 import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { formatNumber } from '../format-number.js'
-import { formatTime } from '../helpers.js'
+import { describePurchaseTarget, formatPercentChange, formatTime } from '../helpers.js'
 import { countdownSpan, counterAttr } from '../counters.js'
 import {
   enemyDataKeysFor,
@@ -21,7 +21,7 @@ import {
   readGameSec,
 } from '@game/shared'
 import { getAttackIcon, getAttackName } from '@game/shared'
-import type { CostScope, ModeFlavor, PurchaseEvent } from '@game/shared'
+import type { ModeFlavor, PurchaseEvent } from '@game/shared'
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -51,37 +51,13 @@ function renderLocked(): string {
 }
 
 /**
- * A factor as a whole-or-one-decimal percentage change.
- *
- * Rounds to a tenth *before* formatting: `(1 - 0.9) * 100` is 9.999…, which
- * truncates to a wrong-looking "9%". A tenth still reads exactly for a
- * compounded pair (×0.9 × ×0.95 → 14.5%).
- */
-function formatPercentChange(factor: number): string {
-  const delta = Math.round(Math.abs(factor - 1) * 1000) / 10
-  return formatNumber(delta, Number.isInteger(delta) ? 0 : 1)
-}
-
-/**
- * What an incoming cost factor or purchase lock hits: "upgrades" / "generators"
- * for a whole scope, or the entity's flavor name, so the line matches the card
- * the player sees it on.
- */
-function describeTarget(flavor: ModeFlavor, scope: CostScope, id: string | undefined): string {
-  if (id === undefined) return scope === 'upgrade' ? 'upgrades' : 'generators'
-  return scope === 'upgrade'
-    ? `${getUpgradeIcon(flavor, id)} ${getUpgradeName(flavor, id)}`
-    : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
-}
-
-/**
  * One line per cost inflation the opponent's passive attacks inflict, naming
  * what got dearer and by how much.
  */
 function describeCostInflation(state: Readonly<GameState>, flavor: ModeFlavor): string[] {
   const lines: string[] = []
   for (const entry of state.player.incomingCostFactors ?? []) {
-    const what = describeTarget(flavor, entry.scope, entry.id)
+    const what = describePurchaseTarget(flavor, entry.scope, entry.id)
     // Base-price and growth inflation are separate sentences: they compound
     // differently over a run, so summing them into one percentage would lie.
     if (entry.costFactor !== undefined && entry.costFactor !== 1)
@@ -112,7 +88,7 @@ function describePurchaseLocks(state: Readonly<GameState>, flavor: ModeFlavor): 
     lines.push(line('🔒 You cannot buy upgrades or generators for {}s.', allUpgrades.untilSec))
   for (const lock of locks) {
     if (combined && (lock === allUpgrades || lock === allGenerators)) continue
-    const what = describeTarget(flavor, lock.scope, lock.id)
+    const what = describePurchaseTarget(flavor, lock.scope, lock.id)
     lines.push(line(`🔒 You cannot buy ${what} for {}s.`, lock.untilSec))
   }
   return lines

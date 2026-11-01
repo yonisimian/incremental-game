@@ -2,15 +2,53 @@ import type { Panel } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { roundStats } from '../../stats/round-stats.js'
 import { formatDecimal, formatMultiplier, formatNumber } from '../format-number.js'
-import { setText } from '../helpers.js'
+import { describePurchaseTarget, formatCostSum, formatPercentChange, setText } from '../helpers.js'
+import { attackLifecycle, pactLifecycle } from '../lifecycle.js'
+import { modifierTargetLabel } from '../modifier-label.js'
+import { countdownSpan } from '../counters.js'
+import { pactDiscountTexts, pactWorthText } from '../pact-worth.js'
+import { attackPanel } from './attack-panel.js'
+import { internationalRelationshipPanel } from './international-relationship-panel.js'
 import {
+  type AttackDefinition,
+  type AttackBlockReason,
+  type AttackKind,
+  type AttackParams,
   type DynamicBonus,
   type GeneratorOutput,
   type ModeDefinition,
   type ModeFlavor,
   type Modifier,
+  type PactDefinition,
+  type PactBlockReason,
+  type PactKind,
+  type PlayerState,
   type ResourceRateBreakdown,
+  attackBlockReason,
+  attackLimit,
+  attackSlotsHeld,
   batteryFactor,
+  collectAttackParams,
+  getAttackCooldownSec,
+  getAttackDurationSec,
+  getAttackIcon,
+  getAttackName,
+  getAttackPrepareCost,
+  getAttackPrepareTimeSec,
+  getPactActivationCost,
+  getPactIcon,
+  getPactName,
+  isAttackKindCapped,
+  isPactKindCapped,
+  isPanelUnlocked,
+  openPactWindows,
+  pactWindowOpenedAtSec,
+  pactBlockReason,
+  pactLimit,
+  pactSlotsHeld,
+  readGameSec,
+  unlockedAttacks,
+  unlockedPacts,
   collectBatteryParams,
   collectDynamicBonuses,
   collectGeneratorOutputs,
@@ -22,6 +60,7 @@ import {
   isHighlightBatteryActive,
   readBatteryCharge,
   readHighlight,
+  ATTACKS_SUFFERED_META_KEY,
   pactModifiers,
   resolveEnemyDebuffs,
   getModeDefinition,
@@ -206,21 +245,6 @@ function generatorDetail(out: GeneratorOutput, delivered: number): string {
 // paying right now. Rows are rebuilt (not patched) because both the upgrades on
 // show and the fields they hit change during a round.
 
-/** What a modifier's `field` targets, in flavor terms ("🪵 base", "🪓 Woodcutter"). */
-function targetLabel(field: string, modeDef: ModeDefinition, flavor: ModeFlavor): string {
-  if (field === 'clickIncome') return 'per click'
-  const baseIndex = /^b(\d+)$/.exec(field)?.[1]
-  if (baseIndex !== undefined) {
-    const resource = modeDef.resources[Number(baseIndex)]
-    return resource ? `${getResourceIcon(flavor, resource)} base` : field
-  }
-  if (modeDef.resources.includes(field)) return getResourceIcon(flavor, field)
-  if (modeDef.generators.some((g) => g.id === field)) {
-    return `${getGeneratorIcon(flavor, field)} ${getGeneratorName(flavor, field)}`
-  }
-  return field
-}
-
 /** A modifier's current value ("×1.04", "+3"). */
 function formatModifierValue(m: Modifier): string {
   return m.stage === 'additive' ? `+${formatAmount(m.value)}` : `×${formatMultiplier(m.value)}`
@@ -241,7 +265,7 @@ function formatBonus(bonus: DynamicBonus, modeDef: ModeDefinition, flavor: ModeF
     return `all ${formatModifierValue(first)}`
   }
   return bonus.modifiers
-    .map((m) => `${targetLabel(m.field, modeDef, flavor)} ${formatModifierValue(m)}`)
+    .map((m) => `${modifierTargetLabel(m.field, modeDef, flavor)} ${formatModifierValue(m)}`)
     .join(', ')
 }
 
@@ -260,6 +284,512 @@ function renderBonusRows(
         </div>`,
     )
     .join('')
+}
+
+/** The HTML each rebuilt list last received, by element id (see {@link setListHtml}). */
+const listHtml = new Map<string, string>()
+
+/**
+ * Replace a rebuilt list's HTML when it changed. Compared against what was
+ * last written, not `innerHTML`: the counters painter rewrites countdown text
+ * in place every frame, and the browser may re-serialize markup, so the DOM is
+ * no reliable record of the last write.
+ */
+function setListHtml(id: string, html: string): void {
+  if (listHtml.get(id) === html) return
+  const el = document.getElementById(id)
+  if (!el) return
+  el.innerHTML = html
+  listHtml.set(id, html)
+}
+
+// ─── Attacks and pacts ───────────────────────────────────────────────
+//
+// What this round's attacks and treaties have done, beside what they are doing
+// now. A section shows once its system is in play — the mode declares it, and
+// its tab is unlocked or the opponent's side of it is reaching this player — and
+// is hidden (not empty) before. The player's own blocks (slots, the rows of
+// what they hold) show only once their own tab is unlocked. Fixed rows are
+// skeleton ids patched by update(); the per-item lists are rebuilt wholesale
+// when their HTML changes, since items appear mid-round as they are unlocked.
+
+const ATTACK_KINDS: readonly AttackKind[] = ['active', 'passive']
+const PACT_KINDS: readonly PactKind[] = ['active', 'passive']
+
+/** Show or hide the `.data-section` card holding element `id`. */
+function setSectionShown(id: string, shown: boolean): void {
+  const section = document.getElementById(id)?.closest<HTMLElement>('.data-section')
+  if (section) section.style.display = shown ? '' : 'none'
+}
+
+/** Set an element's `hidden` flag. */
+function setHidden(id: string, hidden: boolean): void {
+  const el = document.getElementById(id)
+  if (el) el.hidden = hidden
+}
+
+/** Seconds as the panel states them ("6s", "7.5s"). */
+function formatSec(sec: number): string {
+  return `${formatDecimal(sec, 1)}s`
+}
+
+/**
+ * What a strike haul moved, as parts ("1.2K 🪵", "×2 🪚"), resources first in
+ * mode order, then generators.
+ */
+function haulParts(
+  haul: {
+    readonly resources: Readonly<Record<string, number>>
+    readonly generators: Readonly<Record<string, number>>
+  },
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string[] {
+  const parts: string[] = []
+  for (const r of modeDef.resources) {
+    const amount = haul.resources[r] ?? 0
+    if (amount > 0) parts.push(`${formatNumber(amount)} ${getResourceIcon(flavor, r)}`)
+  }
+  for (const g of modeDef.generators) {
+    const count = haul.generators[g.id] ?? 0
+    if (count > 0) parts.push(`×${count} ${getGeneratorIcon(flavor, g.id)}`)
+  }
+  return parts
+}
+
+/** One list row: a name and status on top, detail lines beneath. */
+function renderItem(name: string, status: string, details: readonly string[]): string {
+  return `
+        <div class="data-item">
+          <div class="data-item-head">
+            <span class="data-item-name">${name}</span>
+            <span class="data-item-status">${status}</span>
+          </div>
+          ${details.map((d) => `<div class="data-item-detail">${d}</div>`).join('')}
+        </div>`
+}
+
+/**
+ * `held / limit` stat cells for each kind the mode caps, under element `id`
+ * (shown with the player's own blocks); empty when no kind is capped.
+ */
+function renderSlotCells(id: string, prefix: string, kinds: readonly string[]): string {
+  if (kinds.length === 0) return ''
+  const cells = kinds
+    .map(
+      (kind) => `
+          <div class="data-stat">
+            <span class="data-stat-label">${kind === 'active' ? 'Active' : 'Passive'} slots</span>
+            <span class="data-stat-value" id="data-${prefix}-slots-${kind}">—</span>
+          </div>`,
+    )
+    .join('')
+  return `<div class="data-stat-grid" id="${id}">${cells}</div>`
+}
+
+/**
+ * An attack's status: its timed phase when it is in one (the card's
+ * countdown), otherwise whether it can be paid for. A passive attack is simply
+ * always on.
+ */
+function attackStatus(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  def: AttackDefinition,
+  params: AttackParams,
+): string {
+  if (def.kind === 'passive') return 'Always on'
+  const reason = attackBlockReason(state.player, def.id, modeDef, params)
+  const life = attackLifecycle(state.player, def.id, reason)
+  if (life) return countdownSpan(life, readGameSec(state.player))
+  return readinessLabel(reason)
+}
+
+/**
+ * The status of an activation in no timed phase, from its block reason —
+ * attacks and pacts share these reasons and their wording.
+ */
+function readinessLabel(reason: AttackBlockReason | PactBlockReason | null): string {
+  switch (reason) {
+    case null:
+      return 'Ready'
+    case 'unaffordable':
+      return 'Short of cost'
+    case 'no-effects':
+      return 'No effect yet'
+    default:
+      return ''
+  }
+}
+
+/**
+ * An attack's resolved numbers — every one, not only those an upgrade moved
+ * (the attack card's rule): this panel is where a player checks what the
+ * multipliers add up to. Passive attacks carry only `power`.
+ */
+function attackStatsLine(flavor: ModeFlavor, def: AttackDefinition, params: AttackParams): string {
+  const parts: string[] = []
+  if (def.kind === 'active') {
+    const cost = formatCostSum(getAttackPrepareCost(def, params), flavor)
+    if (cost !== '') parts.push(`cost ${cost}`)
+    parts.push(`prep ${formatSec(getAttackPrepareTimeSec(def, params))}`)
+    if (def.durationSec !== undefined)
+      parts.push(`lasts ${formatSec(getAttackDurationSec(def, params))}`)
+    if (def.cooldownSec !== undefined)
+      parts.push(`cooldown ${formatSec(getAttackCooldownSec(def, params))}`)
+  }
+  parts.push(`power ×${formatMultiplier(params.power)}`)
+  return parts.join(' · ')
+}
+
+/** What an active attack's strikes have done this round, from the server's events. */
+function attackTallyLine(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  attackId: string,
+): string {
+  const tally = roundStats.outgoingAttack(attackId)
+  if (!tally) return 'No strikes yet'
+  const parts = [
+    `${tally.strikes} strike${tally.strikes === 1 ? '' : 's'}${tally.misses > 0 ? ` (${tally.misses} missed)` : ''}`,
+  ]
+  const stolen = haulParts(tally, modeDef, flavor)
+  if (stolen.length > 0) parts.push(`stole ${stolen.join(', ')}`)
+  const debuffSec = roundStats.outgoingDebuffSec(attackId, readGameSec(state.player))
+  if (debuffSec > 0) parts.push(`debuffed ${formatSec(debuffSec)}`)
+  return parts.join(' · ')
+}
+
+/** One row per attack this player holds, active first. */
+function renderAttackRows(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string {
+  const held = new Set(unlockedAttacks(state.player, modeDef))
+  const defs = modeDef.attacks.filter((a) => held.has(a.id))
+  return [...defs.filter((a) => a.kind === 'active'), ...defs.filter((a) => a.kind === 'passive')]
+    .map((def) => {
+      const params = collectAttackParams(state.player, modeDef, def.id)
+      const details = [attackStatsLine(flavor, def, params)]
+      if (def.kind === 'active') details.push(attackTallyLine(state, modeDef, flavor, def.id))
+      return renderItem(
+        `${getAttackIcon(flavor, def.id)} ${getAttackName(flavor, def.id)}`,
+        attackStatus(state, modeDef, def, params),
+        details,
+      )
+    })
+    .join('')
+}
+
+/** A debuff's value with its sign ("×0.9", "-2"). */
+function formatDebuffValue(m: Modifier): string {
+  if (m.stage !== 'additive') return `×${formatMultiplier(m.value)}`
+  return `${m.value < 0 ? '-' : '+'}${formatAmount(Math.abs(m.value))}`
+}
+
+/** One "On you now" row: what is hit, and how. */
+function renderNowRow(name: string, value: string): string {
+  return `
+        <div class="data-bonus-row">
+          <span class="data-bonus-name">${name}</span>
+          <span class="data-bonus-value data-value-debuffed">${value}</span>
+        </div>`
+}
+
+/**
+ * What the enemy's attacks are doing to this player right now — debuffs on
+ * their production, inflated prices, purchase locks — or empty when nothing is.
+ */
+function renderIncomingNow(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string {
+  const gameSec = readGameSec(state.player)
+  const rows = state.debuffs.map((m) =>
+    renderNowRow(modifierTargetLabel(m.field, modeDef, flavor), formatDebuffValue(m)),
+  )
+  for (const entry of state.player.incomingCostFactors ?? []) {
+    const what = `💸 ${describePurchaseTarget(flavor, entry.scope, entry.id)}`
+    if (entry.costFactor !== undefined && entry.costFactor !== 1)
+      rows.push(renderNowRow(what, `+${formatPercentChange(entry.costFactor)}% cost`))
+    if (entry.scalingFactor !== undefined && entry.scalingFactor !== 1)
+      rows.push(renderNowRow(what, `+${formatPercentChange(entry.scalingFactor)}% growth`))
+  }
+  for (const lock of state.player.incomingPurchaseLocks ?? []) {
+    rows.push(
+      renderNowRow(
+        `🔒 ${describePurchaseTarget(flavor, lock.scope, lock.id)}`,
+        countdownSpan({ template: '{}s', untilSec: lock.untilSec }, gameSec),
+      ),
+    )
+  }
+  if (rows.length === 0) return ''
+  return `<p class="data-subhead">On you now</p><div class="data-bonus-list">${rows.join('')}</div>`
+}
+
+/** Whether any of the enemy's attacks has reached this player this round, or is now. */
+function isAttackedNow(state: Readonly<GameState>): boolean {
+  const player = state.player
+  return (
+    readAttacksSuffered(player) > 0 ||
+    state.debuffs.length > 0 ||
+    (player.incomingCostFactors?.length ?? 0) > 0 ||
+    (player.incomingPurchaseLocks?.length ?? 0) > 0
+  )
+}
+
+/** How many enemy active strikes have landed on this player (`meta.attacksSuffered`). */
+function readAttacksSuffered(player: Readonly<PlayerState>): number {
+  // `meta` is untyped wire data: validated like the game clock (`readGameSec`).
+  const raw = player.meta[ATTACKS_SUFFERED_META_KEY]
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+}
+
+/** The ⚔️ Attacks section skeleton (filled by {@link updateAttacks}); empty for a mode without attacks. */
+function renderAttacksSection(modeDef: ModeDefinition, flavor: ModeFlavor): string {
+  if (modeDef.attacks.length === 0) return ''
+  const lostRows = modeDef.resources
+    .map(
+      (r) => `
+          <div class="data-stat">
+            <span class="data-stat-label">${getResourceIcon(flavor, r)} ${getResourceName(flavor, r)} lost</span>
+            <span class="data-stat-value" id="data-atk-in-lost-${r}">—</span>
+          </div>`,
+    )
+    .join('')
+  const capped = ATTACK_KINDS.filter((k) => isAttackKindCapped(modeDef, k))
+  return renderSection(
+    'attacks',
+    '⚔️ Attacks',
+    `
+        <div id="data-attacks">
+          ${renderSlotCells('data-atk-slots', 'atk', capped)}
+          <div id="data-atk-own">
+            <p class="data-subhead">Yours</p>
+            <div class="data-item-list" id="data-atk-list"></div>
+          </div>
+          <p class="data-subhead">Incoming</p>
+          <div class="data-stat-grid">
+            <div class="data-stat">
+              <span class="data-stat-label">Strikes suffered</span>
+              <span class="data-stat-value" id="data-atk-in-strikes">—</span>
+            </div>
+            <div class="data-stat">
+              <span class="data-stat-label">🏭 Generators lost</span>
+              <span class="data-stat-value" id="data-atk-in-gens">—</span>
+            </div>
+            ${lostRows}
+            <div class="data-stat">
+              <span class="data-stat-label">Time debuffed</span>
+              <span class="data-stat-value" id="data-atk-in-debuff">—</span>
+            </div>
+          </div>
+          <div id="data-atk-now"></div>
+        </div>`,
+  )
+}
+
+/** Fill the ⚔️ Attacks section, or hide it while attacks are not in play. */
+function updateAttacks(state: Readonly<GameState>, modeDef: ModeDefinition): void {
+  if (!document.getElementById('data-attacks')) return
+  const player = state.player
+  const own = isPanelUnlocked(player, modeDef, attackPanel.id)
+  const inPlay = own || isAttackedNow(state)
+  setSectionShown('data-attacks', inPlay)
+  if (!inPlay) return
+
+  const flavor = getModeFlavor(modeDef)
+  setHidden('data-atk-slots', !own)
+  const rows = own ? renderAttackRows(state, modeDef, flavor) : ''
+  setHidden('data-atk-own', rows === '')
+  setListHtml('data-atk-list', rows)
+  if (own) {
+    for (const kind of ATTACK_KINDS.filter((k) => isAttackKindCapped(modeDef, k))) {
+      setText(
+        `data-atk-slots-${kind}`,
+        `${attackSlotsHeld(player, modeDef, kind)} / ${attackLimit(player, modeDef, kind)}`,
+      )
+    }
+  }
+
+  const incoming = roundStats.incomingAttacks
+  setText('data-atk-in-strikes', formatNumber(readAttacksSuffered(player)))
+  setText('data-atk-in-gens', formatNumber(sumCounts(incoming.generators)))
+  for (const r of modeDef.resources) {
+    setText(`data-atk-in-lost-${r}`, formatNumber(incoming.resources[r] ?? 0))
+  }
+  setText('data-atk-in-debuff', formatSec(roundStats.incomingDebuffSec(readGameSec(player))))
+  setListHtml('data-atk-now', renderIncomingNow(state, modeDef, flavor))
+}
+
+/**
+ * A pact's status: a passive treaty is simply in force; an active one shows
+ * its timed phase when it is in one (the card's countdown), otherwise whether
+ * it can be paid for.
+ */
+function pactStatus(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  pact: PactDefinition,
+): string {
+  if (pact.kind === 'passive') return 'In force'
+  const life = pactLifecycle(state.player, pact.id)
+  if (life) return countdownSpan(life, readGameSec(state.player))
+  return readinessLabel(pactBlockReason(state.player, pact.id, modeDef))
+}
+
+/**
+ * What an active pact's windows have come to this round. The window open in
+ * the (reconciled) state rides along as `predicted`, so an activation counts
+ * the moment the card says "Active", before the server's snapshot confirms it.
+ */
+function pactTallyLine(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+  pact: PactDefinition,
+): string {
+  const open = openPactWindows(state.player, readGameSec(state.player)).find(
+    (w) => w.pact === pact.id,
+  )
+  const predicted = open
+    ? { startSec: pactWindowOpenedAtSec(open, modeDef), endSec: open.expiresAtSec }
+    : null
+  const activations = roundStats.pactActivations(pact.id, predicted)
+  if (activations === 0) return 'Not activated yet'
+  const spent: Record<string, number> = {}
+  for (const [res, amt] of Object.entries(getPactActivationCost(pact))) {
+    spent[res] = amt * activations
+  }
+  const parts = [
+    `${activations} activation${activations === 1 ? '' : 's'}`,
+    `${formatSec(roundStats.pactActiveSec(pact.id, readGameSec(state.player), predicted))} active`,
+  ]
+  const cost = formatCostSum(spent, flavor)
+  if (cost !== '') parts.push(`spent ${cost}`)
+  return parts.join(' · ')
+}
+
+/** One row per pact this player holds, active first. */
+function renderPactRows(
+  state: Readonly<GameState>,
+  modeDef: ModeDefinition,
+  flavor: ModeFlavor,
+): string {
+  const held = new Set(unlockedPacts(state.player, modeDef))
+  const defs = modeDef.pacts.filter((p) => held.has(p.id))
+  const bonusById = new Map(state.pactBonuses.map((b) => [b.pact, b]))
+  return [...defs.filter((p) => p.kind === 'active'), ...defs.filter((p) => p.kind === 'passive')]
+    .map((pact) => {
+      const worth = [
+        ...(bonusById.get(pact.id)?.modifiers ?? []).map((m) => pactWorthText(m, modeDef, flavor)),
+        ...pactDiscountTexts(state, pact.id),
+      ]
+      const details: string[] = []
+      if (worth.length > 0) details.push(worth.join(' · '))
+      else if (pact.kind === 'passive' && (pact.effects?.length ?? 0) > 0)
+        details.push('no bonus yet')
+      if (pact.kind === 'active') details.push(pactTallyLine(state, modeDef, flavor, pact))
+      const mutual = pact.mutual ? ' 🤝' : ''
+      return renderItem(
+        `${getPactIcon(flavor, pact.id)} ${getPactName(flavor, pact.id)}${mutual}`,
+        pactStatus(state, modeDef, pact),
+        details,
+      )
+    })
+    .join('')
+}
+
+/**
+ * The enemy treaties that have reached this player this round. The snapshot's
+ * own list is merged in so the panel never depends on `game.ts` having
+ * recorded it first.
+ */
+function sharedPactIds(state: Readonly<GameState>): string[] {
+  return [...new Set([...roundStats.sharedPactsSeen, ...state.opponentPacts])]
+}
+
+/**
+ * One row per enemy treaty that has reached this player this round: its
+ * window's countdown, in force (a mutual pact), or ended (a window that closed).
+ */
+function renderSharedPactRows(
+  state: Readonly<GameState>,
+  flavor: ModeFlavor,
+  reached: readonly string[],
+): string {
+  const gameSec = readGameSec(state.player)
+  return reached
+    .map((id) => {
+      const window = state.opponentPactWindows.find((w) => w.pact === id)
+      const status = window
+        ? countdownSpan({ template: 'Active for {}s', untilSec: window.expiresAtSec }, gameSec)
+        : state.opponentPacts.includes(id)
+          ? 'In force'
+          : 'Ended'
+      return renderItem(`${getPactIcon(flavor, id)} ${getPactName(flavor, id)}`, status, [])
+    })
+    .join('')
+}
+
+/** The 🤝 Pacts section skeleton (filled by {@link updatePacts}); empty for a mode without pacts. */
+function renderPactsSection(modeDef: ModeDefinition): string {
+  if (modeDef.pacts.length === 0) return ''
+  const capped = PACT_KINDS.filter((k) => isPactKindCapped(modeDef, k))
+  return renderSection(
+    'pacts',
+    '🤝 Pacts',
+    `
+        <div id="data-pacts">
+          ${renderSlotCells('data-pact-slots', 'pact', capped)}
+          <div id="data-pact-own">
+            <p class="data-subhead">Yours</p>
+            <div class="data-item-list" id="data-pact-list"></div>
+          </div>
+          <div id="data-pact-shared">
+            <p class="data-subhead">From the enemy</p>
+            <div class="data-item-list" id="data-pact-shared-list"></div>
+            <div class="data-stat-grid">
+              <div class="data-stat">
+                <span class="data-stat-label">Auto-clicks received</span>
+                <span class="data-stat-value" id="data-pact-autoclicks">—</span>
+              </div>
+            </div>
+          </div>
+        </div>`,
+  )
+}
+
+/** Fill the 🤝 Pacts section, or hide it while pacts are not in play. */
+function updatePacts(state: Readonly<GameState>, modeDef: ModeDefinition): void {
+  if (!document.getElementById('data-pacts')) return
+  const player = state.player
+  const own = isPanelUnlocked(player, modeDef, internationalRelationshipPanel.id)
+  const reached = sharedPactIds(state)
+  const inPlay = own || reached.length > 0
+  setSectionShown('data-pacts', inPlay)
+  if (!inPlay) return
+
+  const flavor = getModeFlavor(modeDef)
+  setHidden('data-pact-slots', !own)
+  const rows = own ? renderPactRows(state, modeDef, flavor) : ''
+  setHidden('data-pact-own', rows === '')
+  setListHtml('data-pact-list', rows)
+  if (own) {
+    for (const kind of PACT_KINDS.filter((k) => isPactKindCapped(modeDef, k))) {
+      setText(
+        `data-pact-slots-${kind}`,
+        `${pactSlotsHeld(player, modeDef, kind)} / ${pactLimit(player, modeDef, kind)}`,
+      )
+    }
+  }
+
+  setHidden('data-pact-shared', reached.length === 0)
+  setListHtml('data-pact-shared-list', renderSharedPactRows(state, flavor, reached))
+  setText('data-pact-autoclicks', `+${formatDecimal(state.incomingAutoClicksPerSec, 1)}/s`)
 }
 
 /** One resource's production + source-breakdown section (stable IDs, filled by update()). */
@@ -459,6 +989,8 @@ function renderSkeleton(
       ${bonuses}
       ${clicking}
       ${highlight}
+      ${renderAttacksSection(modeDef, flavor)}
+      ${renderPactsSection(modeDef)}
       ${inventory}
     </div>
   `
@@ -501,13 +1033,9 @@ function updateNumbers(state: Readonly<GameState>): void {
 
   // Live bonuses. The whole list is re-rendered when it changes, and the section
   // hides itself while nothing dynamic is active (early round, none owned).
-  const list = document.getElementById('data-bonus-list')
-  if (list) {
-    const rows = renderBonusRows(state, modeDef, getModeFlavor(modeDef))
-    if (rows !== list.innerHTML) list.innerHTML = rows
-    const section = list.closest<HTMLElement>('.data-section')
-    if (section) section.style.display = rows === '' ? 'none' : ''
-  }
+  const bonusRows = renderBonusRows(state, modeDef, getModeFlavor(modeDef))
+  setListHtml('data-bonus-list', bonusRows)
+  setSectionShown('data-bonus-list', bonusRows !== '')
 
   // Clicking (per-click income folds in debuffs, matching the credit applied on click).
   if (modeDef.clicksEnabled) {
@@ -578,6 +1106,9 @@ function updateNumbers(state: Readonly<GameState>): void {
   setText('data-inv-score', formatNumber(state.player.score))
   setText('data-inv-generators', formatNumber(sumCounts(state.player.generators)))
   setText('data-inv-upgrades', formatNumber(sumCounts(state.player.upgrades)))
+
+  updateAttacks(state, modeDef)
+  updatePacts(state, modeDef)
 }
 
 /**
@@ -643,6 +1174,7 @@ export const dataPanel: Panel = {
     // Race-to-buy hides scores entirely (the opponent's is never revealed), so
     // the score stat is meaningless there — omit it.
     const showScore = state.goal?.type !== 'buy-upgrade'
+    listHtml.clear()
     container.innerHTML = renderSkeleton(state, modeDef, getModeFlavor(modeDef), showScore)
     updateNumbers(state)
   },
