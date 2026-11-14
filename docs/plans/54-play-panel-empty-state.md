@@ -19,25 +19,28 @@ heading, one line of guidance, and a grid of **opening cards**, one per tree roo
 A secondary link switches to the Upgrade Tree tab.
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│  Choose your opening                                         │
-│  Every strategy starts in the Upgrade Tree. Pick a branch —  │
-│  you can expand into the others anytime.                     │
-│                                                              │
-│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐       │
-│  │ 🌱 Axe Handling│ │ 🌳 Work Optim. │ │ ⚙️ First Gen.  │       │
-│  │ +1 base 🪵/sec │ │ ×1.1 all prod.│ │ Unlock Genera…│       │
-│  │        🪵 10   │ │  🪵 50  🍺 50  │ │        🪵 50   │       │
-│  └───────────────┘ └───────────────┘ └───────────────┘       │
-│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐  …    │
-│  │ 🖱️ Click       │ │ 💥 Warfare     │ │ 🌍 Diplomacy   │       │
-│  │ Earn 1 per c… │ │ Unlock Attack │ │ Unlock Relat… │       │
-│  │        🪵 50   │ │        🪵 50   │ │        🪵 50   │       │
-│  └───────────────┘ └───────────────┘ └───────────────┘       │
-│                                                              │
-│                         Open the Upgrade Tree  (Ctrl+2) →    │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│            Choose your opening            │
+│  Every strategy starts in the Upgrade     │
+│  Tree. Pick a branch. You can expand      │
+│  into the others anytime.                 │
+│                                           │
+│  ┌──────────────────┐ ┌──────────────────┐  │
+│  │ 🌱 Axe Handling   │ │ 🌳 Work Optimiz…  │  │
+│  │ +1 base 🪵/sec    │ │ ×1.1 production  │  │
+│  │ per level.       │ │ of all resources │  │
+│  │ 10 🪵             │ │ 50 🪵 50 🍺        │  │
+│  └──────────────────┘ └──────────────────┘  │
+│  … First Generation, Click, Warfare,      │
+│    Diplomacy, First Spy (2 per row)       │
+│                                           │
+│       Open the Upgrade Tree → Ctrl+2      │
+└────────────────────────────────────────────┘
 ```
+
+Tiles are outline-style (transparent fill, border, accent on hover) to match the
+game's other secondary controls, in an `auto-fill` grid: two columns in the
+~360px game column, one below ~330px.
 
 ### Why cards that open the detail popup (not navigate, not one-click buy)
 
@@ -77,7 +80,7 @@ Blocked cards are still shown (🌳 needs 50 🍺 and the player starts with 20)
 A card is dimmed when `canBuy` is false. That covers both "can't afford" and an
 enemy purchase lock, and `update()` toggles it each tick. The popup already
 explains the reason. The tree's `.too-expensive` rule is scoped to
-`.upgrade-btn.tree-node`, so the cards get their own one-line dim rule rather
+`.upgrade-btn.tree-node`, so the cards get their own `.blocked` dim rule rather
 than borrowing it.
 
 ### Copy
@@ -92,9 +95,9 @@ than borrowing it.
 The copy is mode-agnostic: no "wood"/"realm", so it works for any future
 `shared/trees/*.json` mode. Card name, icon, and description come from flavor
 (`getUpgradeName`/`getUpgradeIcon`/`getUpgradeDescription`). Idler names embed
-the icon (`"🌱 Axe Handling"`), so icon + name doubles the emoji. The detail popup
-and `describePurchaseTarget` already do the same thing. The card matches the
-popup, and the flavor quirk stays out of scope.
+the icon (`"🌱 Axe Handling"`). The detail popup already stripped that leading
+duplicate; the stripping moved into a shared `upgradeTitle` helper that both the
+popup and the cards use.
 
 ## Data: identifying tree roots
 
@@ -112,22 +115,28 @@ optional readonly field.
   every `UpgradeDefinition` (more surface, layout leaking into gameplay types) or
   re-parsing the tree on the client (duplicate logic).
 - Optional rather than required, because hand-built `ModeDefinition`s in tests
-  and `_stub-mode.ts` have no tree. When it's absent, the empty state falls back
-  to just the guidance text and the tree link, with no cards.
+  and `_stub-mode.ts` have no tree. When it's absent (`?? []`), the empty state
+  shows just the guidance text and the tree link, with no cards.
 
 ## Files touched
 
-| File                                                                           | Change                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [shared/src/modes/types.ts](../../shared/src/modes/types.ts)                   | `ModeDefinition.rootUpgradeIds?: readonly string[]`                                                                                                                                                                                                                                                                                                                                                     |
-| [shared/src/tree/codec.ts](../../shared/src/tree/codec.ts)                     | populate it in `toModeDefinition`                                                                                                                                                                                                                                                                                                                                                                       |
-| [client/src/ui/panels/play-panel.ts](../../client/src/ui/panels/play-panel.ts) | `renderOpening(state)`. `bind()` wires the cards to `openUpgradeDetail(id, { host: <.play-opening> })` and the link to `switchToPanel(UPGRADE_TREE_PANEL_INDEX)`. `update()` calls `updateUpgradeDetail(state)`, toggles card dimming, re-keys the card set, and inject/removes the section on the gate flip. When it removes the section, it also calls `resetUpgradeDetail()`.                        |
-| [client/src/ui/panels.ts](../../client/src/ui/panels.ts)                       | `renderActivePanel` calls `resetUpgradeDetail()` before rendering. Any panel render wipes a popup mounted in the old content, so the reset belongs at that one choke point. This also fixes an existing stale state: today, Tree (popup open) → Ctrl+0 leaves `openId` set, and the first Escape is swallowed by a popup that no longer exists. Drop the tree panel's own call if it becomes redundant. |
-| [client/src/ui/mode-ui.ts](../../client/src/ui/mode-ui.ts)                     | use `UPGRADE_TREE_PANEL_INDEX = 1` (exported from `panels.ts`, since `mode-ui` imports the Play panel and would form a cycle) where the tree slot is pushed. The tree is always slot 1 when a mode has upgrades, and cards only render when it does. That makes a lookup-by-id helper unnecessary.                                                                                                      |
-| [client/src/style.css](../../client/src/style.css)                             | `.play-opening` (`position: relative`, so it hosts the popup's `absolute; inset: 0` backdrop). `.panel-container` is an unpositioned scroller and can't be the host. Also the heading, the body, an `auto-fill minmax(10rem, 1fr)` grid of compact outline tiles (transparent fill, `--border` outline, `--accent` on hover, one-line names), and a dim state. Existing tokens only.                    |
-| [shared/trees/idler.json](../../shared/trees/idler.json)                       | Shorten ⚙️ First Generation's description to fit a tile: _Unlock the 🪵 and 🍺 generators._                                                                                                                                                                                                                                                                                                             |
+| File                                                                                           | Change                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [shared/src/modes/types.ts](../../shared/src/modes/types.ts)                                   | `ModeDefinition.rootUpgradeIds?: readonly string[]`                                                                                                                                                                                                                                                                                                                                                |
+| [shared/src/tree/codec.ts](../../shared/src/tree/codec.ts)                                     | populate it in `toModeDefinition`                                                                                                                                                                                                                                                                                                                                                                  |
+| [client/src/ui/panels/play-panel.ts](../../client/src/ui/panels/play-panel.ts)                 | `renderOpening(state)`. `bind()` wires the cards to `openUpgradeDetail(id, { host: <.play-opening> })` and the link to `switchToPanel(UPGRADE_TREE_PANEL_INDEX)`. `update()` calls `updateUpgradeDetail(state)`, toggles card dimming, re-keys the card set, and inject/removes the section on the gate flip. When it removes the section, it first calls `closeUpgradeDetail()`.                  |
+| [client/src/ui/panels.ts](../../client/src/ui/panels.ts)                                       | `renderActivePanel` calls `resetUpgradeDetail()` before rendering. Any panel render wipes a popup mounted in the old content, so the reset belongs at that one choke point. This also fixes an existing stale state: today, Tree (popup open) → Ctrl+0 leaves `openId` set, and the first Escape is swallowed by a popup that no longer exists. The tree panel's own call is dropped as redundant. |
+| [client/src/ui/mode-ui.ts](../../client/src/ui/mode-ui.ts)                                     | use `UPGRADE_TREE_PANEL_INDEX = 1` (exported from `panels.ts`, since `mode-ui` imports the Play panel and would form a cycle) where the tree slot is pushed. The tree is always slot 1 when a mode has upgrades, and cards only render when it does. That makes a lookup-by-id helper unnecessary.                                                                                                 |
+| [client/src/style.css](../../client/src/style.css)                                             | `.play-opening` (`position: relative`, so it hosts the popup's `absolute; inset: 0` backdrop). `.panel-container` is an unpositioned scroller and can't be the host. Also the heading, the body, an `auto-fill minmax(10rem, 1fr)` grid of compact outline tiles (transparent fill, `--border` outline, `--accent` on hover, one-line names), and a dim state. Existing tokens only.               |
+| [client/src/ui/helpers.ts](../../client/src/ui/helpers.ts)                                     | `upgradeTitle(name, icon)`: the popup's leading-icon stripping, now shared with the cards.                                                                                                                                                                                                                                                                                                         |
+| [client/src/ui/upgrade-detail.ts](../../client/src/ui/upgrade-detail.ts)                       | use `upgradeTitle`.                                                                                                                                                                                                                                                                                                                                                                                |
+| [client/src/ui/panels/upgrade-tree-panel.ts](../../client/src/ui/panels/upgrade-tree-panel.ts) | drop its `resetUpgradeDetail()` call (now in `renderActivePanel`).                                                                                                                                                                                                                                                                                                                                 |
+| [client/src/ui/helpers.ts](../../client/src/ui/helpers.ts)                                     | `upgradeTitle(name, icon)`: the popup's leading-icon stripping, now shared with the cards.                                                                                                                                                                                                                                                                                                         |
+| [client/src/ui/upgrade-detail.ts](../../client/src/ui/upgrade-detail.ts)                       | use `upgradeTitle`.                                                                                                                                                                                                                                                                                                                                                                                |
+| [client/src/ui/panels/upgrade-tree-panel.ts](../../client/src/ui/panels/upgrade-tree-panel.ts) | drop its `resetUpgradeDetail()` call (now in `renderActivePanel`).                                                                                                                                                                                                                                                                                                                                 |
+| [shared/trees/idler.json](../../shared/trees/idler.json)                                       | Shorten ⚙️ First Generation's description to fit a tile: _Unlock the 🪵 and 🍺 generators._                                                                                                                                                                                                                                                                                                        |
 
-No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
+`openUpgradeDetail` already takes a `host`, so the popup needs no new API.
 
 ## Tests
 
@@ -135,10 +144,11 @@ No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
   order for the idler tree, and children are not included.
 - **Client DOM unit** (`play-panel.dom.test.ts`, new, since the panel has no test
   today):
-  - fresh state → empty state with one card per eligible root. Goal excluded,
-    `comingSoon` excluded, maxed root excluded.
-  - unaffordable root carries `.too-expensive`. `update()` clears it once
-    affordable.
+  - fresh state → empty state with one card per eligible root, in tree order.
+    Goal excluded, maxed root excluded. (`comingSoon` is filtered too but
+    untested: no idler root uses it.)
+  - unaffordable root carries `.blocked`. `update()` clears it once affordable,
+    keeping the same card element.
   - unlocking Click via `update()` removes the empty state and injects the click
     cards, and the reverse.
   - card click opens the detail popup inside `.play-opening` for that id. The link
@@ -150,7 +160,7 @@ No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
     `update()`.
   - `renderActivePanel` with a popup open → `isUpgradeDetailOpen()` is false
     afterwards (`panels.ts` reset).
-  - mode without `rootUpgradeIds` → text + link, no cards.
+  - Not written: mode without `rootUpgradeIds`. The fallback is a single `?? []`.
 - **e2e:** none. Nothing here crosses the client/server boundary that existing
   purchase e2e doesn't already cover. Check that no e2e asserts the Play panel is
   blank at start.
