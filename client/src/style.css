@@ -1070,6 +1070,113 @@ kbd {
   width: 100%;
 }
 
+/* Play panel empty state. Positioned so it can host the upgrade detail popup,
+   whose backdrop is `absolute; inset: 0`. */
+.play-opening {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 40rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.play-opening-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.play-opening-body {
+  margin: 0 0 0.25rem;
+  max-width: 28rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.opening-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.opening-card {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr auto;
+  grid-template-areas:
+    'icon name cost'
+    'icon desc desc';
+  align-items: center;
+  gap: 0.1rem 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.opening-card:hover {
+  border-color: var(--accent);
+}
+
+.opening-card.blocked {
+  opacity: 0.5;
+}
+
+.opening-card-icon {
+  grid-area: icon;
+  font-size: 1.35rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.opening-card-name {
+  grid-area: name;
+  font-weight: 600;
+}
+
+.opening-card-desc {
+  grid-area: desc;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+.opening-card-cost {
+  grid-area: cost;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.opening-tree-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.opening-tree-link:hover {
+  text-decoration: underline;
+}
+
 .panel-placeholder {
   display: flex;
   flex-direction: column;

@@ -225,6 +225,11 @@ export function describePurchaseTarget(
     : `${getGeneratorIcon(flavor, id)} ${getGeneratorName(flavor, id)}`
 }
 
+/** An upgrade's name without a leading copy of its icon, for headers that show the icon beside it. */
+export function upgradeTitle(name: string, icon: string): string {
+  return name.startsWith(icon) ? name.slice(icon.length).trim() : name
+}
+
 /**
  * A factor as a whole-or-one-decimal percentage change.
  *

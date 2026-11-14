@@ -1,6 +1,7 @@
 import type { GameMode } from '@game/shared'
 import { getModeDefinition, isPanelUnlocked } from '@game/shared'
 import type { PanelSlot } from './panels.js'
+import { UPGRADE_TREE_PANEL_INDEX } from './panels.js'
 import { playPanel } from './panels/play-panel.js'
 import { dataPanel } from './panels/data-panel.js'
 import { generatorsPanel } from './panels/generators-panel.js'
@@ -46,7 +47,7 @@ export function getModeUI(mode: GameMode): ModeUI {
   const panels: PanelSlot[] = [{ index: 0, panel: playPanel }]
 
   if (modeDef.upgrades.length > 0) {
-    panels.push({ index: panels.length, panel: upgradeTreePanel })
+    panels.push({ index: UPGRADE_TREE_PANEL_INDEX, panel: upgradeTreePanel })
   }
 
   // Gated panels, in tab order — each locked until a `panelUnlock` upgrade

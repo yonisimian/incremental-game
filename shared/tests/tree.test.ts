@@ -100,6 +100,24 @@ describe('tree codec — purchaseLimit sentinel', () => {
   })
 })
 
+// ─── Root ids ────────────────────────────────────────────────────────
+
+describe('tree codec — rootUpgradeIds', () => {
+  it('lists the top-level nodes in authoring order, not their layout children', () => {
+    const tree = minimalTree()
+    const node = (id: string, children?: TreeFile['upgrades']) => ({
+      id,
+      cost: { r0: { baseCost: 1 } },
+      purchaseLimit: 1,
+      offset: { x: 0, y: 0 },
+      ...(children ? { children } : {}),
+    })
+    tree.upgrades = [node('b', [node('child')]), node('a')]
+    tree.flavors[0].upgrades = ['a', 'b', 'child'].map(flavorFor)
+    expect(toModeDefinition(tree).rootUpgradeIds).toEqual(['b', 'a'])
+  })
+})
+
 // ─── Versioning ──────────────────────────────────────────────────────
 
 describe('tree codec — versioning', () => {

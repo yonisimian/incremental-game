@@ -8,7 +8,7 @@ import {
   unlockedUpgradeIds,
   visibleUpgradeIds,
 } from '../tree-visibility.js'
-import { openUpgradeDetail, updateUpgradeDetail, resetUpgradeDetail } from '../upgrade-detail.js'
+import { openUpgradeDetail, updateUpgradeDetail } from '../upgrade-detail.js'
 import { centeredPanZoom, type PanZoomHandle, type PanZoomState } from '../pan-zoom.js'
 import { MIN_ZOOM, mountTreeView } from '../tree-view.js'
 
@@ -131,9 +131,7 @@ export const upgradeTreePanel: Panel = {
     }
 
     // 3. Build fresh DOM and wire pan/zoom, seeded from saved state or
-    //    centered defaults. Re-rendering wipes the container (and any open
-    //    detail popup mounted inside the viewport), so clear popup state to match.
-    resetUpgradeDetail()
+    //    centered defaults.
     const tree = renderVisibleTree(state, newMatch)
     prevHtml = tree.edgesSvg + tree.nodes
     panZoomHandle = mountTreeView(container, tree, {

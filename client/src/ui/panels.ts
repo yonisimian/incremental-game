@@ -10,6 +10,7 @@
 
 import type { GameState } from '../game.js'
 import { getState } from '../game.js'
+import { resetUpgradeDetail } from './upgrade-detail.js'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -34,6 +35,9 @@ export interface Panel {
 // ─── Registry ────────────────────────────────────────────────────────
 
 const TOTAL_SLOTS = 10
+
+/** The Upgrade Tree's slot: right after Play in every mode that has upgrades. */
+export const UPGRADE_TREE_PANEL_INDEX = 1
 
 /** A registered slot: its panel plus an optional live unlock gate. */
 interface RegisteredSlot {
@@ -170,6 +174,8 @@ export function renderActivePanel(state: Readonly<GameState>): void {
   if (!container) return
 
   const panel = slots[activeIndex]?.panel
+  // Rendering wipes the old content, including any detail popup mounted in it.
+  resetUpgradeDetail()
   if (panel) {
     panel.render(container, state)
     panel.bind?.(state)

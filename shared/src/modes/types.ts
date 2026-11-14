@@ -101,6 +101,8 @@ export interface ModeDefinition {
   readonly scoreResource: string
   /** Upgrade definitions for this mode (with modifier data). */
   readonly upgrades: readonly UpgradeDefinition[]
+  /** Ids of the authoring tree's top-level nodes, in authoring order; absent for hand-built modes. */
+  readonly rootUpgradeIds?: readonly string[]
   /** Available win conditions for this mode. */
   readonly goals: readonly Goal[]
   /** Whether manual clicks are allowed. */

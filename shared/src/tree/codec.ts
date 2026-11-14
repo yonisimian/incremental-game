@@ -216,6 +216,7 @@ export function toModeDefinition(tree: TreeFile, name = 'tree'): ModeDefinition 
     goals: tree.goals,
     flavors: tree.flavors,
     upgrades: flattenUpgradeTree(tree.upgrades.map(toRuntimeNode)),
+    rootUpgradeIds: tree.upgrades.map((u) => u.id),
     // The file's `startingEffects` are the runtime mode-level `effects` — one
     // channel under two names because the runtime field sits alongside each
     // upgrade's and attack's `effects`. Assigned only when non-empty so the

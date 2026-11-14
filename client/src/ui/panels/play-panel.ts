@@ -1,19 +1,26 @@
 import type { Panel } from '../panels.js'
+import { switchToPanel, UPGRADE_TREE_PANEL_INDEX } from '../panels.js'
 import type { GameState } from '../../game.js'
 import { doClick, toggleHighlight, getClickTarget } from '../../game.js'
 import { formatNumber } from '../format-number.js'
 import { counterAttr } from '../counters.js'
+import { canBuy, escapeAttr, formatUpgradeCost, upgradeTitle } from '../helpers.js'
+import { closeUpgradeDetail, openUpgradeDetail, updateUpgradeDetail } from '../upgrade-detail.js'
 import {
   getModeDefinition,
   getModeFlavor,
   getResourceIcon,
   getResourceName,
+  getUpgradeDescription,
+  getUpgradeIcon,
+  getUpgradeName,
   isClickUnlocked,
   isHighlightActive,
   isHighlightBatteryActive,
+  isMaxed,
   readHighlight,
 } from '@game/shared'
-import type { ModeDefinition } from '@game/shared'
+import type { ModeDefinition, ModeFlavor, PlayerState, UpgradeDefinition } from '@game/shared'
 import { BATTERY_BAR_ID, renderBatteryBar, syncBatteryBar } from './battery-bar.js'
 
 // ─── Play Panel ────────────────────────────────────────────────
@@ -85,8 +92,106 @@ function renderIdlerContent(state: Readonly<GameState>): string {
       ${renderBatteryBar(state)}
       ${renderCurrencyCards(state)}
       ${renderClickButtons(state)}
+      ${renderOpening(state)}
     </div>
   `
+}
+
+// ─── Opening (empty state) ──────────────────────────────────────────────
+//
+// Until something unlocks the panel's own content, point the player at the
+// tree: one card per tree root, each opening the same detail popup the tree uses.
+
+const OPENING_ID = 'play-opening'
+const OPENING_CARDS_ID = 'opening-cards'
+
+function showsOpening(player: Readonly<PlayerState>, modeDef: ModeDefinition): boolean {
+  return (
+    modeDef.upgrades.length > 0 &&
+    !isClickUnlocked(player, modeDef) &&
+    !isHighlightActive(player, modeDef) &&
+    !isHighlightBatteryActive(player, modeDef)
+  )
+}
+
+function openingUpgrades(state: Readonly<GameState>): UpgradeDefinition[] {
+  const ids = getModeDefinition(state.mode!).rootUpgradeIds ?? []
+  return ids.flatMap((id) => {
+    const u = state.upgrades.find((x) => x.id === id)
+    if (!u || u.goalType || u.comingSoon) return []
+    return isMaxed(u, state.player.upgrades[id] ?? 0) ? [] : [u]
+  })
+}
+
+function renderOpeningCard(
+  state: Readonly<GameState>,
+  flavor: ModeFlavor,
+  u: UpgradeDefinition,
+): string {
+  const icon = getUpgradeIcon(flavor, u.id)
+  return `
+    <button class="opening-card${canBuy(state, u) ? '' : ' blocked'}" data-upgrade="${u.id}">
+      <span class="opening-card-icon" aria-hidden="true">${icon}</span>
+      <span class="opening-card-name">${escapeAttr(upgradeTitle(getUpgradeName(flavor, u.id), icon))}</span>
+      <span class="opening-card-desc">${escapeAttr(getUpgradeDescription(flavor, u.id))}</span>
+      <span class="opening-card-cost">${escapeAttr(formatUpgradeCost(state, u, flavor))}</span>
+    </button>`
+}
+
+function renderOpeningCards(
+  state: Readonly<GameState>,
+  list: readonly UpgradeDefinition[],
+): string {
+  const flavor = getModeFlavor(getModeDefinition(state.mode!))
+  return list.map((u) => renderOpeningCard(state, flavor, u)).join('')
+}
+
+function renderOpening(state: Readonly<GameState>): string {
+  if (!showsOpening(state.player, getModeDefinition(state.mode!))) return ''
+  const list = openingUpgrades(state)
+  return `
+    <section class="play-opening" id="${OPENING_ID}" aria-labelledby="play-opening-title">
+      <h2 class="play-opening-title" id="play-opening-title">Choose your opening</h2>
+      <p class="play-opening-body">Every strategy starts in the Upgrade Tree. Pick a branch. You can expand into the others anytime.</p>
+      <div class="opening-cards" id="${OPENING_CARDS_ID}" data-ids="${list.map((u) => u.id).join(' ')}">
+        ${renderOpeningCards(state, list)}
+      </div>
+      <button class="opening-tree-link" id="opening-tree-link">
+        Open the Upgrade Tree →<kbd aria-hidden="true">Ctrl+${UPGRADE_TREE_PANEL_INDEX + 1}</kbd>
+      </button>
+    </section>
+  `
+}
+
+function bindOpening(): void {
+  const section = document.getElementById(OPENING_ID)
+  // Delegated, so a rebuilt card grid needs no rebinding.
+  section?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    const card = target.closest<HTMLElement>('.opening-card')
+    if (card?.dataset.upgrade) openUpgradeDetail(card.dataset.upgrade, { host: section })
+    else if (target.closest('#opening-tree-link')) switchToPanel(UPGRADE_TREE_PANEL_INDEX)
+  })
+}
+
+function syncOpening(state: Readonly<GameState>): void {
+  const grid = document.getElementById(OPENING_CARDS_ID)
+  if (!grid) return
+  const list = openingUpgrades(state)
+  const ids = list.map((u) => u.id).join(' ')
+  if (grid.dataset.ids !== ids) {
+    grid.dataset.ids = ids
+    grid.innerHTML = renderOpeningCards(state, list)
+    return
+  }
+  const flavor = getModeFlavor(getModeDefinition(state.mode!))
+  for (const u of list) {
+    const card = grid.querySelector(`[data-upgrade="${u.id}"]`)
+    card?.classList.toggle('blocked', !canBuy(state, u))
+    const cost = card?.querySelector('.opening-card-cost')
+    const label = formatUpgradeCost(state, u, flavor)
+    if (cost && cost.textContent !== label) cost.textContent = label
+  }
 }
 
 /**
@@ -124,6 +229,7 @@ export const playPanel: Panel = {
     const modeDef = getModeDefinition(state.mode!)
     bindCurrencyCards(modeDef)
     bindClickCards(modeDef)
+    bindOpening()
   },
 
   update(state) {
@@ -190,5 +296,20 @@ export const playPanel: Panel = {
         if (badge) (badge as HTMLElement).hidden = key !== clickTarget
       }
     }
+
+    // Opening: last in the panel, and only while nothing above it is unlocked.
+    const opening = document.getElementById(OPENING_ID)
+    const showOpening = showsOpening(state.player, modeDef)
+    if (showOpening && !opening) {
+      root.insertAdjacentHTML('beforeend', renderOpening(state))
+      bindOpening()
+    } else if (!showOpening && opening) {
+      // The popup is mounted inside the opening; close it before it goes.
+      closeUpgradeDetail()
+      opening.remove()
+    } else if (opening) {
+      syncOpening(state)
+    }
+    updateUpgradeDetail(state)
   },
 }
