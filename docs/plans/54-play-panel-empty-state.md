@@ -124,7 +124,8 @@ optional readonly field.
 | [client/src/ui/panels/play-panel.ts](../../client/src/ui/panels/play-panel.ts) | `renderOpening(state)`. `bind()` wires the cards to `openUpgradeDetail(id, { host: <.play-opening> })` and the link to `switchToPanel(UPGRADE_TREE_PANEL_INDEX)`. `update()` calls `updateUpgradeDetail(state)`, toggles card dimming, re-keys the card set, and inject/removes the section on the gate flip. When it removes the section, it also calls `resetUpgradeDetail()`.                        |
 | [client/src/ui/panels.ts](../../client/src/ui/panels.ts)                       | `renderActivePanel` calls `resetUpgradeDetail()` before rendering. Any panel render wipes a popup mounted in the old content, so the reset belongs at that one choke point. This also fixes an existing stale state: today, Tree (popup open) → Ctrl+0 leaves `openId` set, and the first Escape is swallowed by a popup that no longer exists. Drop the tree panel's own call if it becomes redundant. |
 | [client/src/ui/mode-ui.ts](../../client/src/ui/mode-ui.ts)                     | use `UPGRADE_TREE_PANEL_INDEX = 1` (exported from `panels.ts`, since `mode-ui` imports the Play panel and would form a cycle) where the tree slot is pushed. The tree is always slot 1 when a mode has upgrades, and cards only render when it does. That makes a lookup-by-id helper unnecessary.                                                                                                      |
-| [client/src/style.css](../../client/src/style.css)                             | `.play-opening` (`position: relative`, so it hosts the popup's `absolute; inset: 0` backdrop). `.panel-container` is an unpositioned scroller and can't be the host. Also the heading, the body, an `auto-fill minmax(~11rem, 1fr)` card grid, card hover/focus ring and dim state using existing tokens (`--surface`, `--border`, `--accent`, `--text-dim`). No new tokens.                            |
+| [client/src/style.css](../../client/src/style.css)                             | `.play-opening` (`position: relative`, so it hosts the popup's `absolute; inset: 0` backdrop). `.panel-container` is an unpositioned scroller and can't be the host. Also the heading, the body, an `auto-fill minmax(10rem, 1fr)` grid of compact outline tiles (transparent fill, `--border` outline, `--accent` on hover, one-line names), and a dim state. Existing tokens only.                    |
+| [shared/trees/idler.json](../../shared/trees/idler.json)                       | Shorten ⚙️ First Generation's description to fit a tile: _Unlock the 🪵 and 🍺 generators._                                                                                                                                                                                                                                                                                                             |
 
 No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
 
@@ -163,6 +164,17 @@ No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
 - No win-condition banner. Tempting ("Win by owning 👑 or the highest Total"), but
   the goal is per-room (lobby goal picker) and belongs in its own change.
 
+## Follow-ups
+
+- **Per-tree colours.** Tint each opening tile (border/icon accent) with its
+  branch's colour, e.g. red for Warfare. No tree has a colour yet; add it when
+  per-tree colours land, reading the same field the tree panel uses.
+- **Categories branch (`feat/upgrade-category-subtrees`).** It replaces
+  `tree.upgrades` with `categories[].upgrades`, so the `rootUpgradeIds` line in
+  `toModeDefinition` must flatten the categories' top-level upgrades on whichever
+  branch merges second. Category flavor (name + icon) is also the natural home
+  for the colour above.
+
 ## Decisions
 
 1. Card action: open the existing detail popup (C).
@@ -171,7 +183,7 @@ No change to `upgrade-detail.ts`: `openUpgradeDetail` already takes a `host`.
 
 ## Risks to check during implementation
 
-- **Mobile:** 7 cards at ~11rem make 2 columns × 4 rows on a 412px-wide phone.
+- **Mobile:** 7 cards at 10rem make 2 columns × 4 rows on a 412px-wide phone.
   The popup centres over `.play-opening`, the block the player just tapped, so
   it's on screen even if the panel scrolled. Eyeball portrait and landscape once.
   MOB-02 only checks Settings and isn't affected.
