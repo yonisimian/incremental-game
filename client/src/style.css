@@ -1123,17 +1123,21 @@ kbd {
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color 0.15s,
-    opacity 0.15s;
+  transition: border-color 0.15s;
 }
 
 .opening-card:hover {
   border-color: var(--accent);
 }
 
-.opening-card.blocked {
-  opacity: 0.5;
+/* Dim the icon and recolor the text, NOT opacity: faded text fails contrast. */
+.opening-card.blocked .opening-card-icon {
+  opacity: 0.4;
+}
+
+.opening-card.blocked .opening-card-name,
+.opening-card.blocked .opening-card-cost {
+  color: var(--text-dim);
 }
 
 .opening-card-icon {
