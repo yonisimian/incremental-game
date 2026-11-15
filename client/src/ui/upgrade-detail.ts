@@ -11,7 +11,13 @@ import {
   readGameSec,
   type UpgradeDefinition,
 } from '@game/shared'
-import { formatUpgradeCost, escapeAttr, purchaseLockCountdown, treeGateReason } from './helpers.js'
+import {
+  formatUpgradeCost,
+  escapeAttr,
+  purchaseLockCountdown,
+  treeGateReason,
+  upgradeTitle,
+} from './helpers.js'
 import { countdownAttrs } from './counters.js'
 import { formatCountdown } from './format-number.js'
 import type { Countdown } from './format-number.js'
@@ -101,9 +107,7 @@ function computeView(
   const icon = getUpgradeIcon(flavor, u.id)
 
   return {
-    // The node already shows the icon; strip a duplicate leading glyph from the
-    // header name so it isn't rendered twice next to the hero icon.
-    name: name.startsWith(icon) ? name.slice(icon.length).trim() : name,
+    name: upgradeTitle(name, icon),
     icon,
     costLabel,
     levelLabel,
